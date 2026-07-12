@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma.service';
@@ -11,14 +11,35 @@ import { DashboardController } from './dashboard';
 import { ImportController } from './import';
 import { RolesGuard } from './common';
 import { PublicController } from './public';
+import { SettingsController } from './settings';
+import { ExportsController } from './exports';
+import { requireJwtSecret } from './environment';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PassportModule,
-    JwtModule.register({ global: true, secret: process.env.JWT_SECRET || 'change-this-secret-in-production', signOptions: { expiresIn: '8h' } }),
+    JwtModule.registerAsync({
+      global: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: requireJwtSecret(config.get<string>('JWT_SECRET')),
+        signOptions: { expiresIn: '8h' },
+      }),
+    }),
   ],
-  controllers: [PublicController, AuthController, DepartmentsController, UsersController, TargetsController, DashboardController, ImportController],
+  controllers: [
+    PublicController,
+    AuthController,
+    DepartmentsController,
+    UsersController,
+    TargetsController,
+    DashboardController,
+    ImportController,
+    ExportsController,
+    SettingsController,
+  ],
   providers: [PrismaService, JwtStrategy, RolesGuard],
 })
 export class AppModule {}

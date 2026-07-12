@@ -6,4 +6,5 @@ uploads
 .DS_Store
 work/
 outputs/
+backups/
 *.tsbuildinfo

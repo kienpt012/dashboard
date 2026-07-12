@@ -1,4 +1,148 @@
 import { Download, FileBarChart, Filter, Printer, TrendingUp } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';import { api } from '../api';import { PageHead, Spinner } from '../components/UI';import { statusMeta } from '../types';
-export default function Reports(){const [rows,setRows]=useState<any[]>([]);const [loading,setLoading]=useState(true);const [dep,setDep]=useState('');useEffect(()=>{api('/dashboard/report?year=2026').then(setRows).finally(()=>setLoading(false))},[]);const deps=[...new Set(rows.map(r=>r.department))];const view=useMemo(()=>rows.filter(r=>!dep||r.department===dep),[rows,dep]);const avg=view.length?Math.round(view.reduce((s,r)=>s+r.progress,0)/view.length):0;async function exportExcel(){const {default:ExcelJS}=await import('exceljs');const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('BaoCao');ws.columns=[{header:'Mã chỉ tiêu',key:'code',width:18},{header:'Tên chỉ tiêu',key:'title',width:42},{header:'Phòng ban',key:'department',width:34},{header:'Mục tiêu',key:'target',width:14},{header:'Thực hiện',key:'current',width:14},{header:'Đơn vị',key:'unit',width:12},{header:'Tiến độ (%)',key:'progress',width:14},{header:'Trạng thái',key:'status',width:18},{header:'Hạn hoàn thành',key:'dueDate',width:18}];view.forEach(r=>ws.addRow({code:r.code,title:r.title,department:r.department,target:r.target,current:r.current,unit:r.unit,progress:r.progress,status:statusMeta[r.status]?.label,dueDate:new Date(r.dueDate).toLocaleDateString('vi-VN')}));ws.getRow(1).font={bold:true};ws.autoFilter={from:'A1',to:'I1'};const blob=new Blob([await wb.xlsx.writeBuffer() as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='Bao_cao_chi_tieu_Tan_Hung_2026.xlsx';link.click();URL.revokeObjectURL(link.href)}
- return <><PageHead eyebrow="BÁO CÁO ĐIỀU HÀNH" title="Báo cáo thực hiện chỉ tiêu" description="Tổng hợp kết quả theo đơn vị, trạng thái và tiến độ thực hiện kế hoạch năm 2026." actions={<><button className="btn secondary" onClick={()=>window.print()}><Printer/>In báo cáo</button><button className="btn primary" onClick={exportExcel}><Download/>Xuất Excel</button></>}/><div className="report-filters"><div><label>Kỳ báo cáo</label><select><option>Năm 2026</option></select></div><div><label>Phòng ban</label><select value={dep} onChange={e=>setDep(e.target.value)}><option value="">Tất cả phòng ban</option>{deps.map(x=><option key={x}>{x}</option>)}</select></div><button className="btn secondary"><Filter/>Áp dụng</button><span className="report-date">Dữ liệu đến ngày {new Date().toLocaleDateString('vi-VN')}</span></div><div className="report-summary"><div><FileBarChart/><span>Tổng chỉ tiêu<strong>{view.length}</strong></span></div><div><TrendingUp/><span>Tiến độ bình quân<strong>{avg}%</strong></span></div><div><i className="dot green"/><span>Hoàn thành<strong>{view.filter(r=>r.status==='COMPLETED').length}</strong></span></div><div><i className="dot amber"/><span>Cần tập trung<strong>{view.filter(r=>['AT_RISK','OVERDUE'].includes(r.status)).length}</strong></span></div></div><div className="table-card report-table">{loading?<Spinner/>:<div className="table-wrap"><table><thead><tr><th>STT</th><th>Chỉ tiêu</th><th>Đơn vị</th><th className="number">Mục tiêu</th><th className="number">Thực hiện</th><th>Tiến độ</th><th>Đánh giá</th></tr></thead><tbody>{view.map((r,i)=><tr key={r.code}><td>{i+1}</td><td><span className="code">{r.code}</span><strong className="block">{r.title}</strong></td><td>{r.department}</td><td className="number">{r.target.toLocaleString('vi-VN')} {r.unit}</td><td className="number"><b>{r.current.toLocaleString('vi-VN')}</b> {r.unit}</td><td><div className="report-progress"><div className="progress"><i style={{width:`${r.progress}%`}}/></div><b>{r.progress}%</b></div></td><td><span className={`status ${statusMeta[r.status]?.color}`}><i/>{statusMeta[r.status]?.label}</span></td></tr>)}</tbody></table></div>}</div></>}
+import { useEffect, useMemo, useState } from 'react';
+import { api, auth, downloadApi } from '../api';
+import { Empty, PageHead, Spinner } from '../components/UI';
+import type { Department } from '../types';
+import { statusMeta } from '../types';
+
+type ReportRow = {
+  code: string;
+  title: string;
+  department: string;
+  target: number;
+  current: number;
+  unit: string;
+  progress: number;
+  status: string;
+  dueDate: string;
+  lastReportedAt?: string | null;
+};
+
+type AppliedFilter = { year: number; departmentId: string };
+
+const currentYear = new Date().getFullYear();
+const yearOptions = [currentYear + 1, currentYear, currentYear - 1];
+
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : 'Có lỗi xảy ra, vui lòng thử lại';
+}
+
+function saveBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function queryOf(filter: AppliedFilter) {
+  const params = new URLSearchParams({ year: String(filter.year) });
+  if (filter.departmentId) params.set('departmentId', filter.departmentId);
+  return params.toString();
+}
+
+export default function Reports() {
+  const user = auth.user;
+  const isAdmin = user?.role === 'ADMIN';
+  const ownDepartmentId = user?.departmentId || '';
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [year, setYear] = useState(currentYear);
+  const [departmentId, setDepartmentId] = useState(isAdmin ? '' : ownDepartmentId);
+  const [appliedFilter, setAppliedFilter] = useState<AppliedFilter>({ year: currentYear, departmentId: isAdmin ? '' : ownDepartmentId });
+  const [rows, setRows] = useState<ReportRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api<Department[]>('/departments')
+      .then(items => setDepartments(items.filter(item => item.isActive)))
+      .catch(error => setError(messageOf(error)));
+  }, [isAdmin]);
+
+  async function loadReport(filter: AppliedFilter) {
+    setLoading(true);
+    setError('');
+    try {
+      setRows(await api<ReportRow[]>(`/dashboard/report?${queryOf(filter)}`));
+      setAppliedFilter(filter);
+    } catch (error) {
+      setRows([]);
+      setError(messageOf(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadReport({ year: currentYear, departmentId: isAdmin ? '' : ownDepartmentId });
+  }, []);
+
+  const summary = useMemo(() => {
+    const average = rows.length ? Math.round(rows.reduce((sum, row) => sum + row.progress, 0) / rows.length) : 0;
+    const completed = rows.filter(row => row.status === 'COMPLETED').length;
+    const attention = rows.filter(row => row.status === 'AT_RISK' || row.status === 'OVERDUE').length;
+    const lastReportedAt = rows.reduce<Date | null>((latest, row) => {
+      if (!row.lastReportedAt) return latest;
+      const date = new Date(row.lastReportedAt);
+      return !latest || date > latest ? date : latest;
+    }, null);
+    return { average, completed, attention, lastReportedAt };
+  }, [rows]);
+
+  const appliedDepartment = departments.find(item => item.id === appliedFilter.departmentId)
+    || (!isAdmin ? user?.department : null);
+  const scopeName = appliedDepartment?.name || (isAdmin ? 'Toàn hệ thống' : 'Phòng ban của bạn');
+
+  async function exportExcel() {
+    setExporting(true);
+    setError('');
+    try {
+      const blob = await downloadApi(`/exports/targets.xlsx?${queryOf(appliedFilter)}`);
+      saveBlob(blob, `Bao_cao_chi_tieu_${appliedDepartment?.code || 'toan-he-thong'}_${appliedFilter.year}.xlsx`);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return <>
+    <PageHead
+      eyebrow="BÁO CÁO ĐIỀU HÀNH"
+      title="Báo cáo thực hiện chỉ tiêu"
+      description={`Dữ liệu đã được duyệt trong phạm vi ${scopeName}, kế hoạch năm ${appliedFilter.year}.`}
+      actions={<>
+        <button className="btn secondary" onClick={() => window.print()} disabled={loading}><Printer />In báo cáo</button>
+        <button className="btn primary" onClick={exportExcel} disabled={loading || exporting}><Download />{exporting ? 'Đang tạo Excel...' : 'Xuất báo cáo Excel'}</button>
+      </>}
+    />
+
+    <div className="report-filters">
+      <div><label>Năm báo cáo</label><select value={year} onChange={event => setYear(Number(event.target.value))}>{yearOptions.map(item => <option key={item}>{item}</option>)}</select></div>
+      <div><label>Phạm vi phòng ban</label>{isAdmin
+        ? <select value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Toàn hệ thống</option>{departments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        : <select value={ownDepartmentId} disabled><option value={ownDepartmentId}>{user?.department?.name || 'Chưa được gắn phòng ban'}</option></select>}
+      </div>
+      <button className="btn secondary" onClick={() => loadReport({ year, departmentId: isAdmin ? departmentId : ownDepartmentId })} disabled={loading}><Filter />{loading ? 'Đang tải...' : 'Áp dụng'}</button>
+      <span className="report-date">{summary.lastReportedAt ? `Dữ liệu cập nhật gần nhất ${summary.lastReportedAt.toLocaleString('vi-VN')}` : 'Chưa có lần báo cáo chính thức'}</span>
+    </div>
+
+    {error && <div className="form-error">{error}</div>}
+
+    <div className="report-summary">
+      <div><FileBarChart /><span>Tổng chỉ tiêu<strong>{rows.length}</strong></span></div>
+      <div><TrendingUp /><span>Tiến độ bình quân<strong>{summary.average}%</strong></span></div>
+      <div><i className="dot green" /><span>Hoàn thành<strong>{summary.completed}</strong></span></div>
+      <div><i className="dot amber" /><span>Cần tập trung<strong>{summary.attention}</strong></span></div>
+    </div>
+
+    <div className="table-card report-table">
+      {loading ? <Spinner /> : rows.length ? <div className="table-wrap"><table><thead><tr><th>STT</th><th>Chỉ tiêu</th><th>Đơn vị phụ trách</th><th className="number">Mục tiêu</th><th className="number">Thực hiện</th><th>Tiến độ</th><th>Đánh giá</th><th>Cập nhật gần nhất</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.code}-${row.department}`}><td>{index + 1}</td><td><span className="code">{row.code}</span><strong className="block">{row.title}</strong></td><td>{row.department}</td><td className="number">{row.target.toLocaleString('vi-VN')} {row.unit}</td><td className="number"><b>{row.current.toLocaleString('vi-VN')}</b> {row.unit}</td><td><div className="report-progress"><div className="progress"><i style={{ width: `${Math.max(0, Math.min(100, row.progress))}%` }} /></div><b>{row.progress}%</b></div></td><td><span className={`status ${statusMeta[row.status]?.color || 'slate'}`}><i />{statusMeta[row.status]?.label || row.status}</span></td><td>{row.lastReportedAt ? new Date(row.lastReportedAt).toLocaleString('vi-VN') : <span className="muted">Chưa báo cáo</span>}</td></tr>)}</tbody></table></div> : <Empty title="Chưa có dữ liệu báo cáo" description="Không có chỉ tiêu trong năm và phạm vi đã chọn." />}
+    </div>
+  </>;
+}
