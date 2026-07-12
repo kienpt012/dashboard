@@ -1,8 +1,64 @@
 import { ArrowRight, BarChart3, CheckCircle2, Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
-import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, auth } from '../api';
+import type { User } from '../types';
 
-export default function Login(){const [username,setUsername]=useState('admin');const [password,setPassword]=useState('Admin@123');const [show,setShow]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(false);const nav=useNavigate();
-  async function submit(e:FormEvent){e.preventDefault();setLoading(true);setError('');try{const data=await api('/auth/login',{method:'POST',body:JSON.stringify({username,password})});auth.set(data);nav('/admin')}catch(e:any){setError(e.message)}finally{setLoading(false)}}
-  return <div className="login-page"><section className="login-visual"><div className="visual-grid"/><div className="visual-content"><div className="gov-badge">TH <span>PHƯỜNG TÂN HƯNG</span></div><p className="eyebrow light">NỀN TẢNG ĐIỀU HÀNH SỐ</p><h1>Mỗi chỉ tiêu rõ ràng.<br/><em>Mỗi quyết định kịp thời.</em></h1><p className="lead">Không gian quản trị tập trung giúp lãnh đạo theo dõi tiến độ, nhận diện rủi ro và điều phối nguồn lực theo thời gian thực.</p><div className="visual-points"><span><CheckCircle2/>Chuẩn hóa dữ liệu chỉ tiêu</span><span><BarChart3/>Báo cáo điều hành trực quan</span><span><ShieldCheck/>Phân quyền an toàn, minh bạch</span></div></div><div className="visual-footer">UBND PHƯỜNG TÂN HƯNG · IOC CONTROL ROOM 2026</div></section><section className="login-panel"><form className="login-card" onSubmit={submit}><div className="mobile-brand"><div className="brand-mark">TH</div> IOC TÂN HƯNG</div><span className="eyebrow">ĐĂNG NHẬP HỆ THỐNG</span><h2>Chào mừng trở lại</h2><p>Sử dụng tài khoản được cấp để truy cập không gian quản trị.</p>{error&&<div className="form-error">{error}</div>}<label>Tên đăng nhập<div className="input-icon"><UserRound/><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nhập tên đăng nhập" autoFocus/></div></label><label>Mật khẩu<div className="input-icon"><LockKeyhole/><input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Nhập mật khẩu"/><button type="button" onClick={()=>setShow(!show)}>{show?<EyeOff/>:<Eye/>}</button></div></label><div className="login-row"><label className="check"><input type="checkbox"/> Ghi nhớ đăng nhập</label><a>Quên mật khẩu?</a></div><button className="btn primary login-btn" disabled={loading}>{loading?'Đang xác thực...':<>Đăng nhập <ArrowRight/></>}</button><div className="demo-note"><ShieldCheck/><span>Tài khoản mẫu: <b>admin</b> · Mật khẩu: <b>Admin@123</b></span></div></form><p className="support">Cần hỗ trợ? Liên hệ bộ phận quản trị IOC</p></section></div>}
+type LoginResponse={accessToken:string;user:User};
+
+function safeNextPath(value:string|null){
+  if(!value||value.startsWith('//'))return '/admin';
+  const allowed=value==='/admin'||value.startsWith('/admin/');
+  if(!allowed||value.startsWith('/admin/login'))return '/admin';
+  return value;
+}
+
+export default function Login(){
+  const [username,setUsername]=useState('');
+  const [password,setPassword]=useState('');
+  const [show,setShow]=useState(false);
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(false);
+  const navigate=useNavigate();
+  const [searchParams]=useSearchParams();
+  const currentYear=new Date().getFullYear();
+
+  async function submit(event:FormEvent){
+    event.preventDefault();setLoading(true);setError('');
+    try{
+      const data=await api<LoginResponse>('/auth/login',{method:'POST',body:JSON.stringify({username:username.trim(),password})});
+      auth.set(data);
+      navigate(safeNextPath(searchParams.get('next')),{replace:true});
+    }catch(reason){
+      setError(reason instanceof Error?reason.message:'Không thể đăng nhập');
+    }finally{setLoading(false)}
+  }
+
+  return <div className="login-page">
+    <section className="login-visual">
+      <div className="visual-grid"/>
+      <div className="visual-content">
+        <div className="gov-badge">TH <span>PHƯỜNG TÂN HƯNG</span></div>
+        <p className="eyebrow light">NỀN TẢNG ĐIỀU HÀNH SỐ</p>
+        <h1>Mỗi chỉ tiêu rõ ràng.<br/><em>Mỗi quyết định kịp thời.</em></h1>
+        <p className="lead">Không gian làm việc tập trung giúp theo dõi tiến độ, nhận diện rủi ro và phối hợp báo cáo theo đúng phạm vi trách nhiệm.</p>
+        <div className="visual-points"><span><CheckCircle2/>Chuẩn hóa dữ liệu chỉ tiêu</span><span><BarChart3/>Báo cáo điều hành trực quan</span><span><ShieldCheck/>Phân quyền an toàn, minh bạch</span></div>
+      </div>
+      <div className="visual-footer">UBND PHƯỜNG TÂN HƯNG · IOC CONTROL ROOM {currentYear}</div>
+    </section>
+
+    <section className="login-panel">
+      <form className="login-card" onSubmit={submit}>
+        <div className="mobile-brand"><div className="brand-mark">TH</div> IOC TÂN HƯNG</div>
+        <span className="eyebrow">ĐĂNG NHẬP NỘI BỘ</span>
+        <h2>Chào mừng trở lại</h2>
+        <p>Sử dụng tài khoản được cấp để truy cập không gian làm việc phù hợp với vai trò của bạn.</p>
+        {error&&<div className="form-error">{error}</div>}
+        <label>Tên đăng nhập<div className="input-icon"><UserRound/><input required value={username} onChange={event=>{setUsername(event.target.value);setError('')}} placeholder="Nhập tên đăng nhập" autoComplete="username" autoFocus/></div></label>
+        <label>Mật khẩu<div className="input-icon"><LockKeyhole/><input required type={show?'text':'password'} value={password} onChange={event=>{setPassword(event.target.value);setError('')}} placeholder="Nhập mật khẩu" autoComplete="current-password"/><button type="button" aria-label={show?'Ẩn mật khẩu':'Hiện mật khẩu'} onClick={()=>setShow(value=>!value)}>{show?<EyeOff/>:<Eye/>}</button></div></label>
+        <button className="btn primary login-btn" disabled={loading}>{loading?'Đang xác thực...':<>Đăng nhập <ArrowRight/></>}</button>
+      </form>
+      <Link className="support" to="/">Về trang thông tin dành cho người dân</Link>
+    </section>
+  </div>;
+}

@@ -28,6 +28,23 @@ enum TargetFrequency {
   YEARLY
 }
 
+enum TargetDirection {
+  HIGHER_IS_BETTER
+  LOWER_IS_BETTER
+}
+
+enum ProgressReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ImportBatchStatus {
+  PREVIEWED
+  APPLIED
+  FAILED
+}
+
 model Department {
   id          String   @id @default(cuid())
   code        String   @unique
@@ -39,6 +56,7 @@ model Department {
   updatedAt   DateTime @updatedAt
   users       User[]
   targets     Target[]
+  importBatches ImportBatch[]
 }
 
 model User {
@@ -53,6 +71,7 @@ model User {
   department   Department? @relation(fields: [departmentId], references: [id])
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+  lastLoginAt  DateTime?
   updates      ProgressUpdate[]
 }
 
@@ -67,7 +86,19 @@ model Target {
   weight        Float           @default(1)
   year          Int
   frequency     TargetFrequency @default(YEARLY)
+  direction     TargetDirection @default(HIGHER_IS_BETTER)
   status        TargetStatus    @default(NOT_STARTED)
+  version       Int             @default(1)
+  isPublic      Boolean         @default(false)
+  isHighlighted Boolean         @default(false)
+  publicOrder   Int?
+  lastReportedAt DateTime?
+  publishedValue Float?
+  publishedTargetValue Float?
+  publishedDirection TargetDirection?
+  publishedStatus TargetStatus?
+  publishedAt DateTime?
+  publishedBy String?
   dueDate       DateTime
   departmentId  String
   department    Department      @relation(fields: [departmentId], references: [id])
@@ -83,11 +114,18 @@ model ProgressUpdate {
   id        String   @id @default(cuid())
   value     Float
   note      String?
+  reviewStatus ProgressReviewStatus @default(APPROVED)
+  baseVersion Int @default(1)
+  reviewedBy String?
+  reviewedAt DateTime?
+  reviewNote String?
   createdAt DateTime @default(now())
   targetId  String
   target    Target   @relation(fields: [targetId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([reviewStatus, targetId])
 }
 
 model ImportBatch {
@@ -97,6 +135,38 @@ model ImportBatch {
   successRows Int
   errorRows   Int
   errors      Json?
+  changes     Json?
   createdBy   String
+  departmentId String?
+  department Department? @relation(fields: [departmentId], references: [id])
+  status      ImportBatchStatus @default(PREVIEWED)
+  appliedAt   DateTime?
   createdAt   DateTime @default(now())
+
+  @@index([departmentId, createdAt])
+}
+
+model SystemSetting {
+  id            String   @id @default("default")
+  defaultYear   Int      @default(2026)
+  warningDays   Int      @default(14)
+  riskThreshold Float    @default(70)
+  updatedBy     String?
+  updatedAt     DateTime @updatedAt
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  actorId       String
+  actorUsername String
+  actorRole     Role
+  action        String
+  entityType    String
+  entityId      String?
+  departmentId  String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([departmentId, createdAt])
+  @@index([actorId, createdAt])
 }

@@ -25,7 +25,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ioc_admin}:${POSTGRES_PASSWORD:-ioc_secure_2026}@postgres:5432/${POSTGRES_DB:-ioc_tanhung}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      JWT_SECRET: ${JWT_SECRET:?Set a strong JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
       PORT: 3000
     ports:
       - "3000:3000"
