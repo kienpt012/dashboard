@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+  VIEWER
+}
+
+enum TargetStatus {
+  NOT_STARTED
+  ON_TRACK
+  AT_RISK
+  OVERDUE
+  COMPLETED
+}
+
+enum TargetFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  color       String   @default("#0f766e")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+  targets     Target[]
+}
+
+model User {
+  id           String      @id @default(cuid())
+  username     String      @unique
+  passwordHash String
+  fullName     String
+  email        String?     @unique
+  role         Role        @default(STAFF)
+  isActive     Boolean     @default(true)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  updates      ProgressUpdate[]
+}
+
+model Target {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  title         String
+  description   String?
+  unit          String
+  targetValue   Float
+  currentValue  Float           @default(0)
+  weight        Float           @default(1)
+  year          Int
+  frequency     TargetFrequency @default(YEARLY)
+  status        TargetStatus    @default(NOT_STARTED)
+  dueDate       DateTime
+  departmentId  String
+  department    Department      @relation(fields: [departmentId], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  updates       ProgressUpdate[]
+
+  @@index([year, status])
+  @@index([departmentId])
+}
+
+model ProgressUpdate {
+  id        String   @id @default(cuid())
+  value     Float
+  note      String?
+  createdAt DateTime @default(now())
+  targetId  String
+  target    Target   @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model ImportBatch {
+  id          String   @id @default(cuid())
+  fileName    String
+  totalRows   Int
+  successRows Int
+  errorRows   Int
+  errors      Json?
+  createdBy   String
+  createdAt   DateTime @default(now())
+}

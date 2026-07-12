@@ -1,0 +1,14 @@
+{
+  "name": "ioc-tan-hung-control-room",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "concurrently -n API,WEB -c blue,green \"npm run start:dev -w @ioc/api\" \"npm run dev -w @ioc/web\"",
+    "build": "npm run build -w @ioc/api && npm run build -w @ioc/web",
+    "db:generate": "npm run prisma:generate -w @ioc/api",
+    "db:migrate": "npm run prisma:migrate -w @ioc/api",
+    "db:seed": "npm run prisma:seed -w @ioc/api"
+  },
+  "devDependencies": {"concurrently": "^9.2.1"},
+  "overrides": {"exceljs": {"uuid": "11.1.1"}}
+}

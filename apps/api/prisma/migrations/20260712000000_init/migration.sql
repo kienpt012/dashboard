@@ -1,0 +1,18 @@
+CREATE TYPE "Role" AS ENUM ('ADMIN', 'MANAGER', 'STAFF', 'VIEWER');
+CREATE TYPE "TargetStatus" AS ENUM ('NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'OVERDUE', 'COMPLETED');
+CREATE TYPE "TargetFrequency" AS ENUM ('MONTHLY', 'QUARTERLY', 'YEARLY');
+CREATE TABLE "Department" ("id" TEXT NOT NULL, "code" TEXT NOT NULL, "name" TEXT NOT NULL, "description" TEXT, "color" TEXT NOT NULL DEFAULT '#0f766e', "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "Department_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "User" ("id" TEXT NOT NULL, "username" TEXT NOT NULL, "passwordHash" TEXT NOT NULL, "fullName" TEXT NOT NULL, "email" TEXT, "role" "Role" NOT NULL DEFAULT 'STAFF', "isActive" BOOLEAN NOT NULL DEFAULT true, "departmentId" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "User_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Target" ("id" TEXT NOT NULL, "code" TEXT NOT NULL, "title" TEXT NOT NULL, "description" TEXT, "unit" TEXT NOT NULL, "targetValue" DOUBLE PRECISION NOT NULL, "currentValue" DOUBLE PRECISION NOT NULL DEFAULT 0, "weight" DOUBLE PRECISION NOT NULL DEFAULT 1, "year" INTEGER NOT NULL, "frequency" "TargetFrequency" NOT NULL DEFAULT 'YEARLY', "status" "TargetStatus" NOT NULL DEFAULT 'NOT_STARTED', "dueDate" TIMESTAMP(3) NOT NULL, "departmentId" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "Target_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ProgressUpdate" ("id" TEXT NOT NULL, "value" DOUBLE PRECISION NOT NULL, "note" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "targetId" TEXT NOT NULL, "userId" TEXT NOT NULL, CONSTRAINT "ProgressUpdate_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ImportBatch" ("id" TEXT NOT NULL, "fileName" TEXT NOT NULL, "totalRows" INTEGER NOT NULL, "successRows" INTEGER NOT NULL, "errorRows" INTEGER NOT NULL, "errors" JSONB, "createdBy" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ImportBatch_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "Department_code_key" ON "Department"("code");
+CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX "Target_code_key" ON "Target"("code");
+CREATE INDEX "Target_year_status_idx" ON "Target"("year", "status");
+CREATE INDEX "Target_departmentId_idx" ON "Target"("departmentId");
+ALTER TABLE "User" ADD CONSTRAINT "User_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Target" ADD CONSTRAINT "Target_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProgressUpdate" ADD CONSTRAINT "ProgressUpdate_targetId_fkey" FOREIGN KEY ("targetId") REFERENCES "Target"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProgressUpdate" ADD CONSTRAINT "ProgressUpdate_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

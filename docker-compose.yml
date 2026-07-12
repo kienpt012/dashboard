@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ioc-tanhung-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ioc_tanhung}
+      POSTGRES_USER: ${POSTGRES_USER:-ioc_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ioc_secure_2026}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ioc_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ioc_admin} -d ${POSTGRES_DB:-ioc_tanhung}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ioc-tanhung-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ioc_admin}:${POSTGRES_PASSWORD:-ioc_secure_2026}@postgres:5432/${POSTGRES_DB:-ioc_tanhung}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3000/api
+    container_name: ioc-tanhung-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  ioc_postgres_data:
