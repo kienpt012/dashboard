@@ -1,6 +1,6 @@
-# IOC Tân Hưng · Control Room
+# IOC Lái Thiêu
 
-Hệ thống quản trị chỉ tiêu được xây dựng từ định hướng giao diện của template **IOC Tân Hưng - V46 Control Room**, với kiến trúc:
+Hệ thống quản trị chỉ tiêu được xây dựng với kiến trúc:
 
 - Frontend: React 19 + TypeScript + Vite
 - Backend: NestJS 11 + Prisma ORM
