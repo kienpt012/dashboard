@@ -4,6 +4,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -21,12 +22,21 @@ import { audit, assertDepartmentAccess, getActor, resolveDepartmentScope } from 
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { PrismaService } from './prisma.service';
+import { currentVietnamYear } from './planning-date';
 
 const TEMPLATE_VERSION = 'IOC_PROGRESS_V1';
 const DATA_SHEET = 'CAP_NHAT';
 const META_SHEET = 'META';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_ROWS = 5000;
+const PROCESSED_BATCH_STATUSES: ImportBatchStatus[] = [
+  ImportBatchStatus.SUBMITTED,
+  ImportBatchStatus.PARTIALLY_REVIEWED,
+  ImportBatchStatus.PARTIALLY_APPROVED,
+  ImportBatchStatus.APPROVED,
+  ImportBatchStatus.REJECTED,
+  ImportBatchStatus.APPLIED,
+];
 const HEADERS = [
   'ID hệ thống',
   'Mã chỉ tiêu',
@@ -65,9 +75,9 @@ function sendWorkbook(res: Response, buffer: ExcelJS.Buffer, fileName: string) {
 }
 
 function parseYear(raw?: string) {
-  if (!raw) return new Date().getFullYear();
+  if (!raw) return currentVietnamYear();
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 2000 || value > 2200) {
+  if (!Number.isInteger(value) || value < 2000 || value > 2100) {
     throw new BadRequestException('Năm báo cáo không hợp lệ');
   }
   return value;
@@ -156,12 +166,87 @@ export class ImportController {
   async list(@Req() req: any, @Query('departmentId') requestedDepartmentId?: string) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
-    return this.prisma.importBatch.findMany({
-      where: departmentId ? { departmentId } : undefined,
-      include: { department: { select: { id: true, code: true, name: true } } },
+    const batches = await this.prisma.importBatch.findMany({
+      where: {
+        ...(departmentId ? { departmentId } : {}),
+        // Nhân viên chỉ xem được các file do chính mình tải lên. Trưởng phòng
+        // xem toàn bộ lịch sử của phòng; quản trị viên xem theo bộ lọc đã chọn.
+        ...(actor.role === Role.STAFF ? { createdBy: actor.username } : {}),
+      },
+      // Danh sách lịch sử chỉ cần thông tin tổng hợp. Không phát tán payload
+      // changes/errors có ID nội bộ và chi tiết số liệu của từng dòng.
+      select: {
+        id: true,
+        fileName: true,
+        totalRows: true,
+        successRows: true,
+        errorRows: true,
+        createdBy: true,
+        departmentId: true,
+        status: true,
+        submittedAt: true,
+        appliedAt: true,
+        createdAt: true,
+        department: { select: { id: true, code: true, name: true } },
+      },
       take: 50,
       orderBy: { createdAt: 'desc' },
     });
+    if (!batches.length) return [];
+    const grouped = await this.prisma.progressUpdate.groupBy({
+      by: ['importBatchId', 'reviewStatus'],
+      where: { importBatchId: { in: batches.map(batch => batch.id) } },
+      _count: { _all: true },
+    });
+    return batches.map(batch => ({
+      ...batch,
+      reviewCounts: grouped.filter(row => row.importBatchId === batch.id).reduce(
+        (counts, row) => ({ ...counts, [row.reviewStatus.toLowerCase()]: row._count._all }),
+        { pending: 0, approved: 0, rejected: 0 },
+      ),
+    }));
+  }
+
+  @Get('batch/:id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'MANAGER', 'STAFF')
+  async detail(@Req() req: any, @Param('id') id: string) {
+    const actor = getActor(req);
+    const departmentId = resolveDepartmentScope(actor);
+    const batch = await this.prisma.importBatch.findFirst({
+      where: {
+        id,
+        ...(departmentId ? { departmentId } : {}),
+        ...(actor.role === Role.STAFF ? { createdBy: actor.username } : {}),
+      },
+      select: {
+        id: true, fileName: true, totalRows: true, successRows: true, errorRows: true,
+        createdBy: true, departmentId: true, status: true, submittedAt: true, appliedAt: true, createdAt: true,
+        department: { select: { id: true, code: true, name: true } },
+        updates: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true, value: true, note: true, reviewStatus: true, reviewNote: true, reviewedBy: true, createdAt: true, reviewedAt: true,
+            target: { select: { id: true, code: true, title: true, unit: true } },
+            user: { select: { id: true, username: true, fullName: true } },
+          },
+        },
+      },
+    });
+    if (!batch) throw new NotFoundException('Không tìm thấy lần nhập Excel trong phạm vi được phép');
+    const reviewerIds = [...new Set(batch.updates.map(update => update.reviewedBy).filter((value): value is string => Boolean(value)))];
+    const reviewers = reviewerIds.length ? await this.prisma.user.findMany({
+      where: { id: { in: reviewerIds } },
+      select: { id: true, username: true, fullName: true },
+    }) : [];
+    const reviewerMap = new Map(reviewers.map(reviewer => [reviewer.id, reviewer]));
+    return {
+      ...batch,
+      updates: batch.updates.map(update => ({
+        ...update,
+        reviewer: update.reviewedBy ? reviewerMap.get(update.reviewedBy) ?? null : null,
+      })),
+    };
   }
 
   @Get('template')
@@ -177,12 +262,12 @@ export class ImportController {
     const year = parseYear(yearRaw);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
     const targets = await this.prisma.target.findMany({
-      where: { year, ...(departmentId ? { departmentId } : {}), department: { isActive: true } },
+      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}), department: { isActive: true } },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'IOC Tân Hưng';
+    workbook.creator = 'IOC Lái Thiêu';
     workbook.created = new Date();
     workbook.modified = new Date();
 
@@ -222,7 +307,15 @@ export class ImportController {
       for (const column of [9, 10]) {
         row.getCell(column).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4CC' } };
       }
-      row.getCell(9).dataValidation = {
+      row.getCell(5).numFmt = '#,##0.########';
+      row.getCell(6).numFmt = '#,##0.########';
+      row.getCell(9).numFmt = '#,##0.########';
+    }
+    if (targets.length > 0) {
+      const dataValidations = (sheet as ExcelJS.Worksheet & {
+        dataValidations: { add(range: string, validation: ExcelJS.DataValidation): void };
+      }).dataValidations;
+      dataValidations.add(`I2:I${targets.length + 1}`, {
         type: 'decimal',
         operator: 'greaterThanOrEqual',
         allowBlank: true,
@@ -230,13 +323,10 @@ export class ImportController {
         showErrorMessage: true,
         errorTitle: 'Giá trị không hợp lệ',
         error: 'Vui lòng nhập một giá trị số không âm.',
-      };
-      row.getCell(5).numFmt = '#,##0.########';
-      row.getCell(6).numFmt = '#,##0.########';
-      row.getCell(9).numFmt = '#,##0.########';
+      });
     }
     sheet.autoFilter = { from: 'B1', to: 'J1' };
-    await sheet.protect('ioc-tan-hung', {
+    await sheet.protect('ioc-lai-thieu', {
       selectLockedCells: true,
       selectUnlockedCells: true,
       formatCells: false,
@@ -280,7 +370,9 @@ export class ImportController {
     const requestedDepartmentId = metaDepartmentId && metaDepartmentId !== 'ALL' ? metaDepartmentId : undefined;
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
     const metaYear = Number(meta.get('year'));
-    if (!Number.isInteger(metaYear)) throw new BadRequestException('Năm báo cáo trong biểu mẫu không hợp lệ');
+    if (!Number.isInteger(metaYear) || metaYear < 2000 || metaYear > 2100) {
+      throw new BadRequestException('Năm báo cáo trong biểu mẫu không hợp lệ');
+    }
 
     const sheet = workbook.getWorksheet(DATA_SHEET);
     if (!sheet) throw new BadRequestException(`Không tìm thấy trang dữ liệu ${DATA_SHEET}`);
@@ -349,6 +441,10 @@ export class ImportController {
       }
       firstOccurrence.set(row.targetId, row.row);
       const target = targetMap.get(row.targetId);
+      if (target?.isArchived) {
+        errors.push({ row: row.row, code: 'TARGET_ARCHIVED', field: 'ID hệ thống', message: 'Chỉ tiêu đã được lưu trữ và không còn nhận báo cáo mới' });
+        continue;
+      }
       if (!target) {
         errors.push({ row: row.row, code: 'UNKNOWN_TARGET', field: 'ID hệ thống', message: 'Không tìm thấy chỉ tiêu trong hệ thống' });
         continue;
@@ -381,6 +477,22 @@ export class ImportController {
       }
       if (row.newValue < 0) {
         errors.push({ row: row.row, code: 'INVALID_VALUE', field: 'Giá trị mới', message: 'Giá trị mới không được âm' });
+      }
+      if (!near(row.newValue, target.currentValue) && !row.note) {
+        errors.push({
+          row: row.row,
+          code: 'NOTE_REQUIRED',
+          field: 'Ghi chú',
+          message: 'Vui lòng ghi rõ kỳ báo cáo hoặc nguồn số liệu cho giá trị thay đổi',
+        });
+      }
+      if (row.note && row.note.length > 2000) {
+        errors.push({
+          row: row.row,
+          code: 'NOTE_TOO_LONG',
+          field: 'Ghi chú',
+          message: 'Ghi chú không được vượt quá 2.000 ký tự',
+        });
       }
       if (!errors.some(error => error.row === row.row)) {
         if (near(row.newValue, target.currentValue) && !row.note) unchangedRows++;
@@ -441,7 +553,7 @@ export class ImportController {
     if (actor.role !== Role.ADMIN && existing.createdBy !== actor.username) {
       throw new ForbiddenException('Bạn chỉ được áp dụng file do chính mình thực hiện xem trước');
     }
-    if (existing.status === ImportBatchStatus.APPLIED) return { ...existing, idempotent: true };
+    if (PROCESSED_BATCH_STATUSES.includes(existing.status)) return { ...existing, idempotent: true };
     if (existing.status !== ImportBatchStatus.PREVIEWED) throw new ConflictException('Lần import không còn ở trạng thái chờ áp dụng');
     if (existing.errorRows > 0) throw new ConflictException('File còn lỗi; vui lòng sửa và thực hiện xem trước lại');
     const changes = Array.isArray(existing.changes) ? existing.changes as unknown as PreviewChange[] : [];
@@ -455,7 +567,7 @@ export class ImportController {
         });
         if (claim.count !== 1) {
           const current = await tx.importBatch.findUnique({ where: { id } });
-          if (current?.status === ImportBatchStatus.APPLIED) return { ...current, idempotent: true };
+          if (current && PROCESSED_BATCH_STATUSES.includes(current.status)) return { ...current, idempotent: true };
           throw new ConflictException('Lần import đang được xử lý hoặc không còn hợp lệ');
         }
 
@@ -464,6 +576,10 @@ export class ImportController {
         const conflicts: RowError[] = [];
         for (const change of changes) {
           const target = targetMap.get(change.targetId);
+          if (target?.isArchived) {
+            conflicts.push({ row: change.row, code: 'TARGET_ARCHIVED', message: 'Chỉ tiêu đã được lưu trữ và không còn nhận báo cáo mới' });
+            continue;
+          }
           if (!target || target.code !== change.code || target.departmentId !== change.departmentId) {
             conflicts.push({ row: change.row, code: 'TARGET_CHANGED', message: 'Chỉ tiêu không còn khớp với dữ liệu đã xem trước' });
             continue;
@@ -502,6 +618,7 @@ export class ImportController {
               note: change.note,
               reviewStatus: approved ? ProgressReviewStatus.APPROVED : ProgressReviewStatus.PENDING,
               baseVersion: change.baseVersion,
+              importBatchId: id,
               reviewedBy: approved ? actor.id : null,
               reviewedAt: approved ? appliedAt : null,
             },
@@ -530,7 +647,9 @@ export class ImportController {
         }
         const batch = await tx.importBatch.update({
           where: { id },
-          data: { status: ImportBatchStatus.APPLIED, appliedAt },
+          data: approved
+            ? { status: ImportBatchStatus.APPLIED, appliedAt }
+            : { status: ImportBatchStatus.SUBMITTED, submittedAt: appliedAt },
           include: { department: { select: { id: true, code: true, name: true } } },
         });
         await audit(tx, actor, {
@@ -548,7 +667,7 @@ export class ImportController {
       }
       if (error?.code === 'P2034') {
         const latest = await this.prisma.importBatch.findUnique({ where: { id } });
-        if (latest?.status === ImportBatchStatus.APPLIED) return { ...latest, idempotent: true };
+        if (latest && PROCESSED_BATCH_STATUSES.includes(latest.status)) return { ...latest, idempotent: true };
         throw new ConflictException('Có cập nhật đồng thời; vui lòng thử lại');
       }
       throw error;

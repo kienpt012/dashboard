@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, ClipboardCheck, RefreshCw, X } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api, auth } from '../api';
 import { Empty, Modal, PageHead, Spinner } from '../components/UI';
 import type { Department, Target } from '../types';
@@ -27,25 +27,28 @@ export default function Approvals() {
   const [decision, setDecision] = useState<'APPROVE' | 'REJECT'>('APPROVE');
   const [reviewNote, setReviewNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const loadRequestId = useRef(0);
 
   async function load() {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setError('');
     try {
       const query = departmentId ? `?departmentId=${encodeURIComponent(departmentId)}` : '';
       const requests: Promise<any>[] = [api(`/targets/pending-updates${query}`)];
       if (isAdmin) requests.push(api('/departments'));
-      const [rows, departmentRows = departments] = await Promise.all(requests);
+      const [rows, departmentRows] = await Promise.all(requests);
+      if (requestId !== loadRequestId.current) return;
       setUpdates(rows);
-      setDepartments(departmentRows);
-    } catch (reason: any) {
-      setError(reason.message || 'Không thể tải danh sách chờ duyệt');
+      if (isAdmin && departmentRows) setDepartments(departmentRows);
+    } catch (reason: unknown) {
+      if (requestId === loadRequestId.current) setError(reason instanceof Error ? reason.message : 'Không thể tải danh sách chờ duyệt');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [departmentId]);
+  useEffect(() => { void load(); }, [departmentId]);
 
   function openReview(update: PendingUpdate, nextDecision: 'APPROVE' | 'REJECT') {
     setSelected(update);
@@ -85,11 +88,11 @@ export default function Approvals() {
       description={isAdmin
         ? 'Đối chiếu nguồn số liệu trước khi ghi nhận vào kết quả chính thức của hệ thống.'
         : `Chỉ hiển thị báo cáo thuộc ${auth.user?.department?.name || 'đơn vị của bạn'}.`}
-      actions={<button className="btn secondary" onClick={load}><RefreshCw />Làm mới</button>}
+      actions={<button className="btn secondary" disabled={loading} onClick={() => void load()}><RefreshCw />Làm mới</button>}
     />
     {notice && <div className="notice success"><ClipboardCheck />{notice}<button onClick={() => setNotice('')}><X /></button></div>}
-    {isAdmin && <div className="toolbar scope-toolbar"><select value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Tất cả phòng ban</option>{departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>}
-    {error && !selected && <div className="notice error">{error}<button onClick={load}>Thử lại</button></div>}
+    {isAdmin && <div className="toolbar scope-toolbar"><select aria-label="Lọc báo cáo chờ duyệt theo phòng ban" disabled={loading} value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Tất cả phòng ban</option>{departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>}
+    {error && !selected && <div className="notice error" role="alert">{error}<button onClick={() => void load()}>Thử lại</button></div>}
     <div className="table-card">
       <div className="table-summary"><span><b>{updates.length}</b> báo cáo đang chờ xử lý</span><span>Duyệt theo thứ tự gửi sớm nhất</span></div>
       {loading ? <Spinner /> : updates.length ? <div className="table-wrap"><table>

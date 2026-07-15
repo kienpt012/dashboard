@@ -5,6 +5,7 @@ import * as ExcelJS from 'exceljs';
 import { audit, getActor, resolveDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
+import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
 
 const STATUS_LABELS: Record<TargetStatus, string> = {
@@ -22,8 +23,8 @@ const REVIEW_LABELS: Record<ProgressReviewStatus, string> = {
 };
 
 function parseYear(raw?: string) {
-  const year = raw ? Number(raw) : new Date().getFullYear();
-  if (!Number.isInteger(year) || year < 2000 || year > 2200) throw new BadRequestException('Năm báo cáo không hợp lệ');
+  const year = raw ? Number(raw) : currentVietnamYear();
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BadRequestException('Năm báo cáo không hợp lệ');
   return year;
 }
 
@@ -77,7 +78,7 @@ export class ExportsController {
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const riskThreshold = setting?.riskThreshold ?? 70;
     const targets = await this.prisma.target.findMany({
-      where: { year, ...(departmentId ? { departmentId } : {}) },
+      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
@@ -89,9 +90,14 @@ export class ExportsController {
       riskThreshold,
       hasReport: Boolean(target.lastReportedAt),
     })]));
+    const weightedTotal = targets.reduce((sum, target) => sum + target.weight, 0);
+    const weightedProgress = targets.reduce(
+      (sum, target) => sum + (evaluations.get(target.id)!.progress / 100) * target.weight,
+      0,
+    );
     const history = await this.prisma.progressUpdate.findMany({
       where: {
-        target: { year, ...(departmentId ? { departmentId } : {}) },
+        target: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
         ...(actor.role === Role.STAFF || actor.role === Role.VIEWER
           ? { reviewStatus: ProgressReviewStatus.APPROVED }
           : {}),
@@ -106,7 +112,7 @@ export class ExportsController {
     const reviewerMap = new Map(reviewers.map(user => [user.id, user.fullName]));
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'IOC Tân Hưng';
+    workbook.creator = 'IOC Lái Thiêu';
     workbook.created = new Date();
     workbook.modified = new Date();
 
@@ -120,24 +126,25 @@ export class ExportsController {
     summary.addRow(['Người xuất', `${actor.fullName} (@${actor.username})`]);
     summary.addRow(['Thời điểm xuất', new Date()]);
     summary.addRow(['Tổng chỉ tiêu', targets.length]);
-    summary.addRow(['Tiến độ bình quân', targets.length ? Math.round(targets.reduce((sum, target) => sum + evaluations.get(target.id)!.progress, 0) / targets.length) / 100 : 0]);
+    summary.addRow(['Tiến độ theo trọng số', weightedTotal ? Math.round((weightedProgress / weightedTotal) * 100) / 100 : 0]);
     summary.getCell('B4').numFmt = 'dd/mm/yyyy hh:mm';
     summary.getCell('B6').numFmt = '0%';
     summary.addRow([]);
-    summary.addRow(['Phòng ban', 'Tổng chỉ tiêu', 'Hoàn thành', 'Cần tập trung', 'Tiến độ bình quân']);
+    summary.addRow(['Phòng ban', 'Tổng chỉ tiêu', 'Hoàn thành', 'Cần tập trung', 'Tiến độ theo trọng số']);
     header(summary.getRow(8));
-    const departments = new Map<string, { name: string; total: number; completed: number; risk: number; progress: number }>();
+    const departments = new Map<string, { name: string; total: number; completed: number; risk: number; progress: number; weight: number }>();
     for (const target of targets) {
       const evaluation = evaluations.get(target.id)!;
-      const item = departments.get(target.departmentId) ?? { name: target.department.name, total: 0, completed: 0, risk: 0, progress: 0 };
+      const item = departments.get(target.departmentId) ?? { name: target.department.name, total: 0, completed: 0, risk: 0, progress: 0, weight: 0 };
       item.total++;
       item.completed += evaluation.status === TargetStatus.COMPLETED ? 1 : 0;
       item.risk += evaluation.status === TargetStatus.AT_RISK || evaluation.status === TargetStatus.OVERDUE ? 1 : 0;
-      item.progress += evaluation.progress;
+      item.progress += evaluation.progress * target.weight;
+      item.weight += target.weight;
       departments.set(target.departmentId, item);
     }
     for (const item of [...departments.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'))) {
-      const row = summary.addRow([item.name, item.total, item.completed, item.risk, item.total ? item.progress / item.total / 100 : 0]);
+      const row = summary.addRow([item.name, item.total, item.completed, item.risk, item.weight ? item.progress / item.weight / 100 : 0]);
       row.getCell(5).numFmt = '0%';
     }
     styleBody(summary, 9);
@@ -151,6 +158,7 @@ export class ExportsController {
       { header: 'Mục tiêu', width: 15 },
       { header: 'Thực hiện', width: 15 },
       { header: 'Đơn vị', width: 14 },
+      { header: 'Trọng số', width: 12 },
       { header: 'Chiều đánh giá', width: 20 },
       { header: 'Tiến độ', width: 13 },
       { header: 'Trạng thái', width: 18 },
@@ -169,6 +177,7 @@ export class ExportsController {
         target.targetValue,
         target.currentValue,
         target.unit,
+        target.weight,
         target.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt',
         evaluation.progress / 100,
         STATUS_LABELS[evaluation.status],
@@ -178,11 +187,12 @@ export class ExportsController {
       ]);
       row.getCell(5).numFmt = '#,##0.########';
       row.getCell(6).numFmt = '#,##0.########';
-      row.getCell(9).numFmt = '0%';
-      row.getCell(11).numFmt = 'dd/mm/yyyy';
-      row.getCell(12).numFmt = 'dd/mm/yyyy hh:mm';
+      row.getCell(8).numFmt = '0.0#';
+      row.getCell(10).numFmt = '0%';
+      row.getCell(12).numFmt = 'dd/mm/yyyy';
+      row.getCell(13).numFmt = 'dd/mm/yyyy hh:mm';
     });
-    details.autoFilter = { from: 'A1', to: 'M1' };
+    details.autoFilter = { from: 'A1', to: 'N1' };
     styleBody(details, 2);
 
     const log = workbook.addWorksheet('LICH_SU', { views: [{ state: 'frozen', ySplit: 1 }] });

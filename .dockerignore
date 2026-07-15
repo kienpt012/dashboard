@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+node_modules
+**/node_modules
+**/dist
+**/*.log
+qa-artifacts
+IOC Lái Thiêu - V46 Control Room.html
+IOC Lái Thiêu - V46 Control Room_files

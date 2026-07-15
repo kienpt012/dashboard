@@ -41,8 +41,53 @@ enum ProgressReviewStatus {
 
 enum ImportBatchStatus {
   PREVIEWED
+  SUBMITTED
+  PARTIALLY_REVIEWED
+  PARTIALLY_APPROVED
+  APPROVED
+  REJECTED
   APPLIED
   FAILED
+}
+
+enum FeedbackCategory {
+  INFRASTRUCTURE
+  ENVIRONMENT
+  ADMINISTRATIVE_PROCEDURE
+  SECURITY_ORDER
+  SOCIAL_WELFARE
+  CULTURE_EDUCATION
+  OTHER
+}
+
+enum FeedbackPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum FeedbackStatus {
+  RECEIVED
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_CITIZEN
+  PENDING_REVIEW
+  RESOLVED
+  CLOSED
+  REJECTED
+  REOPENED
+}
+
+enum FeedbackMessageVisibility {
+  INTERNAL
+  PUBLIC
+}
+
+enum FeedbackClosureReason {
+  RESOLVED
+  NO_CITIZEN_RESPONSE
+  OUT_OF_SCOPE
 }
 
 model Department {
@@ -52,11 +97,13 @@ model Department {
   description String?
   color       String   @default("#0f766e")
   isActive    Boolean  @default(true)
+  version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   users       User[]
   targets     Target[]
   importBatches ImportBatch[]
+  feedbacks   Feedback[]
 }
 
 model User {
@@ -72,12 +119,15 @@ model User {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   lastLoginAt  DateTime?
+  tokenVersion Int         @default(1)
+  version      Int         @default(1)
   updates      ProgressUpdate[]
+  assignedFeedbacks Feedback[] @relation("FeedbackAssignee")
 }
 
 model Target {
   id            String          @id @default(cuid())
-  code          String          @unique
+  code          String
   title         String
   description   String?
   unit          String
@@ -89,6 +139,11 @@ model Target {
   direction     TargetDirection @default(HIGHER_IS_BETTER)
   status        TargetStatus    @default(NOT_STARTED)
   version       Int             @default(1)
+  publicationVersion Int        @default(1)
+  isArchived    Boolean         @default(false)
+  archivedAt    DateTime?
+  archivedBy    String?
+  archiveReason String?
   isPublic      Boolean         @default(false)
   isHighlighted Boolean         @default(false)
   publicOrder   Int?
@@ -97,6 +152,18 @@ model Target {
   publishedTargetValue Float?
   publishedDirection TargetDirection?
   publishedStatus TargetStatus?
+  publishedCode String?
+  publishedTitle String?
+  publishedDescription String?
+  publishedUnit String?
+  publishedWeight Float?
+  publishedYear Int?
+  publishedFrequency TargetFrequency?
+  publishedDueDate DateTime?
+  publishedDepartmentName String?
+  publishedDepartmentColor String?
+  publishedHighlighted Boolean?
+  publishedOrder Int?
   publishedAt DateTime?
   publishedBy String?
   dueDate       DateTime
@@ -108,6 +175,8 @@ model Target {
 
   @@index([year, status])
   @@index([departmentId])
+  @@index([isArchived, year])
+  @@unique([year, departmentId, code])
 }
 
 model ProgressUpdate {
@@ -124,8 +193,11 @@ model ProgressUpdate {
   target    Target   @relation(fields: [targetId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+  importBatchId String?
+  importBatch ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
   @@index([reviewStatus, targetId])
+  @@index([importBatchId, reviewStatus])
 }
 
 model ImportBatch {
@@ -140,8 +212,10 @@ model ImportBatch {
   departmentId String?
   department Department? @relation(fields: [departmentId], references: [id])
   status      ImportBatchStatus @default(PREVIEWED)
+  submittedAt DateTime?
   appliedAt   DateTime?
   createdAt   DateTime @default(now())
+  updates     ProgressUpdate[]
 
   @@index([departmentId, createdAt])
 }
@@ -151,8 +225,107 @@ model SystemSetting {
   defaultYear   Int      @default(2026)
   warningDays   Int      @default(14)
   riskThreshold Float    @default(70)
+  feedbackFirstResponseDays Int @default(2)
+  feedbackResolutionDays Int @default(10)
+  feedbackCitizenResponseDays Int @default(7)
+  version       Int      @default(1)
   updatedBy     String?
   updatedAt     DateTime @updatedAt
+}
+
+model Feedback {
+  id                 String           @id @default(cuid())
+  code               String           @unique
+  lookupSecretHash   String
+  clientSubmissionId String?          @unique
+  title              String
+  content            String
+  category           FeedbackCategory
+  priority           FeedbackPriority @default(NORMAL)
+  status             FeedbackStatus   @default(RECEIVED)
+  submitterName      String
+  submitterPhone     String
+  submitterEmail     String?
+  address            String?
+  preferredContact   String            @default("PHONE")
+  consentAcceptedAt  DateTime
+  scopeConfirmedAt   DateTime
+  consentPolicyVersion String
+  departmentId       String?
+  department         Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignedToId       String?
+  assignedTo         User?             @relation("FeedbackAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  dueAt              DateTime?
+  firstResponseDueAt DateTime?
+  firstResponseAt    DateTime?
+  waitingCitizenAt  DateTime?
+  citizenResponseDueAt DateTime?
+  submittedForReviewAt DateTime?
+  submittedForReviewBy String?
+  resolvedAt         DateTime?
+  closedAt           DateTime?
+  resolutionSummary  String?
+  rejectionReason    String?
+  closureReason      FeedbackClosureReason?
+  version            Int              @default(1)
+  reopenCount        Int              @default(0)
+  reopenRequestedAt  DateTime?
+  reopenRequestReason String?
+  reopenRequestCount Int              @default(0)
+  reopenRequestDecision String?
+  reopenRequestDecisionNote String?
+  reopenRequestReviewedAt DateTime?
+  reopenRequestReviewedBy String?
+  rating             Int?
+  ratingComment      String?
+  ratedAt            DateTime?
+  isPublic           Boolean          @default(false)
+  publicTitle        String?
+  publicSummary      String?
+  publicCategory     FeedbackCategory?
+  publicDepartmentName String?
+  publicResolvedAt   DateTime?
+  publicPublishedAt  DateTime?
+  publicPublishedBy  String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  messages           FeedbackMessage[]
+  events             FeedbackEvent[]
+
+  @@index([status, createdAt])
+  @@index([departmentId, status])
+  @@index([assignedToId, status])
+  @@index([dueAt])
+  @@index([citizenResponseDueAt])
+}
+
+model FeedbackMessage {
+  id         String                    @id @default(cuid())
+  feedbackId String
+  feedback   Feedback                  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  body       String
+  visibility FeedbackMessageVisibility @default(INTERNAL)
+  authorId   String?
+  authorName String
+  createdAt  DateTime                  @default(now())
+
+  @@index([feedbackId, createdAt])
+}
+
+model FeedbackEvent {
+  id         String          @id @default(cuid())
+  feedbackId String
+  feedback   Feedback        @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  action     String
+  fromStatus FeedbackStatus?
+  toStatus   FeedbackStatus?
+  actorId    String?
+  actorName  String
+  note       String?
+  metadata   Json?
+  createdAt  DateTime        @default(now())
+
+  @@index([feedbackId, createdAt])
 }
 
 model AuditLog {

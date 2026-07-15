@@ -7,4 +7,5 @@ uploads
 work/
 outputs/
 backups/
+qa-artifacts/
 *.tsbuildinfo

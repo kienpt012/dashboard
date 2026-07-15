@@ -10,7 +10,20 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+function planningDueDate(value: string) {
+  return new Date(`${value}T16:59:59.999Z`);
+}
+
 async function main() {
+  if (
+    process.env.NODE_ENV === 'production'
+    && process.env.ALLOW_DEMO_SEED?.toLowerCase() !== 'true'
+  ) {
+    throw new Error(
+      'Không chạy dữ liệu mẫu trong production. Chỉ đặt ALLOW_DEMO_SEED=true khi đã xác nhận đây là môi trường demo.',
+    );
+  }
+
   const departments = [
     ['VP', 'Văn phòng HĐND & UBND', '#0f766e'],
     ['KTHTDT', 'Phòng Kinh tế, Hạ tầng & Đô thị', '#2563eb'],
@@ -23,7 +36,9 @@ async function main() {
   for (const [code, name, color] of departments) {
     const department = await prisma.department.upsert({
       where: { code },
-      update: { name, color, isActive: true },
+      // Seed chỉ tạo dữ liệu còn thiếu. Không ghi đè tên, màu hoặc trạng thái đã
+      // được quản trị viên thay đổi trong quá trình vận hành.
+      update: {},
       create: { code, name, color },
     });
     departmentIds[code] = department.id;
@@ -33,39 +48,28 @@ async function main() {
   const demoPassword = await bcrypt.hash('Demo@1234', 10);
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {
-      passwordHash: adminPassword,
-      fullName: 'Quản trị hệ thống',
-      role: Role.ADMIN,
-      departmentId: departmentIds.VP,
-      isActive: true,
-    },
+    // Tuyệt đối không đặt lại mật khẩu, vai trò hay phòng ban khi chạy lại seed.
+    update: {},
     create: {
       username: 'admin',
       passwordHash: adminPassword,
       fullName: 'Quản trị hệ thống',
-      email: 'admin@tanhung.gov.vn',
+      email: 'admin@laithieu.gov.vn',
       role: Role.ADMIN,
-      departmentId: departmentIds.VP,
+      departmentId: null,
     },
   });
 
   const demoUsers = [
-    ['lan.anh', 'Nguyễn Lan Anh', 'lan.anh@tanhung.gov.vn', Role.MANAGER, 'KTHTDT'],
-    ['staff.ktht', 'Trần Minh Khôi', 'staff.ktht@tanhung.gov.vn', Role.STAFF, 'KTHTDT'],
-    ['viewer.ktht', 'Lê Hoài An', 'viewer.ktht@tanhung.gov.vn', Role.VIEWER, 'KTHTDT'],
-    ['manager.vhxh', 'Phạm Thu Hương', 'manager.vhxh@tanhung.gov.vn', Role.MANAGER, 'VHXH'],
+    ['lan.anh', 'Nguyễn Lan Anh', 'lan.anh@laithieu.gov.vn', Role.MANAGER, 'KTHTDT'],
+    ['staff.ktht', 'Trần Minh Khôi', 'staff.ktht@laithieu.gov.vn', Role.STAFF, 'KTHTDT'],
+    ['viewer.ktht', 'Lê Hoài An', 'viewer.ktht@laithieu.gov.vn', Role.VIEWER, 'KTHTDT'],
+    ['manager.vhxh', 'Phạm Thu Hương', 'manager.vhxh@laithieu.gov.vn', Role.MANAGER, 'VHXH'],
   ] as const;
   for (const [username, fullName, email, role, departmentCode] of demoUsers) {
     await prisma.user.upsert({
       where: { username },
-      update: {
-        passwordHash: demoPassword,
-        fullName,
-        role,
-        departmentId: departmentIds[departmentCode],
-        isActive: true,
-      },
+      update: {},
       create: {
         username,
         passwordHash: demoPassword,
@@ -98,10 +102,24 @@ async function main() {
     'CT-2026-006',
     'CT-2026-009',
   ]);
+  const departmentMetadata = new Map(
+    departments.map(([code, name, color]) => [code, { name, color }] as const),
+  );
+  const existingTargetKeys = new Set(
+    (await prisma.target.findMany({
+      where: {
+        year: 2026,
+        code: { in: targets.map(([code]) => code) },
+        departmentId: { in: Object.values(departmentIds) },
+      },
+      select: { code: true, year: true, departmentId: true },
+    })).map(target => `${target.year}|${target.departmentId}|${target.code}`),
+  );
 
   for (let index = 0; index < targets.length; index += 1) {
     const [code, title, unit, targetValue, currentValue, departmentCode, dueDate, status, weight, direction] = targets[index];
     const isPublic = publicCodes.has(code);
+    const publishedDepartment = departmentMetadata.get(departmentCode)!;
     const lastReportedAt = currentValue > 0 ? new Date('2026-07-12T01:00:00.000Z') : null;
     const targetData = {
       title,
@@ -109,7 +127,7 @@ async function main() {
       targetValue,
       currentValue,
       departmentId: departmentIds[departmentCode],
-      dueDate: new Date(dueDate),
+      dueDate: planningDueDate(dueDate),
       year: 2026,
       status,
       weight,
@@ -123,18 +141,49 @@ async function main() {
       publishedTargetValue: isPublic ? targetValue : null,
       publishedDirection: isPublic ? direction : null,
       publishedStatus: isPublic ? status : null,
+      publishedCode: isPublic ? code : null,
+      publishedTitle: isPublic ? title : null,
+      publishedDescription: null,
+      publishedUnit: isPublic ? unit : null,
+      publishedYear: isPublic ? 2026 : null,
+      publishedFrequency: isPublic ? TargetFrequency.YEARLY : null,
+      publishedDueDate: isPublic ? planningDueDate(dueDate) : null,
+      publishedDepartmentName: isPublic ? publishedDepartment.name : null,
+      publishedDepartmentColor: isPublic ? publishedDepartment.color : null,
+      publishedWeight: isPublic ? weight : null,
+      publishedHighlighted: isPublic ? true : null,
+      publishedOrder: isPublic ? [...publicCodes].indexOf(code) + 1 : null,
       publishedAt: isPublic ? lastReportedAt : null,
       publishedBy: isPublic ? admin.id : null,
     };
     await prisma.target.upsert({
-      where: { code },
-      update: targetData,
+      where: {
+        year_departmentId_code: {
+          year: 2026,
+          departmentId: departmentIds[departmentCode],
+          code,
+        },
+      },
+      // Không ghi đè số liệu, cấu hình công khai hoặc phiên bản đang vận hành.
+      update: {},
       create: { code, ...targetData },
     });
   }
 
-  const first = await prisma.target.findUnique({ where: { code: 'CT-2026-002' } });
-  if (first && (await prisma.progressUpdate.count({ where: { targetId: first.id } })) === 0) {
+  const first = await prisma.target.findUnique({
+    where: {
+      year_departmentId_code: {
+        year: 2026,
+        departmentId: departmentIds.KTHTDT,
+        code: 'CT-2026-002',
+      },
+    },
+  });
+  if (
+    !existingTargetKeys.has(`2026|${departmentIds.KTHTDT}|CT-2026-002`)
+    && first
+    && (await prisma.progressUpdate.count({ where: { targetId: first.id } })) === 0
+  ) {
     await prisma.progressUpdate.create({
       data: {
         targetId: first.id,
@@ -151,8 +200,16 @@ async function main() {
 
   await prisma.systemSetting.upsert({
     where: { id: 'default' },
-    update: { defaultYear: 2026, warningDays: 14, riskThreshold: 70, updatedBy: admin.id },
-    create: { id: 'default', defaultYear: 2026, warningDays: 14, riskThreshold: 70, updatedBy: admin.id },
+    update: {},
+    create: {
+      id: 'default',
+      defaultYear: 2026,
+      warningDays: 14,
+      riskThreshold: 70,
+      feedbackFirstResponseDays: 2,
+      feedbackResolutionDays: 10,
+      updatedBy: admin.username,
+    },
   });
 }
 

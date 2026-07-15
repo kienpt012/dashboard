@@ -1,0 +1,2 @@
+ALTER TABLE "Target"
+  ADD COLUMN "publicationVersion" INTEGER NOT NULL DEFAULT 1;

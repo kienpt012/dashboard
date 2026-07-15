@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: ioc-tanhung-db
+    container_name: ioc-laithieu-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-ioc_tanhung}
+      POSTGRES_DB: ${POSTGRES_DB:-ioc_laithieu}
       POSTGRES_USER: ${POSTGRES_USER:-ioc_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ioc_secure_2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - ioc_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ioc_admin} -d ${POSTGRES_DB:-ioc_tanhung}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ioc_admin} -d ${POSTGRES_DB:-ioc_laithieu}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,15 +21,23 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: ioc-tanhung-api
+    container_name: ioc-laithieu-api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ioc_admin}:${POSTGRES_PASSWORD:-ioc_secure_2026}@postgres:5432/${POSTGRES_DB:-ioc_tanhung}?schema=public
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ioc_admin}:${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-ioc_laithieu}?schema=public
       JWT_SECRET: ${JWT_SECRET:?Set a strong JWT_SECRET in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      RUN_DEMO_SEED: ${RUN_DEMO_SEED:-false}
       PORT: 3000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,13 +47,19 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_URL: http://localhost:3000/api
-    container_name: ioc-tanhung-web
+        VITE_API_URL: /api
+    container_name: ioc-laithieu-web
     restart: unless-stopped
     ports:
       - "8080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   ioc_postgres_data:
