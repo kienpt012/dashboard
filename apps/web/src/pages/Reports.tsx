@@ -2,6 +2,7 @@ import { Download, FileBarChart, Filter, Printer, TrendingUp } from 'lucide-reac
 import { useEffect, useMemo, useState } from 'react';
 import { api, auth, downloadApi } from '../api';
 import { Empty, PageHead, Spinner } from '../components/UI';
+import { currentVietnamYear } from '../date';
 import type { Department } from '../types';
 import { statusMeta } from '../types';
 
@@ -19,9 +20,9 @@ type ReportRow = {
 };
 
 type AppliedFilter = { year: number; departmentId: string };
+type DashboardSummary = { year: number; overallProgress: number };
 
-const currentYear = new Date().getFullYear();
-const yearOptions = [currentYear + 1, currentYear, currentYear - 1];
+const currentYear = currentVietnamYear();
 
 function messageOf(error: unknown) {
   return error instanceof Error ? error.message : 'Có lỗi xảy ra, vui lòng thử lại';
@@ -53,6 +54,7 @@ export default function Reports() {
   const [departmentId, setDepartmentId] = useState(isAdmin ? '' : ownDepartmentId);
   const [appliedFilter, setAppliedFilter] = useState<AppliedFilter>({ year: currentYear, departmentId: isAdmin ? '' : ownDepartmentId });
   const [rows, setRows] = useState<ReportRow[]>([]);
+  const [overallProgress, setOverallProgress] = useState(0);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
@@ -64,14 +66,26 @@ export default function Reports() {
       .catch(error => setError(messageOf(error)));
   }, [isAdmin]);
 
-  async function loadReport(filter: AppliedFilter) {
+  async function loadReport(filter?: AppliedFilter) {
     setLoading(true);
     setError('');
     try {
-      setRows(await api<ReportRow[]>(`/dashboard/report?${queryOf(filter)}`));
-      setAppliedFilter(filter);
+      const query = filter ? `?${queryOf(filter)}` : '';
+      const [reportRows, dashboard] = await Promise.all([
+        api<ReportRow[]>(`/dashboard/report${query}`),
+        api<DashboardSummary>(`/dashboard${query}`),
+      ]);
+      const resolvedFilter = filter || { year: dashboard.year, departmentId: isAdmin ? '' : ownDepartmentId };
+      setRows(reportRows);
+      setOverallProgress(dashboard.overallProgress);
+      setAppliedFilter(resolvedFilter);
+      if (!filter) {
+        setYear(dashboard.year);
+        setDepartmentId(resolvedFilter.departmentId);
+      }
     } catch (error) {
       setRows([]);
+      setOverallProgress(0);
       setError(messageOf(error));
     } finally {
       setLoading(false);
@@ -79,11 +93,10 @@ export default function Reports() {
   }
 
   useEffect(() => {
-    void loadReport({ year: currentYear, departmentId: isAdmin ? '' : ownDepartmentId });
+    void loadReport();
   }, []);
 
   const summary = useMemo(() => {
-    const average = rows.length ? Math.round(rows.reduce((sum, row) => sum + row.progress, 0) / rows.length) : 0;
     const completed = rows.filter(row => row.status === 'COMPLETED').length;
     const attention = rows.filter(row => row.status === 'AT_RISK' || row.status === 'OVERDUE').length;
     const lastReportedAt = rows.reduce<Date | null>((latest, row) => {
@@ -91,8 +104,10 @@ export default function Reports() {
       const date = new Date(row.lastReportedAt);
       return !latest || date > latest ? date : latest;
     }, null);
-    return { average, completed, attention, lastReportedAt };
+    return { completed, attention, lastReportedAt };
   }, [rows]);
+
+  const yearOptions = useMemo(() => Array.from({ length: 101 }, (_, index) => 2100 - index), []);
 
   const appliedDepartment = departments.find(item => item.id === appliedFilter.departmentId)
     || (!isAdmin ? user?.department : null);
@@ -123,20 +138,20 @@ export default function Reports() {
     />
 
     <div className="report-filters">
-      <div><label>Năm báo cáo</label><select value={year} onChange={event => setYear(Number(event.target.value))}>{yearOptions.map(item => <option key={item}>{item}</option>)}</select></div>
-      <div><label>Phạm vi phòng ban</label>{isAdmin
-        ? <select value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Toàn hệ thống</option>{departments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-        : <select value={ownDepartmentId} disabled><option value={ownDepartmentId}>{user?.department?.name || 'Chưa được gắn phòng ban'}</option></select>}
+      <div><label htmlFor="report-year">Năm báo cáo</label><select id="report-year" value={year} onChange={event => setYear(Number(event.target.value))}>{yearOptions.map(item => <option key={item}>{item}</option>)}</select></div>
+      <div><label htmlFor="report-department">Phạm vi phòng ban</label>{isAdmin
+        ? <select id="report-department" value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Toàn hệ thống</option>{departments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        : <select id="report-department" value={ownDepartmentId} disabled><option value={ownDepartmentId}>{user?.department?.name || 'Chưa được gắn phòng ban'}</option></select>}
       </div>
       <button className="btn secondary" onClick={() => loadReport({ year, departmentId: isAdmin ? departmentId : ownDepartmentId })} disabled={loading}><Filter />{loading ? 'Đang tải...' : 'Áp dụng'}</button>
       <span className="report-date">{summary.lastReportedAt ? `Dữ liệu cập nhật gần nhất ${summary.lastReportedAt.toLocaleString('vi-VN')}` : 'Chưa có lần báo cáo chính thức'}</span>
     </div>
 
-    {error && <div className="form-error">{error}</div>}
+    {error && <div className="form-error" role="alert">{error}</div>}
 
     <div className="report-summary">
       <div><FileBarChart /><span>Tổng chỉ tiêu<strong>{rows.length}</strong></span></div>
-      <div><TrendingUp /><span>Tiến độ bình quân<strong>{summary.average}%</strong></span></div>
+      <div title="Tổng hợp theo trọng số đã cấu hình cho từng chỉ tiêu"><TrendingUp /><span>Tiến độ theo trọng số<strong>{overallProgress}%</strong></span></div>
       <div><i className="dot green" /><span>Hoàn thành<strong>{summary.completed}</strong></span></div>
       <div><i className="dot amber" /><span>Cần tập trung<strong>{summary.attention}</strong></span></div>
     </div>

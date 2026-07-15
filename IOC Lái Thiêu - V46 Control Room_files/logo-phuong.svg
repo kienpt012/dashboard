@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-labelledby="title description">
+  <title id="title">Biểu trưng Phường Lái Thiêu</title>
+  <desc id="description">Biểu trưng LT của Trung tâm điều hành đô thị Phường Lái Thiêu</desc>
+  <defs>
+    <linearGradient id="ring" x1="256" y1="256" x2="1792" y2="1792" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#18a999"/>
+      <stop offset="0.5" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#064e49"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="630" y1="590" x2="1420" y2="1440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#043f3b"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="650" y1="650" x2="1390" y2="1380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe89b"/>
+      <stop offset="0.5" stop-color="#efc75e"/>
+      <stop offset="1" stop-color="#c79a2d"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#052f2c" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+
+  <circle cx="1024" cy="1024" r="918" fill="#ffffff" fill-opacity="0.96" stroke="url(#ring)" stroke-width="76"/>
+  <circle cx="1024" cy="1024" r="833" fill="none" stroke="#efc75e" stroke-width="16"/>
+  <circle cx="1024" cy="1024" r="787" fill="none" stroke="#d7e9e7" stroke-width="4"/>
+
+  <text x="1024" y="354" text-anchor="middle" fill="#075e58" font-family="Segoe UI, Arial, sans-serif" font-size="96" font-weight="800" letter-spacing="6">PHƯỜNG LÁI THIÊU</text>
+  <path d="M560 452 H1488" stroke="#efc75e" stroke-width="16" stroke-linecap="round"/>
+
+  <g filter="url(#shadow)">
+    <rect x="566" y="566" width="916" height="916" rx="250" fill="url(#panel)"/>
+    <rect x="596" y="596" width="856" height="856" rx="220" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="6"/>
+  </g>
+
+  <g fill="none" stroke="url(#gold)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M764 846 L1024 692 L1284 846" stroke-width="52"/>
+    <path d="M786 896 H1262" stroke-width="44"/>
+    <path d="M834 932 V1080 M958 932 V1080 M1090 932 V1080 M1214 932 V1080" stroke-width="36"/>
+    <path d="M790 1124 H1258" stroke-width="44"/>
+  </g>
+
+  <text x="1024" y="1360" text-anchor="middle" fill="url(#gold)" font-family="Segoe UI, Arial, sans-serif" font-size="286" font-weight="900" letter-spacing="8">LT</text>
+
+  <path d="M470 1592 H1578" stroke="#d7e9e7" stroke-width="4"/>
+  <text x="1024" y="1694" text-anchor="middle" fill="#075e58" font-family="Segoe UI, Arial, sans-serif" font-size="53" font-weight="700" letter-spacing="3">TRUNG TÂM ĐIỀU HÀNH ĐÔ THỊ</text>
+  <text x="1024" y="1795" text-anchor="middle" fill="#6b7f7d" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="600" letter-spacing="2">MINH BẠCH · HIỆN ĐẠI · VÌ NGƯỜI DÂN</text>
+</svg>

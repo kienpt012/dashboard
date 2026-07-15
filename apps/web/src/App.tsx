@@ -15,6 +15,10 @@ import Settings from './pages/Settings';
 import Targets from './pages/Targets';
 import Users from './pages/Users';
 import Approvals from './pages/Approvals';
+import FeedbackAdmin from './pages/FeedbackAdmin';
+import FeedbackPublic from './pages/FeedbackPublic';
+import AuditLogs from './pages/AuditLogs';
+import Profile from './pages/Profile';
 import type { AuthMeResponse, Role, User } from './types';
 
 function Protected(){
@@ -60,6 +64,7 @@ function LoginRoute(){
 export default function App(){
   return <Routes>
     <Route path="/" element={<PublicHome/>}/>
+    <Route path="/phan-anh" element={<FeedbackPublic/>}/>
     <Route path="/admin/login" element={<LoginRoute/>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>
@@ -67,9 +72,12 @@ export default function App(){
       <Route path="reports" element={<RoleRoute allowed={ALL_ROLES}><Reports/></RoleRoute>}/>
       <Route path="imports" element={<RoleRoute allowed={IMPORT_ROLES}><Imports/></RoleRoute>}/>
       <Route path="approvals" element={<RoleRoute allowed={APPROVAL_ROLES}><Approvals/></RoleRoute>}/>
+      <Route path="feedback" element={<RoleRoute allowed={ALL_ROLES}><FeedbackAdmin/></RoleRoute>}/>
       <Route path="departments" element={<RoleRoute allowed={ALL_ROLES}><Departments/></RoleRoute>}/>
       <Route path="users" element={<RoleRoute allowed={ADMIN_ROLES}><Users/></RoleRoute>}/>
       <Route path="settings" element={<RoleRoute allowed={ADMIN_ROLES}><Settings/></RoleRoute>}/>
+      <Route path="audit-logs" element={<RoleRoute allowed={ADMIN_ROLES}><AuditLogs/></RoleRoute>}/>
+      <Route path="profile" element={<RoleRoute allowed={ALL_ROLES}><Profile/></RoleRoute>}/>
       <Route path="forbidden" element={<Forbidden/>}/>
       <Route path="*" element={<Navigate to="/admin" replace/>}/>
     </Route>

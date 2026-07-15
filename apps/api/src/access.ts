@@ -93,7 +93,7 @@ export async function audit(
       action: event.action,
       entityType: event.entityType,
       entityId: event.entityId,
-      departmentId: event.departmentId ?? actor.departmentId,
+      departmentId: event.departmentId === undefined ? actor.departmentId : event.departmentId,
       ...(event.metadata === undefined ? {} : { metadata: event.metadata }),
     },
   });

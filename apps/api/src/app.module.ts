@@ -14,6 +14,10 @@ import { PublicController } from './public';
 import { SettingsController } from './settings';
 import { ExportsController } from './exports';
 import { requireJwtSecret } from './environment';
+import { FeedbackController, PublicFeedbackController } from './feedback';
+import { AuditLogsController } from './audit-logs';
+import { RateLimitService } from './rate-limit';
+import { HealthController } from './health';
 
 @Module({
   imports: [
@@ -30,7 +34,9 @@ import { requireJwtSecret } from './environment';
     }),
   ],
   controllers: [
+    HealthController,
     PublicController,
+    PublicFeedbackController,
     AuthController,
     DepartmentsController,
     UsersController,
@@ -39,7 +45,9 @@ import { requireJwtSecret } from './environment';
     ImportController,
     ExportsController,
     SettingsController,
+    FeedbackController,
+    AuditLogsController,
   ],
-  providers: [PrismaService, JwtStrategy, RolesGuard],
+  providers: [PrismaService, JwtStrategy, RolesGuard, RateLimitService],
 })
 export class AppModule {}

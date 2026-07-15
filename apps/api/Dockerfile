@@ -14,4 +14,4 @@ COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/prisma ./prisma
 COPY --from=build /app/apps/api/package.json ./package.json
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && npx tsx prisma/seed.ts && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && if [ \"${RUN_DEMO_SEED:-false}\" = \"true\" ]; then ALLOW_DEMO_SEED=true npx tsx prisma/seed.ts; fi && node dist/main.js"]

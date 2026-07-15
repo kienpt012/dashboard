@@ -1,5 +1,5 @@
 {
-  "name": "ioc-tan-hung-control-room",
+  "name": "ioc-lai-thieu-control-room",
   "private": true,
   "workspaces": ["apps/*"],
   "scripts": {
@@ -7,8 +7,11 @@
     "build": "npm run build -w @ioc/api && npm run build -w @ioc/web",
     "db:generate": "npm run prisma:generate -w @ioc/api",
     "db:migrate": "npm run prisma:migrate -w @ioc/api",
-    "db:seed": "npm run prisma:seed -w @ioc/api"
+    "db:seed": "npm run prisma:seed -w @ioc/api",
+    "qa:feedback": "node scripts/qa-feedback.mjs",
+    "qa:access": "node scripts/qa-access.mjs",
+    "qa:import": "node scripts/qa-import.mjs",
+    "test": "npm run test -w @ioc/api"
   },
-  "devDependencies": {"concurrently": "^9.2.1"},
-  "overrides": {"exceljs": {"uuid": "11.1.1"}}
+  "devDependencies": {"concurrently": "^9.2.1"}
 }

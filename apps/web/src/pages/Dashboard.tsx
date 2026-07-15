@@ -28,6 +28,7 @@ type DashboardData={
   alerts:DashboardAlert[];
   recent:DashboardUpdate[];
   updatedAt:string;
+  riskThreshold:number;
 };
 
 export default function Dashboard(){
@@ -62,7 +63,7 @@ export default function Dashboard(){
   const needsAttention=atRisk+overdue;
   const completedRate=data.total?Math.round(completed/data.total*100):0;
   const ringProgress=Math.max(0,Math.min(data.overallProgress,100));
-  const availableYears=[data.year+1,data.year,data.year-1];
+  const availableYears=Array.from({length:101},(_,index)=>2100-index);
   const cards=[
     {label:'Tổng chỉ tiêu',value:data.total,meta:`Kế hoạch năm ${data.year}`,icon:Target,tone:'teal'},
     {label:'Đã hoàn thành',value:completed,meta:`${completedRate}% tổng chỉ tiêu`,icon:CheckCircle2,tone:'blue'},
@@ -81,7 +82,7 @@ export default function Dashboard(){
         <select aria-label="Năm kế hoạch" value={year} disabled={loading} onChange={event=>void load(Number(event.target.value))}>
           {availableYears.map(option=><option key={option} value={option}>{option}</option>)}
         </select>
-        {canCreate&&<Link className="btn primary" to="/admin/targets?new=1"><Plus/>Đặt chỉ tiêu</Link>}
+        {canCreate&&<Link className="btn primary" to={`/admin/targets?new=1&year=${data.year}`}><Plus/>Đặt chỉ tiêu</Link>}
       </div>
     </div>
 
@@ -91,7 +92,7 @@ export default function Dashboard(){
       <div>
         <span>TIẾN ĐỘ CHUNG {isGlobal?'TOÀN PHƯỜNG':'CỦA ĐƠN VỊ'}</span>
         <strong>{data.overallProgress}<small>%</small></strong>
-        <p>{data.overallProgress>=70?'Tiến độ đang bám sát kế hoạch':'Cần ưu tiên các chỉ tiêu chậm tiến độ'}</p>
+        <p>{data.overallProgress>=data.riskThreshold?'Tiến độ đang bám sát kế hoạch':'Cần ưu tiên các chỉ tiêu chậm tiến độ'}</p>
       </div>
       <div className="ring" style={{'--p':`${ringProgress*3.6}deg`} as React.CSSProperties}><span>{data.overallProgress}%</span></div>
       <div className="banner-stats">
@@ -112,7 +113,7 @@ export default function Dashboard(){
 
       <section className="panel alert-panel">
         <div className="panel-head"><div><h3>Cần chú ý</h3><p>Ưu tiên xử lý sớm</p></div><span className="alert-count">{data.alerts.length}</span></div>
-        <div className="alerts">{data.alerts.length?data.alerts.map(target=><Link to="/admin/targets" key={target.id}><div className={`alert-dot ${target.status==='OVERDUE'?'danger':''}`}><AlertTriangle/></div><div><strong>{target.title}</strong><span>{target.department.name} · Hạn {new Date(target.dueDate).toLocaleDateString('vi-VN')}</span></div><ChevronRight/></Link>):<p>Không có chỉ tiêu cần cảnh báo.</p>}</div>
+        <div className="alerts">{data.alerts.length?data.alerts.map(target=><Link to={`/admin/targets?year=${data.year}&search=${encodeURIComponent(target.code)}`} key={target.id}><div className={`alert-dot ${target.status==='OVERDUE'?'danger':''}`}><AlertTriangle/></div><div><strong>{target.title}</strong><span>{target.department.name} · Hạn {new Date(target.dueDate).toLocaleDateString('vi-VN')}</span></div><ChevronRight/></Link>):<p>Không có chỉ tiêu cần cảnh báo.</p>}</div>
       </section>
 
       <section className="panel span-2">

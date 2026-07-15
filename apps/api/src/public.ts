@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { calculateProgress } from './metrics';
 import { PrismaService } from './prisma.service';
+import { currentVietnamYear } from './planning-date';
 
 class PublicOverviewQueryDto {
   @IsOptional()
@@ -21,46 +22,83 @@ export class PublicController {
   @Get('overview')
   async overview(@Query() query: PublicOverviewQueryDto) {
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
-    const year = query.year ?? setting?.defaultYear ?? new Date().getFullYear();
+    const year = query.year ?? setting?.defaultYear ?? currentVietnamYear();
     const rows = await this.prisma.target.findMany({
       where: {
-        year,
         isPublic: true,
+        isArchived: false,
         publishedValue: { not: null },
         publishedTargetValue: { not: null },
         publishedDirection: { not: null },
         publishedStatus: { not: null },
-        department: { isActive: true },
+        // Dùng năm đã được đóng băng khi công bố. Nhánh thứ hai chỉ hỗ trợ
+        // bản ghi legacy được tạo trước khi có snapshot đầy đủ.
+        OR: [
+          { publishedYear: year },
+          { publishedYear: null, year },
+        ],
       },
       select: {
         code: true,
         title: true,
+        description: true,
         unit: true,
+        weight: true,
+        year: true,
+        frequency: true,
+        dueDate: true,
+        isHighlighted: true,
+        publicOrder: true,
+        department: { select: { name: true, color: true } },
         publishedTargetValue: true,
         publishedValue: true,
         publishedDirection: true,
         publishedStatus: true,
+        publishedCode: true,
+        publishedTitle: true,
+        publishedDescription: true,
+        publishedUnit: true,
+        publishedWeight: true,
+        publishedYear: true,
+        publishedFrequency: true,
+        publishedDueDate: true,
+        publishedDepartmentName: true,
+        publishedDepartmentColor: true,
+        publishedHighlighted: true,
+        publishedOrder: true,
         publishedAt: true,
-        weight: true,
-        isHighlighted: true,
-        publicOrder: true,
-        departmentId: true,
-        department: { select: { name: true, color: true } },
       },
       orderBy: [
-        { isHighlighted: 'desc' },
-        { publicOrder: 'asc' },
+        { publishedHighlighted: 'desc' },
+        { publishedOrder: 'asc' },
         { publishedAt: 'desc' },
       ],
     });
-    const targets = rows.map(target => ({
-      ...target,
-      targetValue: target.publishedTargetValue!,
-      currentValue: target.publishedValue!,
-      direction: target.publishedDirection!,
-      status: target.publishedStatus!,
-      progress: calculateProgress(target.publishedTargetValue!, target.publishedValue!, target.publishedDirection!),
-    }));
+    const targets = rows.map(target => {
+      // publishedCode đánh dấu bản ghi có snapshot đầy đủ. Không dùng toán tử
+      // ?? cho từng trường vì description/order có thể được công bố hợp lệ là null.
+      const hasSnapshot = target.publishedCode !== null;
+      return {
+        code: hasSnapshot ? target.publishedCode! : target.code,
+        title: hasSnapshot ? target.publishedTitle! : target.title,
+        description: hasSnapshot ? target.publishedDescription : target.description,
+        unit: hasSnapshot ? target.publishedUnit! : target.unit,
+        weight: hasSnapshot ? target.publishedWeight! : target.weight,
+        year: hasSnapshot ? target.publishedYear! : target.year,
+        frequency: hasSnapshot ? target.publishedFrequency! : target.frequency,
+        dueDate: hasSnapshot ? target.publishedDueDate! : target.dueDate,
+        departmentName: hasSnapshot ? target.publishedDepartmentName! : target.department.name,
+        departmentColor: hasSnapshot ? target.publishedDepartmentColor! : target.department.color,
+        isHighlighted: hasSnapshot ? target.publishedHighlighted! : target.isHighlighted,
+        publicOrder: hasSnapshot ? target.publishedOrder : target.publicOrder,
+        publishedAt: target.publishedAt,
+        targetValue: target.publishedTargetValue!,
+        currentValue: target.publishedValue!,
+        direction: target.publishedDirection!,
+        status: target.publishedStatus!,
+        progress: calculateProgress(target.publishedTargetValue!, target.publishedValue!, target.publishedDirection!),
+      };
+    });
     const weightedTotal = targets.reduce((sum, target) => sum + target.weight, 0);
     const weightedProgress = targets.reduce(
       (sum, target) => sum + (target.progress / 100) * target.weight,
@@ -74,30 +112,38 @@ export class PublicController {
       total: number;
       completed: number;
       progress: number;
+      weight: number;
     }>();
     for (const target of targets) {
-      const item = departments.get(target.departmentId) || {
-        name: target.department.name,
-        color: target.department.color,
+      const departmentKey = `${target.departmentName}\u0000${target.departmentColor}`;
+      const item = departments.get(departmentKey) || {
+        name: target.departmentName,
+        color: target.departmentColor,
         total: 0,
         completed: 0,
         progress: 0,
+        weight: 0,
       };
       item.total += 1;
       item.completed += target.status === TargetStatus.COMPLETED ? 1 : 0;
-      item.progress += target.progress;
-      departments.set(target.departmentId, item);
+      item.progress += target.progress * target.weight;
+      item.weight += target.weight;
+      departments.set(departmentKey, item);
     }
     const highlights = targets
       .filter(target => target.isHighlighted)
       .map(target => ({
         code: target.code,
         title: target.title,
+        description: target.description,
         unit: target.unit,
+        year: target.year,
+        frequency: target.frequency,
+        dueDate: target.dueDate,
         targetValue: target.targetValue,
         currentValue: target.currentValue,
         progress: target.progress,
-        department: target.department.name,
+        department: target.departmentName,
         status: target.status,
       }));
     const latestUpdate = targets.reduce<Date | null>((latest, target) => {
@@ -111,10 +157,10 @@ export class PublicController {
       onTrack,
       overallProgress: weightedTotal ? Math.round((weightedProgress / weightedTotal) * 100) : 0,
       departments: [...departments.values()]
-        .map(item => ({ ...item, progress: item.total ? Math.round(item.progress / item.total) : 0 }))
+        .map(({ weight, ...item }) => ({ ...item, progress: weight ? Math.round(item.progress / weight) : 0 }))
         .sort((left, right) => right.progress - left.progress),
       highlights,
-      updatedAt: latestUpdate ?? new Date(),
+      updatedAt: latestUpdate,
     };
   }
 }

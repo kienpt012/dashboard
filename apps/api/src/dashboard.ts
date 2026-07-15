@@ -6,6 +6,7 @@ import { PrismaService } from './prisma.service';
 import { JwtAuthGuard } from './common';
 import { getActor, resolveDepartmentScope } from './access';
 import { evaluateTarget } from './metrics';
+import { currentVietnamYear } from './planning-date';
 
 class DashboardQueryDto {
   @IsOptional()
@@ -32,7 +33,7 @@ export class DashboardController {
     return {
       actor,
       departmentId,
-      year: query.year ?? setting?.defaultYear ?? new Date().getFullYear(),
+      year: query.year ?? setting?.defaultYear ?? currentVietnamYear(),
       riskThreshold: setting?.riskThreshold ?? 70,
       warningDays: setting?.warningDays ?? 14,
     };
@@ -41,7 +42,7 @@ export class DashboardController {
   @Get()
   async overview(@Query() query: DashboardQueryDto, @Req() req: any) {
     const { departmentId, year, riskThreshold, warningDays } = await this.context(query, req);
-    const where = { year, ...(departmentId ? { departmentId } : {}) };
+    const where = { year, isArchived: false, ...(departmentId ? { departmentId } : {}) };
     const rawTargets = await this.prisma.target.findMany({
       where,
       include: { department: true },
@@ -75,6 +76,7 @@ export class DashboardController {
       completed: number;
       atRisk: number;
       progress: number;
+      weight: number;
     }>();
     for (const target of targets) {
       const department = departmentMap.get(target.departmentId) || {
@@ -85,17 +87,19 @@ export class DashboardController {
         completed: 0,
         atRisk: 0,
         progress: 0,
+        weight: 0,
       };
       department.total += 1;
       department.completed += target.status === TargetStatus.COMPLETED ? 1 : 0;
       department.atRisk += target.status === TargetStatus.AT_RISK || target.status === TargetStatus.OVERDUE ? 1 : 0;
-      department.progress += target.progress;
+      department.progress += target.progress * target.weight;
+      department.weight += target.weight;
       departmentMap.set(target.departmentId, department);
     }
     const departments = [...departmentMap.values()]
-      .map(department => ({
+      .map(({ weight, ...department }) => ({
         ...department,
-        progress: department.total ? Math.round(department.progress / department.total) : 0,
+        progress: weight ? Math.round(department.progress / weight) : 0,
       }))
       .sort((left, right) => right.progress - left.progress);
     const warningCutoff = new Date();
@@ -127,6 +131,7 @@ export class DashboardController {
       recent,
       updatedAt: new Date(),
       warningDays,
+      riskThreshold,
     };
   }
 
@@ -134,7 +139,7 @@ export class DashboardController {
   async report(@Query() query: DashboardQueryDto, @Req() req: any) {
     const { departmentId, year, riskThreshold } = await this.context(query, req);
     const rows = await this.prisma.target.findMany({
-      where: { year, ...(departmentId ? { departmentId } : {}) },
+      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
