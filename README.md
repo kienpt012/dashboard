@@ -1,6 +1,6 @@
 # IOC Lái Thiêu · Control Room
 
-Hệ thống quản trị chỉ tiêu được xây dựng từ định hướng giao diện của template **IOC Lái Thiêu - V46 Control Room**, với kiến trúc:
+Hệ thống điều hành số của Phường Lái Thiêu, hỗ trợ quản trị chỉ tiêu, báo cáo và tiếp nhận phản ánh người dân, với kiến trúc:
 
 - Frontend: React 19 + TypeScript + Vite
 - Backend: NestJS 11 + Prisma ORM
