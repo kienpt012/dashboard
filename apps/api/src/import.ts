@@ -26,6 +26,7 @@ import { currentVietnamYear } from './planning-date';
 
 const TEMPLATE_VERSION = 'IOC_PROGRESS_V1';
 const DATA_SHEET = 'CAP_NHAT';
+const GUIDE_SHEET = 'HUONG_DAN';
 const META_SHEET = 'META';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_ROWS = 5000;
@@ -271,7 +272,8 @@ export class ImportController {
     workbook.created = new Date();
     workbook.modified = new Date();
 
-    const sheet = workbook.addWorksheet(DATA_SHEET, { views: [{ state: 'frozen', ySplit: 1 }] });
+    const sheet = workbook.addWorksheet(DATA_SHEET, { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
+    sheet.properties.tabColor = { argb: 'FF0F766E' };
     sheet.columns = [
       { header: HEADERS[0], key: 'id', width: 24, hidden: true },
       { header: HEADERS[1], key: 'code', width: 18 },
@@ -326,6 +328,8 @@ export class ImportController {
       });
     }
     sheet.autoFilter = { from: 'B1', to: 'J1' };
+    sheet.getCell('I1').note = 'Chỉ nhập giá trị số không âm. Để trống nếu chỉ tiêu không thay đổi.';
+    sheet.getCell('J1').note = 'Ghi ngắn gọn căn cứ hoặc nội dung cần người duyệt lưu ý.';
     await sheet.protect('ioc-lai-thieu', {
       selectLockedCells: true,
       selectUnlockedCells: true,
@@ -333,6 +337,52 @@ export class ImportController {
       insertRows: false,
       deleteRows: false,
     });
+
+    const guide = workbook.addWorksheet(GUIDE_SHEET, { views: [{ showGridLines: false }] });
+    guide.properties.tabColor = { argb: 'FFE3B64A' };
+    guide.columns = [{ width: 5 }, { width: 31 }, { width: 72 }];
+    guide.mergeCells('B2:C2');
+    guide.getCell('B2').value = 'HƯỚNG DẪN CẬP NHẬT BÁO CÁO';
+    guide.getCell('B2').font = { name: 'Aptos Display', size: 18, bold: true, color: { argb: 'FF0F4C45' } };
+    guide.getCell('B2').alignment = { vertical: 'middle' };
+    guide.getRow(2).height = 34;
+    guide.mergeCells('B3:C3');
+    guide.getCell('B3').value = `Phiếu hiện trạng năm ${year} · ${departmentId ? targets[0]?.department.name ?? 'Phòng ban đã chọn' : 'Toàn phường'}`;
+    guide.getCell('B3').font = { name: 'Aptos', size: 11, color: { argb: 'FF64748B' } };
+    guide.getRow(3).height = 23;
+
+    const instructions = [
+      ['1', 'Mở trang CAP_NHAT', 'Mỗi dòng là một chỉ tiêu đang hoạt động. Dữ liệu hiện tại đã được khóa để tránh sửa nhầm.'],
+      ['2', 'Chỉ điền hai cột màu vàng', 'Nhập “Giá trị mới” và “Ghi chú”. Để trống giá trị mới nếu chỉ tiêu không thay đổi.'],
+      ['3', 'Không sao chép dòng từ file khác', 'Mã hệ thống và phiên bản trong phiếu được dùng để phát hiện dữ liệu cũ hoặc sai phạm vi.'],
+      ['4', 'Tải lên và xem trước', 'Hệ thống luôn hiển thị toàn bộ thay đổi và lỗi trước khi bạn xác nhận gửi hoặc áp dụng.'],
+    ];
+    instructions.forEach((item, index) => {
+      const rowNumber = 5 + index * 2;
+      guide.getCell(`B${rowNumber}`).value = `${item[0]}. ${item[1]}`;
+      guide.getCell(`B${rowNumber}`).font = { name: 'Aptos', size: 11, bold: true, color: { argb: 'FF0F766E' } };
+      guide.getCell(`C${rowNumber}`).value = item[2];
+      guide.getCell(`C${rowNumber}`).font = { name: 'Aptos', size: 11, color: { argb: 'FF334155' } };
+      guide.getCell(`C${rowNumber}`).alignment = { vertical: 'top', wrapText: true };
+      guide.getRow(rowNumber).height = 31;
+      for (const column of ['B', 'C']) {
+        guide.getCell(`${column}${rowNumber}`).border = { bottom: { style: 'hair', color: { argb: 'FFD7E2E0' } } };
+      }
+    });
+
+    guide.mergeCells('B14:C14');
+    guide.getCell('B14').value = 'Lưu ý: file được tạo theo đúng năm và phòng ban đã chọn. Nếu hệ thống báo phiên bản đã thay đổi, hãy tải một phiếu hiện trạng mới thay vì tiếp tục dùng file cũ.';
+    guide.getCell('B14').font = { name: 'Aptos', size: 10, bold: true, color: { argb: 'FF8A5B13' } };
+    guide.getCell('B14').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4CC' } };
+    guide.getCell('B14').alignment = { vertical: 'middle', wrapText: true };
+    guide.getCell('B14').border = {
+      top: { style: 'thin', color: { argb: 'FFE8C66B' } },
+      bottom: { style: 'thin', color: { argb: 'FFE8C66B' } },
+      left: { style: 'thin', color: { argb: 'FFE8C66B' } },
+      right: { style: 'thin', color: { argb: 'FFE8C66B' } },
+    };
+    guide.getRow(14).height = 45;
+    await guide.protect('ioc-lai-thieu', { selectLockedCells: true, selectUnlockedCells: false });
 
     const meta = workbook.addWorksheet(META_SHEET, { state: 'veryHidden' });
     meta.addRows([
@@ -550,19 +600,28 @@ export class ImportController {
     if (!existing) throw new BadRequestException('Không tìm thấy lần import');
     if (existing.departmentId) assertDepartmentAccess(actor, existing.departmentId);
     else if (actor.role !== Role.ADMIN) throw new ConflictException('Chỉ quản trị viên được áp dụng file nhiều phòng ban');
-    if (actor.role !== Role.ADMIN && existing.createdBy !== actor.username) {
+    if (existing.createdBy !== actor.username) {
       throw new ForbiddenException('Bạn chỉ được áp dụng file do chính mình thực hiện xem trước');
     }
-    if (PROCESSED_BATCH_STATUSES.includes(existing.status)) return { ...existing, idempotent: true };
-    if (existing.status !== ImportBatchStatus.PREVIEWED) throw new ConflictException('Lần import không còn ở trạng thái chờ áp dụng');
-    if (existing.errorRows > 0) throw new ConflictException('File còn lỗi; vui lòng sửa và thực hiện xem trước lại');
-    const changes = Array.isArray(existing.changes) ? existing.changes as unknown as PreviewChange[] : [];
-    if (!changes.length) throw new ConflictException('Không có thay đổi hợp lệ để áp dụng');
 
     try {
       return await this.prisma.$transaction(async tx => {
+        const draft = await tx.importBatch.findFirst({
+          where: { id, createdBy: actor.username },
+        });
+        if (!draft) {
+          throw new ForbiddenException('Bạn chỉ được áp dụng file do chính mình thực hiện xem trước');
+        }
+        if (draft.departmentId) assertDepartmentAccess(actor, draft.departmentId);
+        else if (actor.role !== Role.ADMIN) throw new ConflictException('Chỉ quản trị viên được áp dụng file nhiều phòng ban');
+        if (PROCESSED_BATCH_STATUSES.includes(draft.status)) return { ...draft, idempotent: true };
+        if (draft.status !== ImportBatchStatus.PREVIEWED) throw new ConflictException('Lần import không còn ở trạng thái chờ áp dụng');
+        if (draft.errorRows > 0) throw new ConflictException('File còn lỗi; vui lòng sửa và thực hiện xem trước lại');
+        const changes = Array.isArray(draft.changes) ? draft.changes as unknown as PreviewChange[] : [];
+        if (!changes.length) throw new ConflictException('Không có thay đổi hợp lệ để áp dụng');
+
         const claim = await tx.importBatch.updateMany({
-          where: { id, status: ImportBatchStatus.PREVIEWED },
+          where: { id, createdBy: actor.username, status: ImportBatchStatus.PREVIEWED },
           data: { status: ImportBatchStatus.FAILED },
         });
         if (claim.count !== 1) {
@@ -667,8 +726,13 @@ export class ImportController {
       }
       if (error?.code === 'P2034') {
         const latest = await this.prisma.importBatch.findUnique({ where: { id } });
-        if (latest && PROCESSED_BATCH_STATUSES.includes(latest.status)) return { ...latest, idempotent: true };
+        if (latest?.createdBy === actor.username && PROCESSED_BATCH_STATUSES.includes(latest.status)) {
+          return { ...latest, idempotent: true };
+        }
         throw new ConflictException('Có cập nhật đồng thời; vui lòng thử lại');
+      }
+      if (error?.code === 'P2025') {
+        throw new ConflictException('Lần import vừa thay đổi; vui lòng tải lại và thử lại');
       }
       throw error;
     }

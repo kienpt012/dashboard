@@ -50,6 +50,8 @@ const PUBLIC_CREATE_WINDOW_MS = 60 * 60 * 1_000;
 const PUBLIC_TRACK_WINDOW_MS = 15 * 60 * 1_000;
 const PUBLIC_SECRET_ACTION_WINDOW_MS = 60 * 60 * 1_000;
 const CONSENT_POLICY_VERSION = 'citizen-feedback-v1-2026-07-15';
+export const LOOKUP_SECRET_MIN_LENGTH = 20;
+export const LOOKUP_SECRET_MAX_LENGTH = 64;
 
 const OPEN_STATUSES: FeedbackStatus[] = [
   FeedbackStatus.RECEIVED,
@@ -82,9 +84,9 @@ const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
 );
 
-class CreatePublicFeedbackDto {
+export class CreatePublicFeedbackDto {
   @IsUUID('4') clientSubmissionId!: string;
-  @Trim() @IsString() @MinLength(20) @MaxLength(64) lookupSecret!: string;
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
   @Trim() @IsString() @MinLength(8) @MaxLength(200) title!: string;
   @Trim() @IsString() @MinLength(20) @MaxLength(5000) content!: string;
   @IsEnum(FeedbackCategory) category!: FeedbackCategory;
@@ -97,13 +99,13 @@ class CreatePublicFeedbackDto {
   @IsBoolean() @Equals(true, { message: 'Kênh này không tiếp nhận khiếu nại hoặc tố cáo' }) scopeConfirmed!: boolean;
 }
 
-class TrackFeedbackDto {
+export class TrackFeedbackDto {
   @Trim() @IsString() @MinLength(8) @MaxLength(30) code!: string;
-  @Trim() @IsString() @MinLength(8) @MaxLength(40) lookupSecret!: string;
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
 }
 
-class VersionedSecretDto {
-  @Trim() @IsString() @MinLength(8) @MaxLength(40) lookupSecret!: string;
+export class VersionedSecretDto {
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
   @IsInt() @Min(1) expectedVersion!: number;
 }
 

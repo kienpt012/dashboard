@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Star,
 } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { currentVietnamYear } from '../date';
@@ -115,24 +115,65 @@ function publicDeadline(detail:PublicFeedbackDetail){
 
 export default function FeedbackPublic(){
   const [tab,setTab]=useState<'send'|'track'>('send');
+  const tabRefs=useRef<Array<HTMLButtonElement|null>>([]);
+  const receiptRef=useRef<HTMLDivElement|null>(null);
+  const newFeedbackConfirmRef=useRef<HTMLDivElement|null>(null);
+  const createErrorRef=useRef<HTMLDivElement|null>(null);
+  const copyErrorRef=useRef<HTMLDivElement|null>(null);
+  const trackErrorRef=useRef<HTMLDivElement|null>(null);
+  const actionErrorRef=useRef<HTMLDivElement|null>(null);
   const [createForm,setCreateForm]=useState(emptyCreate);
   const [creating,setCreating]=useState(false);
   const [created,setCreated]=useState<PublicFeedbackCreated|null>(null);
   const [pendingSubmission,setPendingSubmission]=useState<PendingSubmission|null>(restoredPendingSubmission);
   const [createError,setCreateError]=useState('');
   const [copied,setCopied]=useState(false);
+  const [copyError,setCopyError]=useState('');
+  const [confirmNewFeedback,setConfirmNewFeedback]=useState(false);
   const [credentials,setCredentials]=useState({code:'',lookupSecret:''});
   const [detail,setDetail]=useState<PublicFeedbackDetail|null>(null);
   const [tracking,setTracking]=useState(false);
   const [trackError,setTrackError]=useState('');
+  const [actionLoading,setActionLoading]=useState(false);
+  const [actionError,setActionError]=useState('');
   const [message,setMessage]=useState('');
   const [reopenReason,setReopenReason]=useState('');
   const [rating,setRating]=useState(5);
   const [ratingComment,setRatingComment]=useState('');
   const [action,setAction]=useState<'message'|'rating'|'reopen'|null>(null);
 
+  useEffect(()=>{
+    if(!created)return;
+    receiptRef.current?.focus({preventScroll:true});
+    receiptRef.current?.scrollIntoView({behavior:'smooth',block:'start'});
+  },[created]);
+
+  useEffect(()=>{if(createError)createErrorRef.current?.focus()},[createError]);
+  useEffect(()=>{if(copyError)copyErrorRef.current?.focus()},[copyError]);
+  useEffect(()=>{if(trackError)trackErrorRef.current?.focus()},[trackError]);
+  useEffect(()=>{if(actionError)actionErrorRef.current?.focus()},[actionError]);
+  useEffect(()=>{if(confirmNewFeedback)newFeedbackConfirmRef.current?.focus()},[confirmNewFeedback]);
+
+  function selectTab(next:'send'|'track',focus=false){
+    setTab(next);
+    if(focus){
+      const index=next==='send'?0:1;
+      requestAnimationFrame(()=>tabRefs.current[index]?.focus());
+    }
+  }
+
+  function handleTabKeyDown(event:KeyboardEvent<HTMLButtonElement>,index:number){
+    let nextIndex:number|null=null;
+    if(event.key==='ArrowRight'||event.key==='ArrowLeft')nextIndex=(index+1)%2;
+    else if(event.key==='Home')nextIndex=0;
+    else if(event.key==='End')nextIndex=1;
+    if(nextIndex===null)return;
+    event.preventDefault();
+    selectTab(nextIndex===0?'send':'track',true);
+  }
+
   async function submitFeedback(event:FormEvent){
-    event.preventDefault();setCreating(true);setCreateError('');setCreated(null);
+    event.preventDefault();setCreating(true);setCreateError('');setCopyError('');setConfirmNewFeedback(false);setCreated(null);
     const submission=pendingSubmission??newPendingSubmission();
     if(!pendingSubmission){setPendingSubmission(submission);savePendingSubmission(submission)}
     try{
@@ -147,7 +188,6 @@ export default function FeedbackPublic(){
         }),
       });
       setCreated(result);setCopied(false);setCreateForm(emptyCreate);setPendingSubmission(null);clearPendingSubmission();
-      window.scrollTo({top:0,behavior:'smooth'});
     }catch(reason){setCreateError(getError(reason,'Không thể gửi phản ánh. Vui lòng thử lại.'))}
     finally{setCreating(false)}
   }
@@ -155,17 +195,29 @@ export default function FeedbackPublic(){
   async function copyReceipt(){
     if(!created)return;
     const receipt=`Mã phản ánh: ${created.code}\nMã bảo mật: ${created.lookupSecret}`;
-    try{await navigator.clipboard.writeText(receipt);setCopied(true)}catch{setCopied(false)}
+    setCopyError('');
+    try{
+      if(!navigator.clipboard)throw new Error('Clipboard API is unavailable');
+      await navigator.clipboard.writeText(receipt);setCopied(true);
+    }catch{
+      setCopied(false);
+      setCopyError('Không thể sao chép tự động. Vui lòng chọn và sao chép từng mã trước khi rời trang này.');
+    }
+  }
+
+  function startAnotherFeedback(){
+    setCreated(null);setCopied(false);setCopyError('');setConfirmNewFeedback(false);
+    selectTab('send',true);
   }
 
   function useReceipt(){
     if(!created)return;
     setCredentials({code:created.code,lookupSecret:created.lookupSecret});
-    setDetail(null);setTrackError('');setTab('track');
+    setDetail(null);setTrackError('');setActionError('');selectTab('track',true);
   }
 
   async function track(event?:FormEvent){
-    event?.preventDefault();setTracking(true);setTrackError('');setDetail(null);setAction(null);
+    event?.preventDefault();setTracking(true);setTrackError('');setActionError('');setDetail(null);setAction(null);
     try{
       const result=await api<PublicFeedbackDetail>('/public/feedbacks/track',{
         method:'POST',body:JSON.stringify({code:credentials.code.trim(),lookupSecret:credentials.lookupSecret.trim()}),
@@ -178,7 +230,7 @@ export default function FeedbackPublic(){
   async function citizenAction(kind:'message'|'rating'|'reopen',event:FormEvent){
     event.preventDefault();
     if(!detail)return;
-    setTracking(true);setTrackError('');
+    setActionLoading(true);setActionError('');
     const common={lookupSecret:credentials.lookupSecret.trim(),expectedVersion:detail.version};
     const config=kind==='message'
       ?{path:`/public/feedbacks/${encodeURIComponent(detail.code)}/messages`,body:{...common,message}}
@@ -188,8 +240,8 @@ export default function FeedbackPublic(){
     try{
       const result=await api<PublicFeedbackDetail>(config.path,{method:'POST',body:JSON.stringify(config.body)});
       setDetail(result);setAction(null);setMessage('');setRatingComment('');setReopenReason('');
-    }catch(reason){setTrackError(getError(reason,'Không thể cập nhật hồ sơ.'))}
-    finally{setTracking(false)}
+    }catch(reason){setActionError(getError(reason,'Không thể cập nhật hồ sơ.'))}
+    finally{setActionLoading(false)}
   }
 
   const canMessage=detail&&['WAITING_CITIZEN','IN_PROGRESS','REOPENED'].includes(detail.status);
@@ -217,23 +269,28 @@ export default function FeedbackPublic(){
 
       <section className="feedback-public-workspace" aria-label="Gửi và tra cứu phản ánh">
         <div className="feedback-tabs" role="tablist" aria-label="Chức năng phản ánh">
-          <button role="tab" aria-selected={tab==='send'} className={tab==='send'?'active':''} onClick={()=>setTab('send')}><Send/>Gửi phản ánh</button>
-          <button role="tab" aria-selected={tab==='track'} className={tab==='track'?'active':''} onClick={()=>setTab('track')}><FileSearch/>Tra cứu hồ sơ</button>
+          <button ref={element=>{tabRefs.current[0]=element}} id="feedback-tab-send" role="tab" aria-controls="feedback-panel-send" aria-selected={tab==='send'} tabIndex={tab==='send'?0:-1} className={tab==='send'?'active':''} onClick={()=>selectTab('send')} onKeyDown={event=>handleTabKeyDown(event,0)}><Send/>Gửi phản ánh</button>
+          <button ref={element=>{tabRefs.current[1]=element}} id="feedback-tab-track" role="tab" aria-controls="feedback-panel-track" aria-selected={tab==='track'} tabIndex={tab==='track'?0:-1} className={tab==='track'?'active':''} onClick={()=>selectTab('track')} onKeyDown={event=>handleTabKeyDown(event,1)}><FileSearch/>Tra cứu hồ sơ</button>
         </div>
 
-        {tab==='send'&&<div className="feedback-form-card">
-          {created?<div className="feedback-receipt" role="status">
+        <div id="feedback-panel-send" role="tabpanel" aria-labelledby="feedback-tab-send" className="feedback-form-card" hidden={tab!=='send'}>
+          {created?<div ref={receiptRef} className="feedback-receipt" role="status" tabIndex={-1}>
             <div className="feedback-success-icon"><CheckCircle2/></div>
             <span>ĐÃ TIẾP NHẬN PHẢN ÁNH</span><h2>Hãy lưu lại hai mã dưới đây</h2>
             <p>Mã bảo mật chỉ hiển thị một lần. Không gửi mã này cho người không có trách nhiệm xử lý.</p>
             <div className="feedback-receipt-grid"><div><small>Mã phản ánh</small><strong>{created.code}</strong></div><div><small>Mã bảo mật</small><strong>{created.lookupSecret}</strong></div></div>
             <div className="feedback-warning"><LockKeyhole/><span><b>Quan trọng:</b> nếu làm mất mã bảo mật, bạn sẽ không thể tự tra cứu hồ sơ trên cổng thông tin.</span></div>
             <div className="feedback-form-actions"><button className="feedback-btn secondary" type="button" onClick={copyReceipt}>{copied?<Check/>:<Clipboard/>}{copied?'Đã sao chép':'Sao chép hai mã'}</button><button className="feedback-btn primary" type="button" onClick={useReceipt}><Eye/>Tra cứu ngay</button></div>
-            <button className="feedback-text-btn" type="button" onClick={()=>setCreated(null)}>Gửi phản ánh khác</button>
+            {copyError&&<div ref={copyErrorRef} className="feedback-alert error" role="alert" tabIndex={-1}><AlertCircle/>{copyError}</div>}
+            {!confirmNewFeedback&&<button className="feedback-text-btn" type="button" onClick={()=>setConfirmNewFeedback(true)} aria-controls="feedback-new-confirm">Gửi phản ánh khác</button>}
+            {confirmNewFeedback&&<>
+              <div ref={newFeedbackConfirmRef} id="feedback-new-confirm" className="feedback-warning" role="alert" tabIndex={-1}><AlertCircle/><span><b>Bạn đã lưu hai mã chưa?</b> Mã bảo mật sẽ không hiển thị lại sau khi tạo phản ánh mới.</span></div>
+              <div className="feedback-form-actions"><button className="feedback-btn secondary" type="button" onClick={()=>{setConfirmNewFeedback(false);selectTab('send',true)}}>Quay lại lưu mã</button><button className="feedback-btn primary" type="button" onClick={startAnotherFeedback}>Đã lưu mã, tạo phản ánh mới</button></div>
+            </>}
           </div>:<>
             <div className="feedback-card-heading"><span>01</span><div><h2>Nội dung phản ánh</h2><p>Cung cấp thông tin cụ thể để đơn vị chuyên môn xác minh nhanh hơn.</p></div></div>
-            {createError&&<div className="feedback-alert error" role="alert"><AlertCircle/>{createError}</div>}
-            <form className="feedback-public-form" onSubmit={submitFeedback}>
+            {createError&&<div ref={createErrorRef} className="feedback-alert error" role="alert" tabIndex={-1}><AlertCircle/>{createError}</div>}
+            <form className="feedback-public-form" onSubmit={submitFeedback} aria-busy={creating}>
               <label className="full">Nhóm vấn đề<select required value={createForm.category} onChange={event=>setCreateForm({...createForm,category:event.target.value as FeedbackCategory})}>{categories.map(category=><option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
               <label className="full">Tiêu đề ngắn gọn<input required minLength={8} maxLength={200} value={createForm.title} onChange={event=>setCreateForm({...createForm,title:event.target.value})} placeholder="Ví dụ: Đèn chiếu sáng hỏng tại đường..."/></label>
               <label className="full">Mô tả chi tiết<textarea required minLength={20} maxLength={5000} rows={6} value={createForm.content} onChange={event=>setCreateForm({...createForm,content:event.target.value})} placeholder="Nêu rõ vị trí, thời điểm và tình trạng cần xử lý..."/></label>
@@ -249,21 +306,21 @@ export default function FeedbackPublic(){
               <div className="feedback-form-actions full"><button className="feedback-btn primary" disabled={creating}>{creating?<><RefreshCw className="spin"/>Đang gửi...</>:<><Send/>Gửi phản ánh</>}</button></div>
             </form>
           </>}
-        </div>}
+        </div>
 
-        {tab==='track'&&<div className="feedback-track-layout">
+        <div id="feedback-panel-track" role="tabpanel" aria-labelledby="feedback-tab-track" className="feedback-track-layout" hidden={tab!=='track'}>
           <div className="feedback-form-card compact-card">
             <div className="feedback-card-heading"><span>02</span><div><h2>Tra cứu hồ sơ</h2><p>Nhập đúng hai mã đã nhận khi gửi phản ánh.</p></div></div>
-            <form className="feedback-public-form single" onSubmit={track}>
+            <form className="feedback-public-form single" onSubmit={track} aria-busy={tracking}>
               <label className="full">Mã phản ánh<input required minLength={8} maxLength={30} autoCapitalize="characters" value={credentials.code} onChange={event=>setCredentials({...credentials,code:event.target.value.toUpperCase()})} placeholder="PA-2026-..."/></label>
-              <label className="full">Mã bảo mật<div className="feedback-secret-input"><KeyRound/><input required minLength={8} maxLength={40} type="password" autoComplete="off" value={credentials.lookupSecret} onChange={event=>setCredentials({...credentials,lookupSecret:event.target.value})}/></div></label>
-              {trackError&&<div className="feedback-alert error full" role="alert"><AlertCircle/>{trackError}</div>}
+              <label className="full">Mã bảo mật<div className="feedback-secret-input"><KeyRound/><input required minLength={8} maxLength={64} type="password" autoComplete="off" value={credentials.lookupSecret} onChange={event=>setCredentials({...credentials,lookupSecret:event.target.value})}/></div></label>
+              {trackError&&<div ref={trackErrorRef} className="feedback-alert error full" role="alert" tabIndex={-1}><AlertCircle/>{trackError}</div>}
               <button className="feedback-btn primary full" disabled={tracking}>{tracking?<><RefreshCw className="spin"/>Đang kiểm tra...</>:<><FileSearch/>Tra cứu tiến độ</>}</button>
             </form>
             <div className="feedback-privacy-note"><LockKeyhole/><span>Hệ thống không xác nhận mã phản ánh nếu mã bảo mật không đúng, nhằm tránh dò tìm thông tin.</span></div>
           </div>
 
-          {detail&&<article className="feedback-public-detail" aria-live="polite">
+          {detail&&<article className="feedback-public-detail" aria-live="polite" aria-busy={actionLoading}>
             <div className="feedback-detail-title"><div><span>{detail.code}</span><h2>{detail.title}</h2></div><span className={`feedback-status ${detail.status.toLowerCase()}`}>{statusLabels[detail.status]}</span></div>
             <div className="feedback-detail-meta"><span><small>Tiếp nhận</small><b>{formatDate(detail.createdAt)}</b></span><span><small>Đơn vị xử lý</small><b>{detail.departmentName||'Đang phân công'}</b></span><span><small>{detail.status==='WAITING_CITIZEN'?'Hạn bổ sung thông tin':detail.firstResponseAt?'Hạn xử lý':'Hạn phản hồi'}</small><b>{formatDate(publicDeadline(detail))}</b></span></div>
             <section><h3>Nội dung đã gửi</h3><p className="feedback-content-text">{detail.content}</p>{detail.address&&<p className="feedback-address"><b>Địa điểm:</b> {detail.address}</p>}</section>
@@ -275,18 +332,18 @@ export default function FeedbackPublic(){
             <section><h3>Tiến trình hồ sơ</h3><div className="feedback-public-timeline">{detail.events.map(event=><div key={event.id}><i/><span><b>{eventLabels[event.action]||'Hồ sơ được cập nhật'}</b><small>{formatDate(event.createdAt)}</small></span></div>)}</div></section>
             {detail.messages.length>0&&<section><h3>Trao đổi công khai</h3><div className="feedback-message-list">{detail.messages.map(item=><div key={item.id}><div><b>{item.authorName}</b><time>{formatDate(item.createdAt)}</time></div><p>{item.body}</p></div>)}</div></section>}
             {detail.rating&&<div className="feedback-rating-result"><Star/><span><b>{detail.rating}/5 điểm</b>{detail.ratingComment&&<small>{detail.ratingComment}</small>}</span></div>}
-            {trackError&&<div className="feedback-alert error" role="alert"><AlertCircle/>{trackError}</div>}
+            {actionError&&<div ref={actionErrorRef} className="feedback-alert error" role="alert" tabIndex={-1}><AlertCircle/>{actionError}</div>}
 
             {(canMessage||canRate||canReopen)&&<div className="feedback-citizen-actions">
-              {canMessage&&<button type="button" onClick={()=>setAction(action==='message'?null:'message')}><MessageCircleMore/>Bổ sung thông tin</button>}
-              {canRate&&<button type="button" onClick={()=>setAction(action==='rating'?null:'rating')}><Star/>Đánh giá kết quả</button>}
-              {canReopen&&<button type="button" onClick={()=>setAction(action==='reopen'?null:'reopen')}><RotateCcw/>Đề nghị xem xét lại</button>}
+              {canMessage&&<button type="button" disabled={actionLoading} onClick={()=>{setActionError('');setAction(action==='message'?null:'message')}}><MessageCircleMore/>Bổ sung thông tin</button>}
+              {canRate&&<button type="button" disabled={actionLoading} onClick={()=>{setActionError('');setAction(action==='rating'?null:'rating')}}><Star/>Đánh giá kết quả</button>}
+              {canReopen&&<button type="button" disabled={actionLoading} onClick={()=>{setActionError('');setAction(action==='reopen'?null:'reopen')}}><RotateCcw/>Đề nghị xem xét lại</button>}
             </div>}
-            {action==='message'&&<form className="feedback-inline-form" onSubmit={event=>citizenAction('message',event)}><label>Thông tin bổ sung<textarea required minLength={3} maxLength={3000} rows={4} value={message} onChange={event=>setMessage(event.target.value)}/></label><button className="feedback-btn primary" disabled={tracking}><Send/>Gửi bổ sung</button></form>}
-            {action==='rating'&&<form className="feedback-inline-form" onSubmit={event=>citizenAction('rating',event)}><label>Mức hài lòng<select value={rating} onChange={event=>setRating(Number(event.target.value))}>{[5,4,3,2,1].map(value=><option key={value} value={value}>{value}/5 - {value>=4?'Hài lòng':value===3?'Bình thường':'Chưa hài lòng'}</option>)}</select></label><label>Nhận xét<textarea maxLength={1000} rows={3} value={ratingComment} onChange={event=>setRatingComment(event.target.value)}/></label><button className="feedback-btn primary" disabled={tracking}><Star/>Gửi đánh giá</button></form>}
-            {action==='reopen'&&<form className="feedback-inline-form" onSubmit={event=>citizenAction('reopen',event)}><label>Lý do cần xem xét lại<textarea required minLength={10} maxLength={2000} rows={4} value={reopenReason} onChange={event=>setReopenReason(event.target.value)}/></label><button className="feedback-btn secondary" disabled={tracking}><RotateCcw/>Gửi đề nghị</button></form>}
+            {action==='message'&&<form className="feedback-inline-form" aria-busy={actionLoading} onSubmit={event=>citizenAction('message',event)}><label>Thông tin bổ sung<textarea required minLength={3} maxLength={3000} rows={4} value={message} onChange={event=>setMessage(event.target.value)}/></label><button className="feedback-btn primary" disabled={actionLoading}>{actionLoading?<><RefreshCw className="spin"/>Đang gửi...</>:<><Send/>Gửi bổ sung</>}</button></form>}
+            {action==='rating'&&<form className="feedback-inline-form" aria-busy={actionLoading} onSubmit={event=>citizenAction('rating',event)}><label>Mức hài lòng<select value={rating} onChange={event=>setRating(Number(event.target.value))}>{[5,4,3,2,1].map(value=><option key={value} value={value}>{value}/5 - {value>=4?'Hài lòng':value===3?'Bình thường':'Chưa hài lòng'}</option>)}</select></label><label>Nhận xét<textarea maxLength={1000} rows={3} value={ratingComment} onChange={event=>setRatingComment(event.target.value)}/></label><button className="feedback-btn primary" disabled={actionLoading}>{actionLoading?<><RefreshCw className="spin"/>Đang gửi...</>:<><Star/>Gửi đánh giá</>}</button></form>}
+            {action==='reopen'&&<form className="feedback-inline-form" aria-busy={actionLoading} onSubmit={event=>citizenAction('reopen',event)}><label>Lý do cần xem xét lại<textarea required minLength={10} maxLength={2000} rows={4} value={reopenReason} onChange={event=>setReopenReason(event.target.value)}/></label><button className="feedback-btn secondary" disabled={actionLoading}>{actionLoading?<><RefreshCw className="spin"/>Đang gửi...</>:<><RotateCcw/>Gửi đề nghị</>}</button></form>}
           </article>}
-        </div>}
+        </div>
       </section>
     </main>
 

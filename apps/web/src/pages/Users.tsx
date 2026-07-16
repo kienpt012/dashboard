@@ -272,7 +272,7 @@ export default function Users() {
 
     <div className="table-card">
       <div className="toolbar inside">
-        <div className="search"><Search /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm tên, tài khoản, email, phòng ban..." /></div>
+        <div className="search"><Search /><input aria-label="Tìm tài khoản theo tên, tên đăng nhập, email hoặc phòng ban" value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm tên, tài khoản, email, phòng ban..." /></div>
         <select aria-label="Lọc theo vai trò" value={roleFilter} onChange={event => setRoleFilter(event.target.value as Role | '')}>
           <option value="">Tất cả vai trò</option>
           {Object.entries(roleNames).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
@@ -282,7 +282,7 @@ export default function Users() {
           {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
         </select>
       </div>
-      {loading ? <Spinner /> : <div className="table-wrap"><table>
+      {loading ? <Spinner /> : <div className="table-wrap"><table className="action-table">
         <thead><tr><th>Người dùng</th><th>Phòng ban</th><th>Vai trò</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th><th>Thao tác</th></tr></thead>
         <tbody>{visible.length ? visible.map(user => <tr key={user.id}>
           <td><div className="user-cell"><div className="avatar color">{getInitials(user.fullName)}</div><div><strong>{user.fullName}</strong><span>@{user.username}{user.email && <> · {user.email}</>}</span></div></div></td>
@@ -305,7 +305,7 @@ export default function Users() {
 
     {modalOpen && <Modal title={editing ? `Chỉnh sửa @${editing.username}` : 'Tạo tài khoản mới'} onClose={closeModal} wide>
       <form className="form-grid" onSubmit={submit}>
-        {formError && <div className="form-error full">{formError}</div>}
+        {formError && <div className="form-error full" role="alert">{formError}</div>}
         <label>Họ và tên<input required minLength={2} maxLength={160} value={form.fullName} onChange={event => setForm({ ...form, fullName: event.target.value })} placeholder="Nguyễn Văn A" /></label>
         <label>Email<input type="email" maxLength={180} value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} placeholder="email@laithieu.gov.vn" /></label>
         <label>Tên đăng nhập<input required minLength={3} maxLength={50} pattern="[A-Za-z0-9._-]+" value={form.username} disabled={Boolean(editing)} onChange={event => setForm({ ...form, username: event.target.value })} placeholder="nguyen.van.a" autoComplete="off" /></label>

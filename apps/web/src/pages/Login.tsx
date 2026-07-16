@@ -54,7 +54,7 @@ export default function Login(){
         <span className="eyebrow">ĐĂNG NHẬP NỘI BỘ</span>
         <h2>Chào mừng trở lại</h2>
         <p>Sử dụng tài khoản được cấp để truy cập không gian làm việc phù hợp với vai trò của bạn.</p>
-        {error&&<div className="form-error">{error}</div>}
+        {error&&<div className="form-error" role="alert" aria-live="assertive">{error}</div>}
         <label>Tên đăng nhập<div className="input-icon"><UserRound/><input required value={username} onChange={event=>{setUsername(event.target.value);setError('')}} placeholder="Nhập tên đăng nhập" autoComplete="username" autoFocus/></div></label>
         <label>Mật khẩu<div className="input-icon"><LockKeyhole/><input required type={show?'text':'password'} value={password} onChange={event=>{setPassword(event.target.value);setError('')}} placeholder="Nhập mật khẩu" autoComplete="current-password"/><button type="button" aria-label={show?'Ẩn mật khẩu':'Hiện mật khẩu'} onClick={()=>setShow(value=>!value)}>{show?<EyeOff/>:<Eye/>}</button></div></label>
         <button className="btn primary login-btn" disabled={loading}>{loading?'Đang xác thực...':<>Đăng nhập <ArrowRight/></>}</button>

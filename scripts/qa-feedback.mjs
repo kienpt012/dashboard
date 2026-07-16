@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { cleanupQaActors, createQaActors, qaActorIds } from './qa-actors.mjs';
 
 const baseUrl = process.env.QA_API_URL || 'http://localhost:3000/api';
 try {
@@ -17,8 +18,15 @@ if (!process.env.DATABASE_URL) {
 }
 
 const prisma = new PrismaClient();
-const createdCodes = new Set();
+const createdFeedbackIds = new Set();
 const checks = [];
+let qaActors = null;
+
+function mergeFailure(current, next, phase) {
+  const nextMessage = next instanceof Error ? next.message : String(next);
+  if (!current) return new Error(`${phase}: ${nextMessage}`);
+  return new Error(`${current.message}; ${phase}: ${nextMessage}`);
+}
 
 function check(name, condition, details = '') {
   if (!condition) throw new Error(`${name}: ${details || 'không đạt'}`);
@@ -76,7 +84,12 @@ async function createFeedback(body) {
     expected: [201],
     body,
   });
-  createdCodes.add(created.data.code);
+  const stored = await prisma.feedback.findUnique({
+    where: { code: created.data.code },
+    select: { id: true },
+  });
+  if (!stored) throw new Error(`Không tìm thấy ID của phản ánh QA ${created.data.code}`);
+  createdFeedbackIds.add(stored.id);
   return created.data;
 }
 
@@ -107,27 +120,42 @@ async function assignAndStart(feedback, { admin, staff, department, assignee, pr
   })).data;
 }
 
-async function cleanup() {
-  if (!createdCodes.size || process.env.QA_KEEP_DATA === 'true') return;
-  const rows = await prisma.feedback.findMany({
-    where: { code: { in: [...createdCodes] } },
-    select: { id: true },
-  });
-  const ids = rows.map(row => row.id);
-  if (!ids.length) return;
-  await prisma.$transaction([
-    prisma.auditLog.deleteMany({ where: { entityType: 'Feedback', entityId: { in: ids } } }),
-    prisma.feedback.deleteMany({ where: { id: { in: ids } } }),
-  ]);
+async function cleanupBusinessData() {
+  const ids = [...createdFeedbackIds];
+  if (ids.length) await prisma.feedback.deleteMany({ where: { id: { in: ids } } });
 }
 
-try {
+async function assertCleanupPostconditions() {
+  const actorIds = qaActorIds(qaActors);
+  const feedbackIds = [...createdFeedbackIds];
+  const [feedbacks, users, audits] = await Promise.all([
+    feedbackIds.length ? prisma.feedback.count({ where: { id: { in: feedbackIds } } }) : 0,
+    actorIds.length ? prisma.user.count({ where: { id: { in: actorIds } } }) : 0,
+    actorIds.length || feedbackIds.length
+      ? prisma.auditLog.count({
+          where: {
+            OR: [
+              ...(actorIds.length ? [{ actorId: { in: actorIds } }] : []),
+              ...(feedbackIds.length ? [{ entityId: { in: feedbackIds } }] : []),
+            ],
+          },
+        })
+      : 0,
+  ]);
+  if (feedbacks || users || audits) {
+    throw new Error(`Dữ liệu QA còn sót: feedbacks=${feedbacks}, users=${users}, audits=${audits}`);
+  }
+  return { feedbacks, users, audits };
+}
+
+async function runSuite() {
+  qaActors = await createQaActors(prisma, 'feedback');
   const [admin, manager, staff, viewer, otherManager] = await Promise.all([
-    login('admin', 'Admin@123'),
-    login('lan.anh', 'Demo@1234'),
-    login('staff.ktht', 'Demo@1234'),
-    login('viewer.ktht', 'Demo@1234'),
-    login('manager.vhxh', 'Demo@1234'),
+    login(qaActors.admin.username, qaActors.password),
+    login(qaActors.manager.username, qaActors.password),
+    login(qaActors.staff.username, qaActors.password),
+    login(qaActors.viewer.username, qaActors.password),
+    login(qaActors.otherManager.username, qaActors.password),
   ]);
   check('Đăng nhập đủ 5 tài khoản kiểm thử', [admin, manager, staff, viewer, otherManager].every(item => item.accessToken));
 
@@ -171,7 +199,7 @@ try {
   await request('/public/feedbacks/track', {
     method: 'POST',
     expected: [404],
-    body: { code: created.code, lookupSecret: 'SAI-MAT-KHAU' },
+    body: { code: created.code, lookupSecret: randomBytes(20).toString('hex').toUpperCase() },
   });
   checks.push('Secret sai không đọc được hồ sơ');
 
@@ -186,7 +214,7 @@ try {
   check('Phòng ban không thấy hồ sơ chưa phân công', managerBeforeAssign.data.total === 0);
 
   const departments = await request('/departments', { token: admin.accessToken });
-  const targetDepartment = departments.data.find(item => item.code === 'KTHTDT');
+  const targetDepartment = departments.data.find(item => item.id === qaActors.departments.primary.id);
   check('Tìm được phòng ban xử lý QA', Boolean(targetDepartment));
 
   const triaged = await request(`/feedbacks/${feedback.id}/triage`, {
@@ -199,7 +227,7 @@ try {
   check('Phân loại có khóa phiên bản', feedback.version === 2 && feedback.priority === 'HIGH');
 
   const assignees = await request(`/feedbacks/assignees?departmentId=${targetDepartment.id}`, { token: admin.accessToken });
-  const assignee = assignees.data.find(item => item.username === 'staff.ktht');
+  const assignee = assignees.data.find(item => item.username === qaActors.staff.username);
   check('Danh sách giao việc chỉ trả cán bộ hợp lệ', Boolean(assignee));
 
   const managerAssignees = await request('/feedbacks/assignees', { token: manager.accessToken });
@@ -750,14 +778,55 @@ try {
       && closedStats.resolved === expiredStats.resolved,
   );
 
-  console.log(JSON.stringify({ ok: true, checks: checks.length, details: checks }, null, 2));
+}
+
+let failure = null;
+let cleanupSummary = null;
+try {
+  await runSuite();
 } catch (error) {
-  console.error(JSON.stringify({ ok: false, checks: checks.length, error: error.message }, null, 2));
+  failure = mergeFailure(failure, error, 'Thực thi QA');
+}
+
+try {
+  await cleanupBusinessData();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Dọn dữ liệu nghiệp vụ');
+}
+
+try {
+  cleanupSummary = await cleanupQaActors(prisma, qaActors, {
+    entityIds: [...createdFeedbackIds],
+  });
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Dọn nhật ký và actor');
+}
+
+try {
+  await assertCleanupPostconditions();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Hậu kiểm cleanup');
+}
+
+try {
+  await prisma.$disconnect();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Ngắt kết nối cơ sở dữ liệu');
+}
+
+if (failure) {
+  console.error(JSON.stringify({ ok: false, checks: checks.length, error: failure.message }, null, 2));
   process.exitCode = 1;
-} finally {
-  try {
-    await cleanup();
-  } finally {
-    await prisma.$disconnect();
-  }
+} else {
+  console.log(JSON.stringify({
+    ok: true,
+    checks: checks.length,
+    details: checks,
+    cleanup: {
+      feedbacks: createdFeedbackIds.size,
+      users: cleanupSummary?.userIds.length ?? 0,
+      audits: cleanupSummary?.auditIds.length ?? 0,
+      residual: { feedbacks: 0, users: 0, audits: 0 },
+    },
+  }, null, 2));
 }

@@ -207,3 +207,29 @@ body{font-size:14px}
   .published-feedback-meta{align-items:flex-start}
   .published-feedback-foot{align-items:flex-start;flex-direction:column}
 }
+
+/* Public portal resilience and keyboard usability */
+:where(a,button,input,select,textarea):focus-visible{outline:3px solid rgba(15,118,110,.28);outline-offset:2px}
+#tong-quan,#chi-tieu,#phong-ban,#ket-qua-phan-anh{scroll-margin-top:96px}
+.admin-link{white-space:nowrap}
+.public-live.error{color:#a94343}.public-live.error i{background:#d85a5a;box-shadow:0 0 0 4px rgba(216,90,90,.12)}
+.public-live.loading i{background:#d5962d;box-shadow:0 0 0 4px rgba(213,150,45,.13)}
+.command-update.error{color:#a94343;flex-wrap:wrap}.command-update.error i{background:#d85a5a}
+.command-update button,.public-department-state button{border:0;border-radius:7px;background:#e9f4f2;color:#0d7168;font-weight:800;padding:6px 9px}
+.public-department-state{min-height:92px;border:1px solid rgba(255,255,255,.14);border-radius:13px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;gap:12px;color:#cae1de;font-size:13px}
+.published-feedback-card.expanded>p{display:block;-webkit-line-clamp:unset;overflow:visible}
+.published-feedback-expand{align-self:flex-start;border:0;background:transparent;color:#0f766e;font-size:12px;font-weight:800;padding:0 0 14px;text-decoration:underline;text-underline-offset:3px}
+.year-picker{height:44px;display:inline-flex;align-items:stretch;border:1px solid #dbe6e4;border-radius:10px;background:#fff;overflow:hidden}
+.year-picker button{width:38px;border:0;background:#f7faf9;color:#45615d;display:grid;place-items:center}.year-picker button:hover:not(:disabled){background:#eaf4f2;color:#0f766e}.year-picker button:disabled{cursor:not-allowed;opacity:.45}
+.year-picker button svg{width:16px}.year-picker input{width:76px;height:42px;border:0;border-left:1px solid #e4ecea;border-right:1px solid #e4ecea;border-radius:0;text-align:center;font-weight:800;box-shadow:none!important;padding:0}
+.year-picker input::-webkit-inner-spin-button{display:none}
+.report-filters input{height:44px;width:110px;padding:0 11px}.report-date.pending{color:#a5691f;font-weight:800}
+
+@media(max-width:800px){
+  .login-panel{min-height:100vh;flex-direction:column;gap:26px}
+  .support{display:inline-flex;position:static;min-height:44px;align-items:center;justify-content:center;font-size:12px;color:#0f766e;font-weight:700}
+  .table-wrap::before{content:'Vuốt ngang để xem đầy đủ bảng';position:sticky;left:0;display:block;width:max-content;padding:9px 13px;color:#657b77;font-size:11px;font-weight:700;background:#f7faf9;border-bottom:1px solid #e5ecea}
+  .action-table th:last-child,.action-table td:last-child{position:sticky;right:0;z-index:1;background:#fff;box-shadow:-8px 0 14px -13px rgba(13,72,67,.75)}
+  .action-table th:last-child{z-index:2;background:#f7faf9}
+  .action-table tbody tr:hover td:last-child{background:#fbfdfc}
+}
