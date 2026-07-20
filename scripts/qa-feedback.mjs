@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { cleanupQaActors, createQaActors, qaActorIds } from './qa-actors.mjs';
 
 const baseUrl = process.env.QA_API_URL || 'http://localhost:3000/api';
 try {
@@ -17,8 +18,15 @@ if (!process.env.DATABASE_URL) {
 }
 
 const prisma = new PrismaClient();
-const createdCodes = new Set();
+const createdFeedbackIds = new Set();
 const checks = [];
+let qaActors = null;
+
+function mergeFailure(current, next, phase) {
+  const nextMessage = next instanceof Error ? next.message : String(next);
+  if (!current) return new Error(`${phase}: ${nextMessage}`);
+  return new Error(`${current.message}; ${phase}: ${nextMessage}`);
+}
 
 function check(name, condition, details = '') {
   if (!condition) throw new Error(`${name}: ${details || 'không đạt'}`);
@@ -26,13 +34,14 @@ function check(name, condition, details = '') {
 }
 
 async function request(path, { method = 'GET', token, body, expected = [200] } = {}) {
+  const isForm = body instanceof FormData;
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(body === undefined || isForm ? {} : { 'content-type': 'application/json' }),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined ? {} : { body: isForm ? body : JSON.stringify(body) }),
   });
   const payload = response.headers.get('content-type')?.includes('application/json')
     ? await response.json()
@@ -41,6 +50,28 @@ async function request(path, { method = 'GET', token, body, expected = [200] } =
     throw new Error(`${method} ${path}: nhận ${response.status}, mong ${expected.join('/')} - ${JSON.stringify(payload)}`);
   }
   return { status: response.status, data: payload };
+}
+
+async function requestBinary(path, { method = 'GET', token, body, expected = [200] } = {}) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!expected.includes(response.status)) {
+    const payload = response.headers.get('content-type')?.includes('application/json')
+      ? await response.json()
+      : await response.text();
+    throw new Error(`${method} ${path}: nhận ${response.status}, mong ${expected.join('/')} - ${JSON.stringify(payload)}`);
+  }
+  return {
+    status: response.status,
+    data: Buffer.from(await response.arrayBuffer()),
+    headers: response.headers,
+  };
 }
 
 async function login(username, password) {
@@ -76,7 +107,12 @@ async function createFeedback(body) {
     expected: [201],
     body,
   });
-  createdCodes.add(created.data.code);
+  const stored = await prisma.feedback.findUnique({
+    where: { code: created.data.code },
+    select: { id: true },
+  });
+  if (!stored) throw new Error(`Không tìm thấy ID của phản ánh QA ${created.data.code}`);
+  createdFeedbackIds.add(stored.id);
   return created.data;
 }
 
@@ -107,27 +143,42 @@ async function assignAndStart(feedback, { admin, staff, department, assignee, pr
   })).data;
 }
 
-async function cleanup() {
-  if (!createdCodes.size || process.env.QA_KEEP_DATA === 'true') return;
-  const rows = await prisma.feedback.findMany({
-    where: { code: { in: [...createdCodes] } },
-    select: { id: true },
-  });
-  const ids = rows.map(row => row.id);
-  if (!ids.length) return;
-  await prisma.$transaction([
-    prisma.auditLog.deleteMany({ where: { entityType: 'Feedback', entityId: { in: ids } } }),
-    prisma.feedback.deleteMany({ where: { id: { in: ids } } }),
-  ]);
+async function cleanupBusinessData() {
+  const ids = [...createdFeedbackIds];
+  if (ids.length) await prisma.feedback.deleteMany({ where: { id: { in: ids } } });
 }
 
-try {
+async function assertCleanupPostconditions() {
+  const actorIds = qaActorIds(qaActors);
+  const feedbackIds = [...createdFeedbackIds];
+  const [feedbacks, users, audits] = await Promise.all([
+    feedbackIds.length ? prisma.feedback.count({ where: { id: { in: feedbackIds } } }) : 0,
+    actorIds.length ? prisma.user.count({ where: { id: { in: actorIds } } }) : 0,
+    actorIds.length || feedbackIds.length
+      ? prisma.auditLog.count({
+          where: {
+            OR: [
+              ...(actorIds.length ? [{ actorId: { in: actorIds } }] : []),
+              ...(feedbackIds.length ? [{ entityId: { in: feedbackIds } }] : []),
+            ],
+          },
+        })
+      : 0,
+  ]);
+  if (feedbacks || users || audits) {
+    throw new Error(`Dữ liệu QA còn sót: feedbacks=${feedbacks}, users=${users}, audits=${audits}`);
+  }
+  return { feedbacks, users, audits };
+}
+
+async function runSuite() {
+  qaActors = await createQaActors(prisma, 'feedback');
   const [admin, manager, staff, viewer, otherManager] = await Promise.all([
-    login('admin', 'Admin@123'),
-    login('lan.anh', 'Demo@1234'),
-    login('staff.ktht', 'Demo@1234'),
-    login('viewer.ktht', 'Demo@1234'),
-    login('manager.vhxh', 'Demo@1234'),
+    login(qaActors.admin.username, qaActors.password),
+    login(qaActors.manager.username, qaActors.password),
+    login(qaActors.staff.username, qaActors.password),
+    login(qaActors.viewer.username, qaActors.password),
+    login(qaActors.otherManager.username, qaActors.password),
   ]);
   check('Đăng nhập đủ 5 tài khoản kiểm thử', [admin, manager, staff, viewer, otherManager].every(item => item.accessToken));
 
@@ -145,11 +196,13 @@ try {
   });
   checks.push('Chọn liên hệ qua email bắt buộc phải có địa chỉ email');
 
-  const mainSubmission = newSubmission();
+  const mainSubmission = newSubmission({
+    content: 'Người dân kiểm thử báo đèn chiếu sáng công cộng không hoạt động. Liên hệ 0901234567 hoặc qa.citizen@example.com để xác minh.',
+  });
   const created = await createFeedback(mainSubmission);
   check(
     'Tạo phản ánh trả đúng biên nhận do trình duyệt nắm giữ',
-    created.lookupSecret === mainSubmission.lookupSecret && created.status === 'RECEIVED',
+    created.lookupSecret === mainSubmission.lookupSecret && created.status === 'RECEIVED' && created.version === 1,
   );
 
   const replay = await request('/public/feedbacks', {
@@ -159,7 +212,9 @@ try {
   });
   check(
     'Gửi lại cùng mã idempotency khôi phục đúng biên nhận, không tạo hồ sơ trùng',
-    replay.data.code === created.code && replay.data.lookupSecret === created.lookupSecret,
+    replay.data.code === created.code
+      && replay.data.lookupSecret === created.lookupSecret
+      && replay.data.version === created.version,
   );
   await request('/public/feedbacks', {
     method: 'POST',
@@ -171,11 +226,123 @@ try {
   await request('/public/feedbacks/track', {
     method: 'POST',
     expected: [404],
-    body: { code: created.code, lookupSecret: 'SAI-MAT-KHAU' },
+    body: { code: created.code, lookupSecret: randomBytes(20).toString('hex').toUpperCase() },
   });
   checks.push('Secret sai không đọc được hồ sơ');
 
-  let feedback = await findFeedback(created.code, admin.accessToken);
+  const evidenceBytes = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
+  const evidenceForm = new FormData();
+  evidenceForm.set('lookupSecret', created.lookupSecret);
+  evidenceForm.set('expectedVersion', String(created.version));
+  evidenceForm.append('files', new Blob([evidenceBytes], { type: 'image/png' }), 'anh-hien-truong.png');
+  const uploadedEvidence = await request(`/public/feedbacks/${created.code}/attachments`, {
+    method: 'POST',
+    expected: [201],
+    body: evidenceForm,
+  });
+  check(
+    'Người dân gửi ảnh minh chứng hợp lệ và phiên bản hồ sơ được tăng',
+    uploadedEvidence.data.version === created.version + 1
+      && uploadedEvidence.data.attachments.length === 1
+      && uploadedEvidence.data.attachments[0].originalName === 'anh-hien-truong.png'
+      && !Object.hasOwn(uploadedEvidence.data.attachments[0], 'data'),
+  );
+
+  const cumulativeOverflowForm = new FormData();
+  cumulativeOverflowForm.set('lookupSecret', created.lookupSecret);
+  cumulativeOverflowForm.set('expectedVersion', String(uploadedEvidence.data.version));
+  for (let index = 0; index < 5; index += 1) {
+    cumulativeOverflowForm.append(
+      'files',
+      new Blob([Buffer.concat([evidenceBytes, Buffer.from([index])])], { type: 'image/png' }),
+      `anh-bo-sung-${index + 1}.png`,
+    );
+  }
+  await request(`/public/feedbacks/${created.code}/attachments`, {
+    method: 'POST',
+    expected: [400],
+    body: cumulativeOverflowForm,
+  });
+  checks.push('Tổng số tệp đã lưu của một phản ánh không thể vượt quá 5');
+
+  const attachmentPolicyCreated = await createFeedback(newSubmission({
+    title: 'QA - Kiểm tra chính sách file minh chứng',
+  }));
+  const invalidEvidenceForm = new FormData();
+  invalidEvidenceForm.set('lookupSecret', attachmentPolicyCreated.lookupSecret);
+  invalidEvidenceForm.set('expectedVersion', String(attachmentPolicyCreated.version));
+  invalidEvidenceForm.append('files', new Blob(['<script>alert(1)</script>'], { type: 'image/png' }), 'gia-mao.png');
+  await request(`/public/feedbacks/${attachmentPolicyCreated.code}/attachments`, {
+    method: 'POST',
+    expected: [400],
+    body: invalidEvidenceForm,
+  });
+  checks.push('Tệp giả mạo MIME ảnh bị kiểm tra chữ ký và từ chối');
+
+  const overflowEvidenceForm = new FormData();
+  overflowEvidenceForm.set('lookupSecret', attachmentPolicyCreated.lookupSecret);
+  overflowEvidenceForm.set('expectedVersion', String(attachmentPolicyCreated.version));
+  for (let index = 0; index < 6; index += 1) {
+    overflowEvidenceForm.append(
+      'files',
+      new Blob([Buffer.concat([evidenceBytes, Buffer.from([index])])], { type: 'image/png' }),
+      `anh-bo-sung-${index + 1}.png`,
+    );
+  }
+  await request(`/public/feedbacks/${attachmentPolicyCreated.code}/attachments`, {
+    method: 'POST',
+    expected: [400],
+    body: overflowEvidenceForm,
+  });
+  checks.push('Một lần gửi không thể vượt quá 5 tệp minh chứng');
+
+  const attachmentId = uploadedEvidence.data.attachments[0].id;
+  await request(`/public/feedbacks/${created.code}/attachments/${attachmentId}/download`, {
+    method: 'POST',
+    expected: [404],
+    body: {
+      lookupSecret: randomBytes(20).toString('hex').toUpperCase(),
+    },
+  });
+  checks.push('Secret sai không tải được tệp minh chứng');
+  const citizenEvidence = await requestBinary(`/public/feedbacks/${created.code}/attachments/${attachmentId}/download`, {
+    method: 'POST',
+    body: { lookupSecret: created.lookupSecret },
+  });
+  check(
+    'Người gửi tải lại đúng tệp bằng mã bảo mật',
+    citizenEvidence.data.equals(evidenceBytes)
+      && citizenEvidence.headers.get('content-type') === 'image/png'
+      && citizenEvidence.headers.get('x-content-type-options') === 'nosniff',
+  );
+
+  const trackedWithEvidence = await request('/public/feedbacks/track', {
+    method: 'POST',
+    expected: [201],
+    body: { code: created.code, lookupSecret: created.lookupSecret },
+  });
+  check(
+    'Tra cứu riêng tư trả metadata nhưng không làm lộ dữ liệu nhị phân',
+    trackedWithEvidence.data.version === uploadedEvidence.data.version
+      && trackedWithEvidence.data.attachments.length === 1
+      && !JSON.stringify(trackedWithEvidence.data.attachments).includes(evidenceBytes.toString('base64')),
+  );
+
+  const feedbackSummary = await findFeedback(created.code, admin.accessToken);
+  let feedback = (await request(`/feedbacks/${feedbackSummary.id}`, { token: admin.accessToken })).data;
+  check(
+    'Quản trị xem metadata tệp mà không tải toàn bộ BYTEA trong chi tiết',
+    feedback.version === uploadedEvidence.data.version
+      && feedback.attachments.length === 1
+      && !Object.hasOwn(feedback.attachments[0], 'data'),
+  );
+  const adminEvidence = await requestBinary(`/feedbacks/${feedback.id}/attachments/${attachmentId}/download`, {
+    token: admin.accessToken,
+  });
+  check('Quản trị có quyền tải tệp minh chứng', adminEvidence.data.equals(evidenceBytes));
   const duplicateList = await request(`/feedbacks?search=${encodeURIComponent(created.code)}`, { token: admin.accessToken });
   check('Idempotency chỉ lưu đúng một hồ sơ', duplicateList.data.total === 1);
 
@@ -186,9 +353,10 @@ try {
   check('Phòng ban không thấy hồ sơ chưa phân công', managerBeforeAssign.data.total === 0);
 
   const departments = await request('/departments', { token: admin.accessToken });
-  const targetDepartment = departments.data.find(item => item.code === 'KTHTDT');
+  const targetDepartment = departments.data.find(item => item.id === qaActors.departments.primary.id);
   check('Tìm được phòng ban xử lý QA', Boolean(targetDepartment));
 
+  const versionBeforeTriage = feedback.version;
   const triaged = await request(`/feedbacks/${feedback.id}/triage`, {
     method: 'POST',
     token: admin.accessToken,
@@ -196,15 +364,16 @@ try {
     body: { expectedVersion: feedback.version, category: 'INFRASTRUCTURE', priority: 'HIGH', note: 'Phân loại tự động trong kiểm thử QA' },
   });
   feedback = triaged.data;
-  check('Phân loại có khóa phiên bản', feedback.version === 2 && feedback.priority === 'HIGH');
+  check('Phân loại có khóa phiên bản', feedback.version === versionBeforeTriage + 1 && feedback.priority === 'HIGH');
 
   const assignees = await request(`/feedbacks/assignees?departmentId=${targetDepartment.id}`, { token: admin.accessToken });
-  const assignee = assignees.data.find(item => item.username === 'staff.ktht');
+  const assignee = assignees.data.find(item => item.username === qaActors.staff.username);
   check('Danh sách giao việc chỉ trả cán bộ hợp lệ', Boolean(assignee));
 
   const managerAssignees = await request('/feedbacks/assignees', { token: manager.accessToken });
   check('Trưởng phòng chỉ thấy cán bộ cùng phòng', managerAssignees.data.length > 0 && managerAssignees.data.every(item => item.departmentId === manager.user.departmentId));
 
+  const versionBeforeAssign = feedback.version;
   const assigned = await request(`/feedbacks/${feedback.id}/assign`, {
     method: 'POST',
     token: admin.accessToken,
@@ -218,7 +387,7 @@ try {
     },
   });
   feedback = assigned.data;
-  check('Phân công giữ SLA và tăng phiên bản', feedback.status === 'ASSIGNED' && feedback.version === 3 && Boolean(feedback.dueAt));
+  check('Phân công giữ SLA và tăng phiên bản', feedback.status === 'ASSIGNED' && feedback.version === versionBeforeAssign + 1 && Boolean(feedback.dueAt));
 
   await request(`/feedbacks/${feedback.id}`, { token: otherManager.accessToken, expected: [404] });
   checks.push('Trưởng phòng khác không đọc được hồ sơ');
@@ -232,8 +401,19 @@ try {
     viewerDetail.data.submitterPhone.includes('***')
       && viewerDetail.data.address === null
       && viewerDetail.data.title === 'Phản ánh trong phạm vi đơn vị'
-      && viewerDetail.data.content.includes('giới hạn'),
+      && viewerDetail.data.content.includes('giới hạn')
+      && !Object.hasOwn(viewerDetail.data, 'attachments'),
   );
+  await request(`/feedbacks/${feedback.id}/attachments/${attachmentId}/download`, {
+    token: viewer.accessToken,
+    expected: [403],
+  });
+  checks.push('VIEWER không thể tải file minh chứng gốc');
+
+  const staffEvidence = await requestBinary(`/feedbacks/${feedback.id}/attachments/${attachmentId}/download`, {
+    token: staff.accessToken,
+  });
+  check('Cán bộ được phân công tải đúng file minh chứng', staffEvidence.data.equals(evidenceBytes));
 
   await request(`/feedbacks/${feedback.id}/start`, {
     method: 'POST',
@@ -243,6 +423,7 @@ try {
   });
   checks.push('VIEWER không thể xử lý hồ sơ');
 
+  const versionBeforeStart = feedback.version;
   const started = await request(`/feedbacks/${feedback.id}/start`, {
     method: 'POST',
     token: staff.accessToken,
@@ -250,7 +431,7 @@ try {
     body: { expectedVersion: feedback.version },
   });
   feedback = started.data;
-  check('Cán bộ bắt đầu xử lý đúng trạng thái', feedback.status === 'IN_PROGRESS' && feedback.version === 4);
+  check('Cán bộ bắt đầu xử lý đúng trạng thái', feedback.status === 'IN_PROGRESS' && feedback.version === versionBeforeStart + 1);
 
   await request(`/feedbacks/${feedback.id}/contact-attempt`, {
     method: 'POST',
@@ -305,8 +486,43 @@ try {
     Boolean(tracked.firstResponseDueAt) && Boolean(tracked.firstResponseAt) && Boolean(tracked.waitingCitizenAt) && Boolean(tracked.citizenResponseDueAt),
   );
   check(
-    'Nhật ký liên hệ nội bộ không lộ trên dòng thời gian công dân',
-    tracked.events.every(item => item.action !== 'CONTACT_ATTEMPT_LOGGED'),
+    'Mốc liên hệ xuất hiện trong tiến trình nhưng không lộ ghi chú nội bộ',
+    tracked.events.some(item => item.action === 'CONTACT_ATTEMPT_LOGGED'
+      && !Object.hasOwn(item, 'note')
+      && !Object.hasOwn(item, 'metadata')),
+  );
+
+  const supplementalEvidenceBytes = Buffer.from(
+    '%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n',
+    'utf8',
+  );
+  const supplementalEvidenceForm = new FormData();
+  supplementalEvidenceForm.set('lookupSecret', created.lookupSecret);
+  supplementalEvidenceForm.set('expectedVersion', String(tracked.version));
+  supplementalEvidenceForm.append(
+    'files',
+    new Blob([supplementalEvidenceBytes], { type: 'application/pdf' }),
+    'bo-sung-hien-truong.pdf',
+  );
+  const supplementalEvidence = await request(`/public/feedbacks/${created.code}/attachments`, {
+    method: 'POST',
+    expected: [201],
+    body: supplementalEvidenceForm,
+  });
+  check(
+    'Người dân bổ sung được minh chứng khi cán bộ yêu cầu thêm thông tin',
+    supplementalEvidence.data.version === tracked.version + 1
+      && supplementalEvidence.data.attachments.length === 2,
+  );
+  tracked = (await request('/public/feedbacks/track', {
+    method: 'POST',
+    expected: [201],
+    body: { code: created.code, lookupSecret: created.lookupSecret },
+  })).data;
+  check(
+    'Tra cứu cập nhật đủ file và mốc bổ sung minh chứng',
+    tracked.attachments.length === 2
+      && tracked.events.filter(item => item.action === 'CITIZEN_ATTACHMENTS_ADDED').length === 2,
   );
 
   const waitingSnapshot = {
@@ -419,11 +635,13 @@ try {
     body: { code: created.code, lookupSecret: created.lookupSecret },
   })).data;
   check(
-    'Lý do trả lại nội bộ và bản dự thảo vẫn không lộ cho người dân',
+    'Người dân thấy mốc trả lại nhưng lý do nội bộ và bản dự thảo vẫn được bảo vệ',
     returnedPublic.status === 'IN_PROGRESS'
       && returnedPublic.resolutionSummary === null
-      && returnedPublic.events.every(item => item.action !== 'RESOLUTION_RETURNED')
-      && !JSON.stringify(returnedPublic).includes('Cần làm rõ biện pháp'),
+      && returnedPublic.events.some(item => item.action === 'RESOLUTION_RETURNED')
+      && returnedPublic.events.every(item => !Object.hasOwn(item, 'note') && !Object.hasOwn(item, 'metadata'))
+      && !JSON.stringify(returnedPublic).includes('Cần làm rõ biện pháp')
+      && !JSON.stringify(returnedPublic).includes(resolutionDraft),
   );
   const resubmitted = await request(`/feedbacks/${feedback.id}/submit-resolution`, {
     method: 'POST',
@@ -467,6 +685,23 @@ try {
   });
   checks.push('Mỗi hồ sơ chỉ được đánh giá một lần');
 
+  await request(`/feedbacks/${feedback.id}/publication-preview`, {
+    token: manager.accessToken,
+    expected: [403],
+  });
+  checks.push('Chỉ quản trị viên được xem bản chuẩn bị công khai');
+  const publicationPreview = await request(`/feedbacks/${feedback.id}/publication-preview`, {
+    token: admin.accessToken,
+  });
+  check(
+    'Bản xem trước đúng nội dung sẽ công khai và đã tự động ẩn PII',
+    publicationPreview.data.title === mainSubmission.title
+      && Boolean(publicationPreview.data.resolutionSummary)
+      && !publicationPreview.data.content.includes(mainSubmission.submitterName)
+      && !publicationPreview.data.content.includes(mainSubmission.submitterPhone)
+      && !publicationPreview.data.content.includes(mainSubmission.submitterEmail),
+  );
+
   await request(`/feedbacks/${feedback.id}/publish`, {
     method: 'POST',
     token: admin.accessToken,
@@ -475,8 +710,6 @@ try {
       expectedVersion: feedback.version,
       publish: true,
       confirmAnonymized: true,
-      title: 'Phản ánh chiếu sáng đã xử lý',
-      summary: 'Đã khôi phục đèn chiếu sáng tại khu vực phản ánh.',
     },
   });
   checks.push('Công bố bằng phiên bản cũ bị chặn');
@@ -488,8 +721,6 @@ try {
     body: {
       expectedVersion: rated.data.version,
       publish: true,
-      title: 'Phản ánh chiếu sáng đã xử lý',
-      summary: 'Đã khôi phục đèn chiếu sáng tại khu vực phản ánh.',
     },
   });
   checks.push('Công bố bắt buộc xác nhận đã ẩn danh');
@@ -502,25 +733,10 @@ try {
       expectedVersion: rated.data.version,
       publish: true,
       confirmAnonymized: true,
-      title: 'Kết quả phản ánh của Người dân kiểm thử',
-      summary: 'Đã liên hệ số 0901234567 và xử lý nội dung phản ánh.',
+      title: 'Không được cho phép ghi đè tiêu đề',
     },
   });
-  checks.push('Bộ lọc PII chặn họ tên và số điện thoại trong nội dung công khai');
-
-  await request(`/feedbacks/${feedback.id}/publish`, {
-    method: 'POST',
-    token: admin.accessToken,
-    expected: [400],
-    body: {
-      expectedVersion: rated.data.version,
-      publish: true,
-      confirmAnonymized: true,
-      title: 'Ket qua cua Nguoi   dan kiem thu',
-      summary: 'Nội dung kết quả đã được xử lý nhưng tiêu đề còn dữ liệu nhận diện.',
-    },
-  });
-  checks.push('Bộ lọc PII nhận diện họ tên dù bỏ dấu hoặc thay đổi khoảng trắng');
+  checks.push('API từ chối trường nhập tay để tránh nội dung công khai xung đột phản ánh gốc');
 
   let published = await request(`/feedbacks/${feedback.id}/publish`, {
     method: 'POST',
@@ -530,14 +746,40 @@ try {
       expectedVersion: rated.data.version,
       publish: true,
       confirmAnonymized: true,
-      title: 'Phản ánh chiếu sáng đã xử lý',
-      summary: 'Đã khôi phục đèn chiếu sáng tại khu vực phản ánh.',
     },
   });
-  check('Admin công bố bản đã ẩn danh', published.data.isPublic === true);
+  check(
+    'Admin công bố tự động từ phản ánh gốc',
+    published.data.isPublic === true
+      && published.data.publicTitle === mainSubmission.title
+      && !published.data.publicSummary.includes(mainSubmission.submitterName)
+      && !published.data.publicSummary.includes(mainSubmission.submitterPhone)
+      && !published.data.publicSummary.includes(mainSubmission.submitterEmail),
+  );
 
   const publicItems = await request('/public/feedbacks/published');
-  check('Danh sách công khai chỉ chứa snapshot', publicItems.data.some(item => item.code === created.code && !JSON.stringify(item).includes('0901234567')));
+  const publicListItem = publicItems.data.find(item => item.code === created.code);
+  check(
+    'Danh sách công khai lấy nội dung gốc đã tự động ẩn danh',
+    publicListItem?.publicTitle === mainSubmission.title
+      && !JSON.stringify(publicListItem).includes(mainSubmission.submitterName)
+      && !JSON.stringify(publicListItem).includes(mainSubmission.submitterPhone)
+      && !JSON.stringify(publicListItem).includes(mainSubmission.submitterEmail),
+  );
+  const publicDetail = await request(`/public/feedbacks/published/${created.code}`);
+  check(
+    'Chi tiết công khai hiển thị kết quả và toàn bộ tiến trình an toàn',
+    publicDetail.data.title === mainSubmission.title
+      && Boolean(publicDetail.data.resolutionSummary)
+      && publicDetail.data.timeline.some(item => item.action === 'CREATED')
+      && publicDetail.data.timeline.some(item => item.action === 'FEEDBACK_TRIAGED')
+      && publicDetail.data.timeline.some(item => item.action === 'CONTACT_ATTEMPT_LOGGED')
+      && publicDetail.data.timeline.some(item => item.action === 'RESOLUTION_APPROVED')
+      && publicDetail.data.timeline.some(item => item.action === 'FEEDBACK_PUBLISHED')
+      && !Object.hasOwn(publicDetail.data, 'attachments')
+      && !JSON.stringify(publicDetail.data).includes(mainSubmission.submitterPhone)
+      && !JSON.stringify(publicDetail.data).includes(mainSubmission.submitterEmail),
+  );
 
   const unpublished = await request(`/feedbacks/${feedback.id}/publish`, {
     method: 'POST',
@@ -546,8 +788,9 @@ try {
     body: { expectedVersion: published.data.version, publish: false },
   });
   const publicItemsAfterUnpublish = await request('/public/feedbacks/published');
+  await request(`/public/feedbacks/published/${created.code}`, { expected: [404] });
   check(
-    'Gỡ công khai ẩn hồ sơ khỏi trang người dân nhưng giữ hồ sơ nội bộ',
+    'Gỡ công khai ẩn cả thẻ và trang chi tiết nhưng giữ hồ sơ nội bộ',
     unpublished.data.isPublic === false && !publicItemsAfterUnpublish.data.some(item => item.code === created.code),
   );
   published = await request(`/feedbacks/${feedback.id}/publish`, {
@@ -558,8 +801,6 @@ try {
       expectedVersion: unpublished.data.version,
       publish: true,
       confirmAnonymized: true,
-      title: 'Phản ánh chiếu sáng đã xử lý',
-      summary: 'Đã khôi phục đèn chiếu sáng tại khu vực phản ánh.',
     },
   });
   check('Có thể công khai lại bằng phiên bản mới sau khi gỡ', published.data.isPublic === true);
@@ -750,14 +991,55 @@ try {
       && closedStats.resolved === expiredStats.resolved,
   );
 
-  console.log(JSON.stringify({ ok: true, checks: checks.length, details: checks }, null, 2));
+}
+
+let failure = null;
+let cleanupSummary = null;
+try {
+  await runSuite();
 } catch (error) {
-  console.error(JSON.stringify({ ok: false, checks: checks.length, error: error.message }, null, 2));
+  failure = mergeFailure(failure, error, 'Thực thi QA');
+}
+
+try {
+  await cleanupBusinessData();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Dọn dữ liệu nghiệp vụ');
+}
+
+try {
+  cleanupSummary = await cleanupQaActors(prisma, qaActors, {
+    entityIds: [...createdFeedbackIds],
+  });
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Dọn nhật ký và actor');
+}
+
+try {
+  await assertCleanupPostconditions();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Hậu kiểm cleanup');
+}
+
+try {
+  await prisma.$disconnect();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Ngắt kết nối cơ sở dữ liệu');
+}
+
+if (failure) {
+  console.error(JSON.stringify({ ok: false, checks: checks.length, error: failure.message }, null, 2));
   process.exitCode = 1;
-} finally {
-  try {
-    await cleanup();
-  } finally {
-    await prisma.$disconnect();
-  }
+} else {
+  console.log(JSON.stringify({
+    ok: true,
+    checks: checks.length,
+    details: checks,
+    cleanup: {
+      feedbacks: createdFeedbackIds.size,
+      users: cleanupSummary?.userIds.length ?? 0,
+      audits: cleanupSummary?.auditIds.length ?? 0,
+      residual: { feedbacks: 0, users: 0, audits: 0 },
+    },
+  }, null, 2));
 }

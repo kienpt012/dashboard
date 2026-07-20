@@ -50,7 +50,7 @@ export default function Reports() {
   const isAdmin = user?.role === 'ADMIN';
   const ownDepartmentId = user?.departmentId || '';
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState(String(currentYear));
   const [departmentId, setDepartmentId] = useState(isAdmin ? '' : ownDepartmentId);
   const [appliedFilter, setAppliedFilter] = useState<AppliedFilter>({ year: currentYear, departmentId: isAdmin ? '' : ownDepartmentId });
   const [rows, setRows] = useState<ReportRow[]>([]);
@@ -80,7 +80,7 @@ export default function Reports() {
       setOverallProgress(dashboard.overallProgress);
       setAppliedFilter(resolvedFilter);
       if (!filter) {
-        setYear(dashboard.year);
+        setYear(String(dashboard.year));
         setDepartmentId(resolvedFilter.departmentId);
       }
     } catch (error) {
@@ -107,11 +107,12 @@ export default function Reports() {
     return { completed, attention, lastReportedAt };
   }, [rows]);
 
-  const yearOptions = useMemo(() => Array.from({ length: 101 }, (_, index) => 2100 - index), []);
-
   const appliedDepartment = departments.find(item => item.id === appliedFilter.departmentId)
     || (!isAdmin ? user?.department : null);
   const scopeName = appliedDepartment?.name || (isAdmin ? 'Toàn hệ thống' : 'Phòng ban của bạn');
+  const selectedYear = Number(year);
+  const yearIsValid = Number.isInteger(selectedYear) && selectedYear >= 2000 && selectedYear <= 2100;
+  const filtersDirty = !yearIsValid || selectedYear !== appliedFilter.year || (isAdmin ? departmentId : ownDepartmentId) !== appliedFilter.departmentId;
 
   async function exportExcel() {
     setExporting(true);
@@ -132,19 +133,19 @@ export default function Reports() {
       title="Báo cáo thực hiện chỉ tiêu"
       description={`Dữ liệu đã được duyệt trong phạm vi ${scopeName}, kế hoạch năm ${appliedFilter.year}.`}
       actions={<>
-        <button className="btn secondary" onClick={() => window.print()} disabled={loading}><Printer />In báo cáo</button>
-        <button className="btn primary" onClick={exportExcel} disabled={loading || exporting}><Download />{exporting ? 'Đang tạo Excel...' : 'Xuất báo cáo Excel'}</button>
+        <button className="btn secondary" onClick={() => window.print()} disabled={loading || filtersDirty} title={filtersDirty ? 'Hãy áp dụng bộ lọc trước khi in' : undefined}><Printer />In báo cáo</button>
+        <button className="btn primary" onClick={exportExcel} disabled={loading || exporting || filtersDirty} title={filtersDirty ? 'Hãy áp dụng bộ lọc trước khi xuất Excel' : undefined}><Download />{exporting ? 'Đang tạo Excel...' : 'Xuất báo cáo Excel'}</button>
       </>}
     />
 
     <div className="report-filters">
-      <div><label htmlFor="report-year">Năm báo cáo</label><select id="report-year" value={year} onChange={event => setYear(Number(event.target.value))}>{yearOptions.map(item => <option key={item}>{item}</option>)}</select></div>
+      <div><label htmlFor="report-year">Năm báo cáo</label><input id="report-year" aria-invalid={!yearIsValid || undefined} type="number" min="2000" max="2100" value={year} onChange={event => setYear(event.target.value)} /></div>
       <div><label htmlFor="report-department">Phạm vi phòng ban</label>{isAdmin
         ? <select id="report-department" value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Toàn hệ thống</option>{departments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         : <select id="report-department" value={ownDepartmentId} disabled><option value={ownDepartmentId}>{user?.department?.name || 'Chưa được gắn phòng ban'}</option></select>}
       </div>
-      <button className="btn secondary" onClick={() => loadReport({ year, departmentId: isAdmin ? departmentId : ownDepartmentId })} disabled={loading}><Filter />{loading ? 'Đang tải...' : 'Áp dụng'}</button>
-      <span className="report-date">{summary.lastReportedAt ? `Dữ liệu cập nhật gần nhất ${summary.lastReportedAt.toLocaleString('vi-VN')}` : 'Chưa có lần báo cáo chính thức'}</span>
+      <button className="btn secondary" onClick={() => loadReport({ year: selectedYear, departmentId: isAdmin ? departmentId : ownDepartmentId })} disabled={loading || !yearIsValid}><Filter />{loading ? 'Đang tải...' : 'Áp dụng'}</button>
+      <span className={`report-date${filtersDirty ? ' pending' : ''}`}>{filtersDirty ? 'Bộ lọc vừa đổi chưa được áp dụng' : summary.lastReportedAt ? `Dữ liệu cập nhật gần nhất ${summary.lastReportedAt.toLocaleString('vi-VN')}` : 'Chưa có lần báo cáo chính thức'}</span>
     </div>
 
     {error && <div className="form-error" role="alert">{error}</div>}

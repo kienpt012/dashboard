@@ -17,6 +17,7 @@ import Users from './pages/Users';
 import Approvals from './pages/Approvals';
 import FeedbackAdmin from './pages/FeedbackAdmin';
 import FeedbackPublic from './pages/FeedbackPublic';
+import PublishedFeedbackDetail from './pages/PublishedFeedbackDetail';
 import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
 import type { AuthMeResponse, Role, User } from './types';
@@ -61,10 +62,38 @@ function LoginRoute(){
   return auth.token?<Navigate to="/admin" replace/>:<Login/>;
 }
 
+const pageTitles: Record<string, string> = {
+  '/': 'IOC Lái Thiêu · Cổng thông tin điều hành',
+  '/phan-anh': 'Gửi và tra cứu phản ánh · Phường Lái Thiêu',
+  '/admin/login': 'Đăng nhập nội bộ · IOC Lái Thiêu',
+  '/admin': 'Tổng quan điều hành · IOC Lái Thiêu',
+  '/admin/targets': 'Quản lý chỉ tiêu · IOC Lái Thiêu',
+  '/admin/reports': 'Báo cáo chỉ tiêu · IOC Lái Thiêu',
+  '/admin/imports': 'Nhập dữ liệu báo cáo · IOC Lái Thiêu',
+  '/admin/approvals': 'Duyệt báo cáo · IOC Lái Thiêu',
+  '/admin/feedback': 'Tiếp nhận phản ánh · IOC Lái Thiêu',
+  '/admin/departments': 'Cơ cấu phòng ban · IOC Lái Thiêu',
+  '/admin/users': 'Quản lý tài khoản · IOC Lái Thiêu',
+  '/admin/settings': 'Thiết lập hệ thống · IOC Lái Thiêu',
+  '/admin/audit-logs': 'Nhật ký hệ thống · IOC Lái Thiêu',
+  '/admin/profile': 'Hồ sơ và bảo mật · IOC Lái Thiêu',
+};
+
+function DocumentTitle(){
+  const location=useLocation();
+  useEffect(()=>{
+    document.title=location.pathname.startsWith('/phan-anh/cong-khai/')
+      ?'Chi tiết phản ánh công khai · Phường Lái Thiêu'
+      :(pageTitles[location.pathname]||'IOC Lái Thiêu');
+  },[location.pathname]);
+  return null;
+}
+
 export default function App(){
-  return <Routes>
+  return <><DocumentTitle/><Routes>
     <Route path="/" element={<PublicHome/>}/>
     <Route path="/phan-anh" element={<FeedbackPublic/>}/>
+    <Route path="/phan-anh/cong-khai/:code" element={<PublishedFeedbackDetail/>}/>
     <Route path="/admin/login" element={<LoginRoute/>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>
@@ -82,5 +111,5 @@ export default function App(){
       <Route path="*" element={<Navigate to="/admin" replace/>}/>
     </Route>
     <Route path="*" element={<Navigate to="/" replace/>}/>
-  </Routes>;
+  </Routes></>;
 }

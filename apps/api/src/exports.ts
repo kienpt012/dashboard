@@ -54,6 +54,7 @@ function styleBody(sheet: ExcelJS.Worksheet, firstRow: number) {
     const row = sheet.getRow(index);
     row.height = 22;
     row.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
       cell.alignment = { vertical: 'middle', wrapText: true };
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
     });
@@ -116,7 +117,8 @@ export class ExportsController {
     workbook.created = new Date();
     workbook.modified = new Date();
 
-    const summary = workbook.addWorksheet('TONG_HOP', { views: [{ state: 'frozen', ySplit: 8 }] });
+    const summary = workbook.addWorksheet('TONG_HOP', { views: [{ state: 'frozen', ySplit: 8, showGridLines: false }] });
+    summary.properties.tabColor = { argb: 'FF0F766E' };
     summary.columns = [{ width: 34 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
     summary.mergeCells('A1:E1');
     summary.getCell('A1').value = `BÁO CÁO CHỈ TIÊU NĂM ${year}`;
@@ -127,9 +129,25 @@ export class ExportsController {
     summary.addRow(['Thời điểm xuất', new Date()]);
     summary.addRow(['Tổng chỉ tiêu', targets.length]);
     summary.addRow(['Tiến độ theo trọng số', weightedTotal ? Math.round((weightedProgress / weightedTotal) * 100) / 100 : 0]);
+    summary.mergeCells('B2:E2');
+    summary.mergeCells('B3:E3');
+    for (const rowNumber of [2, 3, 4, 5, 6]) {
+      summary.getCell(`A${rowNumber}`).font = { bold: true, color: { argb: 'FF475569' } };
+      summary.getCell(`B${rowNumber}`).alignment = { vertical: 'middle', wrapText: true };
+    }
+    summary.getRow(3).height = 32;
     summary.getCell('B4').numFmt = 'dd/mm/yyyy hh:mm';
     summary.getCell('B6').numFmt = '0%';
     summary.addRow([]);
+    for (let rowNumber = 1; rowNumber <= 7; rowNumber++) {
+      for (let columnNumber = 1; columnNumber <= 5; columnNumber++) {
+        summary.getRow(rowNumber).getCell(columnNumber).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFFFF' },
+        };
+      }
+    }
     summary.addRow(['Phòng ban', 'Tổng chỉ tiêu', 'Hoàn thành', 'Cần tập trung', 'Tiến độ theo trọng số']);
     header(summary.getRow(8));
     const departments = new Map<string, { name: string; total: number; completed: number; risk: number; progress: number; weight: number }>();
@@ -149,7 +167,8 @@ export class ExportsController {
     }
     styleBody(summary, 9);
 
-    const details = workbook.addWorksheet('CHI_TIET', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const details = workbook.addWorksheet('CHI_TIET', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
+    details.properties.tabColor = { argb: 'FF0F766E' };
     details.columns = [
       { header: 'STT', width: 8 },
       { header: 'Mã chỉ tiêu', width: 18 },
@@ -195,7 +214,8 @@ export class ExportsController {
     details.autoFilter = { from: 'A1', to: 'N1' };
     styleBody(details, 2);
 
-    const log = workbook.addWorksheet('LICH_SU', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const log = workbook.addWorksheet('LICH_SU', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
+    log.properties.tabColor = { argb: 'FF1D4ED8' };
     log.columns = [
       { header: 'STT', width: 8 },
       { header: 'Thời gian', width: 20 },

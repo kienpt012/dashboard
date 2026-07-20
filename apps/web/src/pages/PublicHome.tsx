@@ -15,11 +15,11 @@ import {
   Target,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { currentVietnamYear } from '../date';
-import type { FeedbackCategory } from '../types';
+import type { FeedbackCategory, PublishedFeedback } from '../types';
 
 type PublicOverview = {
   year: number;
@@ -30,16 +30,6 @@ type PublicOverview = {
   updatedAt: string | null;
   departments: Array<{ name: string; color: string; total: number; completed: number; progress: number }>;
   highlights: Array<{ code: string; title: string; unit: string; targetValue: number; currentValue: number; progress: number; department: string; status: string }>;
-};
-
-type PublishedFeedback = {
-  code: string;
-  category: FeedbackCategory | null;
-  publicTitle: string | null;
-  publicSummary: string | null;
-  publicPublishedAt: string;
-  resolvedAt: string | null;
-  department: { name: string } | null;
 };
 
 const feedbackCategoryNames: Record<FeedbackCategory, string> = {
@@ -58,12 +48,28 @@ function formatValue(value: number, unit: string) {
 
 export default function PublicHome() {
   const [data, setData] = useState<PublicOverview>();
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [error, setError] = useState('');
   const [publishedFeedbacks, setPublishedFeedbacks] = useState<PublishedFeedback[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [feedbackError, setFeedbackError] = useState('');
   const [menu, setMenu] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuCloseRef = useRef<HTMLButtonElement>(null);
   const year = currentVietnamYear();
+
+  async function loadOverview() {
+    setOverviewLoading(true);
+    setError('');
+    try {
+      setData(await api<PublicOverview>('/public/overview'));
+    } catch (reason) {
+      setData(undefined);
+      setError(reason instanceof Error ? reason.message : 'Dữ liệu công khai đang được cập nhật');
+    } finally {
+      setOverviewLoading(false);
+    }
+  }
 
   async function loadPublishedFeedbacks() {
     setFeedbackLoading(true);
@@ -78,33 +84,46 @@ export default function PublicHome() {
   }
 
   useEffect(() => {
-    api<PublicOverview>('/public/overview')
-      .then(setData)
-      .catch(reason => setError(reason.message || 'Dữ liệu công khai đang được cập nhật'));
+    void loadOverview();
     void loadPublishedFeedbacks();
   }, []);
 
   useEffect(() => {
+    const targetId=decodeURIComponent(window.location.hash.replace(/^#/,''));
+    if(!targetId)return;
+    const frame=requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({block:'start'}));
+    return()=>cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
     if (!menu) return;
+    const previousOverflow = document.body.style.overflow;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : menuButtonRef.current;
+    document.body.style.overflow = 'hidden';
+    menuCloseRef.current?.focus();
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenu(false) };
     window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('keydown', close);
+      document.body.style.overflow = previousOverflow;
+      trigger?.focus();
+    };
   }, [menu]);
 
   return <div className="public-site">
     <header className="public-header">
       <Link to="/" className="public-brand"><div className="brand-mark">LT</div><div><strong>PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></Link>
-      <nav id="public-navigation" className={menu ? 'show' : ''}>
+      <nav id="public-navigation" aria-label="Điều hướng cổng thông tin" className={menu ? 'show' : ''}>
         <a href="#tong-quan" onClick={() => setMenu(false)}>Tổng quan</a>
         <a href="#chi-tieu" onClick={() => setMenu(false)}>Chỉ tiêu công khai</a>
         <a href="#phong-ban" onClick={() => setMenu(false)}>Kết quả theo đơn vị</a>
         <Link to="/phan-anh" onClick={() => setMenu(false)}>Gửi phản ánh</Link>
-        <button aria-label="Đóng menu" className="public-nav-close" onClick={() => setMenu(false)}><X /></button>
+        <button ref={menuCloseRef} aria-label="Đóng menu" className="public-nav-close" onClick={() => setMenu(false)}><X /></button>
       </nav>
       <div className="public-head-actions">
-        <div className="public-live"><i />Dữ liệu đã kiểm duyệt</div>
+        <div className={`public-live${error ? ' error' : overviewLoading ? ' loading' : ''}`} role="status"><i />{error ? 'Tạm thời mất kết nối' : overviewLoading ? 'Đang đồng bộ dữ liệu' : 'Dữ liệu đã kiểm duyệt'}</div>
         <Link aria-label="Đăng nhập hệ thống" to="/admin/login" className="admin-link"><CircleUserRound />Đăng nhập hệ thống</Link>
-        <button aria-label="Mở menu" aria-controls="public-navigation" aria-expanded={menu} className="public-menu" onClick={() => setMenu(true)}><Menu /></button>
+        <button ref={menuButtonRef} aria-label="Mở menu" aria-controls="public-navigation" aria-expanded={menu} className="public-menu" onClick={() => setMenu(true)}><Menu /></button>
       </div>
     </header>
 
@@ -123,7 +142,7 @@ export default function PublicHome() {
             <div className="command-card-head"><div><span>TIẾN ĐỘ THỰC HIỆN</span><strong>Kế hoạch năm {data?.year ?? year}</strong></div><BarChart3 /></div>
             <div className="public-ring" style={{ '--p': `${Math.max(0,Math.min(100,data?.overallProgress??0))*3.6}deg` } as any}><div><strong>{data?data.overallProgress:'—'}{data&&<small>%</small>}</strong><span>tiến độ chung</span></div></div>
             <div className="command-card-stats"><div><span>Tổng chỉ tiêu</span><b>{data?.total ?? '—'}</b></div><div><span>Hoàn thành</span><b>{data?.completed ?? '—'}</b></div><div><span>Đúng tiến độ</span><b>{data?.onTrack ?? '—'}</b></div></div>
-            <div className="command-update"><i /><span>{data ? (data.updatedAt ? `Cập nhật gần nhất: ${new Date(data.updatedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}` : 'Chưa có dữ liệu được công bố cho năm này') : error || 'Đang tải dữ liệu công khai...'}</span></div>
+            <div className={`command-update${error ? ' error' : ''}`}><i /><span>{data ? (data.updatedAt ? `Cập nhật gần nhất: ${new Date(data.updatedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}` : 'Chưa có dữ liệu được công bố cho năm này') : error || 'Đang tải dữ liệu công khai...'}</span>{error && <button type="button" onClick={() => void loadOverview()}>Thử lại</button>}</div>
           </div>
         </div>
       </section>
@@ -137,7 +156,7 @@ export default function PublicHome() {
 
       <section className="public-section" id="chi-tieu"><div className="public-container">
         <div className="public-section-head"><div><span>KẾT QUẢ NỔI BẬT</span><h2>Chỉ tiêu người dân quan tâm</h2><p>Các chỉ số trọng tâm được quản trị viên lựa chọn công khai sau khi số liệu đã được kiểm duyệt.</p></div></div>
-        {error ? <div className="public-loading">{error}</div> : <div className="highlight-grid">{data ? data.highlights.length ? data.highlights.map((item, index) => <article className="highlight-card" key={`${item.department}-${item.code}`}>
+        {error ? <div className="public-feedback-state error" role="alert"><span>{error}</span><button type="button" onClick={() => void loadOverview()}>Thử tải lại</button></div> : <div className="highlight-grid">{data ? data.highlights.length ? data.highlights.map((item, index) => <article className="highlight-card" key={`${item.department}-${item.code}`}>
           <div className="highlight-top"><span>{String(index + 1).padStart(2, '0')}</span><i className={item.status === 'COMPLETED' ? 'done' : item.status === 'ON_TRACK' ? 'good' : 'watch'}>{item.status === 'COMPLETED' ? 'Hoàn thành' : item.status === 'ON_TRACK' ? 'Đúng tiến độ' : 'Cần theo dõi'}</i></div>
           <h3>{item.title}</h3><p>{item.department}</p>
           <div className="highlight-values"><strong>{formatValue(item.currentValue, item.unit)}</strong><span>/ {formatValue(item.targetValue, item.unit)}</span></div>
@@ -147,22 +166,23 @@ export default function PublicHome() {
 
       <section className="public-section department-public" id="phong-ban"><div className="public-container">
         <div className="public-section-head light"><div><span>KẾT QUẢ THEO ĐƠN VỊ</span><h2>Tiến độ các chỉ tiêu công khai</h2><p>Số liệu chỉ tổng hợp từ những chỉ tiêu được phép hiển thị trên cổng thông tin.</p></div></div>
-        <div className="public-department-grid">{data?.departments.map((department, index) => <div className="public-department" key={department.name}>
+        {error ? <div className="public-department-state" role="alert"><span>Chưa thể tải kết quả theo đơn vị.</span><button type="button" onClick={() => void loadOverview()}>Thử lại</button></div> : overviewLoading ? <div className="public-department-state" role="status">Đang tải kết quả theo đơn vị...</div> : <div className="public-department-grid">{data?.departments.map((department, index) => <div className="public-department" key={department.name}>
           <div className="dep-rank">{String(index + 1).padStart(2, '0')}</div><div className="dep-public-icon" style={{ color: department.color }}><Building2 /></div>
           <div className="dep-public-info"><strong>{department.name}</strong><span>{department.completed}/{department.total} chỉ tiêu đã hoàn thành</span><div className="public-progress dark"><i style={{ width: `${Math.max(0,Math.min(100,department.progress))}%`, background: department.color }} /></div></div><b>{department.progress}%</b>
-        </div>)}</div>
+        </div>)}</div>}
       </div></section>
 
       <section className="public-section published-feedback-section" id="ket-qua-phan-anh"><div className="public-container">
         <div className="public-section-head"><div><span>KẾT QUẢ PHỤC VỤ NGƯỜI DÂN</span><h2>Phản ánh đã được xử lý công khai</h2><p>Các kết quả dưới đây đã hoàn tất quy trình xử lý, phê duyệt và loại bỏ thông tin riêng tư trước khi công bố.</p></div><Link to="/phan-anh" className="public-outline-btn">Gửi hoặc tra cứu phản ánh <ArrowRight /></Link></div>
         {feedbackLoading ? <div className="public-loading" role="status">Đang tải kết quả phản ánh...</div>
           : feedbackError ? <div className="public-feedback-state error" role="alert"><span>{feedbackError}</span><button type="button" onClick={() => void loadPublishedFeedbacks()}>Thử tải lại</button></div>
-          : publishedFeedbacks.length ? <div className="published-feedback-grid">{publishedFeedbacks.map(item => <article className="published-feedback-card" key={item.code}>
+          : publishedFeedbacks.length ? <div className="published-feedback-grid">{publishedFeedbacks.map(item => <Link className="published-feedback-card" to={`/phan-anh/cong-khai/${encodeURIComponent(item.code)}`} key={item.code}>
             <div className="published-feedback-meta"><span><BadgeCheck />{item.category ? feedbackCategoryNames[item.category] : 'Kết quả xử lý'}</span><time dateTime={item.publicPublishedAt}>{new Date(item.publicPublishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}</time></div>
             <h3>{item.publicTitle || 'Kết quả xử lý phản ánh'}</h3>
             <p>{item.publicSummary || 'Kết quả đang được cập nhật.'}</p>
             <div className="published-feedback-foot"><span><Building2 />{item.department?.name || 'UBND Phường Lái Thiêu'}</span><b>{item.code}</b></div>
-          </article>)}</div>
+            <span className="published-feedback-view">Xem toàn bộ quá trình xử lý <ArrowRight/></span>
+          </Link>)}</div>
           : <div className="public-feedback-state"><BadgeCheck /><div><strong>Chưa có kết quả mới được công bố</strong><span>Các phản ánh đã xử lý sẽ xuất hiện tại đây sau khi được kiểm duyệt.</span></div></div>}
       </div></section>
 

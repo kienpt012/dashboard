@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { cleanupQaActors, createQaActors, qaActorIds } from './qa-actors.mjs';
 
 try {
   process.loadEnvFile?.();
@@ -22,6 +23,13 @@ let qaFeedbackId = null;
 let qaTargetId = null;
 let qaInactiveAdminId = null;
 let qaInactiveAdminUsername = null;
+let qaActors = null;
+
+function mergeFailure(current, next, phase) {
+  const nextMessage = next instanceof Error ? next.message : String(next);
+  if (!current) return new Error(`${phase}: ${nextMessage}`);
+  return new Error(`${current.message}; ${phase}: ${nextMessage}`);
+}
 
 function check(name, condition, details = '') {
   if (!condition) throw new Error(`${name}: ${details || 'không đạt'}`);
@@ -46,56 +54,69 @@ async function login(username, password) {
   return (await request('/auth/login', { method: 'POST', expected: [201], body: { username, password } })).data;
 }
 
-async function cleanup() {
+async function cleanupBusinessData() {
   const operations = [];
   if (qaFeedbackId) operations.push(prisma.feedback.deleteMany({ where: { id: qaFeedbackId } }));
   if (qaTargetId) {
-    operations.push(prisma.auditLog.deleteMany({ where: { entityType: 'Target', entityId: qaTargetId } }));
     operations.push(prisma.target.deleteMany({ where: { id: qaTargetId } }));
-  }
-  if (qaInactiveAdminId) {
-    operations.push(prisma.auditLog.deleteMany({ where: { OR: [{ actorId: qaInactiveAdminId }, { entityType: 'User', entityId: qaInactiveAdminId }] } }));
-    operations.push(prisma.user.deleteMany({ where: { id: qaInactiveAdminId, username: qaInactiveAdminUsername } }));
-  }
-  if (qaUserId) {
-    operations.push(prisma.auditLog.deleteMany({ where: { OR: [{ actorId: qaUserId }, { entityType: 'User', entityId: qaUserId }] } }));
-    operations.push(prisma.user.deleteMany({ where: { id: qaUserId, username: qaUsername } }));
   }
   if (operations.length) await prisma.$transaction(operations);
 }
 
-try {
+async function assertCleanupPostconditions() {
+  const actorIds = qaActorIds(qaActors);
+  const additionalUserIds = [qaInactiveAdminId, qaUserId].filter(Boolean);
+  const entityIds = [qaFeedbackId, qaTargetId, ...additionalUserIds].filter(Boolean);
+  const [feedbacks, targets, users, audits] = await Promise.all([
+    qaFeedbackId ? prisma.feedback.count({ where: { id: qaFeedbackId } }) : 0,
+    qaTargetId ? prisma.target.count({ where: { id: qaTargetId } }) : 0,
+    [...actorIds, ...additionalUserIds].length
+      ? prisma.user.count({ where: { id: { in: [...actorIds, ...additionalUserIds] } } })
+      : 0,
+    actorIds.length || entityIds.length
+      ? prisma.auditLog.count({
+          where: {
+            OR: [
+              ...(actorIds.length ? [{ actorId: { in: actorIds } }] : []),
+              ...(entityIds.length ? [{ entityId: { in: entityIds } }] : []),
+            ],
+          },
+        })
+      : 0,
+  ]);
+  if (feedbacks || targets || users || audits) {
+    throw new Error(`Dữ liệu QA còn sót: feedbacks=${feedbacks}, targets=${targets}, users=${users}, audits=${audits}`);
+  }
+  return { feedbacks, targets, users, audits };
+}
+
+async function runSuite() {
+  qaActors = await createQaActors(prisma, 'access');
   const [admin, manager, staff, otherManager] = await Promise.all([
-    login('admin', 'Admin@123'),
-    login('lan.anh', 'Demo@1234'),
-    login('staff.ktht', 'Demo@1234'),
-    login('manager.vhxh', 'Demo@1234'),
+    login(qaActors.admin.username, qaActors.password),
+    login(qaActors.manager.username, qaActors.password),
+    login(qaActors.staff.username, qaActors.password),
+    login(qaActors.otherManager.username, qaActors.password),
   ]);
   check('Đăng nhập ma trận vai trò', [admin, manager, staff, otherManager].every(item => item.accessToken));
 
   const departments = (await request('/departments', { token: admin.accessToken })).data;
-  const ktht = departments.find(item => item.code === 'KTHTDT');
-  const vhxh = departments.find(item => item.code === 'VHXH');
+  const ktht = departments.find(item => item.id === qaActors.departments.primary.id);
+  const vhxh = departments.find(item => item.id === qaActors.departments.secondary.id);
   check('Có dữ liệu hai phòng ban để kiểm tra scope', Boolean(ktht && vhxh));
 
   await request(`/departments/${ktht.id}`, { method: 'PATCH', token: admin.accessToken, expected: [409], body: { expectedVersion: ktht.version + 999, name: ktht.name } });
   checks.push('Phiên bản phòng ban cũ bị từ chối để tránh ghi đè');
 
   const settings = await request('/settings', { token: admin.accessToken });
-  const savedSettings = await request('/settings', {
-    method: 'PATCH', token: admin.accessToken, expected: [200],
-    body: {
-      expectedVersion: settings.data.version,
-      defaultYear: settings.data.defaultYear,
-      warningDays: settings.data.warningDays,
-      riskThreshold: settings.data.riskThreshold,
-      feedbackFirstResponseDays: settings.data.feedbackFirstResponseDays,
-      feedbackResolutionDays: settings.data.feedbackResolutionDays,
-      feedbackCitizenResponseDays: settings.data.feedbackCitizenResponseDays,
-    },
+  const staleSettingsVersion = settings.data.version > 1
+    ? settings.data.version - 1
+    : settings.data.version + 1;
+  await request('/settings', {
+    method: 'PATCH', token: admin.accessToken, expected: [409],
+    body: { expectedVersion: staleSettingsVersion, warningDays: settings.data.warningDays },
   });
-  await request('/settings', { method: 'PATCH', token: admin.accessToken, expected: [409], body: { expectedVersion: settings.data.version, warningDays: settings.data.warningDays } });
-  check('Thiết lập dùng khóa phiên bản, không cho hai quản trị viên ghi đè nhau', savedSettings.data.version === settings.data.version + 1);
+  checks.push('Thiết lập từ chối phiên bản cũ mà không cần ghi thay đổi giả vờ');
 
   const qaTargetCode = `QA-ARCHIVE-${Date.now()}`;
   await request('/targets', {
@@ -230,7 +251,6 @@ try {
   });
   checks.push('Không thể khóa cán bộ còn phản ánh đang xử lý');
   await prisma.feedback.delete({ where: { id: qaFeedbackId } });
-  qaFeedbackId = null;
 
   const qaLogin = await login(qaUsername, 'Start@1234');
   await request('/auth/change-password', {
@@ -270,10 +290,55 @@ try {
   const otherScopeTargets = await request('/targets', { token: otherManager.accessToken });
   check('MANAGER chỉ nhận chỉ tiêu phòng mình', otherScopeTargets.data.every(item => item.departmentId === otherManager.user.departmentId));
 
-  console.log(JSON.stringify({ ok: true, checks: checks.length, details: checks }, null, 2));
+}
+
+let failure = null;
+let cleanupSummary = null;
+try {
+  await runSuite();
 } catch (error) {
-  console.error(JSON.stringify({ ok: false, checks: checks.length, error: error.message }, null, 2));
+  failure = mergeFailure(failure, error, 'Thực thi QA');
+}
+
+try {
+  await cleanupBusinessData();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Dọn dữ liệu nghiệp vụ');
+}
+
+try {
+  cleanupSummary = await cleanupQaActors(prisma, qaActors, {
+    additionalUserIds: [qaInactiveAdminId, qaUserId].filter(Boolean),
+    entityIds: [qaFeedbackId, qaTargetId].filter(Boolean),
+  });
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Dọn nhật ký và actor');
+}
+
+try {
+  await assertCleanupPostconditions();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Hậu kiểm cleanup');
+}
+
+try {
+  await prisma.$disconnect();
+} catch (error) {
+  failure = mergeFailure(failure, error, 'Ngắt kết nối cơ sở dữ liệu');
+}
+
+if (failure) {
+  console.error(JSON.stringify({ ok: false, checks: checks.length, error: failure.message }, null, 2));
   process.exitCode = 1;
-} finally {
-  try { await cleanup(); } finally { await prisma.$disconnect(); }
+} else {
+  console.log(JSON.stringify({
+    ok: true,
+    checks: checks.length,
+    details: checks,
+    cleanup: {
+      users: cleanupSummary?.userIds.length ?? 0,
+      audits: cleanupSummary?.auditIds.length ?? 0,
+      residual: { feedbacks: 0, targets: 0, users: 0, audits: 0 },
+    },
+  }, null, 2));
 }

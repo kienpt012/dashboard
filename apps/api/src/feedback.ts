@@ -5,13 +5,19 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
   NotFoundException,
   Param,
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   FeedbackCategory,
   FeedbackClosureReason,
@@ -38,8 +44,11 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
-import { randomBytes } from 'crypto';
+import { Transform, Type } from 'class-transformer';
+import { createHash, randomBytes } from 'crypto';
+import { basename } from 'path';
+import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import * as bcrypt from 'bcryptjs';
 import { type Actor, audit, assertDepartmentAccess, getActor, resolveDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
@@ -49,7 +58,12 @@ import { getClientIp, RateLimitService } from './rate-limit';
 const PUBLIC_CREATE_WINDOW_MS = 60 * 60 * 1_000;
 const PUBLIC_TRACK_WINDOW_MS = 15 * 60 * 1_000;
 const PUBLIC_SECRET_ACTION_WINDOW_MS = 60 * 60 * 1_000;
+const PUBLIC_ATTACHMENT_WINDOW_MS = 60 * 60 * 1_000;
 const CONSENT_POLICY_VERSION = 'citizen-feedback-v1-2026-07-15';
+export const LOOKUP_SECRET_MIN_LENGTH = 20;
+export const LOOKUP_SECRET_MAX_LENGTH = 64;
+export const FEEDBACK_ATTACHMENT_MAX_FILES = 5;
+export const FEEDBACK_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 const OPEN_STATUSES: FeedbackStatus[] = [
   FeedbackStatus.RECEIVED,
@@ -62,12 +76,15 @@ const OPEN_STATUSES: FeedbackStatus[] = [
 const PUBLIC_EVENT_ACTIONS = [
   'CREATED',
   'FEEDBACK_ASSIGNED',
+  'FEEDBACK_TRIAGED',
   'FEEDBACK_STARTED',
+  'CONTACT_ATTEMPT_LOGGED',
   'INFORMATION_REQUESTED',
   'CITIZEN_MESSAGE_ADDED',
   'PUBLIC_MESSAGE_ADDED',
   'FEEDBACK_SUBMITTED_FOR_REVIEW',
   'RESOLUTION_APPROVED',
+  'RESOLUTION_RETURNED',
   'FEEDBACK_CLOSED',
   'FEEDBACK_CLOSED_NO_RESPONSE',
   'FEEDBACK_REJECTED',
@@ -76,15 +93,25 @@ const PUBLIC_EVENT_ACTIONS = [
   'CITIZEN_REOPEN_REQUEST_APPROVED',
   'CITIZEN_REOPEN_REQUEST_REJECTED',
   'CITIZEN_RATED',
+  'CITIZEN_ATTACHMENTS_ADDED',
+  'FEEDBACK_PUBLISHED',
+  'FEEDBACK_UNPUBLISHED',
 ];
+
+const ATTACHMENT_MIME_EXTENSIONS = new Map([
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+  ['image/webp', '.webp'],
+  ['application/pdf', '.pdf'],
+]);
 
 const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
 );
 
-class CreatePublicFeedbackDto {
+export class CreatePublicFeedbackDto {
   @IsUUID('4') clientSubmissionId!: string;
-  @Trim() @IsString() @MinLength(20) @MaxLength(64) lookupSecret!: string;
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
   @Trim() @IsString() @MinLength(8) @MaxLength(200) title!: string;
   @Trim() @IsString() @MinLength(20) @MaxLength(5000) content!: string;
   @IsEnum(FeedbackCategory) category!: FeedbackCategory;
@@ -97,13 +124,13 @@ class CreatePublicFeedbackDto {
   @IsBoolean() @Equals(true, { message: 'Kênh này không tiếp nhận khiếu nại hoặc tố cáo' }) scopeConfirmed!: boolean;
 }
 
-class TrackFeedbackDto {
+export class TrackFeedbackDto {
   @Trim() @IsString() @MinLength(8) @MaxLength(30) code!: string;
-  @Trim() @IsString() @MinLength(8) @MaxLength(40) lookupSecret!: string;
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
 }
 
-class VersionedSecretDto {
-  @Trim() @IsString() @MinLength(8) @MaxLength(40) lookupSecret!: string;
+export class VersionedSecretDto {
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
   @IsInt() @Min(1) expectedVersion!: number;
 }
 
@@ -184,9 +211,18 @@ class RejectReopenRequestDto extends ExpectedVersionDto {
 
 class PublishFeedbackDto extends ExpectedVersionDto {
   @IsBoolean() publish!: boolean;
-  @IsOptional() @Trim() @IsString() @MinLength(8) @MaxLength(200) title?: string;
-  @IsOptional() @Trim() @IsString() @MinLength(20) @MaxLength(3000) summary?: string;
   @IsOptional() @IsBoolean() confirmAnonymized?: boolean;
+}
+
+class AttachmentUploadDto extends VersionedSecretDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  declare expectedVersion: number;
+}
+
+class AttachmentDownloadDto {
+  @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
 }
 
 function addDays(date: Date, days: number) {
@@ -207,35 +243,149 @@ function resolutionDaysForPriority(baseDays: number, priority: FeedbackPriority)
   return baseDays;
 }
 
-function publicContentPiiSignals(
-  title: string,
-  summary: string,
-  feedback: { submitterName: string; submitterPhone: string; submitterEmail: string | null; address: string | null },
-) {
-  const text = `${title}\n${summary}`;
-  const lower = text.toLocaleLowerCase('vi-VN');
-  const normalizedText = normalizePiiText(text);
-  const digits = text.replace(/\D/g, '');
-  const signals = new Set<string>();
-  if (/[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(text) || (feedback.submitterEmail && lower.includes(feedback.submitterEmail.toLocaleLowerCase('vi-VN')))) signals.add('email');
-  const phoneDigits = feedback.submitterPhone.replace(/\D/g, '');
-  if (/(?:\D|^)(?:\d[\s().-]*){9,15}(?:\D|$)/.test(text) || (phoneDigits.length >= 9 && digits.includes(phoneDigits))) signals.add('số điện thoại hoặc mã định danh');
-  const normalizedName = normalizePiiText(feedback.submitterName);
-  if (normalizedName.length >= 5 && normalizedText.includes(normalizedName)) signals.add('họ tên người gửi');
-  const normalizedAddress = feedback.address ? normalizePiiText(feedback.address) : '';
-  if (normalizedAddress.length >= 8 && normalizedText.includes(normalizedAddress)) signals.add('địa chỉ chi tiết');
-  return [...signals];
+function escapeRegularExpression(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizePiiText(value: string) {
-  return value
+const VIETNAMESE_CHARACTER_CLASSES: Record<string, string> = {
+  a: '[aàáảãạăằắẳẵặâầấẩẫậ]',
+  e: '[eèéẻẽẹêềếểễệ]',
+  i: '[iìíỉĩị]',
+  o: '[oòóỏõọôồốổỗộơờớởỡợ]',
+  u: '[uùúủũụưừứửữự]',
+  y: '[yỳýỷỹỵ]',
+  d: '[dđ]',
+};
+
+function replaceLiteralInsensitive(value: string, sensitive?: string | null) {
+  const candidate = sensitive?.trim();
+  if (!candidate || candidate.length < 3) return value;
+  const exactReplaced = value.replace(new RegExp(escapeRegularExpression(candidate), 'giu'), '[đã ẩn]');
+  const normalized = candidate
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLocaleLowerCase('vi-VN')
+    .replace(/đ/giu, 'd');
+  const accentInsensitivePattern = [...normalized].map(character => {
+    const lower = character.toLocaleLowerCase('vi-VN');
+    if (VIETNAMESE_CHARACTER_CLASSES[lower]) return VIETNAMESE_CHARACTER_CLASSES[lower];
+    if (/\s/u.test(character)) return '\\s+';
+    return escapeRegularExpression(character);
+  }).join('');
+  return exactReplaced.replace(new RegExp(accentInsensitivePattern, 'giu'), '[đã ẩn]');
+}
+
+function replaceSubmitterPhoneVariants(value: string, phone: string) {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 9) return value;
+  const variants = new Set([digits]);
+  if (digits.startsWith('84') && digits.length >= 10) variants.add(`0${digits.slice(2)}`);
+  if (digits.startsWith('0') && digits.length >= 10) variants.add(`84${digits.slice(1)}`);
+  let safe = value;
+  for (const variant of variants) {
+    const pattern = [...variant].join('[\\s().-]*');
+    safe = safe.replace(new RegExp(`(?<!\\d)${pattern}(?!\\d)`, 'gu'), '[đã ẩn số điện thoại]');
+  }
+  return safe;
+}
+
+export type PublicFeedbackPii = {
+  submitterName: string;
+  submitterPhone: string;
+  submitterEmail: string | null;
+  address: string | null;
+};
+
+export function sanitizePublicFeedbackText(value: string | null | undefined, feedback: PublicFeedbackPii) {
+  if (!value) return '';
+  let safe = value.replace(/\u0000/g, '').trim();
+  safe = replaceLiteralInsensitive(safe, feedback.submitterName);
+  safe = replaceLiteralInsensitive(safe, feedback.submitterPhone);
+  safe = replaceSubmitterPhoneVariants(safe, feedback.submitterPhone);
+  safe = replaceLiteralInsensitive(safe, feedback.submitterEmail);
+  safe = replaceLiteralInsensitive(safe, feedback.address);
+  // Defense in depth for contact details written directly in the free-text
+  // fields but different from the structured submitter information.
+  safe = safe
+    .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/giu, '[đã ẩn email]')
+    .replace(/(?:\+?84|0)(?:[\s().-]*\d){8,10}/gu, '[đã ẩn số điện thoại]')
+    .replace(/(?:cccd|cmnd|căn cước|can cuoc)\s*[:#-]?\s*(?:\d[\s.-]*){9,12}/giu, '[đã ẩn mã định danh]')
+    .replace(/(?:địa\s*chỉ|dia\s*chi|nơi\s*ở|noi\s*o)\s*:\s*[^\r\n]{5,200}/giu, '[đã ẩn địa chỉ]')
+    .replace(/(?:zalo|facebook|telegram|whatsapp)\s*[:#-]\s*[^\s,;.]{3,80}/giu, '[đã ẩn liên hệ]')
+    .replace(/(?:\[đã ẩn\]\s*){2,}/giu, '[đã ẩn] ');
+  return safe.trim();
+}
+
+export function buildPublicFeedbackSnapshot(feedback: PublicFeedbackPii & {
+  title: string;
+  content: string;
+  resolutionSummary: string | null;
+}) {
+  return {
+    title: sanitizePublicFeedbackText(feedback.title, feedback),
+    content: sanitizePublicFeedbackText(feedback.content, feedback),
+    resolutionSummary: sanitizePublicFeedbackText(feedback.resolutionSummary, feedback) || null,
+  };
+}
+
+export function sanitizeAttachmentFileName(value: string) {
+  const normalized = basename(value || 'tep-minh-chung')
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[<>:"/\\|?*]/g, '_')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .slice(0, 180);
+  return normalized || 'tep-minh-chung';
+}
+
+export function detectAllowedAttachmentMime(buffer: Buffer): string | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-') return 'application/pdf';
+  return null;
+}
+
+export function declaredAttachmentMimeMatches(declaredMime: string | undefined, detectedMime: string) {
+  const normalized = declaredMime?.trim().toLowerCase();
+  return !normalized
+    || normalized === 'application/octet-stream'
+    || (ATTACHMENT_MIME_EXTENSIONS.has(normalized) && normalized === detectedMime);
+}
+
+function publicAttachmentMetadata(attachment: {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  createdAt: Date;
+}) {
+  return {
+    id: attachment.id,
+    originalName: attachment.originalName,
+    mimeType: attachment.mimeType,
+    size: attachment.size,
+    sha256: attachment.sha256,
+    createdAt: attachment.createdAt,
+  };
+}
+
+function sendAttachment(
+  attachment: { originalName: string; mimeType: string; size: number; data: Buffer },
+  response: Response,
+) {
+  const safeName = sanitizeAttachmentFileName(attachment.originalName);
+  const asciiName = safeName.replace(/[^\x20-\x7e]/g, '_');
+  response.setHeader('Content-Type', attachment.mimeType);
+  response.setHeader('Content-Length', String(attachment.size));
+  response.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+  );
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('Cache-Control', 'private, no-store');
+  return new StreamableFile(attachment.data);
 }
 
 function reopenedFeedbackData(dueAt: Date): Prisma.FeedbackUncheckedUpdateManyInput {
@@ -252,8 +402,10 @@ function reopenedFeedbackData(dueAt: Date): Prisma.FeedbackUncheckedUpdateManyIn
     ratingComment: null,
     ratedAt: null,
     isPublic: false,
+    publicSnapshotVersion: 0,
     publicTitle: null,
     publicSummary: null,
+    publicResolutionSummary: null,
     publicCategory: null,
     publicDepartmentName: null,
     publicResolvedAt: null,
@@ -330,6 +482,10 @@ export class PublicFeedbackController {
           orderBy: { createdAt: 'asc' },
           select: { id: true, action: true, fromStatus: true, toStatus: true, createdAt: true },
         },
+        attachments: {
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, originalName: true, mimeType: true, size: true, sha256: true, createdAt: true },
+        },
       },
     });
     if (!feedback || !(await bcrypt.compare(secret, feedback.lookupSecretHash))) {
@@ -373,6 +529,7 @@ export class PublicFeedbackController {
       version: feedback.version,
       messages: feedback.messages,
       events: feedback.events,
+      attachments: feedback.attachments.map(publicAttachmentMetadata),
     };
   }
 
@@ -398,6 +555,7 @@ export class PublicFeedbackController {
         code: replay.code,
         lookupSecret: dto.lookupSecret,
         status: replay.status,
+        version: replay.version,
         createdAt: replay.createdAt,
         message: 'Phản ánh đã được tiếp nhận trước đó. Biên nhận được khôi phục an toàn.',
       };
@@ -451,6 +609,7 @@ export class PublicFeedbackController {
           code: created.code,
           lookupSecret,
           status: created.status,
+          version: created.version,
           createdAt: created.createdAt,
           message: 'Phản ánh đã được tiếp nhận. Hãy lưu mã phản ánh và mã bảo mật để tra cứu.',
         };
@@ -462,6 +621,7 @@ export class PublicFeedbackController {
               code: existing.code,
               lookupSecret,
               status: existing.status,
+              version: existing.version,
               createdAt: existing.createdAt,
               message: 'Phản ánh đã được tiếp nhận trước đó. Biên nhận được khôi phục an toàn.',
             };
@@ -488,6 +648,141 @@ export class PublicFeedbackController {
       message: 'Bạn tra cứu hồ sơ này quá nhiều lần. Vui lòng thử lại sau.',
     });
     return this.publicDetail(await this.findVerified(dto.code, dto.lookupSecret));
+  }
+
+  @Post(':code/attachments')
+  @UseInterceptors(FilesInterceptor('files', FEEDBACK_ATTACHMENT_MAX_FILES, {
+    storage: memoryStorage(),
+    limits: { files: FEEDBACK_ATTACHMENT_MAX_FILES, fileSize: FEEDBACK_ATTACHMENT_MAX_BYTES },
+  }))
+  async addAttachments(
+    @Param('code') code: string,
+    @Body() dto: AttachmentUploadDto,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Req() req: any,
+  ) {
+    this.limitSecretAction(req, code);
+    const clientIp = getClientIp(req);
+    this.rateLimit.consume('public-feedback-attachment-ip', clientIp, {
+      limit: 15,
+      windowMs: PUBLIC_ATTACHMENT_WINDOW_MS,
+      message: 'Bạn tải tệp minh chứng quá nhiều lần. Vui lòng thử lại sau.',
+    });
+    const feedback = await this.findVerified(code, dto.lookupSecret);
+    if (!files?.length) throw new BadRequestException('Vui lòng chọn ít nhất một tệp minh chứng');
+    if (!hasStatus(
+      feedback.status,
+      FeedbackStatus.RECEIVED,
+      FeedbackStatus.ASSIGNED,
+      FeedbackStatus.IN_PROGRESS,
+      FeedbackStatus.WAITING_CITIZEN,
+      FeedbackStatus.REOPENED,
+    )) {
+      throw new ConflictException('Hồ sơ đã chuyển sang giai đoạn quyết định, không thể bổ sung tệp minh chứng');
+    }
+
+    const candidates = new Map<string, {
+      originalName: string;
+      mimeType: string;
+      size: number;
+      sha256: string;
+      data: Buffer;
+    }>();
+    for (const file of files) {
+      if (!file.buffer?.length) throw new BadRequestException('Tệp minh chứng không được để trống');
+      if (file.size > FEEDBACK_ATTACHMENT_MAX_BYTES) {
+        throw new BadRequestException('Mỗi tệp minh chứng không được vượt quá 10 MB');
+      }
+      const detectedMime = detectAllowedAttachmentMime(file.buffer);
+      if (!detectedMime || !declaredAttachmentMimeMatches(file.mimetype, detectedMime)) {
+        throw new BadRequestException('Chỉ chấp nhận tệp JPEG, PNG, WEBP hoặc PDF hợp lệ');
+      }
+      const sha256 = createHash('sha256').update(file.buffer).digest('hex');
+      if (!candidates.has(sha256)) {
+        candidates.set(sha256, {
+          originalName: sanitizeAttachmentFileName(file.originalname),
+          mimeType: detectedMime,
+          size: file.size,
+          sha256,
+          data: file.buffer,
+        });
+      }
+    }
+
+    const existingHashes = new Set(feedback.attachments.map(attachment => attachment.sha256));
+    const additions = [...candidates.values()].filter(candidate => !existingHashes.has(candidate.sha256));
+    if (feedback.attachments.length + additions.length > FEEDBACK_ATTACHMENT_MAX_FILES) {
+      throw new BadRequestException(`Mỗi phản ánh chỉ được lưu tối đa ${FEEDBACK_ATTACHMENT_MAX_FILES} tệp minh chứng`);
+    }
+    if (!additions.length) {
+      return {
+        attachments: feedback.attachments.map(publicAttachmentMetadata),
+        version: feedback.version,
+      };
+    }
+    if (feedback.version !== dto.expectedVersion) {
+      throw new ConflictException('Hồ sơ vừa được cập nhật. Vui lòng tra cứu lại trước khi tải tệp.');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const changed = await tx.feedback.updateMany({
+        where: { id: feedback.id, version: dto.expectedVersion },
+        data: { version: { increment: 1 } },
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException('Hồ sơ vừa được cập nhật. Vui lòng tra cứu lại trước khi tải tệp.');
+      }
+      for (const candidate of additions) {
+        await tx.feedbackAttachment.create({
+          data: {
+            feedbackId: feedback.id,
+            originalName: candidate.originalName,
+            mimeType: candidate.mimeType,
+            size: candidate.size,
+            sha256: candidate.sha256,
+            data: Uint8Array.from(candidate.data),
+          },
+        });
+      }
+      await tx.feedbackEvent.create({
+        data: {
+          feedbackId: feedback.id,
+          action: 'CITIZEN_ATTACHMENTS_ADDED',
+          fromStatus: feedback.status,
+          toStatus: feedback.status,
+          actorName: 'Người dân',
+          metadata: { count: additions.length },
+        },
+      });
+      const attachments = await tx.feedbackAttachment.findMany({
+        where: { feedbackId: feedback.id },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, originalName: true, mimeType: true, size: true, sha256: true, createdAt: true },
+      });
+      return {
+        attachments: attachments.map(publicAttachmentMetadata),
+        version: feedback.version + 1,
+      };
+    });
+  }
+
+  @Post(':code/attachments/:attachmentId/download')
+  @HttpCode(200)
+  async downloadCitizenAttachment(
+    @Param('code') code: string,
+    @Param('attachmentId') attachmentId: string,
+    @Body() dto: AttachmentDownloadDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    this.limitSecretAction(req, code);
+    const feedback = await this.findVerified(code, dto.lookupSecret);
+    const attachment = await this.prisma.feedbackAttachment.findFirst({
+      where: { id: attachmentId, feedbackId: feedback.id },
+      select: { originalName: true, mimeType: true, size: true, data: true },
+    });
+    if (!attachment) throw new NotFoundException('Không tìm thấy tệp minh chứng');
+    return sendAttachment({ ...attachment, data: Buffer.from(attachment.data) }, response);
   }
 
   @Post(':code/messages')
@@ -624,14 +919,28 @@ export class PublicFeedbackController {
   }
 
   @Get('published')
-  async published() {
+  async published(@Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
     const items = await this.prisma.feedback.findMany({
-      where: { isPublic: true, status: { in: [FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED] }, publicPublishedAt: { not: null } },
+      where: {
+        isPublic: true,
+        status: { in: [FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED] },
+        closureReason: FeedbackClosureReason.RESOLVED,
+        publicPublishedAt: { not: null },
+      },
       select: {
         code: true,
-        publicCategory: true,
+        title: true,
+        content: true,
+        category: true,
+        submitterName: true,
+        submitterPhone: true,
+        submitterEmail: true,
+        address: true,
+        publicSnapshotVersion: true,
         publicTitle: true,
         publicSummary: true,
+        publicCategory: true,
         publicPublishedAt: true,
         publicResolvedAt: true,
         publicDepartmentName: true,
@@ -641,13 +950,94 @@ export class PublicFeedbackController {
     });
     return items.map(item => ({
       code: item.code,
-      category: item.publicCategory,
-      publicTitle: item.publicTitle,
-      publicSummary: item.publicSummary,
+      category: item.publicCategory ?? item.category,
+      publicTitle: item.publicSnapshotVersion >= 1
+        ? (item.publicTitle ?? '')
+        : sanitizePublicFeedbackText(item.title, item),
+      publicSummary: item.publicSnapshotVersion >= 1
+        ? (item.publicSummary ?? '')
+        : sanitizePublicFeedbackText(item.content, item),
       publicPublishedAt: item.publicPublishedAt,
       resolvedAt: item.publicResolvedAt,
       department: item.publicDepartmentName ? { name: item.publicDepartmentName } : null,
     }));
+  }
+
+  @Get('published/:code')
+  async publishedDetail(
+    @Param('code') code: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.setHeader('Cache-Control', 'no-store');
+    const feedback = await this.prisma.feedback.findFirst({
+      where: {
+        code: normalizeCode(code),
+        isPublic: true,
+        status: { in: [FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED] },
+        closureReason: FeedbackClosureReason.RESOLVED,
+        publicPublishedAt: { not: null },
+      },
+      select: {
+        code: true,
+        title: true,
+        content: true,
+        category: true,
+        status: true,
+        submitterName: true,
+        submitterPhone: true,
+        submitterEmail: true,
+        address: true,
+        resolutionSummary: true,
+        publicSnapshotVersion: true,
+        publicTitle: true,
+        publicSummary: true,
+        publicResolutionSummary: true,
+        publicCategory: true,
+        publicDepartmentName: true,
+        publicResolvedAt: true,
+        publicPublishedAt: true,
+        createdAt: true,
+        resolvedAt: true,
+        closedAt: true,
+        messages: {
+          where: { visibility: FeedbackMessageVisibility.PUBLIC },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, body: true, authorName: true, createdAt: true },
+        },
+        events: {
+          where: { action: { in: PUBLIC_EVENT_ACTIONS } },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, action: true, fromStatus: true, toStatus: true, createdAt: true },
+        },
+      },
+    });
+    if (!feedback) throw new NotFoundException('Không tìm thấy phản ánh công khai');
+    return {
+      code: feedback.code,
+      category: feedback.publicCategory ?? feedback.category,
+      status: feedback.status,
+      title: feedback.publicSnapshotVersion >= 1
+        ? (feedback.publicTitle ?? '')
+        : sanitizePublicFeedbackText(feedback.title, feedback),
+      content: feedback.publicSnapshotVersion >= 1
+        ? (feedback.publicSummary ?? '')
+        : sanitizePublicFeedbackText(feedback.content, feedback),
+      resolutionSummary: feedback.publicSnapshotVersion >= 1
+        ? feedback.publicResolutionSummary
+        : (sanitizePublicFeedbackText(feedback.resolutionSummary, feedback) || null),
+      departmentName: feedback.publicDepartmentName,
+      createdAt: feedback.createdAt,
+      resolvedAt: feedback.publicResolvedAt ?? feedback.resolvedAt,
+      closedAt: feedback.closedAt,
+      publishedAt: feedback.publicPublishedAt,
+      timeline: feedback.events,
+      messages: feedback.messages.map(message => ({
+        id: message.id,
+        body: sanitizePublicFeedbackText(message.body, feedback),
+        authorName: message.authorName === 'Người dân' ? 'Người dân' : 'Đơn vị xử lý',
+        createdAt: message.createdAt,
+      })),
+    };
   }
 }
 
@@ -681,6 +1071,12 @@ export class FeedbackController {
               select: { id: true, action: true, fromStatus: true, toStatus: true, createdAt: true },
             }
           : { orderBy: { createdAt: 'asc' } },
+        ...(actor.role === Role.VIEWER ? {} : {
+          attachments: {
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, originalName: true, mimeType: true, size: true, sha256: true, createdAt: true },
+          },
+        }),
       },
     });
     if (!feedback) throw new NotFoundException('Không tìm thấy phản ánh trong phạm vi được phép');
@@ -726,6 +1122,22 @@ export class FeedbackController {
     assertDepartmentAccess(actor, feedback.departmentId);
     if (actor.role === Role.STAFF && feedback.assignedToId !== actor.id) {
       throw new ForbiddenException('Cán bộ chỉ được xử lý phản ánh được giao trực tiếp');
+    }
+  }
+
+  private assertPublicationEligible(feedback: {
+    status: FeedbackStatus;
+    closureReason: FeedbackClosureReason | null;
+    reopenRequestedAt: Date | null;
+  }) {
+    if (feedback.reopenRequestedAt) {
+      throw new ConflictException('Không thể công khai kết quả khi đề nghị xem xét lại đang chờ xử lý');
+    }
+    if (!hasStatus(feedback.status, FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED)) {
+      throw new ConflictException('Chỉ công khai phản ánh đã có kết quả xử lý');
+    }
+    if (feedback.closureReason !== FeedbackClosureReason.RESOLVED) {
+      throw new ConflictException('Chỉ công khai hồ sơ có kết quả chuyên môn đã được duyệt');
     }
   }
 
@@ -865,7 +1277,11 @@ export class FeedbackController {
     const [items, total] = await Promise.all([
       this.prisma.feedback.findMany({
         where,
-        include: { department: true, assignedTo: { select: { id: true, fullName: true, username: true } }, _count: { select: { messages: true } } },
+        include: {
+          department: true,
+          assignedTo: { select: { id: true, fullName: true, username: true } },
+          _count: { select: { messages: true, attachments: true } },
+        },
         orderBy: [
           { reopenRequestedAt: { sort: 'desc', nulls: 'last' } },
           { citizenResponseDueAt: { sort: 'asc', nulls: 'last' } },
@@ -902,6 +1318,41 @@ export class FeedbackController {
       },
       orderBy: [{ department: { name: 'asc' } }, { fullName: 'asc' }],
     });
+  }
+
+  @Get(':id/attachments/:attachmentId/download')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  async downloadAttachment(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const actor = getActor(req);
+    const feedback = await this.findScoped(actor, id);
+    this.assertCanHandle(actor, feedback);
+    const attachment = await this.prisma.feedbackAttachment.findFirst({
+      where: { id: attachmentId, feedbackId: feedback.id },
+      select: { originalName: true, mimeType: true, size: true, data: true },
+    });
+    if (!attachment) throw new NotFoundException('Không tìm thấy tệp minh chứng');
+    return sendAttachment({ ...attachment, data: Buffer.from(attachment.data) }, response);
+  }
+
+  @Get(':id/publication-preview')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async publicationPreview(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.setHeader('Cache-Control', 'private, no-store');
+    const actor = getActor(req);
+    const feedback = await this.findScoped(actor, id);
+    this.assertPublicationEligible(feedback);
+    return buildPublicFeedbackSnapshot(feedback);
   }
 
   @Get(':id')
@@ -1290,18 +1741,20 @@ export class FeedbackController {
   async publish(@Req() req: any, @Param('id') id: string, @Body() dto: PublishFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
-    if (dto.publish && feedback.reopenRequestedAt) {
-      throw new ConflictException('Không thể công khai kết quả khi đề nghị xem xét lại đang chờ xử lý');
-    }
-    if (dto.publish && !hasStatus(feedback.status, FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED)) throw new ConflictException('Chỉ công khai phản ánh đã có kết quả xử lý');
-    if (dto.publish && feedback.closureReason !== FeedbackClosureReason.RESOLVED) throw new ConflictException('Chỉ công khai hồ sơ có kết quả chuyên môn đã được duyệt');
-    if (dto.publish && (!dto.title?.trim() || !dto.summary?.trim())) throw new BadRequestException('Cần nhập tiêu đề và nội dung đã ẩn danh trước khi công khai');
+    if (dto.publish) this.assertPublicationEligible(feedback);
     if (dto.publish && dto.confirmAnonymized !== true) throw new BadRequestException('Cần xác nhận đã kiểm tra và ẩn danh nội dung trước khi công khai');
-    const piiSignals = dto.publish
-      ? publicContentPiiSignals(dto.title!.trim(), dto.summary!.trim(), feedback)
-      : [];
-    if (piiSignals.length) {
-      throw new BadRequestException(`Nội dung công khai còn có dấu hiệu chứa ${piiSignals.join(', ')}. Vui lòng ẩn danh rồi thử lại.`);
+    const snapshot = dto.publish ? buildPublicFeedbackSnapshot(feedback) : null;
+    if (
+      dto.publish
+      && (
+        !snapshot
+        || snapshot.title.length < 3
+        || snapshot.content.length < 10
+        || !snapshot.resolutionSummary
+        || snapshot.resolutionSummary.length < 10
+      )
+    ) {
+      throw new BadRequestException('Nội dung phản ánh sau khi tự động ẩn thông tin cá nhân không còn đủ để công khai');
     }
     return this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({
@@ -1309,8 +1762,10 @@ export class FeedbackController {
         data: {
           isPublic: dto.publish,
           ...(dto.publish ? {
-            publicTitle: dto.title!.trim(),
-            publicSummary: dto.summary!.trim(),
+            publicSnapshotVersion: 1,
+            publicTitle: snapshot!.title,
+            publicSummary: snapshot!.content,
+            publicResolutionSummary: snapshot!.resolutionSummary,
             publicCategory: feedback.category,
             publicDepartmentName: feedback.department?.name ?? null,
             publicResolvedAt: feedback.resolvedAt,
@@ -1323,12 +1778,15 @@ export class FeedbackController {
       if (changed.count !== 1) throw new ConflictException('Hồ sơ vừa được cập nhật. Vui lòng tải lại.');
       const publicationSnapshot: Prisma.InputJsonObject = dto.publish
         ? {
-            publicTitle: dto.title!.trim(),
-            publicSummary: dto.summary!.trim(),
+            publicSnapshotVersion: 1,
+            publicTitle: snapshot!.title,
+            publicSummary: snapshot!.content,
+            publicResolutionSummary: snapshot!.resolutionSummary,
             publicCategory: feedback.category,
             publicDepartmentName: feedback.department?.name ?? null,
             publicResolvedAt: feedback.resolvedAt?.toISOString() ?? null,
             anonymizationConfirmed: true,
+            source: 'ORIGINAL_FEEDBACK_AUTOMATIC_REDACTION',
           }
         : {
             previousPublicTitle: feedback.publicTitle ?? null,

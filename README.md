@@ -50,10 +50,10 @@ Quy trình khởi tạo mới đã được kiểm tra từ volume PostgreSQL tr
 - Danh mục chỉ tiêu: tạo, chỉnh sửa, lọc, gán phòng ban, trọng số, chu kỳ, hạn hoàn thành, cập nhật kết quả, lưu trữ/khôi phục có kiểm soát và công bố bản chụp dữ liệu ra cổng người dân. Phiên bản dữ liệu nội bộ được tách khỏi phiên bản công bố để không làm hỏng báo cáo đang chờ duyệt. Năm mặc định và hạn cuối ngày được xác định theo múi giờ `Asia/Ho_Chi_Minh`.
 - Quản lý tài khoản: tạo, chỉnh sửa thông tin/vai trò/phòng ban, khóa/mở khóa và đặt lại mật khẩu; có kiểm soát không tự khóa tài khoản quản trị đang dùng và luôn giữ tối thiểu một quản trị viên hoạt động. Tài khoản quản trị có phạm vi toàn hệ thống, không gắn cố định với phòng ban và phải chọn rõ đơn vị khi tạo chỉ tiêu hoặc xuất/nhập dữ liệu theo đơn vị.
 - Quản lý phòng ban: tạo, chỉnh sửa và ngừng hoạt động có kiểm tra tài khoản, chỉ tiêu và phản ánh còn đang vận hành.
-- Import Excel theo mô hình phiếu cập nhật: tải dữ liệu hiện có, xem trước, kiểm tra xung đột rồi mới áp dụng; có trạng thái duyệt từng dòng, thống kê lô và màn hình đối soát chi tiết.
+- Import Excel theo mô hình phiếu cập nhật: tải dữ liệu hiện có kèm trang hướng dẫn, chỉ sửa hai cột được tô màu, xem trước và kiểm tra xung đột rồi mới áp dụng. Bản nháp được ràng buộc với đúng người tạo; ghi nhận và cập nhật trạng thái lô chạy nguyên tử để tránh hai người duyệt làm lệch dữ liệu.
 - Báo cáo chỉ tiêu, lọc phòng ban, in và xuất Excel.
-- Kênh phản ánh công khai: người dân gửi phản ánh, nhận mã hồ sơ và mã bảo mật, tra cứu tiến trình, bổ sung thông tin, đánh giá kết quả hoặc đề nghị xem xét lại mà không cần tài khoản. Yêu cầu gửi lại do mất mạng được khôi phục an toàn, không tạo hồ sơ trùng.
-- Quy trình xử lý phản ánh nội bộ: phân loại, phân công đơn vị/cán bộ, theo dõi riêng hạn cơ quan và hạn người dân bổ sung, ghi nhận lần liên hệ, trao đổi công khai hoặc ghi chú nội bộ, trình duyệt kết quả, đóng/mở lại và công bố bản tóm tắt đã ẩn danh. Công bố bắt buộc xác nhận ẩn danh và còn được API dò tín hiệu dữ liệu cá nhân.
+- Kênh phản ánh công khai: người dân gửi phản ánh kèm tối đa 5 ảnh/PDF minh chứng, nhận mã hồ sơ và mã bảo mật, tra cứu tiến trình, tải hoặc bổ sung minh chứng, bổ sung thông tin, đánh giá kết quả hoặc đề nghị xem xét lại mà không cần tài khoản. Tệp được kiểm tra dung lượng, MIME và chữ ký nội dung; yêu cầu gửi lại do mất mạng được khôi phục an toàn, không tạo hồ sơ hay tệp trùng.
+- Quy trình xử lý phản ánh nội bộ: phân loại, phân công đơn vị/cán bộ, theo dõi riêng hạn cơ quan và hạn người dân bổ sung, ghi nhận lần liên hệ, trao đổi công khai hoặc ghi chú nội bộ, trình duyệt kết quả, đóng/mở lại và công bố kết quả đã ẩn danh. Khi công bố, tiêu đề/nội dung/kết quả được tự động lấy từ hồ sơ gốc, tạo thành bản chụp nhất quán và không yêu cầu nhập lại; người dân có thể mở trang chi tiết để xem toàn bộ tiến trình xử lý an toàn. Công bố bắt buộc xác nhận ẩn danh và còn được API dò tín hiệu dữ liệu cá nhân.
 - Nhật ký hệ thống dành cho quản trị viên, hỗ trợ tìm kiếm và lọc theo thao tác, đối tượng, đơn vị, khoảng ngày; dữ liệu nhạy cảm được loại khỏi phần chi tiết hiển thị.
 - Hồ sơ cá nhân cho mọi vai trò; đổi mật khẩu yêu cầu mật khẩu mạnh, cấp lại phiên hiện tại và thu hồi các phiên đăng nhập cũ.
 - Giao diện responsive cho máy tính bảng và điện thoại.
@@ -93,15 +93,16 @@ npm run qa:feedback
 npm run qa:import
 ```
 
-Các lệnh `qa:*` yêu cầu PostgreSQL và API đang chạy tại cấu hình cục bộ. Kịch bản dùng dữ liệu kiểm thử riêng và dọn các bản ghi do chính kịch bản tạo sau khi hoàn tất.
+Các lệnh `qa:*` yêu cầu PostgreSQL và API đang chạy tại cấu hình cục bộ. Mỗi kịch bản tự tạo tài khoản và dữ liệu kiểm thử bằng ID riêng, luôn dọn người dùng, dữ liệu nghiệp vụ và nhật ký tương ứng, rồi mới báo thành công; không sử dụng hoặc làm thay đổi thời điểm đăng nhập của tài khoản demo.
 
-Mốc double-check gần nhất:
+Mốc double-check gần nhất (20/07/2026):
 
-- `npm test`: **18/18** kiểm thử đơn vị đạt, gồm tính tiến độ/trạng thái, tổng hợp theo trọng số và ranh giới năm theo giờ Việt Nam.
+- `npm test`: **33/33** kiểm thử đơn vị đạt, gồm tính tiến độ/trạng thái, tổng hợp theo trọng số, ranh giới năm theo giờ Việt Nam, cập nhật no-op, giới hạn mã phản ánh, chính sách ẩn danh và kiểm tra tệp minh chứng.
 - `npm run qa:access`: **33/33** kiểm thử đạt, bao phủ đăng nhập, phân quyền/phạm vi phòng ban, ràng buộc quản trị, chặn quản trị viên tự đặt lại mật khẩu qua API, công bố/lưu trữ chỉ tiêu và thu hồi token.
-- `npm run qa:feedback`: **64/64** kiểm thử đạt, bao phủ gửi/tra cứu phản ánh, chống gửi trùng, phân công, SLA chờ bổ sung, trình duyệt, đóng/mở lại, đánh giá, công bố ẩn danh, chống xung đột và che dữ liệu.
+- `npm run qa:feedback`: **79/79** kiểm thử đạt, bao phủ gửi/tra cứu phản ánh, ảnh/PDF minh chứng, kiểm tra tệp và phân quyền tải, chống gửi trùng, phân công, SLA chờ bổ sung, trình duyệt, đóng/mở lại, đánh giá, công bố tự động từ hồ sơ gốc, chi tiết tiến trình công khai, chống xung đột và che dữ liệu.
 - `npm run qa:import`: **8/8** kiểm thử end-to-end đạt, bao phủ tải phiếu Excel hiện hành, xem trước, phát hiện phạm vi/xung đột, áp dụng dữ liệu và đối soát kết quả.
-- `npm run build` đạt cho cả API và web; vòng kiểm tra giao diện bao phủ trang công khai, gửi/tra cứu phản ánh và toàn bộ màn hình quản trị trên desktop lẫn kích thước di động, gồm điều hướng, modal, bàn phím/focus và tràn ngang.
+- Ba bộ `qa:*` đã chạy đạt hai vòng liên tiếp và hậu kiểm cơ sở dữ liệu xác nhận không còn tài khoản, chỉ tiêu, phản ánh, batch, cập nhật hoặc nhật ký QA.
+- `npm run build` đạt cho cả API và web; vòng kiểm tra giao diện bao phủ trang công khai, gửi/tra cứu phản ánh và toàn bộ màn hình quản trị trên desktop lẫn kích thước di động, gồm điều hướng, tabs, bàn phím/focus, thông báo lỗi/thử lại, bảng cuộn ngang và cột thao tác cố định.
 
 ## Cấu trúc source
 
@@ -119,6 +120,6 @@ package.json
 - Quản lý kỳ báo cáo bằng thực thể độc lập `TargetReportingPeriod` theo tháng/quý/năm, liên kết từng lần cập nhật với kỳ cụ thể và khóa kỳ sau khi chốt số liệu. Hiện tại trường chu kỳ mới là thông tin cấu hình của chỉ tiêu, chưa thay thế sổ kỳ báo cáo độc lập.
 - Cơ chế cấu hình thời gian làm việc, ngày nghỉ và chuyển cấp khi phản ánh sắp/quá hạn.
 - Thông báo email/Zalo OA khi chỉ tiêu chậm hoặc quá hạn.
-- Đính kèm ảnh/tài liệu cho phản ánh với kiểm tra loại tệp, dung lượng, mã độc và chính sách lưu trữ.
+- Tích hợp công cụ quét mã độc và vùng cách ly tệp chuyên dụng trước khi triển khai nhận minh chứng trên Internet thật.
 - Đồng bộ IOC, dịch vụ công, ngân sách và các dashboard chuyên ngành qua API.
 - Khi chạy nhiều API song song, chuyển bộ giới hạn tần suất từ bộ nhớ tiến trình sang Redis; triển khai công khai thật phải đặt sau HTTPS và reverse proxy tin cậy.

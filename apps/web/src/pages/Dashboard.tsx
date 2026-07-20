@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Clock3,
@@ -37,7 +38,7 @@ export default function Dashboard(){
   const canCreate=user?.role==='ADMIN';
   const scopeName=isGlobal?'toàn phường':user?.department?.name||'đơn vị của bạn';
   const [data,setData]=useState<DashboardData|null>(null);
-  const [year,setYear]=useState<number>();
+  const [year,setYear]=useState('');
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
 
@@ -45,7 +46,7 @@ export default function Dashboard(){
     setLoading(true);setError('');
     try{
       const result=await api<DashboardData>(`/dashboard${requestedYear?`?year=${requestedYear}`:''}`);
-      setData(result);setYear(result.year);
+      setData(result);setYear(String(result.year));
     }catch(reason){
       setError(reason instanceof Error?reason.message:'Không thể tải dữ liệu tổng quan');
     }finally{setLoading(false)}
@@ -63,7 +64,8 @@ export default function Dashboard(){
   const needsAttention=atRisk+overdue;
   const completedRate=data.total?Math.round(completed/data.total*100):0;
   const ringProgress=Math.max(0,Math.min(data.overallProgress,100));
-  const availableYears=Array.from({length:101},(_,index)=>2100-index);
+  const selectedYear=year===''?Number.NaN:Number(year);
+  const yearIsValid=Number.isInteger(selectedYear)&&selectedYear>=2000&&selectedYear<=2100;
   const cards=[
     {label:'Tổng chỉ tiêu',value:data.total,meta:`Kế hoạch năm ${data.year}`,icon:Target,tone:'teal'},
     {label:'Đã hoàn thành',value:completed,meta:`${completedRate}% tổng chỉ tiêu`,icon:CheckCircle2,tone:'blue'},
@@ -79,14 +81,17 @@ export default function Dashboard(){
         <p>{isGlobal?'Tổng hợp kết quả thực hiện từ các đơn vị trực thuộc.':'Chỉ hiển thị chỉ tiêu và cập nhật thuộc phạm vi đơn vị của bạn.'}</p>
       </div>
       <div className="page-actions">
-        <select aria-label="Năm kế hoạch" value={year} disabled={loading} onChange={event=>void load(Number(event.target.value))}>
-          {availableYears.map(option=><option key={option} value={option}>{option}</option>)}
-        </select>
+        <div className="year-picker" aria-label="Chọn năm kế hoạch">
+          <button type="button" aria-label="Xem năm trước" disabled={loading||!yearIsValid||selectedYear<=2000} onClick={()=>void load(selectedYear-1)}><ChevronLeft/></button>
+          <input aria-label="Năm kế hoạch" aria-invalid={!yearIsValid||undefined} type="number" min="2000" max="2100" value={year} disabled={loading} onChange={event=>setYear(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&yearIsValid)void load(selectedYear)}}/>
+          <button type="button" aria-label="Xem năm sau" disabled={loading||!yearIsValid||selectedYear>=2100} onClick={()=>void load(selectedYear+1)}><ChevronRight/></button>
+        </div>
+        <button type="button" className="btn secondary" disabled={loading||!yearIsValid||selectedYear===data.year} onClick={()=>void load(selectedYear)}>Xem năm</button>
         {canCreate&&<Link className="btn primary" to={`/admin/targets?new=1&year=${data.year}`}><Plus/>Đặt chỉ tiêu</Link>}
       </div>
     </div>
 
-    {error&&<div className="form-error">{error}</div>}
+    {error&&<div className="form-error" role="alert">{error}</div>}
 
     <div className="overview-banner">
       <div>

@@ -110,6 +110,7 @@ export class SettingsController {
       }
 
       let setting;
+      let changedFields: string[];
       if (!current) {
         if (dto.expectedVersion !== 1) throw new ConflictException('Thiết lập vừa được khởi tạo. Vui lòng tải lại.');
         setting = await tx.systemSetting.create({ data: {
@@ -122,8 +123,33 @@ export class SettingsController {
           feedbackCitizenResponseDays: dto.feedbackCitizenResponseDays ?? 7,
           updatedBy: actor.username,
         } });
+        changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
       } else {
-        const { expectedVersion: _expectedVersion, ...updates } = dto;
+        const updates = {
+          ...(dto.defaultYear !== undefined && dto.defaultYear !== current.defaultYear
+            ? { defaultYear: dto.defaultYear }
+            : {}),
+          ...(dto.warningDays !== undefined && dto.warningDays !== current.warningDays
+            ? { warningDays: dto.warningDays }
+            : {}),
+          ...(dto.riskThreshold !== undefined && dto.riskThreshold !== current.riskThreshold
+            ? { riskThreshold: dto.riskThreshold }
+            : {}),
+          ...(dto.feedbackFirstResponseDays !== undefined
+            && dto.feedbackFirstResponseDays !== current.feedbackFirstResponseDays
+            ? { feedbackFirstResponseDays: dto.feedbackFirstResponseDays }
+            : {}),
+          ...(dto.feedbackResolutionDays !== undefined
+            && dto.feedbackResolutionDays !== current.feedbackResolutionDays
+            ? { feedbackResolutionDays: dto.feedbackResolutionDays }
+            : {}),
+          ...(dto.feedbackCitizenResponseDays !== undefined
+            && dto.feedbackCitizenResponseDays !== current.feedbackCitizenResponseDays
+            ? { feedbackCitizenResponseDays: dto.feedbackCitizenResponseDays }
+            : {}),
+        };
+        changedFields = Object.keys(updates);
+        if (changedFields.length === 0) return current;
         const changed = await tx.systemSetting.updateMany({
           where: { id: 'default', version: dto.expectedVersion },
           data: { ...updates, updatedBy: actor.username, version: { increment: 1 } },
@@ -135,7 +161,7 @@ export class SettingsController {
         action: 'SYSTEM_SETTINGS_UPDATED',
         entityType: 'SystemSetting',
         entityId: setting.id,
-        metadata: { changedFields: Object.keys(dto).filter(field => field !== 'expectedVersion') },
+        metadata: { changedFields },
       });
       return setting;
     });

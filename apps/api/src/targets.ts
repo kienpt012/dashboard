@@ -51,6 +51,11 @@ const Trim = () => Transform(({ value }: { value: unknown }) =>
 );
 const ValidateIfDefined = () => ValidateIf((_object, value) => value !== undefined);
 
+function isTargetConcurrencyError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && (error.code === 'P2025' || error.code === 'P2034');
+}
+
 class CreateTargetDto {
   @Trim() @IsString() @MinLength(3) @MaxLength(50) @Matches(/^[A-Za-z0-9._-]+$/) code!: string;
   @Trim() @IsString() @MinLength(3) @MaxLength(300) title!: string;
@@ -122,7 +127,7 @@ async function refreshImportBatchStatus(tx: Prisma.TransactionClient, importBatc
         : rejected === updates.length
           ? ImportBatchStatus.REJECTED
           : ImportBatchStatus.PARTIALLY_APPROVED;
-  await tx.importBatch.updateMany({
+  const changed = await tx.importBatch.updateMany({
     where: {
       id: importBatchId,
       status: { in: [ImportBatchStatus.SUBMITTED, ImportBatchStatus.PARTIALLY_REVIEWED] },
@@ -134,6 +139,9 @@ async function refreshImportBatchStatus(tx: Prisma.TransactionClient, importBatc
       ...(pending === 0 && approved > 0 ? { appliedAt: new Date() } : {}),
     },
   });
+  if (changed.count !== 1) {
+    throw new ConflictException('Trạng thái lô Excel vừa thay đổi. Vui lòng tải lại trước khi tiếp tục duyệt.');
+  }
 }
 
 @Controller('targets')
@@ -380,14 +388,6 @@ export class TargetsController {
       || (dto.direction !== undefined && dto.direction !== target.direction)
       || departmentId !== target.departmentId
       || dueDate.getTime() !== target.dueDate.getTime();
-    if (changesDefinition) {
-      const historyCount = await this.prisma.progressUpdate.count({ where: { targetId: id } });
-      if (historyCount > 0) {
-        throw new ConflictException(
-          'Không thể đổi định nghĩa, hạn hoàn thành hoặc phòng ban của chỉ tiêu đã phát sinh báo cáo. Hãy tạo chỉ tiêu mới để giữ nguyên lịch sử đối soát.',
-        );
-      }
-    }
     if (dueDate.getUTCFullYear() !== year) {
       throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
     }
@@ -406,6 +406,14 @@ export class TargetsController {
     } = dto;
     try {
       return await this.prisma.$transaction(async (tx) => {
+        if (changesDefinition) {
+          const historyCount = await tx.progressUpdate.count({ where: { targetId: id } });
+          if (historyCount > 0) {
+            throw new ConflictException(
+              'Không thể đổi định nghĩa, hạn hoàn thành hoặc phòng ban của chỉ tiêu đã phát sinh báo cáo. Hãy tạo chỉ tiêu mới để giữ nguyên lịch sử đối soát.',
+            );
+          }
+        }
         const changed = await tx.target.updateMany({
           where: {
             id,
@@ -443,10 +451,13 @@ export class TargetsController {
           },
         });
         return current;
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Mã chỉ tiêu đã tồn tại trong phòng ban và năm kế hoạch này');
+      }
+      if (isTargetConcurrencyError(error)) {
+        throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại và thử lại.');
       }
       throw error;
     }
@@ -508,7 +519,7 @@ export class TargetsController {
         return current;
       }, { isolationLevel: 'Serializable' });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      if (isTargetConcurrencyError(error)) {
         throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại và thử lại.');
       }
       throw error;
@@ -568,7 +579,7 @@ export class TargetsController {
         return current;
       }, { isolationLevel: 'Serializable' });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      if (isTargetConcurrencyError(error)) {
         throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại và thử lại.');
       }
       throw error;
@@ -602,57 +613,64 @@ export class TargetsController {
       riskThreshold: await this.riskThreshold(),
       hasReport: true,
     });
-    return this.prisma.$transaction(async (tx) => {
-      const changed = await tx.target.updateMany({
-        where: {
-          id,
-          version: target.version,
-          publicationVersion: target.publicationVersion,
-          isArchived: false,
-        },
-        data: {
-          isPublic: true,
-          publishedValue: target.currentValue,
-          publishedTargetValue: target.targetValue,
-          publishedDirection: target.direction,
-          publishedStatus: evaluation.status,
-          publishedCode: target.code,
-          publishedTitle: target.title,
-          publishedDescription: target.description,
-          publishedUnit: target.unit,
-          publishedWeight: target.weight,
-          publishedYear: target.year,
-          publishedFrequency: target.frequency,
-          publishedDueDate: target.dueDate,
-          publishedDepartmentName: target.department.name,
-          publishedDepartmentColor: target.department.color,
-          publishedHighlighted: target.isHighlighted,
-          publishedOrder: target.publicOrder,
-          publishedAt: new Date(),
-          publishedBy: actor.id,
-          publicationVersion: { increment: 1 },
-        },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const changed = await tx.target.updateMany({
+          where: {
+            id,
+            version: target.version,
+            publicationVersion: target.publicationVersion,
+            isArchived: false,
+          },
+          data: {
+            isPublic: true,
+            publishedValue: target.currentValue,
+            publishedTargetValue: target.targetValue,
+            publishedDirection: target.direction,
+            publishedStatus: evaluation.status,
+            publishedCode: target.code,
+            publishedTitle: target.title,
+            publishedDescription: target.description,
+            publishedUnit: target.unit,
+            publishedWeight: target.weight,
+            publishedYear: target.year,
+            publishedFrequency: target.frequency,
+            publishedDueDate: target.dueDate,
+            publishedDepartmentName: target.department.name,
+            publishedDepartmentColor: target.department.color,
+            publishedHighlighted: target.isHighlighted,
+            publishedOrder: target.publicOrder,
+            publishedAt: new Date(),
+            publishedBy: actor.id,
+            publicationVersion: { increment: 1 },
+          },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException('Số liệu vừa thay đổi. Vui lòng kiểm tra lại trước khi công bố.');
+        }
+        const published = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
+        await audit(tx, actor, {
+          action: 'TARGET_PUBLISHED',
+          entityType: 'Target',
+          entityId: id,
+          departmentId: target.departmentId,
+          metadata: {
+            code: target.code,
+            previousVersion: target.version,
+            version: published.version,
+            previousPublicationVersion: target.publicationVersion,
+            publicationVersion: published.publicationVersion,
+            publishedValue: target.currentValue,
+          },
+        });
+        return published;
       });
-      if (changed.count !== 1) {
-        throw new ConflictException('Số liệu vừa thay đổi. Vui lòng kiểm tra lại trước khi công bố.');
+    } catch (error) {
+      if (isTargetConcurrencyError(error)) {
+        throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại và thử lại.');
       }
-      const published = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
-      await audit(tx, actor, {
-        action: 'TARGET_PUBLISHED',
-        entityType: 'Target',
-        entityId: id,
-        departmentId: target.departmentId,
-        metadata: {
-          code: target.code,
-          previousVersion: target.version,
-          version: published.version,
-          previousPublicationVersion: target.publicationVersion,
-          publicationVersion: published.publicationVersion,
-          publishedValue: target.currentValue,
-        },
-      });
-      return published;
-    });
+      throw error;
+    }
   }
 
   @Post(':id/progress')
@@ -667,6 +685,7 @@ export class TargetsController {
     if (baseVersion !== target.version) {
       throw new ConflictException('Số liệu đã thay đổi. Vui lòng tải lại chỉ tiêu trước khi báo cáo.');
     }
+    const departmentId = resolveDepartmentScope(actor);
 
     if (actor.role !== Role.ADMIN) {
       if (!dto.note?.trim()) {
@@ -674,6 +693,17 @@ export class TargetsController {
       }
       try {
         const update = await this.prisma.$transaction(async (tx) => {
+          const currentTarget = await tx.target.findFirst({
+            where: {
+              id,
+              version: baseVersion,
+              isArchived: false,
+              ...(departmentId ? { departmentId } : {}),
+            },
+          });
+          if (!currentTarget) {
+            throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại trước khi gửi báo cáo.');
+          }
           const existing = await tx.progressUpdate.findFirst({
             where: { targetId: id, userId: actor.id, reviewStatus: ProgressReviewStatus.PENDING },
           });
@@ -694,64 +724,91 @@ export class TargetsController {
             action: 'PROGRESS_SUBMITTED',
             entityType: 'ProgressUpdate',
             entityId: created.id,
-            departmentId: target.departmentId,
+            departmentId: currentTarget.departmentId,
             metadata: { targetId: id, value: dto.value, baseVersion },
           });
           return created;
         }, { isolationLevel: 'Serializable' });
         return { reviewStatus: update.reviewStatus, message: 'Báo cáo đã được gửi và đang chờ duyệt', update };
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
           throw new ConflictException('Bạn đã có một báo cáo đang chờ duyệt cho chỉ tiêu này');
+        }
+        if (isTargetConcurrencyError(error)) {
+          throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại trước khi gửi báo cáo.');
         }
         throw error;
       }
     }
 
-    const evaluation = evaluateTarget({
-      targetValue: target.targetValue,
-      currentValue: dto.value,
-      direction: target.direction,
-      dueDate: target.dueDate,
-      riskThreshold: await this.riskThreshold(),
-      hasReport: true,
-    });
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const changed = await tx.target.updateMany({
-        where: { id, version: baseVersion },
-        data: {
+    const riskThreshold = await this.riskThreshold();
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const currentTarget = await tx.target.findFirst({
+          where: {
+            id,
+            version: baseVersion,
+            isArchived: false,
+            ...(departmentId ? { departmentId } : {}),
+          },
+        });
+        if (!currentTarget) {
+          throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại trước khi báo cáo.');
+        }
+        const evaluation = evaluateTarget({
+          targetValue: currentTarget.targetValue,
           currentValue: dto.value,
-          status: evaluation.status,
-          version: { increment: 1 },
-          lastReportedAt: new Date(),
-        },
-      });
-      if (changed.count !== 1) {
-        throw new ConflictException('Số liệu vừa được người khác cập nhật. Vui lòng tải lại chỉ tiêu.');
+          direction: currentTarget.direction,
+          dueDate: currentTarget.dueDate,
+          riskThreshold,
+          hasReport: true,
+        });
+        const changed = await tx.target.updateMany({
+          where: {
+            id,
+            version: baseVersion,
+            isArchived: false,
+            ...(departmentId ? { departmentId } : {}),
+          },
+          data: {
+            currentValue: dto.value,
+            status: evaluation.status,
+            version: { increment: 1 },
+            lastReportedAt: new Date(),
+          },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException('Số liệu vừa được người khác cập nhật. Vui lòng tải lại chỉ tiêu.');
+        }
+        await tx.progressUpdate.create({
+          data: {
+            targetId: id,
+            userId: actor.id,
+            value: dto.value,
+            note: dto.note?.trim(),
+            baseVersion,
+            reviewStatus: ProgressReviewStatus.APPROVED,
+            reviewedBy: actor.id,
+            reviewedAt: new Date(),
+          },
+        });
+        const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
+        await audit(tx, actor, {
+          action: 'PROGRESS_APPROVED_DIRECTLY',
+          entityType: 'Target',
+          entityId: id,
+          departmentId: currentTarget.departmentId,
+          metadata: { value: dto.value, baseVersion, version: current.version },
+        });
+        return current;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return { reviewStatus: ProgressReviewStatus.APPROVED, target: updated };
+    } catch (error) {
+      if (isTargetConcurrencyError(error)) {
+        throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại trước khi báo cáo.');
       }
-      await tx.progressUpdate.create({
-        data: {
-          targetId: id,
-          userId: actor.id,
-          value: dto.value,
-          note: dto.note?.trim(),
-          baseVersion,
-          reviewStatus: ProgressReviewStatus.APPROVED,
-          reviewedBy: actor.id,
-          reviewedAt: new Date(),
-        },
-      });
-      const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
-      await audit(tx, actor, {
-        action: 'PROGRESS_APPROVED_DIRECTLY',
-        entityType: 'Target',
-        entityId: id,
-        departmentId: target.departmentId,
-        metadata: { value: dto.value, baseVersion, version: current.version },
-      });
-      return current;
-    });
-    return { reviewStatus: ProgressReviewStatus.APPROVED, target: updated };
+      throw error;
+    }
   }
 
   @Patch('updates/:updateId/review')
@@ -776,27 +833,34 @@ export class TargetsController {
       if (!dto.reviewNote?.trim()) {
         throw new BadRequestException('Vui lòng ghi rõ lý do từ chối');
       }
-      return this.prisma.$transaction(async (tx) => {
-        const changed = await tx.progressUpdate.updateMany({
-          where: { id: updateId, reviewStatus: ProgressReviewStatus.PENDING },
-          data: {
-            reviewStatus: ProgressReviewStatus.REJECTED,
-            reviewedBy: actor.id,
-            reviewedAt: new Date(),
-            reviewNote: dto.reviewNote!.trim(),
-          },
-        });
-        if (changed.count !== 1) throw new ConflictException('Báo cáo này vừa được người khác xử lý');
-        await audit(tx, actor, {
-          action: 'PROGRESS_REJECTED',
-          entityType: 'ProgressUpdate',
-          entityId: updateId,
-          departmentId: update.target.departmentId,
-          metadata: { targetId: update.targetId, reviewNote: dto.reviewNote },
-        });
-        await refreshImportBatchStatus(tx, update.importBatchId);
-        return tx.progressUpdate.findUniqueOrThrow({ where: { id: updateId } });
-      });
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const changed = await tx.progressUpdate.updateMany({
+            where: { id: updateId, reviewStatus: ProgressReviewStatus.PENDING },
+            data: {
+              reviewStatus: ProgressReviewStatus.REJECTED,
+              reviewedBy: actor.id,
+              reviewedAt: new Date(),
+              reviewNote: dto.reviewNote!.trim(),
+            },
+          });
+          if (changed.count !== 1) throw new ConflictException('Báo cáo này vừa được người khác xử lý');
+          await audit(tx, actor, {
+            action: 'PROGRESS_REJECTED',
+            entityType: 'ProgressUpdate',
+            entityId: updateId,
+            departmentId: update.target.departmentId,
+            metadata: { targetId: update.targetId, reviewNote: dto.reviewNote },
+          });
+          await refreshImportBatchStatus(tx, update.importBatchId);
+          return tx.progressUpdate.findUniqueOrThrow({ where: { id: updateId } });
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (error) {
+        if (isTargetConcurrencyError(error)) {
+          throw new ConflictException('Báo cáo vừa được xử lý đồng thời. Vui lòng tải lại dữ liệu và thử lại');
+        }
+        throw error;
+      }
     }
 
     if (update.baseVersion !== update.target.version) {
@@ -847,7 +911,7 @@ export class TargetsController {
         return { target, progressUpdate };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      if (isTargetConcurrencyError(error)) {
         throw new ConflictException('Báo cáo vừa được xử lý đồng thời. Vui lòng tải lại dữ liệu và thử lại');
       }
       throw error;

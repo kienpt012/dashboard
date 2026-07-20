@@ -280,8 +280,10 @@ model Feedback {
   ratingComment      String?
   ratedAt            DateTime?
   isPublic           Boolean          @default(false)
+  publicSnapshotVersion Int           @default(0)
   publicTitle        String?
   publicSummary      String?
+  publicResolutionSummary String?
   publicCategory     FeedbackCategory?
   publicDepartmentName String?
   publicResolvedAt   DateTime?
@@ -291,12 +293,28 @@ model Feedback {
   updatedAt          DateTime         @updatedAt
   messages           FeedbackMessage[]
   events             FeedbackEvent[]
+  attachments        FeedbackAttachment[]
 
   @@index([status, createdAt])
   @@index([departmentId, status])
   @@index([assignedToId, status])
   @@index([dueAt])
   @@index([citizenResponseDueAt])
+}
+
+model FeedbackAttachment {
+  id           String   @id @default(cuid())
+  feedbackId   String
+  feedback     Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  originalName String
+  mimeType     String
+  size         Int
+  sha256       String
+  data         Bytes
+  createdAt    DateTime @default(now())
+
+  @@unique([feedbackId, sha256])
+  @@index([feedbackId, createdAt])
 }
 
 model FeedbackMessage {
