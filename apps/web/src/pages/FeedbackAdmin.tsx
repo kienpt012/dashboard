@@ -5,6 +5,7 @@ import {
   Check,
   CheckCircle2,
   Clock3,
+  Download,
   Eye,
   Filter,
   Inbox,
@@ -21,11 +22,12 @@ import {
   XCircle,
 } from 'lucide-react';
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { api, auth } from '../api';
+import { api, auth, downloadApi } from '../api';
 import { Empty, PageHead, Spinner } from '../components/UI';
 import type {
   Department,
   Feedback,
+  FeedbackAttachment,
   FeedbackCategory,
   FeedbackListResponse,
   FeedbackMessageVisibility,
@@ -71,13 +73,19 @@ type ActionKind='triage'|'assign'|'start'|'request'|'contact'|'message'|'submit'
 
 type Assignee=Pick<User,'id'|'username'|'fullName'|'role'|'departmentId'>;
 
+type PublicationPreview={
+  title:string;
+  content:string;
+  resolutionSummary:string|null;
+};
+
 const actionTitles:Record<ActionKind,string>={
   triage:'Phân loại phản ánh',assign:'Phân công xử lý',start:'Bắt đầu xử lý',request:'Yêu cầu bổ sung thông tin',contact:'Ghi nhận lần liên hệ',message:'Thêm trao đổi',
   submit:'Trình duyệt kết quả',approve:'Duyệt kết quả',return:'Trả lại để hoàn thiện',close:'Đóng hồ sơ',closeNoResponse:'Kết thúc do quá hạn bổ sung',
   reject:'Không tiếp nhận phản ánh',reopen:'Chấp nhận và mở lại hồ sơ',rejectReopen:'Từ chối đề nghị xem xét lại',publish:'Công khai kết quả đã ẩn danh',unpublish:'Gỡ khỏi trang công khai',
 };
 
-const emptyAction={departmentId:'',assignedToId:'',category:'OTHER' as FeedbackCategory,priority:'NORMAL' as FeedbackPriority,dueAt:'',note:'',message:'',visibility:'PUBLIC' as FeedbackMessageVisibility,summary:'',reason:'',publicTitle:'',publicSummary:'',confirmAnonymized:false,contactChannel:'PHONE' as 'PHONE'|'EMAIL',contactOutcome:'REACHED' as 'REACHED'|'NO_ANSWER'|'MESSAGE_SENT'|'INVALID_CONTACT'};
+const emptyAction={departmentId:'',assignedToId:'',category:'OTHER' as FeedbackCategory,priority:'NORMAL' as FeedbackPriority,dueAt:'',note:'',message:'',visibility:'PUBLIC' as FeedbackMessageVisibility,summary:'',reason:'',confirmAnonymized:false,contactChannel:'PHONE' as 'PHONE'|'EMAIL',contactOutcome:'REACHED' as 'REACHED'|'NO_ANSWER'|'MESSAGE_SENT'|'INVALID_CONTACT'};
 
 function formatDate(value?:string|null){
   return value?new Date(value).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'}):'—';
@@ -93,6 +101,13 @@ function vietnamDateTimeInputToIso(value:string){
 }
 
 function getError(reason:unknown,fallback:string){return reason instanceof Error?reason.message:fallback}
+
+function formatFileSize(value?:number){
+  if(value==null||!Number.isFinite(value))return '';
+  if(value<1024)return `${value} B`;
+  if(value<1024*1024)return `${(value/1024).toFixed(1)} KB`;
+  return `${(value/(1024*1024)).toFixed(1)} MB`;
+}
 
 function activeDeadline(item:Feedback){return item.status==='WAITING_CITIZEN'?(item.citizenResponseDueAt||item.dueAt):(item.firstResponseAt?item.dueAt:(item.firstResponseDueAt||item.dueAt))}
 function isOverdue(item:Feedback){const deadline=activeDeadline(item);return Boolean(deadline&&new Date(deadline)<new Date()&&!['RESOLVED','CLOSED','REJECTED'].includes(item.status))}
@@ -119,8 +134,14 @@ export default function FeedbackAdmin(){
   const [actionForm,setActionForm]=useState(emptyAction);
   const [actionError,setActionError]=useState('');
   const [saving,setSaving]=useState(false);
+  const [downloadingAttachmentId,setDownloadingAttachmentId]=useState('');
+  const [attachmentError,setAttachmentError]=useState('');
+  const [publicationPreview,setPublicationPreview]=useState<PublicationPreview|null>(null);
+  const [publicationPreviewLoading,setPublicationPreviewLoading]=useState(false);
+  const [publicationPreviewError,setPublicationPreviewError]=useState('');
   const listRequestId=useRef(0);
   const detailRequestId=useRef(0);
+  const publicationPreviewRequestId=useRef(0);
   const detailPanelRef=useRef<HTMLElement>(null);
   const detailReturnFocusRef=useRef<HTMLElement|null>(null);
 
@@ -162,7 +183,8 @@ export default function FeedbackAdmin(){
   async function openDetail(id:string){
     const requestId=++detailRequestId.current;
     detailReturnFocusRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
-    setDetailLoading(true);setActionKind(null);setActionError('');
+    clearPublicationPreview();
+    setDetailLoading(true);setActionKind(null);setActionError('');setAttachmentError('');
     try{
       const result=await api<Feedback>(`/feedbacks/${id}`);
       if(requestId===detailRequestId.current)setDetail(result);
@@ -174,7 +196,8 @@ export default function FeedbackAdmin(){
   function closeDetail(){
     if(saving)return;
     detailRequestId.current+=1;
-    setDetailLoading(false);setDetail(null);setActionKind(null);setActionError('');
+    clearPublicationPreview();
+    setDetailLoading(false);setDetail(null);setActionKind(null);setActionError('');setAttachmentError('');
   }
 
   const detailOpen=Boolean(detail||detailLoading);
@@ -216,8 +239,38 @@ export default function FeedbackAdmin(){
     return user.role==='STAFF'&&item.departmentId===user.departmentId&&item.assignedToId===user.id;
   }
 
+  function clearPublicationPreview(){
+    publicationPreviewRequestId.current+=1;
+    setPublicationPreview(null);
+    setPublicationPreviewLoading(false);
+    setPublicationPreviewError('');
+  }
+
+  function closeAction(){
+    clearPublicationPreview();
+    setActionKind(null);
+    setActionError('');
+  }
+
+  async function loadPublicationPreview(feedbackId:string){
+    const requestId=++publicationPreviewRequestId.current;
+    setPublicationPreview(null);
+    setPublicationPreviewError('');
+    setPublicationPreviewLoading(true);
+    setActionForm(current=>({...current,confirmAnonymized:false}));
+    try{
+      const preview=await api<PublicationPreview>(`/feedbacks/${feedbackId}/publication-preview`);
+      if(requestId===publicationPreviewRequestId.current)setPublicationPreview(preview);
+    }catch(reason){
+      if(requestId===publicationPreviewRequestId.current)setPublicationPreviewError(getError(reason,'Không thể tạo bản xem trước đã ẩn danh'));
+    }finally{
+      if(requestId===publicationPreviewRequestId.current)setPublicationPreviewLoading(false);
+    }
+  }
+
   function startAction(kind:ActionKind){
     if(!detail)return;
+    clearPublicationPreview();
     setActionKind(kind);setActionError('');
     setActionForm({
       ...emptyAction,
@@ -227,9 +280,8 @@ export default function FeedbackAdmin(){
       priority:detail.priority,
       dueAt:detail.dueAt?toLocalDateTimeInput(detail.dueAt):'',
       visibility:kind==='message'&&!['IN_PROGRESS','WAITING_CITIZEN','REOPENED'].includes(detail.status)?'INTERNAL':'PUBLIC',
-      publicTitle:detail.publicTitle||'',
-      publicSummary:detail.publicSummary||'',
     });
+    if(kind==='publish')void loadPublicationPreview(detail.id);
   }
 
   useEffect(()=>{
@@ -243,6 +295,10 @@ export default function FeedbackAdmin(){
 
   async function submitAction(event:FormEvent){
     event.preventDefault();if(!detail||!actionKind)return;
+    if(actionKind==='publish'&&(!publicationPreview||publicationPreviewLoading||publicationPreviewError)){
+      setActionError('Cần tải thành công bản xem trước đã ẩn danh trước khi công khai.');
+      return;
+    }
     setSaving(true);setActionError('');
     const expectedVersion=detail.version;
     let path='';let body:Record<string,unknown>={expectedVersion};
@@ -261,12 +317,12 @@ export default function FeedbackAdmin(){
       case'reject':path='reject';body={...body,reason:actionForm.reason};break;
       case'reopen':path='reopen';body={...body,reason:actionForm.reason};break;
       case'rejectReopen':path='reopen-request/reject';body={...body,reason:actionForm.reason};break;
-      case'publish':path='publish';body={...body,publish:true,title:actionForm.publicTitle,summary:actionForm.publicSummary,confirmAnonymized:actionForm.confirmAnonymized};break;
+      case'publish':path='publish';body={...body,publish:true,confirmAnonymized:actionForm.confirmAnonymized};break;
       case'unpublish':path='publish';body={...body,publish:false};break;
     }
     try{
       await api(`/feedbacks/${detail.id}/${path}`,{method:'POST',body:JSON.stringify(body)});
-      setNotice(`${actionTitles[actionKind]} thành công.`);setActionKind(null);
+      setNotice(`${actionTitles[actionKind]} thành công.`);closeAction();
       await Promise.all([openDetail(detail.id),load()]);
     }catch(reason){setActionError(getError(reason,'Không thể cập nhật hồ sơ'))}
     finally{setSaving(false)}
@@ -274,7 +330,25 @@ export default function FeedbackAdmin(){
 
   function applySearch(event:FormEvent){event.preventDefault();setPage(1);setAppliedSearch(filters.search.trim())}
 
+  async function downloadAttachment(attachment:FeedbackAttachment){
+    if(!detail)return;
+    setDownloadingAttachmentId(attachment.id);setAttachmentError('');
+    try{
+      const blob=await downloadApi(`/feedbacks/${detail.id}/attachments/${attachment.id}/download`);
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.href=url;
+      link.download=attachment.originalName||'minh-chung';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),60_000);
+    }catch(reason){setAttachmentError(getError(reason,'Không thể tải file minh chứng'))}
+    finally{setDownloadingAttachmentId('')}
+  }
+
   const eligibleUsers=useMemo(()=>assignees.filter(item=>item.departmentId===actionForm.departmentId),[actionForm.departmentId,assignees]);
+  const detailAttachments=detail?.attachments||[];
 
   const pages=Math.max(1,Math.ceil(total/pageSize));
 
@@ -323,6 +397,7 @@ export default function FeedbackAdmin(){
             <div className="feedback-detail-badges"><span className={`feedback-status ${detail.status.toLowerCase()}`}>{statusLabel[detail.status]}</span><span className={`feedback-priority ${detail.priority.toLowerCase()}`}>{priorityLabel[detail.priority]}</span>{detail.isPublic&&<span className="feedback-published"><Eye/>Đang công khai</span>}</div>
             <div className="feedback-detail-facts"><div><small>Người gửi</small>{user.role==='VIEWER'?<><b>Thông tin đã ẩn</b><span>Chỉ cán bộ xử lý được xem dữ liệu liên hệ</span></>:<><b>{detail.submitterName}</b><span>{detail.submitterPhone}</span>{detail.submitterEmail&&<span>{detail.submitterEmail}</span>}<span>Ưu tiên liên hệ thủ công: {detail.preferredContact==='EMAIL'?'Email':'Điện thoại'}</span></>}</div><div><small>Đơn vị xử lý</small><b>{detail.department?.name||'Chưa phân công'}</b><span>{detail.assignedTo?.fullName||'Chưa giao cán bộ'}</span></div><div><small>{detail.status==='WAITING_CITIZEN'?'Hạn người dân bổ sung':detail.firstResponseAt?'Hạn xử lý':'Hạn phản hồi đầu tiên'}</small><b className={isOverdue(detail)?'danger-text':''}>{formatDate(activeDeadline(detail))}</b><span>Tiếp nhận {formatDate(detail.createdAt)}</span></div></div>
             <section className="feedback-detail-section"><h3>Nội dung phản ánh</h3><p>{detail.content}</p>{detail.address&&<p className="feedback-location"><b>Địa điểm:</b> {detail.address}</p>}</section>
+            <section className="feedback-detail-section"><h3>File ảnh & minh chứng</h3>{attachmentError&&<div className="feedback-alert error" role="alert"><AlertCircle/>{attachmentError}</div>}{detailAttachments.length?<div className="feedback-internal-messages">{detailAttachments.map(attachment=><article key={attachment.id}><div><b>{attachment.originalName||'File minh chứng'}</b><span>{[attachment.mimeType,formatFileSize(attachment.size)].filter(Boolean).join(' · ')}</span>{attachment.createdAt&&<time>{formatDate(attachment.createdAt)}</time>}<button className="feedback-btn secondary" type="button" disabled={downloadingAttachmentId===attachment.id} onClick={()=>void downloadAttachment(attachment)}>{downloadingAttachmentId===attachment.id?<RefreshCw className="spin"/>:<Download/>}{downloadingAttachmentId===attachment.id?'Đang tải':'Tải file'}</button></div></article>)}</div>:<p className="feedback-muted">Phản ánh này không có file đính kèm.</p>}</section>
             {detail.resolutionSummary&&<section className="feedback-resolution"><CheckCircle2/><div><h3>Kết quả đề xuất</h3><p>{detail.resolutionSummary}</p></div></section>}
             {detail.rejectionReason&&<section className="feedback-rejection"><XCircle/><div><h3>Lý do không tiếp nhận</h3><p>{detail.rejectionReason}</p></div></section>}
             {detail.reopenRequestedAt&&<section className="feedback-appeal"><RotateCcw/><div><h3>Người dân đề nghị xem xét lại</h3><p>{detail.reopenRequestReason}</p><small>Gửi lúc {formatDate(detail.reopenRequestedAt)} · Lần {detail.reopenRequestCount}/3</small></div></section>}
@@ -351,7 +426,7 @@ export default function FeedbackAdmin(){
           </footer>
 
           {actionKind&&<form className="feedback-action-sheet" onSubmit={submitAction}>
-            <div className="feedback-action-head"><div><span>THAO TÁC HỒ SƠ</span><h3>{actionTitles[actionKind]}</h3></div><button type="button" disabled={saving} aria-label="Đóng thao tác" onClick={()=>setActionKind(null)}><X/></button></div>
+            <div className="feedback-action-head"><div><span>THAO TÁC HỒ SƠ</span><h3>{actionTitles[actionKind]}</h3></div><button type="button" disabled={saving} aria-label="Đóng thao tác" onClick={closeAction}><X/></button></div>
             {actionKind==='triage'&&<><label>Nhóm vấn đề<select value={actionForm.category} onChange={event=>setActionForm({...actionForm,category:event.target.value as FeedbackCategory})}>{categories.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label>Mức ưu tiên<select value={actionForm.priority} onChange={event=>setActionForm({...actionForm,priority:event.target.value as FeedbackPriority})}>{priorities.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="full">Căn cứ phân loại<textarea required minLength={3} maxLength={1000} rows={3} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label></>}
             {actionKind==='assign'&&<>
               <label>Đơn vị xử lý<select required value={actionForm.departmentId} disabled={!isAdmin} onChange={event=>setActionForm({...actionForm,departmentId:event.target.value,assignedToId:''})}><option value="">Chọn đơn vị</option>{departments.filter(item=>item.isActive).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -367,10 +442,21 @@ export default function FeedbackAdmin(){
             {['approve','close','closeNoResponse'].includes(actionKind)&&<label className="full">Ghi chú (không bắt buộc)<textarea maxLength={actionKind==='approve'?2000:1000} rows={3} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label>}
             {actionKind==='return'&&<label className="full">Lý do trả lại<textarea required minLength={3} maxLength={2000} rows={4} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label>}
             {['reject','reopen','rejectReopen'].includes(actionKind)&&<label className="full">{actionKind==='reject'?'Lý do không tiếp nhận':actionKind==='rejectReopen'?'Lý do chưa chấp nhận đề nghị':'Căn cứ mở lại hồ sơ'}<textarea required minLength={10} maxLength={2000} rows={4} value={actionForm.reason} onChange={event=>setActionForm({...actionForm,reason:event.target.value})}/></label>}
-            {actionKind==='publish'&&<><div className="feedback-sheet-note full"><ShieldCheck/>Chỉ dùng nội dung đã ẩn tên, số điện thoại, địa chỉ và các chi tiết nhận diện người gửi. Hệ thống sẽ kiểm tra thêm trước khi công khai.</div><label className="full">Tiêu đề công khai<input required minLength={8} maxLength={200} value={actionForm.publicTitle} onChange={event=>setActionForm({...actionForm,publicTitle:event.target.value})}/></label><label className="full">Tóm tắt kết quả đã ẩn danh<textarea required minLength={20} maxLength={3000} rows={5} value={actionForm.publicSummary} onChange={event=>setActionForm({...actionForm,publicSummary:event.target.value})}/></label><label className="feedback-my-work full"><input required type="checkbox" checked={actionForm.confirmAnonymized} onChange={event=>setActionForm({...actionForm,confirmAnonymized:event.target.checked})}/>Tôi đã kiểm tra và loại bỏ dữ liệu nhận diện cá nhân</label></>}
+            {actionKind==='publish'&&<>
+              <div className="feedback-sheet-note full"><ShieldCheck/>Đây là chính xác nội dung đã được hệ thống tự động ẩn danh và sẽ hiển thị cho người dân. Bạn không cần nhập lại tiêu đề hoặc nội dung.</div>
+              {publicationPreviewLoading&&<div className="feedback-sheet-note full" role="status"><RefreshCw className="spin"/>Đang tạo bản xem trước đã ẩn danh...</div>}
+              {publicationPreviewError&&<div className="feedback-alert error full" role="alert"><AlertCircle/><span>{publicationPreviewError}</span><button className="feedback-btn secondary" type="button" onClick={()=>void loadPublicationPreview(detail.id)}>Tải lại</button></div>}
+              {publicationPreview&&<section className="feedback-detail-section full" aria-label="Xem trước nội dung công khai">
+                <h3>Bản xem trước sẽ công khai</h3>
+                <small>Tiêu đề phản ánh</small><p><b>{publicationPreview.title}</b></p>
+                <small>Nội dung phản ánh</small><p>{publicationPreview.content}</p>
+                <small>Kết quả xử lý</small><p>{publicationPreview.resolutionSummary||'Không có nội dung kết quả xử lý.'}</p>
+              </section>}
+              <label className="feedback-my-work full"><input required disabled={!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)} type="checkbox" checked={actionForm.confirmAnonymized} onChange={event=>setActionForm({...actionForm,confirmAnonymized:event.target.checked})}/>Tôi đã kiểm tra bản xem trước đã ẩn danh và đồng ý công khai</label>
+            </>}
             {['start','approve','close','closeNoResponse','unpublish'].includes(actionKind)&&<div className="feedback-sheet-note full"><AlertCircle/>Hệ thống sẽ ghi nhận người thực hiện và thời điểm cập nhật trong nhật ký hồ sơ.</div>}
             {actionError&&<div className="feedback-alert error full" role="alert"><AlertCircle/>{actionError}</div>}
-            <div className="feedback-sheet-actions full"><button type="button" onClick={()=>setActionKind(null)}>Hủy</button><button className={['return','reject','rejectReopen'].includes(actionKind)?'danger':'primary'} disabled={saving}>{saving?<><RefreshCw className="spin"/>Đang xử lý...</>:actionTitles[actionKind]}</button></div>
+            <div className="feedback-sheet-actions full"><button type="button" onClick={closeAction}>Hủy</button><button className={['return','reject','rejectReopen'].includes(actionKind)?'danger':'primary'} disabled={saving||(actionKind==='publish'&&(!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)))}>{saving?<><RefreshCw className="spin"/>Đang xử lý...</>:actionTitles[actionKind]}</button></div>
           </form>}
         </>}
       </aside>

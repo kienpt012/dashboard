@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { currentVietnamYear } from '../date';
-import type { FeedbackCategory } from '../types';
+import type { FeedbackCategory, PublishedFeedback } from '../types';
 
 type PublicOverview = {
   year: number;
@@ -30,16 +30,6 @@ type PublicOverview = {
   updatedAt: string | null;
   departments: Array<{ name: string; color: string; total: number; completed: number; progress: number }>;
   highlights: Array<{ code: string; title: string; unit: string; targetValue: number; currentValue: number; progress: number; department: string; status: string }>;
-};
-
-type PublishedFeedback = {
-  code: string;
-  category: FeedbackCategory | null;
-  publicTitle: string | null;
-  publicSummary: string | null;
-  publicPublishedAt: string;
-  resolvedAt: string | null;
-  department: { name: string } | null;
 };
 
 const feedbackCategoryNames: Record<FeedbackCategory, string> = {
@@ -63,7 +53,6 @@ export default function PublicHome() {
   const [publishedFeedbacks, setPublishedFeedbacks] = useState<PublishedFeedback[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [feedbackError, setFeedbackError] = useState('');
-  const [expandedFeedbackCodes, setExpandedFeedbackCodes] = useState<string[]>([]);
   const [menu, setMenu] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuCloseRef = useRef<HTMLButtonElement>(null);
@@ -100,6 +89,13 @@ export default function PublicHome() {
   }, []);
 
   useEffect(() => {
+    const targetId=decodeURIComponent(window.location.hash.replace(/^#/,''));
+    if(!targetId)return;
+    const frame=requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({block:'start'}));
+    return()=>cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
     if (!menu) return;
     const previousOverflow = document.body.style.overflow;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : menuButtonRef.current;
@@ -113,10 +109,6 @@ export default function PublicHome() {
       trigger?.focus();
     };
   }, [menu]);
-
-  function toggleFeedbackSummary(code: string) {
-    setExpandedFeedbackCodes(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]);
-  }
 
   return <div className="public-site">
     <header className="public-header">
@@ -184,13 +176,13 @@ export default function PublicHome() {
         <div className="public-section-head"><div><span>KẾT QUẢ PHỤC VỤ NGƯỜI DÂN</span><h2>Phản ánh đã được xử lý công khai</h2><p>Các kết quả dưới đây đã hoàn tất quy trình xử lý, phê duyệt và loại bỏ thông tin riêng tư trước khi công bố.</p></div><Link to="/phan-anh" className="public-outline-btn">Gửi hoặc tra cứu phản ánh <ArrowRight /></Link></div>
         {feedbackLoading ? <div className="public-loading" role="status">Đang tải kết quả phản ánh...</div>
           : feedbackError ? <div className="public-feedback-state error" role="alert"><span>{feedbackError}</span><button type="button" onClick={() => void loadPublishedFeedbacks()}>Thử tải lại</button></div>
-          : publishedFeedbacks.length ? <div className="published-feedback-grid">{publishedFeedbacks.map(item => { const expanded = expandedFeedbackCodes.includes(item.code); const canExpand = (item.publicSummary?.length || 0) > 180; return <article className={`published-feedback-card${expanded ? ' expanded' : ''}`} key={item.code}>
+          : publishedFeedbacks.length ? <div className="published-feedback-grid">{publishedFeedbacks.map(item => <Link className="published-feedback-card" to={`/phan-anh/cong-khai/${encodeURIComponent(item.code)}`} key={item.code}>
             <div className="published-feedback-meta"><span><BadgeCheck />{item.category ? feedbackCategoryNames[item.category] : 'Kết quả xử lý'}</span><time dateTime={item.publicPublishedAt}>{new Date(item.publicPublishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}</time></div>
             <h3>{item.publicTitle || 'Kết quả xử lý phản ánh'}</h3>
-            <p id={`public-feedback-summary-${item.code}`}>{item.publicSummary || 'Kết quả đang được cập nhật.'}</p>
-            {canExpand && <button type="button" className="published-feedback-expand" aria-expanded={expanded} aria-controls={`public-feedback-summary-${item.code}`} onClick={() => toggleFeedbackSummary(item.code)}>{expanded ? 'Thu gọn nội dung' : 'Xem nội dung đầy đủ'}</button>}
+            <p>{item.publicSummary || 'Kết quả đang được cập nhật.'}</p>
             <div className="published-feedback-foot"><span><Building2 />{item.department?.name || 'UBND Phường Lái Thiêu'}</span><b>{item.code}</b></div>
-          </article>})}</div>
+            <span className="published-feedback-view">Xem toàn bộ quá trình xử lý <ArrowRight/></span>
+          </Link>)}</div>
           : <div className="public-feedback-state"><BadgeCheck /><div><strong>Chưa có kết quả mới được công bố</strong><span>Các phản ánh đã xử lý sẽ xuất hiện tại đây sau khi được kiểm duyệt.</span></div></div>}
       </div></section>
 

@@ -17,6 +17,7 @@ import Users from './pages/Users';
 import Approvals from './pages/Approvals';
 import FeedbackAdmin from './pages/FeedbackAdmin';
 import FeedbackPublic from './pages/FeedbackPublic';
+import PublishedFeedbackDetail from './pages/PublishedFeedbackDetail';
 import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
 import type { AuthMeResponse, Role, User } from './types';
@@ -80,7 +81,11 @@ const pageTitles: Record<string, string> = {
 
 function DocumentTitle(){
   const location=useLocation();
-  useEffect(()=>{document.title=pageTitles[location.pathname]||'IOC Lái Thiêu'},[location.pathname]);
+  useEffect(()=>{
+    document.title=location.pathname.startsWith('/phan-anh/cong-khai/')
+      ?'Chi tiết phản ánh công khai · Phường Lái Thiêu'
+      :(pageTitles[location.pathname]||'IOC Lái Thiêu');
+  },[location.pathname]);
   return null;
 }
 
@@ -88,6 +93,7 @@ export default function App(){
   return <><DocumentTitle/><Routes>
     <Route path="/" element={<PublicHome/>}/>
     <Route path="/phan-anh" element={<FeedbackPublic/>}/>
+    <Route path="/phan-anh/cong-khai/:code" element={<PublishedFeedbackDetail/>}/>
     <Route path="/admin/login" element={<LoginRoute/>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>

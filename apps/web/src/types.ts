@@ -108,6 +108,15 @@ export type FeedbackEvent={
   createdAt:string;
 };
 
+export type FeedbackAttachment={
+  id:string;
+  originalName:string;
+  mimeType:string;
+  size:number;
+  sha256?:string;
+  createdAt:string;
+};
+
 export type Feedback={
   id:string;
   code:string;
@@ -156,7 +165,8 @@ export type Feedback={
   updatedAt:string;
   messages?:FeedbackMessage[];
   events?:FeedbackEvent[];
-  _count?:{messages:number};
+  attachments?:FeedbackAttachment[];
+  _count?:{messages:number;attachments?:number};
 };
 
 export type FeedbackListResponse={items:Feedback[];total:number;page:number;pageSize:number};
@@ -180,6 +190,7 @@ export type PublicFeedbackCreated={
   lookupSecret:string;
   status:FeedbackStatus;
   createdAt:string;
+  version:number;
   message:string;
 };
 
@@ -189,4 +200,31 @@ export type PublicFeedbackDetail=Pick<Feedback,
   departmentName?:string|null;
   messages:FeedbackMessage[];
   events:FeedbackEvent[];
+  attachments:FeedbackAttachment[];
+};
+
+export type PublishedFeedback={
+  code:string;
+  category:FeedbackCategory|null;
+  publicTitle:string|null;
+  publicSummary:string|null;
+  publicPublishedAt:string;
+  resolvedAt:string|null;
+  department:{name:string}|null;
+};
+
+export type PublishedFeedbackDetail={
+  code:string;
+  category:FeedbackCategory;
+  status:FeedbackStatus;
+  title:string;
+  content:string;
+  resolutionSummary:string|null;
+  departmentName:string|null;
+  createdAt:string;
+  resolvedAt:string|null;
+  closedAt:string|null;
+  publishedAt:string;
+  timeline:FeedbackEvent[];
+  messages:FeedbackMessage[];
 };
