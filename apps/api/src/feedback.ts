@@ -109,6 +109,13 @@ const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
 );
 
+export function shouldNotifyFeedbackByEmail(
+  preferredContact: string | null | undefined,
+  submitterEmail: string | null | undefined,
+): submitterEmail is string {
+  return preferredContact === 'EMAIL' && Boolean(submitterEmail?.trim());
+}
+
 export class CreatePublicFeedbackDto {
   @IsUUID('4') clientSubmissionId!: string;
   @Trim() @IsString() @MinLength(LOOKUP_SECRET_MIN_LENGTH) @MaxLength(LOOKUP_SECRET_MAX_LENGTH) lookupSecret!: string;
@@ -475,12 +482,12 @@ export class PublicFeedbackController {
         messages: {
           where: { visibility: FeedbackMessageVisibility.PUBLIC },
           orderBy: { createdAt: 'asc' },
-          select: { id: true, body: true, authorName: true, createdAt: true },
+          select: { body: true, authorName: true, createdAt: true },
         },
         events: {
           where: { action: { in: PUBLIC_EVENT_ACTIONS } },
           orderBy: { createdAt: 'asc' },
-          select: { id: true, action: true, fromStatus: true, toStatus: true, createdAt: true },
+          select: { action: true, fromStatus: true, toStatus: true, createdAt: true },
         },
         attachments: {
           orderBy: { createdAt: 'asc' },
@@ -527,8 +534,17 @@ export class PublicFeedbackController {
       createdAt: feedback.createdAt,
       updatedAt: feedback.updatedAt,
       version: feedback.version,
-      messages: feedback.messages,
-      events: feedback.events,
+      messages: feedback.messages.map(message => ({
+        body: message.body,
+        authorName: message.authorName === 'Người dân' ? 'Người dân' : 'Đơn vị xử lý',
+        createdAt: message.createdAt,
+      })),
+      events: feedback.events.map(event => ({
+        action: event.action,
+        fromStatus: event.fromStatus,
+        toStatus: event.toStatus,
+        createdAt: event.createdAt,
+      })),
       attachments: feedback.attachments.map(publicAttachmentMetadata),
     };
   }
@@ -557,7 +573,7 @@ export class PublicFeedbackController {
         status: replay.status,
         version: replay.version,
         createdAt: replay.createdAt,
-        message: 'Phản ánh đã được tiếp nhận trước đó. Biên nhận được khôi phục an toàn.',
+        message: 'Phản ánh đã được tiếp nhận trước đó. Hệ thống hiển thị lại thông tin biên nhận.',
       };
     }
     this.rateLimit.consume('public-feedback-create', clientIp, {
@@ -623,7 +639,7 @@ export class PublicFeedbackController {
               status: existing.status,
               version: existing.version,
               createdAt: existing.createdAt,
-              message: 'Phản ánh đã được tiếp nhận trước đó. Biên nhận được khôi phục an toàn.',
+              message: 'Phản ánh đã được tiếp nhận trước đó. Hệ thống hiển thị lại thông tin biên nhận.',
             };
           }
           continue;
@@ -1002,12 +1018,12 @@ export class PublicFeedbackController {
         messages: {
           where: { visibility: FeedbackMessageVisibility.PUBLIC },
           orderBy: { createdAt: 'asc' },
-          select: { id: true, body: true, authorName: true, createdAt: true },
+          select: { body: true, authorName: true, createdAt: true },
         },
         events: {
           where: { action: { in: PUBLIC_EVENT_ACTIONS } },
           orderBy: { createdAt: 'asc' },
-          select: { id: true, action: true, fromStatus: true, toStatus: true, createdAt: true },
+          select: { action: true, fromStatus: true, toStatus: true, createdAt: true },
         },
       },
     });
@@ -1030,9 +1046,13 @@ export class PublicFeedbackController {
       resolvedAt: feedback.publicResolvedAt ?? feedback.resolvedAt,
       closedAt: feedback.closedAt,
       publishedAt: feedback.publicPublishedAt,
-      timeline: feedback.events,
+      timeline: feedback.events.map(event => ({
+        action: event.action,
+        fromStatus: event.fromStatus,
+        toStatus: event.toStatus,
+        createdAt: event.createdAt,
+      })),
       messages: feedback.messages.map(message => ({
-        id: message.id,
         body: sanitizePublicFeedbackText(message.body, feedback),
         authorName: message.authorName === 'Người dân' ? 'Người dân' : 'Đơn vị xử lý',
         createdAt: message.createdAt,
@@ -1153,7 +1173,7 @@ export class FeedbackController {
     auditContext?: { departmentId?: string | null; metadata?: Prisma.InputJsonObject },
   ) {
     if (!allowed.includes(feedback.status)) throw new ConflictException(`Không thể thực hiện thao tác khi hồ sơ đang ở trạng thái ${feedback.status}`);
-    return this.prisma.$transaction(async tx => {
+    const updated = await this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({
         where: { id: feedback.id, version: expectedVersion },
         data: { ...data, status: next, version: { increment: 1 } },
@@ -1178,6 +1198,7 @@ export class FeedbackController {
       });
       return tx.feedback.findUniqueOrThrow({ where: { id: feedback.id }, include: { department: true, assignedTo: { select: { id: true, fullName: true, username: true } } } });
     });
+    return updated;
   }
 
   @Get('stats')
@@ -1282,11 +1303,12 @@ export class FeedbackController {
           assignedTo: { select: { id: true, fullName: true, username: true } },
           _count: { select: { messages: true, attachments: true } },
         },
+        // Hàng đợi mặc định phản ánh đúng thứ tự tiếp nhận: hồ sơ mới nhất
+        // luôn ở trên cùng. Các trường hợp quá hạn/xem xét lại đã có bộ lọc
+        // chuyên biệt, không nên âm thầm đảo thứ tự mà người dùng đã chọn.
         orderBy: [
-          { reopenRequestedAt: { sort: 'desc', nulls: 'last' } },
-          { citizenResponseDueAt: { sort: 'asc', nulls: 'last' } },
-          { dueAt: 'asc' },
           { createdAt: 'desc' },
+          { id: 'desc' },
         ],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -1352,7 +1374,16 @@ export class FeedbackController {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
     this.assertPublicationEligible(feedback);
-    return buildPublicFeedbackSnapshot(feedback);
+    return {
+      ...buildPublicFeedbackSnapshot(feedback),
+      messages: feedback.messages
+        .filter(message => message.visibility === FeedbackMessageVisibility.PUBLIC)
+        .map(message => ({
+          body: sanitizePublicFeedbackText(message.body, feedback),
+          authorName: message.authorName === 'Người dân' ? 'Người dân' : 'Đơn vị xử lý',
+          createdAt: message.createdAt,
+        })),
+    };
   }
 
   @Get(':id')
@@ -1483,14 +1514,15 @@ export class FeedbackController {
     const settings = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const now = new Date();
     const citizenResponseDueAt = addDays(now, settings?.feedbackCitizenResponseDays ?? 7);
-    return this.prisma.$transaction(async tx => {
+    const result = await this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({ where: { id, version: dto.expectedVersion }, data: { status: FeedbackStatus.WAITING_CITIZEN, firstResponseAt: feedback.firstResponseAt ?? now, waitingCitizenAt: now, citizenResponseDueAt, version: { increment: 1 } } });
       if (changed.count !== 1) throw new ConflictException('Hồ sơ vừa được cập nhật. Vui lòng tải lại.');
       await tx.feedbackMessage.create({ data: { feedbackId: id, body: dto.message.trim(), visibility: FeedbackMessageVisibility.PUBLIC, authorId: actor.id, authorName: actor.fullName } });
-      await tx.feedbackEvent.create({ data: { feedbackId: id, action: 'INFORMATION_REQUESTED', fromStatus: feedback.status, toStatus: FeedbackStatus.WAITING_CITIZEN, actorId: actor.id, actorName: actor.fullName, metadata: { citizenResponseDueAt: citizenResponseDueAt.toISOString() } } });
+      await tx.feedbackEvent.create({ data: { feedbackId: id, action: 'INFORMATION_REQUESTED', fromStatus: feedback.status, toStatus: FeedbackStatus.WAITING_CITIZEN, actorId: actor.id, actorName: actor.fullName, note: dto.message.trim(), metadata: { citizenResponseDueAt: citizenResponseDueAt.toISOString(), emailPublicNote: sanitizePublicFeedbackText(dto.message, feedback) } } });
       await audit(tx, actor, { action: 'INFORMATION_REQUESTED', entityType: 'Feedback', entityId: id, departmentId: feedback.departmentId, metadata: { citizenResponseDueAt: citizenResponseDueAt.toISOString() } });
       return { success: true };
     });
+    return result;
   }
 
   @Post(':id/messages')
@@ -1507,14 +1539,15 @@ export class FeedbackController {
       throw new ConflictException('Phản hồi cho người dân chỉ được gửi khi hồ sơ đang xử lý hoặc chờ bổ sung');
     }
     if (hasStatus(feedback.status, FeedbackStatus.CLOSED, FeedbackStatus.REJECTED)) throw new ConflictException('Hồ sơ đã đóng, không thể thêm trao đổi');
-    return this.prisma.$transaction(async tx => {
+    const message = await this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({ where: { id, version: dto.expectedVersion }, data: { firstResponseAt: dto.visibility === FeedbackMessageVisibility.PUBLIC ? (feedback.firstResponseAt ?? new Date()) : feedback.firstResponseAt, version: { increment: 1 } } });
       if (changed.count !== 1) throw new ConflictException('Hồ sơ vừa được cập nhật. Vui lòng tải lại.');
       const message = await tx.feedbackMessage.create({ data: { feedbackId: id, body: dto.body.trim(), visibility: dto.visibility, authorId: actor.id, authorName: actor.fullName } });
-      await tx.feedbackEvent.create({ data: { feedbackId: id, action: dto.visibility === FeedbackMessageVisibility.PUBLIC ? 'PUBLIC_MESSAGE_ADDED' : 'INTERNAL_NOTE_ADDED', actorId: actor.id, actorName: actor.fullName } });
+      await tx.feedbackEvent.create({ data: { feedbackId: id, action: dto.visibility === FeedbackMessageVisibility.PUBLIC ? 'PUBLIC_MESSAGE_ADDED' : 'INTERNAL_NOTE_ADDED', fromStatus: feedback.status, toStatus: feedback.status, actorId: actor.id, actorName: actor.fullName, note: dto.visibility === FeedbackMessageVisibility.PUBLIC ? dto.body.trim() : null, metadata: dto.visibility === FeedbackMessageVisibility.PUBLIC ? { emailPublicNote: sanitizePublicFeedbackText(dto.body, feedback) } : undefined } });
       await audit(tx, actor, { action: 'FEEDBACK_MESSAGE_ADDED', entityType: 'Feedback', entityId: id, departmentId: feedback.departmentId, metadata: { visibility: dto.visibility } });
       return message;
     });
+    return message;
   }
 
   @Post(':id/contact-attempt')
@@ -1561,7 +1594,7 @@ export class FeedbackController {
     if (feedback.submittedForReviewBy === actor.id) throw new ForbiddenException('Người trình kết quả không được tự duyệt');
     if (dto.decision === 'RETURN' && !dto.note?.trim()) throw new BadRequestException('Cần nêu lý do trả lại kết quả');
     const next = dto.decision === 'APPROVE' ? FeedbackStatus.RESOLVED : FeedbackStatus.IN_PROGRESS;
-    return this.prisma.$transaction(async tx => {
+    const updated = await this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({
         where: { id, version: dto.expectedVersion },
         data: {
@@ -1579,10 +1612,11 @@ export class FeedbackController {
       if (next === FeedbackStatus.IN_PROGRESS && dto.note) {
         await tx.feedbackMessage.create({ data: { feedbackId: id, body: dto.note.trim(), visibility: FeedbackMessageVisibility.INTERNAL, authorId: actor.id, authorName: actor.fullName } });
       }
-      await tx.feedbackEvent.create({ data: { feedbackId: id, action: next === FeedbackStatus.RESOLVED ? 'RESOLUTION_APPROVED' : 'RESOLUTION_RETURNED', fromStatus: feedback.status, toStatus: next, actorId: actor.id, actorName: actor.fullName, note: dto.note?.trim() || null } });
+      await tx.feedbackEvent.create({ data: { feedbackId: id, action: next === FeedbackStatus.RESOLVED ? 'RESOLUTION_APPROVED' : 'RESOLUTION_RETURNED', fromStatus: feedback.status, toStatus: next, actorId: actor.id, actorName: actor.fullName, note: dto.note?.trim() || null, metadata: next === FeedbackStatus.RESOLVED && feedback.resolutionSummary ? { emailPublicNote: sanitizePublicFeedbackText(feedback.resolutionSummary, feedback) } : undefined } });
       await audit(tx, actor, { action: next === FeedbackStatus.RESOLVED ? 'RESOLUTION_APPROVED' : 'RESOLUTION_RETURNED', entityType: 'Feedback', entityId: id, departmentId: feedback.departmentId });
       return withoutSecret(await tx.feedback.findUniqueOrThrow({ where: { id }, include: { department: true, assignedTo: { select: { id: true, fullName: true, username: true } } } }));
     });
+    return updated;
   }
 
   @Post(':id/close')
@@ -1610,7 +1644,7 @@ export class FeedbackController {
     const summary = dto.note?.trim()
       ? `Hồ sơ được kết thúc do quá thời hạn bổ sung thông tin. ${dto.note.trim()}`
       : 'Hồ sơ được kết thúc do quá thời hạn bổ sung thông tin theo yêu cầu của đơn vị xử lý.';
-    return this.prisma.$transaction(async tx => {
+    const updated = await this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({
         where: { id, version: dto.expectedVersion, status: FeedbackStatus.WAITING_CITIZEN },
         data: {
@@ -1630,6 +1664,7 @@ export class FeedbackController {
       await audit(tx, actor, { action: 'FEEDBACK_CLOSED_NO_RESPONSE', entityType: 'Feedback', entityId: id, departmentId: feedback.departmentId, metadata: { citizenResponseDueAt: citizenResponseDueAt.toISOString() } });
       return withoutSecret(await tx.feedback.findUniqueOrThrow({ where: { id }, include: { department: true, assignedTo: { select: { id: true, fullName: true, username: true } } } }));
     });
+    return updated;
   }
 
   @Post(':id/reject')
@@ -1698,7 +1733,7 @@ export class FeedbackController {
     if (!hasStatus(feedback.status, FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED, FeedbackStatus.REJECTED) || !feedback.reopenRequestedAt) {
       throw new ConflictException('Hồ sơ không có đề nghị xem xét lại đang chờ xử lý');
     }
-    return this.prisma.$transaction(async tx => {
+    const updated = await this.prisma.$transaction(async tx => {
       const changed = await tx.feedback.updateMany({
         where: { id, version: dto.expectedVersion, reopenRequestedAt: { not: null } },
         data: {
@@ -1733,6 +1768,7 @@ export class FeedbackController {
         include: { department: true, assignedTo: { select: { id: true, fullName: true, username: true } } },
       }));
     });
+    return updated;
   }
 
   @Post(':id/publish')

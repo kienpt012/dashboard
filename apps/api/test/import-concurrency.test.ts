@@ -228,5 +228,5 @@ test('từ chối báo cáo và tính lại trạng thái batch trong cùng tran
   });
   assert.equal(batchUpdate.data.status, ImportBatchStatus.PARTIALLY_APPROVED);
   assert.ok(batchUpdate.data.appliedAt instanceof Date);
-  assert.equal(result.reviewStatus, ProgressReviewStatus.REJECTED);
+  assert.equal((result as { reviewStatus: ProgressReviewStatus }).reviewStatus, ProgressReviewStatus.REJECTED);
 });

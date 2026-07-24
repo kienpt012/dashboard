@@ -277,7 +277,7 @@ export default function Imports() {
 
   return <>
     <PageHead
-      eyebrow="BÁO CÁO DỮ LIỆU · EXCEL AN TOÀN"
+      eyebrow="NHẬP DỮ LIỆU BÁO CÁO"
       title="Cập nhật kết quả bằng Excel"
       description="Tải phiếu có dữ liệu hiện tại, chỉ điền giá trị mới và xem trước toàn bộ thay đổi trước khi ghi nhận."
       actions={<button className="btn secondary" onClick={downloadTemplate} disabled={downloading || (isAdmin && (!departmentId || !selectedDepartment?.isActive))}>
@@ -360,7 +360,7 @@ export default function Imports() {
         </button>
       </div>
       {!preview.canApply && preview.status === 'PREVIEWED' && <div className="info-box"><Info /><p>Chưa thể áp dụng: file phải có ít nhất một thay đổi và không còn dòng lỗi.</p></div>}
-      {applied && <div className="import-result"><CheckCircle2 /><div><strong>{(applied.reviewStatus || (requiresApproval ? 'PENDING' : 'APPROVED')) === 'PENDING' ? 'Đã gửi báo cáo chờ duyệt' : 'Đã cập nhật dữ liệu chính thức'}</strong><p>{preview.summary.changedRows} dòng đã được ghi nhận{applied.idempotent ? ' · Yêu cầu trùng được xử lý an toàn' : ''}</p></div></div>}
+      {applied && <div className="import-result"><CheckCircle2 /><div><strong>{(applied.reviewStatus || (requiresApproval ? 'PENDING' : 'APPROVED')) === 'PENDING' ? 'Đã gửi báo cáo chờ duyệt' : 'Đã cập nhật dữ liệu chính thức'}</strong><p>{preview.summary.changedRows} dòng đã được ghi nhận{applied.idempotent ? ' · Yêu cầu đã xử lý trước đó, không tạo thêm dữ liệu' : ''}</p></div></div>}
     </section>}
 
     <section className="panel history-panel">

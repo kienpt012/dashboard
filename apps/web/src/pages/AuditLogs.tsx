@@ -172,7 +172,7 @@ function AuditCard({ row }: { row: AuditLog }) {
       <div><span>Đối tượng</span><strong>{entityNames[row.entityType] || row.entityType}</strong><small>{row.entityId ? `Mã: ${row.entityId}` : 'Toàn hệ thống'}</small></div>
       <div><span>Phòng ban</span><strong>{row.department?.name || 'Toàn hệ thống'}</strong><small>{row.department?.code || '—'}</small></div>
     </div>
-    <details><summary>Xem chi tiết an toàn</summary><Metadata value={row.metadata} /></details>
+    <details><summary>Xem chi tiết</summary><Metadata value={row.metadata} /></details>
   </article>;
 }
 
@@ -252,7 +252,7 @@ export default function AuditLogs() {
 
   return <>
     <PageHead
-      eyebrow="AN TOÀN & TRUY VẾT"
+      eyebrow="NHẬT KÝ HỆ THỐNG"
       title="Nhật ký hệ thống"
       description="Theo dõi các thao tác quan trọng để kiểm tra trách nhiệm, phát hiện sai lệch và hỗ trợ xử lý sự cố."
       actions={<button type="button" className="btn secondary" onClick={() => void load(applied, page, pageSize)} disabled={loading}><RefreshCw />Làm mới</button>}
@@ -273,7 +273,7 @@ export default function AuditLogs() {
     {error && <div className="form-error" role="alert">{error}</div>}
 
     <section className="audit-results" aria-busy={loading}>
-      <div className="audit-results-head"><div><History /><span>Kết quả truy vết</span></div><strong>{visibleRange}</strong></div>
+      <div className="audit-results-head"><div><History /><span>Kết quả nhật ký</span></div><strong>{visibleRange}</strong></div>
       {loading ? <Spinner /> : rows.length ? <>
         <div className="table-wrap audit-table"><table><thead><tr><th>Thời gian</th><th>Người thao tác</th><th>Hành động</th><th>Đối tượng</th><th>Phòng ban</th><th>Chi tiết</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}>
           <td><time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('vi-VN')}</time></td>

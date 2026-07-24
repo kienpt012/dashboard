@@ -56,8 +56,35 @@ function isTargetConcurrencyError(error: unknown) {
     && (error.code === 'P2025' || error.code === 'P2034');
 }
 
-class CreateTargetDto {
-  @Trim() @IsString() @MinLength(3) @MaxLength(50) @Matches(/^[A-Za-z0-9._-]+$/) code!: string;
+function isTargetCodeAllocationError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && (error.code === 'P2002' || error.code === 'P2034');
+}
+
+const TARGET_CODE_PREFIX = 'CT';
+
+export function normalizeTargetDepartmentCode(code: string) {
+  const normalized = code
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Đ/g, 'D')
+    .replace(/đ/g, 'd')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  return normalized || 'DV';
+}
+
+export function nextTargetCode(year: number, departmentCode: string, existingCodes: string[]) {
+  const prefix = `${TARGET_CODE_PREFIX}-${year}-${normalizeTargetDepartmentCode(departmentCode)}-`;
+  const highestSequence = existingCodes.reduce((highest, code) => {
+    if (!code.startsWith(prefix)) return highest;
+    const sequence = Number(code.slice(prefix.length));
+    return Number.isSafeInteger(sequence) && sequence > highest ? sequence : highest;
+  }, 0);
+  return `${prefix}${String(highestSequence + 1).padStart(3, '0')}`;
+}
+
+export class CreateTargetDto {
   @Trim() @IsString() @MinLength(3) @MaxLength(300) title!: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
   @Trim() @IsString() @MinLength(1) @MaxLength(50) unit!: string;
@@ -68,7 +95,6 @@ class CreateTargetDto {
   @IsOptional() @IsEnum(TargetDirection) direction?: TargetDirection;
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Hạn hoàn thành phải có định dạng YYYY-MM-DD' }) @IsDateString() dueDate!: string;
   @IsString() departmentId!: string;
-  @IsOptional() @IsBoolean() isPublic?: boolean;
   @IsOptional() @IsBoolean() isHighlighted?: boolean;
   @IsOptional() @IsInt() @Min(0) publicOrder?: number;
 }
@@ -84,9 +110,19 @@ export class UpdateTargetDto {
   @ValidateIfDefined() @IsEnum(TargetDirection) direction?: TargetDirection;
   @ValidateIfDefined() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Hạn hoàn thành phải có định dạng YYYY-MM-DD' }) @IsDateString() dueDate?: string;
   @ValidateIfDefined() @IsString() departmentId?: string;
-  @ValidateIfDefined() @IsBoolean() isPublic?: boolean;
   @ValidateIfDefined() @IsBoolean() isHighlighted?: boolean;
   @ValidateIfDefined() @IsInt() @Min(0) publicOrder?: number;
+  @IsInt() @Min(1) expectedVersion!: number;
+  @IsInt() @Min(1) expectedPublicationVersion!: number;
+}
+
+export class SetTargetVisibilityDto {
+  @IsBoolean() isPublic!: boolean;
+  @IsInt() @Min(1) expectedVersion!: number;
+  @IsInt() @Min(1) expectedPublicationVersion!: number;
+}
+
+export class PublishTargetDto {
   @IsInt() @Min(1) expectedVersion!: number;
   @IsInt() @Min(1) expectedPublicationVersion!: number;
 }
@@ -158,6 +194,120 @@ export class TargetsController {
     return this.prisma.target.findFirst({
       where: { id, ...(departmentId ? { departmentId } : {}) },
     });
+  }
+
+  private async changeVisibility(
+    actor: Actor,
+    id: string,
+    isPublic: boolean,
+    expectedVersion: number,
+    expectedPublicationVersion: number,
+  ) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('Chỉ quản trị viên được thay đổi hiển thị chỉ tiêu trên trang người dân');
+    }
+    const riskThreshold = isPublic ? await this.riskThreshold() : 70;
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const target = await tx.target.findUnique({
+          where: { id },
+          include: { department: true },
+        });
+        if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
+        if (target.isArchived) {
+          throw new ConflictException('Chỉ tiêu đã được lưu trữ. Hãy khôi phục và kiểm tra lại trước khi thay đổi hiển thị.');
+        }
+        if (
+          target.version !== expectedVersion
+          || target.publicationVersion !== expectedPublicationVersion
+        ) {
+          throw new ConflictException('Chỉ tiêu vừa được cập nhật. Vui lòng tải lại dữ liệu trước khi thay đổi hiển thị.');
+        }
+        if (!isPublic && !target.isPublic) return target;
+        if (isPublic && !target.department.isActive) {
+          throw new ConflictException('Phòng ban phụ trách đã ngừng hoạt động nên chỉ tiêu không thể được công bố');
+        }
+        if (isPublic && !target.lastReportedAt) {
+          throw new BadRequestException('Cần có số liệu chính thức trước khi hiển thị chỉ tiêu trên trang người dân');
+        }
+
+        const evaluation = isPublic
+          ? evaluateTarget({
+              targetValue: target.targetValue,
+              currentValue: target.currentValue,
+              direction: target.direction,
+              dueDate: target.dueDate,
+              riskThreshold,
+              hasReport: true,
+            })
+          : null;
+        const changed = await tx.target.updateMany({
+          where: {
+            id,
+            version: target.version,
+            publicationVersion: target.publicationVersion,
+            isArchived: false,
+          },
+          data: isPublic
+            ? {
+                isPublic: true,
+                publishedValue: target.currentValue,
+                publishedTargetValue: target.targetValue,
+                publishedDirection: target.direction,
+                publishedStatus: evaluation!.status,
+                publishedCode: target.code,
+                publishedTitle: target.title,
+                publishedDescription: target.description,
+                publishedUnit: target.unit,
+                publishedWeight: target.weight,
+                publishedYear: target.year,
+                publishedFrequency: target.frequency,
+                publishedDueDate: target.dueDate,
+                publishedDepartmentName: target.department.name,
+                publishedDepartmentColor: target.department.color,
+                publishedHighlighted: target.isHighlighted,
+                publishedOrder: target.publicOrder,
+                publishedAt: new Date(),
+                publishedBy: actor.id,
+                publicationVersion: { increment: 1 },
+              }
+            : {
+                isPublic: false,
+                publicationVersion: { increment: 1 },
+              },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException('Chỉ tiêu vừa thay đổi. Vui lòng tải lại dữ liệu trước khi cập nhật hiển thị.');
+        }
+
+        const current = await tx.target.findUniqueOrThrow({
+          where: { id },
+          include: { department: true },
+        });
+        await audit(tx, actor, {
+          action: isPublic ? 'TARGET_PUBLISHED' : 'TARGET_UNPUBLISHED',
+          entityType: 'Target',
+          entityId: id,
+          departmentId: target.departmentId,
+          metadata: {
+            code: target.code,
+            isPublic,
+            previousVersion: target.version,
+            version: current.version,
+            previousPublicationVersion: target.publicationVersion,
+            publicationVersion: current.publicationVersion,
+            ...(isPublic ? { publishedValue: target.currentValue } : {}),
+          },
+        });
+        return current;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (isTargetConcurrencyError(error)) {
+        throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại và thử lại.');
+      }
+      throw error;
+    }
   }
 
   @Get()
@@ -287,22 +437,13 @@ export class TargetsController {
   @Roles(Role.ADMIN)
   async create(@Req() req: any, @Body() dto: CreateTargetDto) {
     const actor = getActor(req);
-    if (dto.isPublic === true) {
-      throw new BadRequestException('Chỉ tiêu mới phải ở trạng thái nội bộ; hãy nhập và duyệt số liệu trước khi công bố');
-    }
     const departmentId = resolveDepartmentScope(actor, dto.departmentId);
     if (!departmentId) throw new BadRequestException('Vui lòng chọn phòng ban phụ trách');
     const dueDate = parsePlanningDueDate(dto.dueDate);
     if (dueDate.getUTCFullYear() !== dto.year) {
       throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
     }
-    const department = await this.prisma.department.findUnique({ where: { id: departmentId } });
-    if (!department || !department.isActive) {
-      throw new BadRequestException('Phòng ban phụ trách không tồn tại hoặc đã ngừng hoạt động');
-    }
-
     const data = {
-      code: dto.code.trim().toUpperCase(),
       title: dto.title.trim(),
       description: dto.description?.trim(),
       unit: dto.unit.trim(),
@@ -313,30 +454,67 @@ export class TargetsController {
       direction: dto.direction ?? TargetDirection.HIGHER_IS_BETTER,
       dueDate,
       departmentId,
-      isPublic: actor.role === Role.ADMIN ? dto.isPublic ?? false : false,
-      isHighlighted: actor.role === Role.ADMIN ? dto.isHighlighted ?? false : false,
-      publicOrder: actor.role === Role.ADMIN ? dto.publicOrder : undefined,
+      isPublic: false,
+      isHighlighted: dto.isHighlighted ?? false,
+      publicOrder: dto.publicOrder,
     };
-    let target;
-    try {
-      target = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.target.create({ data, include: { department: true } });
-        await audit(tx, actor, {
-          action: 'TARGET_CREATED',
-          entityType: 'Target',
-          entityId: created.id,
-          departmentId,
-          metadata: { code: created.code, year: created.year },
-        });
-        return created;
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã chỉ tiêu đã tồn tại trong phòng ban và năm kế hoạch này');
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const department = await tx.department.findUnique({ where: { id: departmentId } });
+          if (!department || !department.isActive) {
+            throw new BadRequestException('Phòng ban phụ trách không tồn tại hoặc đã ngừng hoạt động');
+          }
+          const codePrefix = `${TARGET_CODE_PREFIX}-${dto.year}-${normalizeTargetDepartmentCode(department.code)}-`;
+          const existingCodes = await tx.target.findMany({
+            where: {
+              code: { startsWith: codePrefix },
+            },
+            select: { code: true },
+          });
+          const code = nextTargetCode(dto.year, department.code, existingCodes.map(target => target.code));
+          const created = await tx.target.create({
+            data: { ...data, code },
+            include: { department: true },
+          });
+          await audit(tx, actor, {
+            action: 'TARGET_CREATED',
+            entityType: 'Target',
+            entityId: created.id,
+            departmentId,
+            metadata: { code: created.code, year: created.year, codeGeneratedBySystem: true },
+          });
+          return created;
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (error) {
+        if (isTargetCodeAllocationError(error) && attempt < 3) continue;
+        if (isTargetCodeAllocationError(error)) {
+          throw new ConflictException('Hệ thống chưa thể cấp mã chỉ tiêu do có thao tác đồng thời. Vui lòng thử lại.');
+        }
+        throw error;
       }
-      throw error;
     }
-    return target;
+
+    throw new ConflictException('Hệ thống chưa thể cấp mã chỉ tiêu. Vui lòng thử lại.');
+  }
+
+  @Patch(':id/visibility')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async setVisibility(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: SetTargetVisibilityDto,
+  ) {
+    const actor = getActor(req);
+    return this.changeVisibility(
+      actor,
+      id,
+      dto.isPublic,
+      dto.expectedVersion,
+      dto.expectedPublicationVersion,
+    );
   }
 
   @Patch(':id')
@@ -355,38 +533,34 @@ export class TargetsController {
     if (dto.expectedPublicationVersion !== target.publicationVersion) {
       throw new ConflictException('Cấu hình công bố đã được cập nhật. Vui lòng tải lại dữ liệu trước khi sửa.');
     }
-    if (dto.isPublic === true) {
-      throw new BadRequestException('Không thể bật công khai bằng thao tác chỉnh sửa; hãy dùng chức năng Công bố để tạo bản chụp số liệu chính thức');
+    if (dto.year !== undefined && dto.year !== target.year) {
+      throw new BadRequestException(
+        'Năm kế hoạch được khóa sau khi tạo để bảo đảm mã chỉ tiêu không thay đổi. Hãy tạo chỉ tiêu mới nếu cần chuyển năm.',
+      );
+    }
+    if (dto.departmentId !== undefined && dto.departmentId !== target.departmentId) {
+      throw new BadRequestException(
+        'Phòng ban phụ trách được khóa sau khi tạo để bảo đảm mã chỉ tiêu không thay đổi. Hãy tạo chỉ tiêu mới nếu cần chuyển đơn vị.',
+      );
     }
     if (
       actor.role !== Role.ADMIN &&
-      (dto.departmentId !== undefined || dto.isPublic !== undefined || dto.isHighlighted !== undefined || dto.publicOrder !== undefined)
+      (dto.departmentId !== undefined || dto.isHighlighted !== undefined || dto.publicOrder !== undefined)
     ) {
       throw new ForbiddenException('Chỉ quản trị viên được đổi phòng ban hoặc cấu hình công khai');
     }
-    const departmentId = dto.departmentId
-      ? resolveDepartmentScope(actor, dto.departmentId)
-      : target.departmentId;
-    if (!departmentId) throw new BadRequestException('Phòng ban không hợp lệ');
-    if (dto.departmentId) {
-      const department = await this.prisma.department.findUnique({ where: { id: departmentId } });
-      if (!department || !department.isActive) {
-        throw new BadRequestException('Phòng ban phụ trách không tồn tại hoặc đã ngừng hoạt động');
-      }
-    }
+    const departmentId = target.departmentId;
 
     const targetValue = dto.targetValue ?? target.targetValue;
     const direction = dto.direction ?? target.direction;
     const dueDate = dto.dueDate ? parsePlanningDueDate(dto.dueDate) : target.dueDate;
-    const year = dto.year ?? target.year;
+    const year = target.year;
     const changesDefinition = (dto.title !== undefined && dto.title.trim() !== target.title)
       || (dto.unit !== undefined && dto.unit.trim() !== target.unit)
       || (dto.targetValue !== undefined && dto.targetValue !== target.targetValue)
       || (dto.weight !== undefined && dto.weight !== target.weight)
-      || (dto.year !== undefined && dto.year !== target.year)
       || (dto.frequency !== undefined && dto.frequency !== target.frequency)
       || (dto.direction !== undefined && dto.direction !== target.direction)
-      || departmentId !== target.departmentId
       || dueDate.getTime() !== target.dueDate.getTime();
     if (dueDate.getUTCFullYear() !== year) {
       throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
@@ -402,6 +576,8 @@ export class TargetsController {
     const {
       expectedVersion: _expectedVersion,
       expectedPublicationVersion: _expectedPublicationVersion,
+      year: _year,
+      departmentId: _departmentId,
       ...changes
     } = dto;
     try {
@@ -589,88 +765,19 @@ export class TargetsController {
   @Post(':id/publish')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  async publish(@Req() req: any, @Param('id') id: string) {
+  async publish(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: PublishTargetDto,
+  ) {
     const actor = getActor(req);
-    const target = await this.prisma.target.findUnique({
-      where: { id },
-      include: { department: true },
-    });
-    if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
-    if (target.isArchived) {
-      throw new ConflictException('Chỉ tiêu đã được lưu trữ. Hãy khôi phục và kiểm tra lại trước khi công bố.');
-    }
-    if (!target.department.isActive) {
-      throw new ConflictException('Phòng ban phụ trách đã ngừng hoạt động nên chỉ tiêu không thể được công bố');
-    }
-    if (!target.lastReportedAt) {
-      throw new BadRequestException('Chỉ có thể công bố chỉ tiêu sau khi có số liệu chính thức');
-    }
-    const evaluation = evaluateTarget({
-      targetValue: target.targetValue,
-      currentValue: target.currentValue,
-      direction: target.direction,
-      dueDate: target.dueDate,
-      riskThreshold: await this.riskThreshold(),
-      hasReport: true,
-    });
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const changed = await tx.target.updateMany({
-          where: {
-            id,
-            version: target.version,
-            publicationVersion: target.publicationVersion,
-            isArchived: false,
-          },
-          data: {
-            isPublic: true,
-            publishedValue: target.currentValue,
-            publishedTargetValue: target.targetValue,
-            publishedDirection: target.direction,
-            publishedStatus: evaluation.status,
-            publishedCode: target.code,
-            publishedTitle: target.title,
-            publishedDescription: target.description,
-            publishedUnit: target.unit,
-            publishedWeight: target.weight,
-            publishedYear: target.year,
-            publishedFrequency: target.frequency,
-            publishedDueDate: target.dueDate,
-            publishedDepartmentName: target.department.name,
-            publishedDepartmentColor: target.department.color,
-            publishedHighlighted: target.isHighlighted,
-            publishedOrder: target.publicOrder,
-            publishedAt: new Date(),
-            publishedBy: actor.id,
-            publicationVersion: { increment: 1 },
-          },
-        });
-        if (changed.count !== 1) {
-          throw new ConflictException('Số liệu vừa thay đổi. Vui lòng kiểm tra lại trước khi công bố.');
-        }
-        const published = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
-        await audit(tx, actor, {
-          action: 'TARGET_PUBLISHED',
-          entityType: 'Target',
-          entityId: id,
-          departmentId: target.departmentId,
-          metadata: {
-            code: target.code,
-            previousVersion: target.version,
-            version: published.version,
-            previousPublicationVersion: target.publicationVersion,
-            publicationVersion: published.publicationVersion,
-            publishedValue: target.currentValue,
-          },
-        });
-        return published;
-      });
-    } catch (error) {
-      if (isTargetConcurrencyError(error)) {
-        throw new ConflictException('Dữ liệu chỉ tiêu vừa thay đổi. Vui lòng tải lại và thử lại.');
-      }
-      throw error;
-    }
+    return this.changeVisibility(
+      actor,
+      id,
+      true,
+      dto.expectedVersion,
+      dto.expectedPublicationVersion,
+    );
   }
 
   @Post(':id/progress')

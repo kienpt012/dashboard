@@ -90,6 +90,13 @@ enum FeedbackClosureReason {
   OUT_OF_SCOPE
 }
 
+enum MailOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DEAD_LETTER
+}
+
 model Department {
   id          String   @id @default(cuid())
   code        String   @unique
@@ -123,11 +130,31 @@ model User {
   version      Int         @default(1)
   updates      ProgressUpdate[]
   assignedFeedbacks Feedback[] @relation("FeedbackAssignee")
+  passwordResetChallenges PasswordResetChallenge[]
+}
+
+model PasswordResetChallenge {
+  id                  String    @id
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  otpHash             String
+  expiresAt           DateTime
+  attempts            Int       @default(0)
+  maxAttempts         Int       @default(5)
+  verifiedAt          DateTime?
+  resetTokenHash      String?   @unique
+  resetTokenExpiresAt DateTime?
+  consumedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Target {
   id            String          @id @default(cuid())
-  code          String
+  code          String          @unique
   title         String
   description   String?
   unit          String
@@ -176,7 +203,6 @@ model Target {
   @@index([year, status])
   @@index([departmentId])
   @@index([isArchived, year])
-  @@unique([year, departmentId, code])
 }
 
 model ProgressUpdate {
@@ -300,6 +326,7 @@ model Feedback {
   @@index([assignedToId, status])
   @@index([dueAt])
   @@index([citizenResponseDueAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model FeedbackAttachment {
@@ -342,8 +369,27 @@ model FeedbackEvent {
   note       String?
   metadata   Json?
   createdAt  DateTime        @default(now())
+  mailOutbox MailOutbox?
 
   @@index([feedbackId, createdAt])
+}
+
+model MailOutbox {
+  feedbackEventId String           @id
+  feedbackEvent   FeedbackEvent    @relation(fields: [feedbackEventId], references: [id], onDelete: Cascade)
+  status          MailOutboxStatus @default(PENDING)
+  payload         Json
+  attempts        Int              @default(0)
+  availableAt     DateTime         @default(now())
+  lockedAt        DateTime?
+  lockedBy        String?
+  sentAt          DateTime?
+  lastError       String?          @db.VarChar(120)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+
+  @@index([status, availableAt])
+  @@index([status, lockedAt])
 }
 
 model AuditLog {

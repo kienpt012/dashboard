@@ -20,6 +20,7 @@ import FeedbackPublic from './pages/FeedbackPublic';
 import PublishedFeedbackDetail from './pages/PublishedFeedbackDetail';
 import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
+import ForgotPassword from './pages/ForgotPassword';
 import type { AuthMeResponse, Role, User } from './types';
 
 function Protected(){
@@ -66,6 +67,7 @@ const pageTitles: Record<string, string> = {
   '/': 'IOC Lái Thiêu · Cổng thông tin điều hành',
   '/phan-anh': 'Gửi và tra cứu phản ánh · Phường Lái Thiêu',
   '/admin/login': 'Đăng nhập nội bộ · IOC Lái Thiêu',
+  '/admin/forgot-password': 'Khôi phục mật khẩu · IOC Lái Thiêu',
   '/admin': 'Tổng quan điều hành · IOC Lái Thiêu',
   '/admin/targets': 'Quản lý chỉ tiêu · IOC Lái Thiêu',
   '/admin/reports': 'Báo cáo chỉ tiêu · IOC Lái Thiêu',
@@ -95,6 +97,7 @@ export default function App(){
     <Route path="/phan-anh" element={<FeedbackPublic/>}/>
     <Route path="/phan-anh/cong-khai/:code" element={<PublishedFeedbackDetail/>}/>
     <Route path="/admin/login" element={<LoginRoute/>}/>
+    <Route path="/admin/forgot-password" element={auth.token?<Navigate to="/admin" replace/>:<ForgotPassword/>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>
       <Route path="targets" element={<RoleRoute allowed={ALL_ROLES}><Targets/></RoleRoute>}/>

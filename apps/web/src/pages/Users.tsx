@@ -46,9 +46,9 @@ const emptyForm: UserForm = {
   isActive: true,
 };
 
-const strongPasswordPattern = '(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,128}';
-const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}$/;
-const passwordHelp = 'Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.';
+const strongPasswordPattern = '(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,128}';
+const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,128}$/;
+const passwordHelp = 'Ít nhất 10 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.';
 
 function formatLastLogin(value?: string | null) {
   if (!value) return 'Chưa đăng nhập';
@@ -168,7 +168,7 @@ export default function Users() {
       return;
     }
     if ((!editing || form.resetPassword) && !strongPasswordRegex.test(form.password)) {
-      setFormError(`Mật khẩu chưa đủ an toàn. ${passwordHelp}`);
+      setFormError(`Mật khẩu chưa đạt yêu cầu. ${passwordHelp}`);
       return;
     }
     if ((!editing || form.resetPassword) && form.password !== form.confirmPassword) {
@@ -315,21 +315,21 @@ export default function Users() {
           {departments.filter(department => department.isActive || department.id === editing?.departmentId).map(department => <option key={department.id} value={department.id}>{department.name}{department.isActive ? '' : ' (đã ngừng)'}</option>)}
         </select></label>
         {editing ? <label className="check-field">Trạng thái tài khoản<input type="checkbox" checked={form.isActive} disabled={editing.id === actor?.id} onChange={event => setForm({ ...form, isActive: event.target.checked })} /><span>{form.isActive ? 'Đang hoạt động' : 'Khóa tài khoản'}</span></label> : <>
-          <label>Mật khẩu ban đầu<input required minLength={8} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
-          <label>Xác nhận mật khẩu<input required minLength={8} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.confirmPassword} onChange={event => setForm({ ...form, confirmPassword: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
+          <label>Mật khẩu ban đầu<input required minLength={10} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
+          <label>Xác nhận mật khẩu<input required minLength={10} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.confirmPassword} onChange={event => setForm({ ...form, confirmPassword: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
           <small id="user-password-requirements" className="password-help full">{passwordHelp}</small>
         </>}
 
         {editing && editing.id !== actor?.id && <>
           <label className="check-field full"><input type="checkbox" checked={form.resetPassword} onChange={event => setForm({ ...form, resetPassword: event.target.checked, password: '', confirmPassword: '' })} /><span>Đặt lại mật khẩu trong lần cập nhật này</span></label>
           {form.resetPassword && <>
-            <label>Mật khẩu mới<input required minLength={8} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
-            <label>Xác nhận mật khẩu mới<input required minLength={8} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.confirmPassword} onChange={event => setForm({ ...form, confirmPassword: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
+            <label>Mật khẩu mới<input required minLength={10} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
+            <label>Xác nhận mật khẩu mới<input required minLength={10} maxLength={128} pattern={strongPasswordPattern} title={passwordHelp} type="password" value={form.confirmPassword} onChange={event => setForm({ ...form, confirmPassword: event.target.value })} autoComplete="new-password" aria-describedby="user-password-requirements" /></label>
             <small id="user-password-requirements" className="password-help full">{passwordHelp}</small>
           </>}
         </>}
 
-        {editing?.id === actor?.id && <div className="permission-note warning full"><AlertTriangle /><div><strong>Đây là tài khoản đang đăng nhập</strong><p>Bạn có thể sửa họ tên và email, nhưng không thể tự khóa hoặc hạ quyền. Để đổi mật khẩu mà vẫn được cấp lại phiên an toàn, hãy dùng trang “Hồ sơ & bảo mật”.</p></div></div>}
+        {editing?.id === actor?.id && <div className="permission-note warning full"><AlertTriangle /><div><strong>Đây là tài khoản đang đăng nhập</strong><p>Bạn có thể sửa họ tên và email, nhưng không thể tự khóa hoặc hạ quyền. Để đổi mật khẩu, cấp lại phiên hiện tại và thu hồi các phiên cũ, hãy dùng trang “Hồ sơ & bảo mật”.</p></div></div>}
         <div className="permission-note full"><ShieldCheck /><div><strong>Phân quyền theo đơn vị</strong><p>Tài khoản ngoài vai trò quản trị chỉ xem và xử lý dữ liệu thuộc phòng ban được gán.</p></div></div>
         <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || (form.role !== 'ADMIN' && !form.departmentId)}>{submitting ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo tài khoản'}</button></div>
       </form>

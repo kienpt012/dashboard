@@ -50,7 +50,7 @@ class CreateUserDto {
   username!: string;
 
   @IsString({ message: 'Mật khẩu không hợp lệ' })
-  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  @MinLength(10, { message: 'Mật khẩu phải có ít nhất 10 ký tự' })
   @MaxLength(128, { message: 'Mật khẩu không được vượt quá 128 ký tự' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/, {
     message: 'Mật khẩu cần có chữ hoa, chữ thường, số và ký tự đặc biệt',
@@ -109,7 +109,7 @@ export class UpdateUserDto {
 
   @ValidateIfDefined()
   @IsString({ message: 'Mật khẩu không hợp lệ' })
-  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  @MinLength(10, { message: 'Mật khẩu phải có ít nhất 10 ký tự' })
   @MaxLength(128, { message: 'Mật khẩu không được vượt quá 128 ký tự' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/, {
     message: 'Mật khẩu cần có chữ hoa, chữ thường, số và ký tự đặc biệt',
@@ -220,6 +220,9 @@ export class UsersController {
       throw new ForbiddenException('Hãy đổi mật khẩu của bạn tại Hồ sơ & bảo mật bằng mật khẩu hiện tại');
     }
     const passwordHash = dto.password === undefined ? undefined : await bcrypt.hash(dto.password, 10);
+    const nextEmail = dto.email === undefined
+      ? existing.email
+      : (dto.email?.trim().toLowerCase() || null);
     const scopeChanged = dto.role !== undefined || dto.departmentId !== undefined;
     const accessChanged =
       (dto.isActive !== undefined && dto.isActive !== existing.isActive)
@@ -229,6 +232,10 @@ export class UsersController {
       (dto.isActive ?? existing.isActive)
       && ([Role.MANAGER, Role.STAFF] as Role[]).includes(nextRole)
       && nextDepartmentId === existing.departmentId;
+    const invalidatesPasswordReset =
+      passwordHash !== undefined
+      || nextEmail !== existing.email
+      || (existing.isActive && dto.isActive === false);
 
     try {
       return await this.prisma.$transaction(async tx => {
@@ -265,7 +272,7 @@ export class UsersController {
           where: { id, version: dto.expectedVersion },
           data: {
             ...(dto.fullName === undefined ? {} : { fullName: dto.fullName.trim() }),
-            ...(dto.email === undefined ? {} : { email: dto.email?.trim().toLowerCase() || null }),
+            ...(dto.email === undefined ? {} : { email: nextEmail }),
             ...(dto.role === undefined ? {} : { role: dto.role }),
             ...(dto.role === undefined && dto.departmentId === undefined ? {} : { departmentId: nextDepartmentId }),
             ...(dto.isActive === undefined ? {} : { isActive: dto.isActive }),
@@ -275,6 +282,12 @@ export class UsersController {
           },
         });
         if (changed.count !== 1) throw new ConflictException('Tài khoản vừa được người khác cập nhật. Vui lòng tải lại.');
+        if (invalidatesPasswordReset) {
+          await tx.passwordResetChallenge.updateMany({
+            where: { userId: id, consumedAt: null },
+            data: { consumedAt: new Date(), resetTokenHash: null },
+          });
+        }
         const user = await tx.user.findUniqueOrThrow({ where: { id }, select: safeUserSelect });
         await audit(tx, actor, {
           action: 'USER_UPDATED',

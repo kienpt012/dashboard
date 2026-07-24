@@ -107,7 +107,7 @@ export default function PublishedFeedbackDetail(){
           <nav className="published-breadcrumb" aria-label="Đường dẫn"><Link to="/">Trang chủ</Link><span>/</span><Link to="/#ket-qua-phan-anh">Phản ánh công khai</Link><span>/</span><b>{detail.code}</b></nav>
           <article className="published-detail-hero">
             <div>
-              <span className="published-detail-kicker"><BadgeCheck/>KẾT QUẢ ĐÃ ĐƯỢC PHÊ DUYỆT CÔNG KHAI</span>
+              <span className="published-detail-kicker"><BadgeCheck/>KẾT QUẢ ĐÃ PHÊ DUYỆT VÀ CÔNG BỐ</span>
               <h1 ref={titleRef} tabIndex={-1}>{detail.title}</h1>
               <p className="published-detail-code">{detail.code}</p>
             </div>
@@ -131,18 +131,18 @@ export default function PublishedFeedbackDetail(){
             </div>
 
             <aside className="published-timeline" aria-label="Toàn bộ quá trình xử lý công khai">
-              <div className="published-timeline-head"><Clock3/><div><span>QUÁ TRÌNH XỬ LÝ</span><h2>Minh bạch từng bước</h2></div></div>
+              <div className="published-timeline-head"><Clock3/><div><span>QUÁ TRÌNH XỬ LÝ</span><h2>Nhật ký xử lý hồ sơ</h2></div></div>
               <div className="published-timeline-list">
-                {detail.timeline.length?detail.timeline.map(event=><div key={event.id}><i/><div><b>{eventLabels[event.action]||'Hồ sơ được cập nhật'}</b><time dateTime={event.createdAt}>{formatDate(event.createdAt,true)}</time>{event.note&&<p>{event.note}</p>}</div></div>)
+                {detail.timeline.length?detail.timeline.map((event,index)=><div key={`${event.createdAt}:${event.action}:${index}`}><i/><div><b>{eventLabels[event.action]||'Hồ sơ được cập nhật'}</b><time dateTime={event.createdAt}>{formatDate(event.createdAt,true)}</time></div></div>)
                   :<p className="published-timeline-empty">Nhật ký công khai đang được cập nhật.</p>}
               </div>
-              {detail.messages.length>0&&<div className="published-public-messages"><h3>Trao đổi trong quá trình xử lý</h3>{detail.messages.map(message=><article key={message.id}><div><b>{message.authorName}</b><time dateTime={message.createdAt}>{formatDate(message.createdAt,true)}</time></div><p>{message.body}</p></article>)}</div>}
+              {detail.messages.length>0&&<div className="published-public-messages"><h3>Trao đổi trong quá trình xử lý</h3>{detail.messages.map((message,index)=><article key={`${message.createdAt}:${message.authorName}:${index}`}><div><b>{message.authorName}</b><time dateTime={message.createdAt}>{formatDate(message.createdAt,true)}</time></div><p>{message.body}</p></article>)}</div>}
             </aside>
           </div>
         </>}
     </main>
 
-    <section className="published-detail-cta"><div><MessageCircleMore/><span><b>Bạn có vấn đề dân sinh cần phản ánh?</b><small>Gửi trực tuyến và theo dõi tiến độ bằng mã bảo mật riêng.</small></span><Link to="/phan-anh">Gửi hoặc tra cứu phản ánh</Link></div></section>
-    <footer className="public-footer"><div className="public-container"><p>© {currentVietnamYear()} UBND Phường Lái Thiêu. Dữ liệu công khai phục vụ người dân.</p></div></footer>
+    <section className="published-detail-cta"><div><MessageCircleMore/><span><b>Gửi phản ánh mới</b><small>Tạo hồ sơ mới hoặc tra cứu hồ sơ đã gửi bằng mã bảo mật.</small></span><Link to="/phan-anh">Gửi hoặc tra cứu phản ánh</Link></div></section>
+    <footer className="public-footer"><div className="public-container"><p>© {currentVietnamYear()} UBND Phường Lái Thiêu.</p></div></footer>
   </div>;
 }

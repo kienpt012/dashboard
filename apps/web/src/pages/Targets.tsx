@@ -1,11 +1,9 @@
 import {
-  AlertTriangle,
   Archive,
   ArchiveRestore,
   Calendar,
   ClipboardCheck,
   Eye,
-  EyeOff,
   FileClock,
   FileSpreadsheet,
   Pencil,
@@ -27,7 +25,6 @@ import { statusMeta } from '../types';
 const currentYear = currentVietnamYear();
 
 type TargetForm = {
-  code: string;
   title: string;
   description: string;
   unit: string;
@@ -58,7 +55,6 @@ type MySubmission = {
 
 function newTargetForm(year = currentYear, departmentId = ''): TargetForm {
   return {
-    code: '',
     title: '',
     description: '',
     unit: '%',
@@ -72,6 +68,17 @@ function newTargetForm(year = currentYear, departmentId = ''): TargetForm {
     isHighlighted: false,
     publicOrder: '0',
   };
+}
+
+function targetCodePattern(year: string, departmentCode?: string) {
+  const normalizedDepartment = departmentCode
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Đ/g, 'D')
+    .replace(/đ/g, 'd')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  return `CT-${/^\d{4}$/.test(year) ? year : 'YYYY'}-${normalizedDepartment || 'DONVI'}-###`;
 }
 
 function fallbackProgress(target: Target) {
@@ -224,12 +231,7 @@ export default function Targets() {
   ), [mySubmissions]);
 
   const activeDepartments = departments.filter(department => department.isActive);
-  const departmentChangeBlocked = Boolean(
-    selected
-    && (selected.pendingUpdates ?? 0) > 0
-    && form.departmentId !== selected.department.id,
-  );
-
+  const formDepartmentCode = departments.find(department => department.id === form.departmentId)?.code;
   function closeModal() {
     if (submitting) return;
     setModal(null);
@@ -250,7 +252,6 @@ export default function Targets() {
   function openEdit(target: Target) {
     setSelected(target);
     setForm({
-      code: target.code,
       title: target.title,
       description: target.description || '',
       unit: target.unit,
@@ -303,13 +304,15 @@ export default function Targets() {
       unit: form.unit.trim(),
       targetValue: Number(form.targetValue),
       weight: Number(form.weight),
-      year: Number(form.year),
       frequency: form.frequency,
       direction: form.direction,
       dueDate: form.dueDate,
-      departmentId: form.departmentId,
       isHighlighted: form.isHighlighted,
       publicOrder: Number(form.publicOrder),
+      ...(!editing ? {
+        year: Number(form.year),
+        departmentId: form.departmentId,
+      } : {}),
     };
     try {
       if (editing && selected) {
@@ -321,13 +324,13 @@ export default function Targets() {
             expectedPublicationVersion: selected.publicationVersion,
           }),
         });
-        setNotice(`Đã cập nhật chỉ tiêu ${selected.code}.${selected.isPublic ? ' Hãy công bố lại để áp dụng cấu hình mới trên trang người dân.' : ''}`);
+        setNotice(`Đã cập nhật chỉ tiêu ${selected.code}.${selected.isPublic ? ' Dùng “Cập nhật bản công khai” để đồng bộ thay đổi ra trang người dân.' : ''}`);
       } else {
-        await api('/targets', {
+        const created = await api<Target>('/targets', {
           method: 'POST',
-          body: JSON.stringify({ ...payload, code: form.code.trim().toUpperCase(), isPublic: false }),
+          body: JSON.stringify(payload),
         });
-        setNotice('Đã tạo và giao chỉ tiêu thành công. Chỉ tiêu chỉ được công khai sau khi có số liệu chính thức.');
+        setNotice(`Đã tạo và giao chỉ tiêu ${created.code}. Hệ thống đã tự động cấp mã để sử dụng thống nhất khi báo cáo và đối soát.`);
       }
       setModal(null);
       setSelected(null);
@@ -353,8 +356,8 @@ export default function Targets() {
     if (!selected) return;
     setError('');
     const progressValue = Number(progress.value);
-    if (!progress.value.trim() || !Number.isFinite(progressValue) || progressValue < 0 || progressValue > 100) {
-      setError('Giá trị thực hiện phải là số từ 0 đến 100.');
+    if (!progress.value.trim() || !Number.isFinite(progressValue) || progressValue < 0) {
+      setError('Giá trị thực hiện phải là một số không âm.');
       return;
     }
     setSubmitting(true);
@@ -388,43 +391,25 @@ export default function Targets() {
     }
   }
 
-  async function publishTarget(target: Target) {
-    const action = target.isPublic ? 'cập nhật bản công bố' : 'công bố chỉ tiêu';
-    if (!window.confirm(`Xác nhận ${action} ${target.code} bằng số liệu chính thức hiện tại?`)) return;
-    setActionId(`publish:${target.id}`);
+  async function setTargetVisibility(target: Target, isPublic: boolean) {
+    setActionId(`visibility:${target.id}`);
     setLoadError('');
     setNotice('');
     try {
-      await api(`/targets/${target.id}/publish`, { method: 'POST' });
-      setNotice(`Đã công bố số liệu chính thức của ${target.code} trên trang người dân.`);
-      await load();
-    } catch (reason) {
-      const message = mutationMessage(reason, 'Không thể công bố chỉ tiêu');
-      if (reason instanceof ApiError && reason.status === 409) await load();
-      setLoadError(message);
-    } finally {
-      setActionId('');
-    }
-  }
-
-  async function unpublishTarget(target: Target) {
-    if (!window.confirm(`Hủy công khai ${target.code}? Chỉ tiêu sẽ biến mất khỏi trang người dân nhưng lịch sử công bố vẫn được giữ.`)) return;
-    setActionId(`unpublish:${target.id}`);
-    setLoadError('');
-    setNotice('');
-    try {
-      await api(`/targets/${target.id}`, {
+      await api(`/targets/${target.id}/visibility`, {
         method: 'PATCH',
         body: JSON.stringify({
-          isPublic: false,
+          isPublic,
           expectedVersion: target.version,
           expectedPublicationVersion: target.publicationVersion,
         }),
       });
-      setNotice(`Đã hủy công khai chỉ tiêu ${target.code}.`);
+      setNotice(isPublic
+        ? `Đã hiển thị ${target.code} trên trang người dân bằng số liệu chính thức mới nhất.`
+        : `Đã ẩn ${target.code} khỏi trang người dân; dữ liệu và lịch sử công bố vẫn được bảo toàn.`);
       await load();
     } catch (reason) {
-      const message = mutationMessage(reason, 'Không thể hủy công khai chỉ tiêu');
+      const message = mutationMessage(reason, isPublic ? 'Không thể hiển thị chỉ tiêu' : 'Không thể ẩn chỉ tiêu');
       if (reason instanceof ApiError && reason.status === 409) await load();
       setLoadError(message);
     } finally {
@@ -532,20 +517,41 @@ export default function Targets() {
     <div className="table-card">
       <div className="table-summary"><span>Hiển thị <b>{visible.length}</b> {showArchived ? 'chỉ tiêu đã lưu trữ' : 'chỉ tiêu đang hoạt động'} trong phạm vi được phép</span></div>
       {loading ? <Spinner /> : visible.length ? <div className="table-wrap"><table className="action-table">
-        <thead><tr><th>Mã / Chỉ tiêu</th><th>Đơn vị phụ trách</th><th>Tiến độ</th><th>Hạn hoàn thành</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+        <thead><tr><th>Mã / Chỉ tiêu</th><th>Đơn vị phụ trách</th><th>Tiến độ</th><th>Hạn hoàn thành</th><th>Trạng thái</th><th>Trang người dân</th><th>Thao tác</th></tr></thead>
         <tbody>{visible.map(target => {
           const percent = target.progress ?? fallbackProgress(target);
           const publicationCurrent = isPublicationCurrent(target);
-          const publishing = actionId === `publish:${target.id}`;
-          const unpublishing = actionId === `unpublish:${target.id}`;
+          const visibilityBusy = actionId === `visibility:${target.id}`;
           const ownSubmissionPending = canTrackOwnSubmissions && pendingSubmissionTargetIds.has(target.id);
           const checkingOwnSubmissions = canTrackOwnSubmissions && submissionsLoading;
           return <tr key={target.id}>
             <td><div className="target-cell"><div className="target-mini"><TargetIcon /></div><div><span>{target.code}</span><strong>{target.title}</strong><small className="direction-label">{target.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'} · {target.isPublic ? 'Đang công khai' : 'Nội bộ'}</small></div></div></td>
             <td><div className="department-cell"><i style={{ background: target.department.color }} />{target.department.name}</div></td>
-            <td><div className="progress-cell"><div><span>{target.currentValue.toLocaleString('vi-VN')} / {target.targetValue.toLocaleString('vi-VN')} {target.unit}</span><b>{percent}%</b></div><div className="progress"><i className={percent >= 100 ? 'done' : ''} style={{ width: `${percent}%` }} /></div>{target.pendingUpdates ? <small>{target.pendingUpdates} báo cáo chờ duyệt</small> : null}</div></td>
+            <td><div className="progress-cell"><div><span>{target.currentValue.toLocaleString('vi-VN')} / {target.targetValue.toLocaleString('vi-VN')} {target.unit}</span><b>{percent}%</b></div><div className="progress" role="progressbar" aria-label={`Tiến độ chỉ tiêu ${target.code}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, percent))}><i className={percent >= 100 ? 'done' : ''} style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} /></div>{target.pendingUpdates ? <small>{target.pendingUpdates} báo cáo chờ duyệt</small> : null}</div></td>
             <td><div className="date-cell"><Calendar />{new Date(target.dueDate).toLocaleDateString('vi-VN')}</div></td>
             <td><span className={`status ${statusMeta[target.status]?.color}`}><i />{statusMeta[target.status]?.label}</span></td>
+            <td>{isAdmin && !target.isArchived ? <div className="visibility-control">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={target.isPublic}
+                aria-label={`${target.isPublic ? 'Ẩn' : 'Hiển thị'} chỉ tiêu ${target.code} trên trang người dân`}
+                className={`visibility-switch ${target.isPublic ? 'on' : ''}`}
+                disabled={Boolean(actionId) || (!target.isPublic && !target.lastReportedAt)}
+                title={!target.isPublic && !target.lastReportedAt ? 'Cần có số liệu chính thức trước khi hiển thị' : ''}
+                onClick={() => void setTargetVisibility(target, !target.isPublic)}
+              >
+                <span aria-hidden="true"><i /></span>
+                <b>{visibilityBusy ? 'Đang cập nhật...' : target.isPublic ? 'Đang hiển thị' : 'Đang ẩn'}</b>
+              </button>
+              {target.isPublic && !publicationCurrent && <button
+                type="button"
+                className="publication-refresh"
+                disabled={Boolean(actionId)}
+                onClick={() => void setTargetVisibility(target, true)}
+              ><RotateCcw />Cập nhật bản công khai</button>}
+              {!target.lastReportedAt && !target.isPublic && <small>Chưa có số liệu chính thức</small>}
+            </div> : <span className={`status ${target.isPublic ? 'green' : 'slate'}`}><i />{target.isPublic ? 'Đang hiển thị' : 'Nội bộ'}</span>}</td>
             <td><div className="approval-actions target-actions">
               {canReport && !target.isArchived ? <button
                 className="btn secondary compact"
@@ -554,13 +560,6 @@ export default function Targets() {
                 onClick={() => openProgress(target)}
               >{ownSubmissionPending ? 'Đang chờ duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra...' : 'Báo cáo số liệu'}</button> : <span className="muted">{target.isArchived ? 'Đã lưu trữ' : 'Chỉ xem'}</span>}
               {isAdmin && !target.isArchived && <button className="btn secondary compact" disabled={Boolean(actionId)} onClick={() => openEdit(target)}><Pencil />Sửa</button>}
-              {isAdmin && !target.isArchived && target.isPublic && <button className="btn secondary compact" disabled={Boolean(actionId)} onClick={() => void unpublishTarget(target)}><EyeOff />{unpublishing ? 'Đang ẩn...' : 'Hủy công khai'}</button>}
-              {isAdmin && !target.isArchived && <button
-                className="btn primary compact"
-                disabled={Boolean(actionId) || !target.lastReportedAt || publicationCurrent}
-                title={!target.lastReportedAt ? 'Cần có số liệu chính thức trước khi công bố' : publicationCurrent ? 'Bản công khai đã là phiên mới nhất' : ''}
-                onClick={() => void publishTarget(target)}
-              ><Eye />{publishing ? 'Đang công bố...' : !target.lastReportedAt ? 'Chưa có số liệu' : publicationCurrent ? 'Đã mới nhất' : target.isPublic ? 'Cập nhật công bố' : 'Công bố'}</button>}
               {isAdmin && <button className="btn secondary compact" disabled={Boolean(actionId)} onClick={() => void changeArchiveState(target, target.isArchived)}>{target.isArchived ? <ArchiveRestore /> : <Archive />}{target.isArchived ? 'Khôi phục' : 'Lưu trữ'}</button>}
             </div></td>
           </tr>;
@@ -571,20 +570,26 @@ export default function Targets() {
     {(modal === 'create' || modal === 'edit') && canCreate && <Modal title={modal === 'edit' ? `Chỉnh sửa ${selected?.code}` : 'Đặt chỉ tiêu mới'} onClose={closeModal} wide>
       <form className="form-grid" onSubmit={submitTarget}>
         {error && <div className="form-error full" role="alert">{error}</div>}
-        <label>Mã chỉ tiêu<input required minLength={3} maxLength={50} pattern="[A-Za-z0-9._-]+" value={form.code} disabled={modal === 'edit'} onChange={event => setForm({ ...form, code: event.target.value.toUpperCase() })} placeholder="VD: CT-2026-011" /></label>
-        <label>Năm kế hoạch<input type="number" required min="2000" max="2100" value={form.year} onChange={event => {
+        <div className="generated-code-field">
+          <span>Mã chỉ tiêu</span>
+          <strong>{selected?.code || targetCodePattern(form.year, formDepartmentCode)}</strong>
+          <small>{selected
+            ? 'Mã định danh được giữ cố định trong toàn bộ vòng đời chỉ tiêu.'
+            : 'Hệ thống cấp mã tự động khi lưu; người dùng không cần nhập và không thể sửa mã.'}</small>
+        </div>
+        <label>Năm kế hoạch<input type="number" required min="2000" max="2100" disabled={modal === 'edit'} value={form.year} onChange={event => {
           const nextYear = event.target.value;
           const dueDate = /^\d{4}$/.test(nextYear) && /^\d{4}-\d{2}-\d{2}$/.test(form.dueDate)
             ? `${nextYear}${form.dueDate.slice(4)}`
             : form.dueDate;
           setForm({ ...form, year: nextYear, dueDate });
-        }} /></label>
+        }} /><small className="muted">{modal === 'edit' ? 'Năm được khóa để mã chỉ tiêu và lịch sử báo cáo luôn nhất quán.' : 'Năm kế hoạch là một phần của mã chỉ tiêu tự động.'}</small></label>
         <label className="full">Tên chỉ tiêu<input required minLength={3} maxLength={300} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} /></label>
         <label className="full">Mô tả<textarea maxLength={2000} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} /></label>
-        <label>Phòng ban phụ trách<select required value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })}>
+        <label>Phòng ban phụ trách<select required disabled={modal === 'edit'} value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })}>
           <option value="">Chọn phòng ban</option>
           {departments.filter(department => department.isActive || department.id === selected?.department.id).map(department => <option key={department.id} value={department.id}>{department.name}{department.isActive ? '' : ' (đã ngừng)'}</option>)}
-        </select></label>
+        </select><small className="muted">{modal === 'edit' ? 'Đơn vị được khóa để mã chỉ tiêu không thay đổi sau khi giao.' : 'Đơn vị phụ trách được dùng để cấp mã chỉ tiêu.'}</small></label>
         <label>Tần suất báo cáo dự kiến<select value={form.frequency} onChange={event => setForm({ ...form, frequency: event.target.value as TargetForm['frequency'] })}><option value="YEARLY">Hàng năm</option><option value="QUARTERLY">Hàng quý</option><option value="MONTHLY">Hàng tháng</option></select><small className="muted">Dùng để định hướng nhịp báo cáo; hệ thống luôn lưu giá trị thực hiện hiện hành mới nhất.</small></label>
         <label>Giá trị mục tiêu<input type="number" step="any" min="0" required value={form.targetValue} onChange={event => setForm({ ...form, targetValue: event.target.value })} /></label>
         <label>Đơn vị tính<input required minLength={1} maxLength={50} value={form.unit} onChange={event => setForm({ ...form, unit: event.target.value })} /></label>
@@ -593,9 +598,8 @@ export default function Targets() {
         <label>Hạn hoàn thành<input type="date" required min={`${form.year}-01-01`} max={`${form.year}-12-31`} value={form.dueDate} onChange={event => setForm({ ...form, dueDate: event.target.value })} /><small className="muted">Hạn phải nằm trong năm kế hoạch {form.year || 'đã chọn'}.</small></label>
         <label>Thứ tự trên trang công khai<input type="number" min="0" step="1" required value={form.publicOrder} onChange={event => setForm({ ...form, publicOrder: event.target.value })} /></label>
         <label className="check-field full"><input type="checkbox" checked={form.isHighlighted} onChange={event => setForm({ ...form, isHighlighted: event.target.checked })} /><span><Star /> Đánh dấu là chỉ tiêu nổi bật khi công bố</span></label>
-        <div className="permission-note full"><Eye /><div><strong>{selected?.isPublic ? 'Chỉ tiêu đang được công khai' : 'Dữ liệu chưa tự động công khai'}</strong><p>Cấu hình nổi bật và thứ tự được lưu trước. Nút “Công bố” tạo một bản chụp số liệu chính thức cho người dân; sau khi sửa, hãy công bố lại để áp dụng thay đổi.</p></div></div>
-        {departmentChangeBlocked && <div className="permission-note warning full"><AlertTriangle /><div><strong>Không thể chuyển đơn vị lúc này</strong><p>Chỉ tiêu còn {selected?.pendingUpdates} báo cáo chờ duyệt. Hãy chọn lại đơn vị hiện tại hoặc xử lý hết báo cáo trước khi chuyển.</p></div></div>}
-        <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || !form.departmentId || departmentChangeBlocked}>{submitting ? 'Đang lưu...' : modal === 'edit' ? 'Lưu thay đổi' : 'Tạo và giao chỉ tiêu'}</button></div>
+        <div className="permission-note full"><Eye /><div><strong>Quản lý hiển thị tại danh sách chỉ tiêu</strong><p>Công tắc “Trang người dân” chỉ khả dụng sau khi có số liệu chính thức. Mỗi lần bật hoặc cập nhật, hệ thống tạo bản chụp đã duyệt để dữ liệu đang công khai không bị thay đổi ngoài ý muốn.</p></div></div>
+        <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || !form.departmentId}>{submitting ? 'Đang lưu...' : modal === 'edit' ? 'Lưu thay đổi' : 'Tạo và giao chỉ tiêu'}</button></div>
       </form>
     </Modal>}
 
@@ -604,7 +608,7 @@ export default function Targets() {
         <div className="target-preview"><span>{selected.code}</span><strong>{selected.title}</strong><p>Hiện tại: {selected.currentValue.toLocaleString('vi-VN')} · Mục tiêu: {selected.targetValue.toLocaleString('vi-VN')} {selected.unit} · Phiên bản {selected.version}</p></div>
         {user?.role !== 'ADMIN' && <div className="permission-note"><ClipboardCheck /><div><strong>Cần người có thẩm quyền duyệt</strong><p>Số liệu chỉ trở thành kết quả chính thức sau khi được phê duyệt; người gửi không thể tự duyệt.</p></div></div>}
         {error && <div className="form-error full" role="alert">{error}</div>}
-        <label className="full">Giá trị thực hiện mới<input type="number" inputMode="decimal" step="any" min="0" max="100" required value={progress.value} onChange={event => setProgress({ ...progress, value: event.target.value })} /><small className="muted">Nhập giá trị từ 0 đến 100. Bạn có thể xóa toàn bộ để nhập lại.</small></label>
+        <label className="full">Giá trị thực hiện mới<input type="number" inputMode="decimal" step="any" min="0" required value={progress.value} onChange={event => setProgress({ ...progress, value: event.target.value })} /><small className="muted">Nhập số không âm theo đơn vị “{selected.unit}”. Ví dụ: chỉ tiêu ngân sách nhập giá trị tiền, chỉ tiêu tỷ lệ nhập phần trăm.</small></label>
         <label className="full">Nguồn số liệu / ghi chú<textarea required value={progress.note} onChange={event => setProgress({ ...progress, note: event.target.value })} placeholder="Nêu kỳ báo cáo và nguồn đối chiếu..." /></label>
         <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting}>{submitting ? 'Đang gửi...' : user?.role === 'ADMIN' ? 'Xác nhận cập nhật' : 'Gửi chờ duyệt'}</button></div>
       </form>

@@ -77,6 +77,7 @@ type PublicationPreview={
   title:string;
   content:string;
   resolutionSummary:string|null;
+  messages:Array<{body:string;authorName:string;createdAt:string}>;
 };
 
 const actionTitles:Record<ActionKind,string>={
@@ -353,7 +354,7 @@ export default function FeedbackAdmin(){
   const pages=Math.max(1,Math.ceil(total/pageSize));
 
   return <>
-    <PageHead eyebrow="PHỤC VỤ NGƯỜI DÂN" title="Tiếp nhận & xử lý phản ánh" description={isAdmin?'Theo dõi toàn bộ vòng đời phản ánh, phân công đúng đơn vị và kiểm soát thời hạn xử lý.':`Dữ liệu được giới hạn trong ${user.department?.name||'đơn vị của bạn'} theo quyền được giao.`} actions={<button className="btn secondary" disabled={loading} onClick={()=>void load()}><RefreshCw/>Làm mới</button>}/>
+    <PageHead eyebrow="QUẢN LÝ PHẢN ÁNH" title="Tiếp nhận & xử lý phản ánh" description={isAdmin?'Theo dõi toàn bộ vòng đời phản ánh, phân công đúng đơn vị và kiểm soát thời hạn xử lý.':`Dữ liệu được giới hạn trong ${user.department?.name||'đơn vị của bạn'} theo quyền được giao.`} actions={<button className="btn secondary" disabled={loading} onClick={()=>void load()}><RefreshCw/>Làm mới</button>}/>
     {notice&&<div className="notice success"><CheckCircle2/>{notice}<button aria-label="Đóng thông báo" onClick={()=>setNotice('')}><X/></button></div>}
     {pageError&&<div className="notice error" role="alert"><AlertCircle/>{pageError}<button onClick={()=>void load()}>Thử lại</button></div>}
 
@@ -451,6 +452,8 @@ export default function FeedbackAdmin(){
                 <small>Tiêu đề phản ánh</small><p><b>{publicationPreview.title}</b></p>
                 <small>Nội dung phản ánh</small><p>{publicationPreview.content}</p>
                 <small>Kết quả xử lý</small><p>{publicationPreview.resolutionSummary||'Không có nội dung kết quả xử lý.'}</p>
+                <small>Trao đổi đã đánh dấu người dân thấy</small>
+                {publicationPreview.messages.length?<div className="feedback-internal-messages">{publicationPreview.messages.map((message,index)=><article key={`${message.createdAt}:${index}`}><div><b>{message.authorName}</b><time>{formatDate(message.createdAt)}</time></div><p>{message.body}</p></article>)}</div>:<p className="feedback-muted">Không có trao đổi công khai bổ sung.</p>}
               </section>}
               <label className="feedback-my-work full"><input required disabled={!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)} type="checkbox" checked={actionForm.confirmAnonymized} onChange={event=>setActionForm({...actionForm,confirmAnonymized:event.target.checked})}/>Tôi đã kiểm tra bản xem trước đã ẩn danh và đồng ý công khai</label>
             </>}

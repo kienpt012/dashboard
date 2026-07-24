@@ -150,7 +150,7 @@ Các nhánh ngoại lệ:
 ### 6.4. Công bố phản ánh điển hình
 
 - Chỉ quản trị viên được công bố hoặc hủy công bố và chỉ với hồ sơ đã giải quyết/đã đóng.
-- Tiêu đề và tóm tắt công khai phải được biên tập lại, loại bỏ tên, số điện thoại, email, địa chỉ và chi tiết có thể nhận diện người gửi.
+- Tiêu đề và nội dung công khai được lấy từ hồ sơ phản ánh gốc; cán bộ không phải nhập lại. Trước khi công bố, hệ thống tự loại bỏ tên, số điện thoại, email, địa chỉ và chi tiết có thể nhận diện người gửi; kết quả xử lý lấy từ nội dung đã được phê duyệt.
 - Quản trị viên phải xác nhận rõ đã ẩn danh. API tiếp tục dò email, số điện thoại, định danh, họ tên và địa chỉ; phát hiện tín hiệu dữ liệu cá nhân thì từ chối công bố để người biên tập kiểm tra lại.
 - Hệ thống lưu bản chụp công bố riêng gồm tiêu đề, tóm tắt, nhóm vấn đề, đơn vị xử lý, thời điểm giải quyết và thời điểm công bố. Dữ liệu nội bộ thay đổi sau đó không tự làm thay đổi nội dung đã công bố.
 
@@ -159,7 +159,7 @@ Các nhánh ngoại lệ:
 ### 7.1. Chỉ tiêu
 
 - Chỉ quản trị viên được tạo/chỉnh sửa chỉ tiêu, thay đổi đơn vị phụ trách và cấu hình công khai.
-- Mã chỉ tiêu là duy nhất trong phạm vi `năm + phòng ban`; cùng mã có thể dùng ở phòng ban khác nhưng không được trùng trong cùng phạm vi. Mã không được đổi sau khi tạo. Hạn hoàn thành phải là ngày có thật và thuộc cùng năm kế hoạch, được tính đến hết ngày theo giờ Việt Nam.
+- Mã chỉ tiêu do máy chủ tự cấp theo năm và mã đơn vị, duy nhất trên toàn hệ thống và không được sửa trong suốt vòng đời chỉ tiêu. Năm kế hoạch và đơn vị phụ trách cũng được khóa sau khi tạo để lịch sử báo cáo luôn nhất quán. Hạn hoàn thành phải là ngày có thật và thuộc cùng năm kế hoạch, được tính đến hết ngày theo giờ Việt Nam.
 - Chỉnh sửa dùng `expectedVersion`; thay đổi cũ bị từ chối nếu dữ liệu đã có phiên bản mới.
 - Không được chuyển chỉ tiêu sang phòng ban khác khi còn báo cáo chờ duyệt.
 - Sau khi đã có lịch sử báo cáo, các trường định nghĩa làm thay đổi ý nghĩa chỉ tiêu không được sửa trực tiếp; cần tạo chỉ tiêu kế nhiệm để bảo toàn khả năng đối soát.

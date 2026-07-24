@@ -18,6 +18,8 @@ import { FeedbackController, PublicFeedbackController } from './feedback';
 import { AuditLogsController } from './audit-logs';
 import { RateLimitService } from './rate-limit';
 import { HealthController } from './health';
+import { FeedbackMailOutboxWorker, MailService } from './mail';
+import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
 
 @Module({
   imports: [
@@ -48,6 +50,14 @@ import { HealthController } from './health';
     FeedbackController,
     AuditLogsController,
   ],
-  providers: [PrismaService, JwtStrategy, RolesGuard, RateLimitService],
+  providers: [
+    PasswordResetDeliveryRegistry,
+    PrismaService,
+    JwtStrategy,
+    RolesGuard,
+    RateLimitService,
+    MailService,
+    FeedbackMailOutboxWorker,
+  ],
 })
 export class AppModule {}

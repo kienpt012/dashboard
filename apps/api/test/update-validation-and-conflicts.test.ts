@@ -11,7 +11,12 @@ import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { DepartmentsController, UpdateDepartmentDto } from '../src/departments';
 import { UpdateSystemSettingDto } from '../src/settings';
-import { TargetsController, UpdateTargetDto } from '../src/targets';
+import {
+  PublishTargetDto,
+  SetTargetVisibilityDto,
+  TargetsController,
+  UpdateTargetDto,
+} from '../src/targets';
 import { UpdateUserDto } from '../src/users';
 
 function invalidProperties<T extends object>(
@@ -35,7 +40,12 @@ test('DTO cập nhật bỏ qua trường không gửi nhưng từ chối null �
   assert.deepEqual(invalidProperties(UpdateTargetDto, targetVersions), []);
   assert.ok(invalidProperties(UpdateTargetDto, { ...targetVersions, title: null }).includes('title'));
   assert.ok(invalidProperties(UpdateTargetDto, { ...targetVersions, targetValue: null }).includes('targetValue'));
-  assert.ok(invalidProperties(UpdateTargetDto, { ...targetVersions, isPublic: null }).includes('isPublic'));
+  assert.ok(invalidProperties(SetTargetVisibilityDto, { ...targetVersions, isPublic: null }).includes('isPublic'));
+  assert.deepEqual(invalidProperties(PublishTargetDto, targetVersions), []);
+  assert.deepEqual(
+    invalidProperties(PublishTargetDto, {}).sort(),
+    ['expectedPublicationVersion', 'expectedVersion'],
+  );
 
   assert.deepEqual(invalidProperties(UpdateSystemSettingDto, { expectedVersion: 1 }), []);
   assert.ok(invalidProperties(UpdateSystemSettingDto, { expectedVersion: 1, warningDays: null }).includes('warningDays'));
