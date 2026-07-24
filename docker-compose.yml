@@ -25,9 +25,23 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ioc_admin}:${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-ioc_laithieu}?schema=public
+      POSTGRES_DB: ${POSTGRES_DB:-ioc_laithieu}
+      POSTGRES_USER: ${POSTGRES_USER:-ioc_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}
       JWT_SECRET: ${JWT_SECRET:?Set a strong JWT_SECRET in .env}
+      PASSWORD_RESET_PEPPER: ${PASSWORD_RESET_PEPPER:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      MAIL_OUTBOX_POLL_MS: ${MAIL_OUTBOX_POLL_MS:-5000}
+      MAIL_OUTBOX_BATCH_SIZE: ${MAIL_OUTBOX_BATCH_SIZE:-10}
+      MAIL_OUTBOX_MAX_ATTEMPTS: ${MAIL_OUTBOX_MAX_ATTEMPTS:-8}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8080}
       RUN_DEMO_SEED: ${RUN_DEMO_SEED:-false}
       PORT: 3000
     ports:

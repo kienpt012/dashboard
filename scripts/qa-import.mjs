@@ -111,13 +111,11 @@ async function runSuite() {
   const department = departments.find(item => item.id === qaActors.departments.primary.id);
   check('Có phòng ban hoạt động để kiểm thử', Boolean(department));
 
-  const code = `QA-EXCEL-${Date.now()}`;
   const created = await jsonRequest('/targets', {
     method: 'POST',
     token: login.accessToken,
     expected: [201],
     body: {
-      code,
       title: 'Chỉ tiêu tạm kiểm thử toàn bộ luồng Excel',
       unit: 'hồ sơ',
       targetValue: 100,
@@ -130,7 +128,11 @@ async function runSuite() {
     },
   });
   targetId = created.id;
-  check('Tạo chỉ tiêu QA tạm', created.code === code && created.departmentId === department.id);
+  const code = created.code;
+  check(
+    'Tạo chỉ tiêu QA tạm với mã do backend cấp',
+    /^CT-2026-[A-Z0-9]+-\d{3,}$/.test(code) && created.departmentId === department.id,
+  );
 
   const templateResponse = await fetch(`${baseUrl}/imports/template?year=2026&departmentId=${encodeURIComponent(department.id)}`, {
     headers: { authorization: `Bearer ${login.accessToken}` },

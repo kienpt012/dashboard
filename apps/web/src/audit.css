@@ -11,6 +11,6 @@
 .audit-results-head>strong,.audit-table time{font-size:12px}
 .audit-actor small,.audit-code{font-size:12px}
 .audit-action,.audit-muted,.audit-details summary,.audit-card summary{font-size:12px}
-.audit-metadata dt{font-size:11px}
+.audit-metadata dt{font-size:12px}
 .audit-metadata dd,.audit-pagination{font-size:12px}
 @media(max-width:800px){.audit-card-head time,.audit-card-grid span,.audit-card-grid small{font-size:12px}.audit-card-grid strong{font-size:13px}}

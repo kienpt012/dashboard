@@ -118,25 +118,34 @@ async function runSuite() {
   });
   checks.push('Thiết lập từ chối phiên bản cũ mà không cần ghi thay đổi giả vờ');
 
-  const qaTargetCode = `QA-ARCHIVE-${Date.now()}`;
   await request('/targets', {
     method: 'POST', token: admin.accessToken, expected: [400],
-    body: { code: `QA-PUBLIC-${Date.now()}`, title: 'Chỉ tiêu thử bỏ qua bước công bố', unit: '%', targetValue: 100, weight: 1, year: 2026, frequency: 'YEARLY', direction: 'HIGHER_IS_BETTER', dueDate: '2026-12-31', departmentId: ktht.id, isPublic: true },
+    body: { code: `QA-TARGET-${Date.now()}`, title: 'Chỉ tiêu thử chèn mã từ client', unit: '%', targetValue: 100, weight: 1, year: 2026, frequency: 'YEARLY', direction: 'HIGHER_IS_BETTER', dueDate: '2026-12-31', departmentId: ktht.id },
   });
-  checks.push('Không thể tạo chỉ tiêu ở trạng thái công khai trước khi có số liệu chính thức');
+  checks.push('Client không thể tự nhập hoặc ghi đè mã chỉ tiêu');
 
   const qaTarget = await request('/targets', {
     method: 'POST', token: admin.accessToken, expected: [201],
-    body: { code: qaTargetCode, title: 'Chỉ tiêu kiểm thử vòng đời lưu trữ', description: 'Tự động xóa sau kiểm thử', unit: '%', targetValue: 100, weight: 1, year: 2026, frequency: 'YEARLY', direction: 'HIGHER_IS_BETTER', dueDate: '2026-12-31', departmentId: ktht.id, isPublic: false },
+    body: { title: 'Chỉ tiêu kiểm thử vòng đời lưu trữ', description: 'Tự động xóa sau kiểm thử', unit: '%', targetValue: 100, weight: 1, year: 2026, frequency: 'YEARLY', direction: 'HIGHER_IS_BETTER', dueDate: '2026-12-31', departmentId: ktht.id },
   });
   qaTargetId = qaTarget.data.id;
+  const qaTargetCode = qaTarget.data.code;
+  check('Backend tự cấp mã chỉ tiêu có cấu trúc thống nhất', /^CT-2026-[A-Z0-9]+-\d{3,}$/.test(qaTargetCode), qaTargetCode);
   const archivedTarget = await request(`/targets/${qaTargetId}/archive`, { method: 'POST', token: admin.accessToken, expected: [201], body: { reason: 'Kết thúc chỉ tiêu kiểm thử', expectedVersion: qaTarget.data.version, expectedPublicationVersion: qaTarget.data.publicationVersion } });
   const activeSearch = await request(`/targets?year=2026&search=${encodeURIComponent(qaTargetCode)}`, { token: admin.accessToken });
   const archiveSearch = await request(`/targets?year=2026&archived=true&search=${encodeURIComponent(qaTargetCode)}`, { token: admin.accessToken });
   check('Lưu trữ loại chỉ tiêu khỏi vận hành nhưng vẫn giữ để đối soát', archivedTarget.data.isArchived && activeSearch.data.length === 0 && archiveSearch.data.length === 1);
   const archivedReport = await request(`/dashboard/report?year=2026&departmentId=${encodeURIComponent(ktht.id)}`, { token: admin.accessToken });
   check('Báo cáo vận hành không trộn chỉ tiêu đã lưu trữ', archivedReport.data.every(item => item.code !== qaTargetCode));
-  await request(`/targets/${qaTargetId}/publish`, { method: 'POST', token: admin.accessToken, expected: [409] });
+  await request(`/targets/${qaTargetId}/publish`, {
+    method: 'POST',
+    token: admin.accessToken,
+    expected: [409],
+    body: {
+      expectedVersion: archivedTarget.data.version,
+      expectedPublicationVersion: archivedTarget.data.publicationVersion,
+    },
+  });
   checks.push('Chỉ tiêu đã lưu trữ không thể được công bố lại bằng API');
   await request(`/targets/${qaTargetId}/progress`, { method: 'POST', token: admin.accessToken, expected: [409], body: { value: 10, note: 'Không được báo cáo sau lưu trữ', baseVersion: archivedTarget.data.version } });
   checks.push('Chỉ tiêu lưu trữ không nhận báo cáo mới');
@@ -146,7 +155,12 @@ async function runSuite() {
     method: 'PATCH', token: admin.accessToken, expected: [400],
     body: { isPublic: true, expectedVersion: restoredTarget.data.version, expectedPublicationVersion: restoredTarget.data.publicationVersion },
   });
-  checks.push('Không thể bật công khai bằng API chỉnh sửa để dùng lại bản chụp cũ');
+  checks.push('Không thể thay đổi công khai qua API chỉnh sửa chung');
+  await request(`/targets/${qaTargetId}/visibility`, {
+    method: 'PATCH', token: staff.accessToken, expected: [403],
+    body: { isPublic: true, expectedVersion: restoredTarget.data.version, expectedPublicationVersion: restoredTarget.data.publicationVersion },
+  });
+  checks.push('Chỉ ADMIN được bật hoặc tắt hiển thị chỉ tiêu trên trang người dân');
 
   await request('/imports/template?year=2101', { token: admin.accessToken, expected: [400] });
   await request('/exports/targets.xlsx?year=2101', { token: admin.accessToken, expected: [400] });

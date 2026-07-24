@@ -12,8 +12,10 @@ import {
   FEEDBACK_ATTACHMENT_MAX_FILES,
   LOOKUP_SECRET_MAX_LENGTH,
   LOOKUP_SECRET_MIN_LENGTH,
+  PublicFeedbackController,
   sanitizeAttachmentFileName,
   sanitizePublicFeedbackText,
+  shouldNotifyFeedbackByEmail,
   TrackFeedbackDto,
   VersionedSecretDto,
 } from '../src/feedback';
@@ -54,7 +56,7 @@ test('lookup secret uses the same 20-64 bounds for create, tracking and citizen 
   }
 });
 
-test('public feedback content is derived from the original while redacting structured and generic PII', () => {
+test('public feedback content is redacted and its timeline contract does not expose database ids', async () => {
   const pii = {
     submitterName: 'Nguyễn Văn Minh',
     submitterPhone: '0912 345 678',
@@ -76,6 +78,71 @@ test('public feedback content is derived from the original while redacting struc
     sanitizePublicFeedbackText('NguYen Van Minh - điện thoại +84 912.345.678', pii).includes('Minh'),
     false,
   );
+
+  let publishedQuery: any;
+  const createdAt = new Date('2026-07-20T08:00:00.000Z');
+  const controller = new PublicFeedbackController({
+    feedback: {
+      findFirst: async (query: any) => {
+        publishedQuery = query;
+        return {
+          code: 'PA-2026-12345678',
+          title: 'Tiêu đề gốc',
+          content: 'Nội dung gốc',
+          category: 'OTHER',
+          status: 'RESOLVED',
+          submitterName: pii.submitterName,
+          submitterPhone: pii.submitterPhone,
+          submitterEmail: pii.submitterEmail,
+          address: pii.address,
+          resolutionSummary: 'Đã xử lý',
+          publicSnapshotVersion: 1,
+          publicTitle: 'Tiêu đề công khai',
+          publicSummary: 'Nội dung công khai',
+          publicResolutionSummary: 'Kết quả công khai',
+          publicCategory: 'OTHER',
+          publicDepartmentName: 'Đơn vị xử lý',
+          publicResolvedAt: createdAt,
+          publicPublishedAt: createdAt,
+          createdAt,
+          resolvedAt: createdAt,
+          closedAt: null,
+          messages: [{ id: 'internal-message-id', body: 'Đã tiếp nhận', authorName: 'Cán bộ A', createdAt }],
+          events: [
+            {
+              id: 'internal-event-id',
+              action: 'CONTACT_ATTEMPT_LOGGED',
+              fromStatus: 'RECEIVED',
+              toStatus: 'RECEIVED',
+              note: `Cán bộ đã gọi ${pii.submitterPhone}`,
+              createdAt,
+            },
+            {
+              id: 'public-event-id',
+              action: 'INFORMATION_REQUESTED',
+              fromStatus: 'RECEIVED',
+              toStatus: 'WAITING_CITIZEN',
+              note: `Vui lòng liên hệ ${pii.submitterPhone}`,
+              createdAt,
+            },
+          ],
+        };
+      },
+    },
+  } as any, {} as any);
+  const detail = await controller.publishedDetail('PA-2026-12345678', { setHeader() {} } as any);
+
+  assert.equal(publishedQuery.select.messages.select.id, undefined);
+  assert.equal(publishedQuery.select.events.select.id, undefined);
+  assert.equal('id' in detail.messages[0], false);
+  assert.equal('id' in detail.timeline[0], false);
+  assert.equal('note' in detail.timeline[0], false);
+  assert.equal('note' in detail.timeline[1], false);
+  assert.deepEqual(detail.messages[0], {
+    body: 'Đã tiếp nhận',
+    authorName: 'Đơn vị xử lý',
+    createdAt,
+  });
 });
 
 test('approved publication snapshot freezes title, content and resolution together', () => {
@@ -117,4 +184,11 @@ test('attachment policy accepts only verified JPEG, PNG, WEBP and PDF signatures
 test('attachment filenames cannot escape storage or inject response headers', () => {
   assert.equal(sanitizeAttachmentFileName('../../bien-chung.pdf\r\nX-Test: yes'), 'bien-chung.pdfX-Test_ yes');
   assert.equal(sanitizeAttachmentFileName('   '), 'tep-minh-chung');
+});
+
+test('chỉ gửi email tiến độ khi người dân chủ động chọn Email làm kênh liên hệ', () => {
+  assert.equal(shouldNotifyFeedbackByEmail('PHONE', 'nguoidan@example.com'), false);
+  assert.equal(shouldNotifyFeedbackByEmail('EMAIL', null), false);
+  assert.equal(shouldNotifyFeedbackByEmail('EMAIL', '   '), false);
+  assert.equal(shouldNotifyFeedbackByEmail('EMAIL', 'nguoidan@example.com'), true);
 });

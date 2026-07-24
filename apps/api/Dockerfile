@@ -13,5 +13,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/prisma ./prisma
 COPY --from=build /app/apps/api/package.json ./package.json
+COPY apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && if [ \"${RUN_DEMO_SEED:-false}\" = \"true\" ]; then ALLOW_DEMO_SEED=true npx tsx prisma/seed.ts; fi && node dist/main.js"]
+CMD ["./docker-entrypoint.sh"]

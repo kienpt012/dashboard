@@ -271,6 +271,24 @@ async function runSuite() {
   const attachmentPolicyCreated = await createFeedback(newSubmission({
     title: 'QA - Kiểm tra chính sách file minh chứng',
   }));
+  const orderingBase = new Date('2026-01-01T00:00:00.000Z');
+  await prisma.feedback.update({
+    where: { code: created.code },
+    data: { createdAt: orderingBase },
+  });
+  await prisma.feedback.update({
+    where: { code: attachmentPolicyCreated.code },
+    data: { createdAt: new Date(orderingBase.getTime() + 1_000) },
+  });
+  const newestFirst = await request('/feedbacks?search=QA&pageSize=100', {
+    token: admin.accessToken,
+  });
+  const newerIndex = newestFirst.data.items.findIndex(item => item.code === attachmentPolicyCreated.code);
+  const olderIndex = newestFirst.data.items.findIndex(item => item.code === created.code);
+  check(
+    'Danh sách quản trị xếp phản ánh mới tiếp nhận lên trước',
+    newerIndex >= 0 && olderIndex > newerIndex,
+  );
   const invalidEvidenceForm = new FormData();
   invalidEvidenceForm.set('lookupSecret', attachmentPolicyCreated.lookupSecret);
   invalidEvidenceForm.set('expectedVersion', String(attachmentPolicyCreated.version));
@@ -480,7 +498,12 @@ async function runSuite() {
     expected: [201],
     body: { code: created.code, lookupSecret: created.lookupSecret },
   })).data;
-  check('Người dân thấy yêu cầu bổ sung', tracked.status === 'WAITING_CITIZEN' && tracked.messages.some(item => item.body.includes('cột đèn')));
+  check(
+    'Người dân thấy yêu cầu bổ sung mà không lộ tên cán bộ',
+    tracked.status === 'WAITING_CITIZEN'
+      && tracked.messages.some(item => item.body.includes('cột đèn'))
+      && tracked.messages.every(item => ['Người dân', 'Đơn vị xử lý'].includes(item.authorName)),
+  );
   check(
     'Tra cứu công dân nhận đủ mốc SLA chờ bổ sung',
     Boolean(tracked.firstResponseDueAt) && Boolean(tracked.firstResponseAt) && Boolean(tracked.waitingCitizenAt) && Boolean(tracked.citizenResponseDueAt),
@@ -697,9 +720,14 @@ async function runSuite() {
     'Bản xem trước đúng nội dung sẽ công khai và đã tự động ẩn PII',
     publicationPreview.data.title === mainSubmission.title
       && Boolean(publicationPreview.data.resolutionSummary)
+      && Array.isArray(publicationPreview.data.messages)
+      && publicationPreview.data.messages.length > 0
+      && publicationPreview.data.messages.every(item => ['Người dân', 'Đơn vị xử lý'].includes(item.authorName))
       && !publicationPreview.data.content.includes(mainSubmission.submitterName)
       && !publicationPreview.data.content.includes(mainSubmission.submitterPhone)
-      && !publicationPreview.data.content.includes(mainSubmission.submitterEmail),
+      && !publicationPreview.data.content.includes(mainSubmission.submitterEmail)
+      && !JSON.stringify(publicationPreview.data.messages).includes(mainSubmission.submitterPhone)
+      && !JSON.stringify(publicationPreview.data.messages).includes(mainSubmission.submitterEmail),
   );
 
   await request(`/feedbacks/${feedback.id}/publish`, {

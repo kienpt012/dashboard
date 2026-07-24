@@ -194,12 +194,18 @@ export type PublicFeedbackCreated={
   message:string;
 };
 
+export type PublicFeedbackMessage=Pick<FeedbackMessage,'body'|'authorName'|'createdAt'>;
+export type PublicFeedbackEvent = Pick<
+  FeedbackEvent,
+  'action' | 'fromStatus' | 'toStatus' | 'createdAt'
+>;
+
 export type PublicFeedbackDetail=Pick<Feedback,
   'code'|'title'|'content'|'category'|'priority'|'status'|'address'|'dueAt'|'firstResponseDueAt'|'firstResponseAt'|'waitingCitizenAt'|'citizenResponseDueAt'|'resolvedAt'|'closedAt'|'resolutionSummary'|'rejectionReason'|'closureReason'|'rating'|'ratingComment'|'reopenRequestedAt'|'reopenRequestReason'|'reopenRequestCount'|'reopenRequestDecision'|'reopenRequestDecisionNote'|'reopenRequestReviewedAt'|'createdAt'|'updatedAt'|'version'
 >&{
   departmentName?:string|null;
-  messages:FeedbackMessage[];
-  events:FeedbackEvent[];
+  messages:PublicFeedbackMessage[];
+  events:PublicFeedbackEvent[];
   attachments:FeedbackAttachment[];
 };
 
@@ -225,6 +231,46 @@ export type PublishedFeedbackDetail={
   resolvedAt:string|null;
   closedAt:string|null;
   publishedAt:string;
-  timeline:FeedbackEvent[];
-  messages:FeedbackMessage[];
+  timeline:PublicFeedbackEvent[];
+  messages:PublicFeedbackMessage[];
+};
+
+export type PublicTarget={
+  key:string;
+  code:string;
+  title:string;
+  description?:string|null;
+  unit:string;
+  year:number;
+  frequency:'MONTHLY'|'QUARTERLY'|'YEARLY';
+  dueDate:string;
+  targetValue:number;
+  currentValue:number;
+  progress:number;
+  department:string;
+  departmentColor:string;
+  departmentKey:string;
+  status:string;
+  publishedAt:string|null;
+};
+
+export type PublicOverview={
+  year:number;
+  total:number;
+  completed:number;
+  onTrack:number;
+  overallProgress:number;
+  updatedAt:string|null;
+  departments:Array<{key:string;name:string;color:string;total:number;completed:number;progress:number}>;
+  highlights:PublicTarget[];
+};
+
+export type PublicTargetListResponse={
+  year:number;
+  items:PublicTarget[];
+  total:number;
+  page:number;
+  pageSize:number;
+  pageCount:number;
+  department:string|null;
 };

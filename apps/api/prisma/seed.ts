@@ -44,8 +44,8 @@ async function main() {
     departmentIds[code] = department.id;
   }
 
-  const adminPassword = await bcrypt.hash('Admin@123', 10);
-  const demoPassword = await bcrypt.hash('Demo@1234', 10);
+  const adminPassword = await bcrypt.hash('Admin@12345', 10);
+  const demoPassword = await bcrypt.hash('Demo@12345', 10);
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     // Tuyệt đối không đặt lại mật khẩu, vai trò hay phòng ban khi chạy lại seed.
@@ -105,15 +105,13 @@ async function main() {
   const departmentMetadata = new Map(
     departments.map(([code, name, color]) => [code, { name, color }] as const),
   );
-  const existingTargetKeys = new Set(
+  const existingTargetCodes = new Set(
     (await prisma.target.findMany({
       where: {
-        year: 2026,
         code: { in: targets.map(([code]) => code) },
-        departmentId: { in: Object.values(departmentIds) },
       },
-      select: { code: true, year: true, departmentId: true },
-    })).map(target => `${target.year}|${target.departmentId}|${target.code}`),
+      select: { code: true },
+    })).map(target => target.code),
   );
 
   for (let index = 0; index < targets.length; index += 1) {
@@ -157,13 +155,7 @@ async function main() {
       publishedBy: isPublic ? admin.id : null,
     };
     await prisma.target.upsert({
-      where: {
-        year_departmentId_code: {
-          year: 2026,
-          departmentId: departmentIds[departmentCode],
-          code,
-        },
-      },
+      where: { code },
       // Không ghi đè số liệu, cấu hình công khai hoặc phiên bản đang vận hành.
       update: {},
       create: { code, ...targetData },
@@ -171,16 +163,10 @@ async function main() {
   }
 
   const first = await prisma.target.findUnique({
-    where: {
-      year_departmentId_code: {
-        year: 2026,
-        departmentId: departmentIds.KTHTDT,
-        code: 'CT-2026-002',
-      },
-    },
+    where: { code: 'CT-2026-002' },
   });
   if (
-    !existingTargetKeys.has(`2026|${departmentIds.KTHTDT}|CT-2026-002`)
+    !existingTargetCodes.has('CT-2026-002')
     && first
     && (await prisma.progressUpdate.count({ where: { targetId: first.id } })) === 0
   ) {

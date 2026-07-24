@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   // Nginx is the single public proxy in Docker. Trust exactly one hop so
   // per-client rate limits use X-Forwarded-For instead of the proxy IP.
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
