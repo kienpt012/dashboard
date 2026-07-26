@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { TargetDirection, TargetFrequency } from '@prisma/client';
-import { sanitizeLlmIndicators } from '../src/extraction-llm';
+import {
+  categoryFromSectionHeader,
+  cleanIndicatorDisplayName,
+  isTableHeaderArtifact,
+  parseSectionHeader,
+  sanitizeLlmIndicators,
+} from '../src/extraction-llm';
 import {
   chunkLikelyHasIndicators,
   detectDeadline,
@@ -153,6 +159,63 @@ test('JSON bị cắt giữa chừng được vá: giữ các chỉ tiêu đã s
   assert.ok(rescued.name.includes('Mầm non'));
   assert.equal(rescued.parentName, 'Tỷ lệ trường đạt chuẩn quốc gia');
   assert.ok(rescued.warnings.some(warning => warning.includes('khôi phục')));
+});
+
+test('tên chỉ tiêu được gọt đuôi đơn vị/giá trị dính từ cột bảng', () => {
+  assert.equal(cleanIndicatorDisplayName('Số căn hộ nhà ở xã hội đạt Căn'), 'Số căn hộ nhà ở xã hội');
+  assert.equal(cleanIndicatorDisplayName('Tỷ trọng kinh tế số chiếm từ %'), 'Tỷ trọng kinh tế số');
+  assert.equal(cleanIndicatorDisplayName('Mầm non đạt tỷ lệ % 38'), 'Mầm non đạt tỷ lệ');
+  assert.equal(cleanIndicatorDisplayName('Tỷ lệ che phủ rừng duy trì ổn định %'), 'Tỷ lệ che phủ rừng');
+  // Tên đã sạch giữ nguyên.
+  assert.equal(cleanIndicatorDisplayName('GRDP bình quân đầu người'), 'GRDP bình quân đầu người');
+});
+
+test('ô tiêu đề bảng bị lọc tất định, chỉ tiêu định tính hợp lệ được giữ', () => {
+  assert.equal(isTableHeaderArtifact('Chỉ tiêu', null, null), true);
+  assert.equal(isTableHeaderArtifact('Đơn vị tính', null, null), true);
+  assert.equal(isTableHeaderArtifact('Kế hoạch năm 2026', null, null), true);
+  assert.equal(isTableHeaderArtifact('Tỷ lệ hồ sơ giải quyết đúng hạn', 98, '%'), false);
+  // Chỉ tiêu định tính dài không giá trị vẫn được giữ cho người xác minh.
+  assert.equal(
+    isTableHeaderArtifact('Hoàn thành số hóa toàn bộ hồ sơ đất đai trên địa bàn phường', null, null),
+    false,
+  );
+});
+
+test('tiêu đề mục của chunk cho ra lĩnh vực tất định', () => {
+  const chunk = '[Mục: III Chỉ tiêu phát triển đô thị, bảo vệ môi trường]\n16 Tỷ lệ đất công viên...';
+  assert.equal(parseSectionHeader(chunk), 'III Chỉ tiêu phát triển đô thị, bảo vệ môi trường');
+  assert.equal(
+    categoryFromSectionHeader(parseSectionHeader(chunk)),
+    'phát triển đô thị, bảo vệ môi trường',
+  );
+  assert.equal(parseSectionHeader('không có mục'), null);
+  assert.equal(categoryFromSectionHeader(null), null);
+});
+
+test('tiêu đề mục không bao giờ trở thành chỉ tiêu cha', () => {
+  const chunkText = '[Mục: V Chỉ tiêu đảm bảo an ninh]\n23 Đảm bảo tuyển quân đạt 100% chỉ tiêu % 100 Bộ Tư lệnh';
+  const raw = JSON.stringify({
+    indicators: [{
+      indicatorName: 'Đảm bảo tuyển quân đạt chỉ tiêu',
+      ordinalNumber: '23',
+      parentIndicator: 'V Chỉ tiêu đảm bảo an ninh',
+      targetValue: 100,
+      unit: '%',
+      valueDirection: 'HIGHER_IS_BETTER',
+      reportingFrequency: null,
+      targetYear: 2026,
+      responsibleDepartment: 'Bộ Tư lệnh',
+      sourceQuote: '23 Đảm bảo tuyển quân đạt 100% chỉ tiêu % 100 Bộ Tư lệnh',
+      confidence: 0.95,
+      fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.3, deadline: 0.3, responsibleDepartment: 0.8 },
+    }],
+  });
+  const { indicators } = sanitizeLlmIndicators(raw, chunkText);
+  assert.equal(indicators.length, 1);
+  assert.equal(indicators[0].parentName, null);
+  assert.ok(!indicators[0].name.includes('Mục'));
+  assert.ok(!indicators[0].name.startsWith('V '));
 });
 
 test('bảng thật: đơn vị đứng trước giá trị vẫn bắt được ("% ≥ 95", "Căn 28.500")', () => {
