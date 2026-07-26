@@ -27,3 +27,11 @@
 12. Đối sánh phòng ban theo tên (Dice ≥ 0.62) có thể bỏ sót tên viết tắt lạ — khi đó để trống, người duyệt chọn.
 13. Worker chạy trong tiến trình API — restart API giữa chừng job sẽ được claim lại sau lease 10 phút (an toàn
     nhưng chậm); nhiều API instance vẫn an toàn nhờ SKIP LOCKED nhưng chưa được test tải.
+14. Worker single-flight xử lý trọn một job rồi mới sang job kế: tài liệu 64+ chunk chiếm hàng đợi
+    hàng giờ, chặn tài liệu nhỏ phía sau (head-of-line blocking — quan sát thực tế với Excel 8 sheet
+    của QĐ 333). Hướng xử lý: xen kẽ job nhỏ giữa các chunk, hoặc hàng đợi ưu tiên theo kích thước.
+15. Máy ngủ (sleep) giữa chừng làm treo lời gọi LLM đang chạy; job được reclaim sau lease nhưng
+    mất tiến độ chunk của lần chạy dở. Chunk-level checkpoint là cải tiến tương lai.
+16. Trường `category` của ứng viên thường bị model bỏ trống trên bảng thật (tiêu đề mục "I. Chỉ tiêu
+    về kinh tế" nằm ngoài dòng dữ liệu) — bộ lọc lĩnh vực của lệnh duyệt hàng loạt vì vậy dựa cả vào
+    tên chỉ tiêu; cải tiến: truyền tiêu đề mục gần nhất vào ngữ cảnh chunk khi trích xuất.

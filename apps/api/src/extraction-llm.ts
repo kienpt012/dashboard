@@ -187,9 +187,13 @@ export function sanitizeLlmIndicators(
   const normalizedChunk = normalizeQuoteForComparison(chunkText);
   const indicators: LlmExtractedIndicator[] = [];
   for (const raw of parsed.indicators.slice(0, 30) as RawLlmIndicator[]) {
-    const name = asTrimmedString(raw.indicatorName, 250);
+    let name = asTrimmedString(raw.indicatorName, 250);
     const sourceQuote = asTrimmedString(raw.sourceQuote, 600);
     if (!name || name.length < 5 || !sourceQuote) continue;
+    // Bảng thật hay dính số thứ tự vào tên ("17 Tỷ lệ che phủ rừng") — bóc bỏ
+    // khi phần còn lại vẫn là một cụm tên hợp lệ.
+    const withoutOrdinal = name.replace(/^\d{1,3}[.)\s]+\s*/, '');
+    if (withoutOrdinal.length >= 5 && /^\p{Lu}/u.test(withoutOrdinal)) name = withoutOrdinal;
 
     const warnings: string[] = [];
     const quoteFound = normalizedChunk.includes(normalizeQuoteForComparison(sourceQuote));

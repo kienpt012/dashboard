@@ -280,6 +280,16 @@ export class CopilotController {
         source: { tool: 'bulkApproveCandidates', parameters: { denied: 'role' } },
       };
     }
+    // Chống planner "bịa" bộ lọc: filter chỉ được áp dụng khi cụm từ đó thật sự
+    // xuất hiện trong câu lệnh gốc của người dùng (cùng nguyên tắc với kiểm chứng
+    // quote ở trích xuất).
+    const normalizedCommand = normalizeVietnamese(command);
+    if (plan.category && !normalizedCommand.includes(normalizeVietnamese(plan.category))) {
+      plan = { ...plan, category: null };
+    }
+    if (plan.documentQuery && !normalizedCommand.includes(normalizeVietnamese(plan.documentQuery))) {
+      plan = { ...plan, documentQuery: null };
+    }
     // Xác định văn bản người dùng nhắc tới.
     const documents = await this.prisma.sourceDocument.findMany({
       where: { status: DocumentStatus.PROCESSED },

@@ -56,3 +56,24 @@
 **Việc tiếp theo (phiên sau)**: prompt v3 (tần suất null-when-absent) + đo lại; RAG/pgvector (D-005);
 PROGRESS_UPDATE candidate (giai đoạn 9); Copilot v2 (thao tác ghi có preview); speech-to-text; CI;
 dataset-v2 văn bản thật + human correction rate.
+
+## 2026-07-27 · Phiên 2: Văn bản thật QĐ 333 + Copilot v2 (ra lệnh → xem trước → xác nhận)
+
+**Hoàn thành và ĐÃ KIỂM CHỨNG**
+- **Lần đầu chạy trên văn bản thật** (bộ QĐ 333/QĐ-UBND TPHCM): PL1 4 trang PDF ký số dạng bảng →
+  19 ứng viên, trong đó 13 sạch confidence 0.99 (giá trị khoảng ">10"→10, "2-3%"→2, "9.800 USD/người"
+  chuẩn; đơn vị chủ trì thật); 6 ứng viên lỗi tên tự bị chấm 0.64–0.7 (calibration đúng vai trò).
+  Chi tiết: docs/experiments/real-qd333-results.md.
+- Cải tiến robustness từ dữ liệu thật: nén ô gộp XLSX, prompt v3 (khoảng giá trị, tần suất
+  null-when-absent, chống nhầm STT), bóc STT khỏi tên, khử trùng lặp mờ giữa chunk (Dice ≥0.8),
+  trần EXTRACTION_MAX_LLM_CHUNKS + ExtractionJob.note cho tài liệu trăm trang.
+- **Copilot v2**: bảng AgentAction (PROPOSED→EXECUTED/CANCELLED/FAILED/EXPIRED, TTL 15 phút, CAS
+  chống double-click, chỉ người ra lệnh được xác nhận); intent BULK_APPROVE_CANDIDATES; khớp văn bản
+  từ cách gọi tự nhiên ("phụ lục 1" → VB-2026-0005); guard chống planner bịa bộ lọc; UI preview +
+  nút xác nhận/hủy mobile-friendly + bảng kết quả từng mục.
+- **E2E browser trên dữ liệu thật**: câu lệnh nguyên văn của người dùng → preview → xác nhận →
+  lần 1: 1 chỉ tiêu (lọc "kinh tế"); lần 2 "duyệt hết": **10/10 chỉ tiêu tạo thành công** —
+  tổng 11 Target thật (CT-2026-KTHTDT-001..008, CT-2026-VHXH-001..003) có provenance về PL1;
+  chuỗi audit COPILOT_QUERY → AGENT_ACTION_PROPOSED → AI_CANDIDATE_APPROVED×10 → AGENT_ACTION_EXECUTED.
+- Excel phường (8 sheet, 64 chunk) đang trích xuất nền; PL2 336 trang: chiến lược trần chunk + note
+  đã sẵn, cần thêm lọc trang theo đơn vị (KNOWN_ISSUES #14–16 ghi các bài học quy mô).

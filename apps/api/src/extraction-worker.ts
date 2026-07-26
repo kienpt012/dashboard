@@ -394,9 +394,19 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       select: { id: true, title: true, unit: true },
     });
 
+    // Vùng chồng lấn giữa hai chunk có thể sinh hai phiên bản của cùng một chỉ
+    // tiêu (một bản thường bị đứt dòng, tên lệch nhẹ): giữ bản confidence cao,
+    // loại bản mờ trùng tên ≥ 0.8 theo Dice.
+    const deduplicated: typeof pending = [];
+    for (const item of [...pending].sort((a, b) => b.payload.confidence - a.payload.confidence)) {
+      const nearDuplicate = deduplicated.some(kept =>
+        diceSimilarity(kept.payload.name, item.payload.name) >= 0.8);
+      if (!nearDuplicate) deduplicated.push(item);
+    }
+
     const candidateRows: Prisma.IndicatorCandidateCreateManyInput[] = [];
     const seenKeys = new Set<string>();
-    for (const item of pending) {
+    for (const item of deduplicated) {
       const payload = item.payload;
       const key = `${payload.name.toLowerCase().trim()}|${payload.targetValue ?? ''}|${payload.unit ?? ''}`;
       if (seenKeys.has(key)) continue;

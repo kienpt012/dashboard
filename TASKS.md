@@ -41,8 +41,12 @@ Trạng thái: ☐ chưa làm · ◐ đang làm · ☑ xong. Cập nhật mỗi 
   (fallback từ khóa khi Ollama tắt); 6 tool chỉ đọc (queryMetrics, queryTargets, findMissingReports,
   searchDocuments, listCandidates, help); số liệu 100% từ DB có kiểm soát phạm vi; audit COPILOT_QUERY;
   giao diện chat kèm bảng kết quả + dòng nguồn
-- ☐ v2: thao tác ghi có preview/xác nhận (createIndicators, assignIndicator…), hội thoại đa lượt lưu DB,
-  generateReport/comparePeriods khi có sổ kỳ báo cáo
+- ☑ v2 duyệt hàng loạt (27/07/2026): AgentAction PROPOSED→confirm/cancel (TTL 15', CAS chống double-click,
+  chỉ người ra lệnh), intent BULK_APPROVE_CANDIDATES khớp văn bản từ cách gọi tự nhiên ("phụ lục 1"),
+  guard chống planner bịa filter, preview + kết quả từng mục trên chat; kiểm chứng browser trên PL1
+  thật: 10/10 chỉ tiêu tạo trong 1 lần xác nhận
+- ☐ v2 tiếp: thao tác ghi khác (giao chỉ tiêu, cập nhật số liệu), hội thoại đa lượt lưu DB,
+  generateReport/comparePeriods khi có sổ kỳ báo cáo; voice input (giai đoạn 10)
 
 ## Giai đoạn 9: Cập nhật số liệu từ báo cáo (PROGRESS_UPDATE candidate)
 
