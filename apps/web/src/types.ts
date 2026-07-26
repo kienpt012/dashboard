@@ -274,3 +274,148 @@ export type PublicTargetListResponse={
   pageCount:number;
   department:string|null;
 };
+
+export type DocumentType='KE_HOACH'|'QUYET_DINH'|'CONG_VAN'|'BAO_CAO'|'NGHI_QUYET'|'PHU_LUC'|'KHAC';
+export type DocumentStatus='UPLOADED'|'PROCESSING'|'PROCESSED'|'FAILED';
+export type ExtractionJobKind='DOCUMENT_PARSE'|'INDICATOR_EXTRACT';
+export type ExtractionJobStatus='PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'|'DEAD_LETTER';
+export type CandidateKind='NEW_INDICATOR'|'PROGRESS_UPDATE';
+export type CandidateStatus='PROPOSED'|'APPROVED'|'REJECTED';
+export type ExtractionMethod='RULE_BASED'|'LLM';
+
+export const documentTypeLabels:Record<DocumentType,string>={
+  KE_HOACH:'Kế hoạch',
+  QUYET_DINH:'Quyết định',
+  CONG_VAN:'Công văn',
+  BAO_CAO:'Báo cáo',
+  NGHI_QUYET:'Nghị quyết',
+  PHU_LUC:'Phụ lục',
+  KHAC:'Khác',
+};
+
+export type SourceDocument={
+  id:string;
+  code:string;
+  title:string;
+  originalName:string;
+  mimeType:string;
+  size:number;
+  docType:DocumentType;
+  docNumber?:string|null;
+  issuedBy?:string|null;
+  issuedDate?:string|null;
+  status:DocumentStatus;
+  processingError?:string|null;
+  pageCount?:number|null;
+  hasTextLayer?:boolean|null;
+  ocrUsed:boolean;
+  year?:number|null;
+  departmentId?:string|null;
+  department?:Pick<Department,'id'|'code'|'name'|'color'>|null;
+  uploadedBy:Pick<User,'id'|'username'|'fullName'>;
+  version:number;
+  createdAt:string;
+  updatedAt:string;
+  candidateCount:number;
+};
+
+export type ExtractionJobInfo={
+  id:string;
+  kind:ExtractionJobKind;
+  status:ExtractionJobStatus;
+  attempts:number;
+  lastError?:string|null;
+  model?:string|null;
+  promptVersion?:string|null;
+  chunksTotal?:number|null;
+  chunksDone?:number|null;
+  startedAt?:string|null;
+  finishedAt?:string|null;
+  createdAt:string;
+};
+
+export type SourceDocumentDetail=SourceDocument&{
+  description?:string|null;
+  sha256?:string;
+  jobs:ExtractionJobInfo[];
+  counts:{
+    candidates:number;
+    pages:number;
+    chunks:number;
+    candidatesByStatus:Partial<Record<CandidateStatus,number>>;
+  };
+};
+
+export type DocumentPage={
+  pageNumber:number;
+  text:string;
+  ocrUsed:boolean;
+  ocrConfidence?:number|null;
+};
+
+export type DocumentTextResponse={
+  id:string;
+  code:string;
+  title:string;
+  status:DocumentStatus;
+  pageCount?:number|null;
+  pages:DocumentPage[];
+};
+
+export type CandidateFieldConfidence={
+  name?:number;
+  targetValue?:number;
+  unit?:number;
+  frequency?:number;
+  deadline?:number;
+  responsibleDepartment?:number;
+};
+
+export type IndicatorCandidate={
+  id:string;
+  documentId:string;
+  document:{id:string;code:string;title:string;docNumber?:string|null};
+  chunkId?:string|null;
+  pageNumber?:number|null;
+  kind:CandidateKind;
+  status:CandidateStatus;
+  extractionMethod:ExtractionMethod;
+  model?:string|null;
+  promptVersion?:string|null;
+  name:string;
+  description?:string|null;
+  category?:string|null;
+  unit?:string|null;
+  targetValue?:number|null;
+  actualValue?:number|null;
+  targetYear?:number|null;
+  direction?:'HIGHER_IS_BETTER'|'LOWER_IS_BETTER'|null;
+  frequency?:'MONTHLY'|'QUARTERLY'|'YEARLY'|null;
+  deadline?:string|null;
+  responsibleDepartmentName?:string|null;
+  responsibleDepartmentId?:string|null;
+  responsibleDepartment?:Pick<Department,'id'|'code'|'name'>|null;
+  coordinatingDepartments?:string|null;
+  legalBasis?:string|null;
+  sourceQuote?:string|null;
+  confidence:number;
+  fieldConfidence?:CandidateFieldConfidence|null;
+  warnings?:string[]|null;
+  isDuplicateSuspect:boolean;
+  matchedTargetId?:string|null;
+  matchedTarget?:{id:string;code:string;title:string}|null;
+  humanEdited:boolean;
+  editedFields?:string[]|null;
+  reviewNote?:string|null;
+  reviewedBy?:Pick<User,'id'|'username'|'fullName'>|null;
+  reviewedAt?:string|null;
+  createdTargetId?:string|null;
+  createdTarget?:{id:string;code:string;title:string}|null;
+  version:number;
+  createdAt:string;
+  updatedAt:string;
+};
+
+export type IndicatorCandidateDetail=IndicatorCandidate&{
+  chunk?:{id:string;chunkIndex:number;pageFrom:number;pageTo:number;text:string}|null;
+};

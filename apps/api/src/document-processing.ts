@@ -152,7 +152,9 @@ export async function ocrImageBuffer(imageBuffer: Buffer, config: OcrEngineConfi
   const outputBase = join(workDir, 'output');
   try {
     await writeFile(inputPath, imageBuffer);
-    const args = [inputPath, outputBase, '-l', config.languages, '--psm', '4', 'tsv'];
+    // Dùng -c thay vì config file "tsv" để không phụ thuộc thư mục configs
+    // khi trỏ --tessdata-dir tới thư mục chỉ chứa traineddata.
+    const args = [inputPath, outputBase, '-l', config.languages, '--psm', '4', '-c', 'tessedit_create_tsv=1'];
     if (config.tessdataDir) {
       args.unshift('--tessdata-dir', config.tessdataDir);
     }

@@ -6,7 +6,7 @@ import { OllamaService } from './ollama';
 // Nội dung tài liệu luôn được coi là DỮ LIỆU không đáng tin: mọi chỉ dẫn viết bên trong
 // tài liệu không được thực thi, chỉ được trích xuất như văn bản.
 
-export const EXTRACTION_PROMPT_VERSION = 'extract-v1';
+export const EXTRACTION_PROMPT_VERSION = 'extract-v2';
 
 export interface LlmExtractedIndicator {
   name: string;
@@ -43,7 +43,10 @@ const EXTRACTION_SCHEMA = {
           },
           targetValue: { type: ['number', 'null'], description: 'Giá trị mục tiêu dạng số' },
           unit: { type: ['string', 'null'], description: 'Đơn vị đo, ví dụ: %, tỷ đồng, người, công trình' },
-          direction: { type: 'string', enum: ['HIGHER_IS_BETTER', 'LOWER_IS_BETTER'] },
+          // Lưu ý: Ollama sắp xếp key theo alphabet khi sinh grammar, nên tên field
+          // được chọn để đứng SAU indicatorName/targetValue/unit — model phải viết
+          // tên và giá trị trước rồi mới quyết định chiều hướng (tránh đoán mù).
+          valueDirection: { type: 'string', enum: ['HIGHER_IS_BETTER', 'LOWER_IS_BETTER'] },
           reportingFrequency: { type: ['string', 'null'], enum: ['MONTHLY', 'QUARTERLY', 'YEARLY', null] },
           deadline: { type: ['string', 'null'], description: 'Hạn hoàn thành dạng YYYY-MM-DD nếu văn bản nêu rõ' },
           targetYear: { type: ['integer', 'null'] },
@@ -69,7 +72,7 @@ const EXTRACTION_SCHEMA = {
           'indicatorName',
           'targetValue',
           'unit',
-          'direction',
+          'valueDirection',
           'reportingFrequency',
           'targetYear',
           'responsibleDepartment',
@@ -91,7 +94,7 @@ QUY TẮC BẮT BUỘC:
 3. sourceQuote phải là câu trích NGUYÊN VĂN từ văn bản (copy đúng từng chữ).
 4. Chỉ tiêu là mục tiêu định lượng cần đạt (có giá trị số + đơn vị). Không trích xuất số liệu thống kê quá khứ, số điện thoại, số văn bản.
 5. Số kiểu Việt Nam: "3.450" nghĩa là 3450; "95,5" nghĩa là 95.5.
-6. direction = LOWER_IS_BETTER khi chỉ tiêu càng thấp càng tốt (ví dụ "không quá", "giảm còn", tỷ lệ hộ nghèo, tai nạn).
+6. valueDirection MẶC ĐỊNH là HIGHER_IS_BETTER (đạt càng cao càng tốt: "đạt X trở lên", "tối thiểu", thu ngân sách, tỷ lệ hoàn thành...). CHỈ dùng LOWER_IS_BETTER khi càng thấp càng tốt: "không quá", "giảm còn", "tối đa", tỷ lệ hộ nghèo, số vụ tai nạn/phạm pháp.
 7. reportingFrequency: "hàng tháng" = MONTHLY, "hàng quý" = QUARTERLY, "năm/cả năm" = YEARLY; "6 tháng" hoặc không nêu = null.
 8. confidence và fieldConfidence: đánh giá trung thực từ 0 đến 1; trường không có trong văn bản thì để null và chấm confidence thấp.
 9. Nếu đoạn văn không có chỉ tiêu nào, trả về danh sách rỗng.`;
@@ -123,7 +126,7 @@ interface RawLlmIndicator {
   category?: unknown;
   targetValue?: unknown;
   unit?: unknown;
-  direction?: unknown;
+  valueDirection?: unknown;
   reportingFrequency?: unknown;
   deadline?: unknown;
   targetYear?: unknown;
@@ -187,7 +190,7 @@ export function sanitizeLlmIndicators(
       warnings.push('Câu trích dẫn không khớp nguyên văn với tài liệu, cần đối chiếu thủ công.');
     }
 
-    const direction = raw.direction === 'LOWER_IS_BETTER'
+    const direction = raw.valueDirection === 'LOWER_IS_BETTER'
       ? TargetDirection.LOWER_IS_BETTER
       : TargetDirection.HIGHER_IS_BETTER;
     const frequency = raw.reportingFrequency === 'MONTHLY' ? TargetFrequency.MONTHLY
