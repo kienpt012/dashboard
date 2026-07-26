@@ -586,6 +586,8 @@ model IndicatorCandidate {
   model                     String?
   promptVersion             String?
   name                      String
+  ordinal                   String?
+  parentName                String?
   description               String?
   category                  String?
   unit                      String?

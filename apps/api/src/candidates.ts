@@ -122,6 +122,8 @@ const CANDIDATE_SELECT = {
   model: true,
   promptVersion: true,
   name: true,
+  ordinal: true,
+  parentName: true,
   description: true,
   category: true,
   unit: true,

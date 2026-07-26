@@ -129,6 +129,39 @@ test('đầu ra LLM hỏng định dạng không làm sập pipeline', () => {
   assert.deepEqual(sanitizeLlmIndicators('{"khac":1}', 'x'), { indicators: [], parseError: true });
 });
 
+test('JSON bị cắt giữa chừng được vá: giữ các chỉ tiêu đã sinh trọn vẹn', () => {
+  const fullItem = JSON.stringify({
+    indicatorName: 'Tỷ lệ trường đạt chuẩn quốc gia — Mầm non',
+    ordinalNumber: null,
+    parentIndicator: 'Tỷ lệ trường đạt chuẩn quốc gia',
+    targetValue: 38,
+    unit: '%',
+    valueDirection: 'HIGHER_IS_BETTER',
+    reportingFrequency: null,
+    targetYear: 2026,
+    responsibleDepartment: 'Sở Giáo dục và Đào tạo',
+    sourceQuote: 'Mầm non đạt tỷ lệ % 38 Sở Giáo dục',
+    confidence: 0.9,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.3, deadline: 0.3, responsibleDepartment: 0.8 },
+  });
+  const truncated = `{"indicators":[${fullItem},{"indicatorName":"Bị cắt giữa chừ`;
+  const result = sanitizeLlmIndicators(truncated, 'Mầm non đạt tỷ lệ % 38 Sở Giáo dục');
+  assert.equal(result.parseError, false);
+  assert.equal(result.indicators.length, 1);
+  const rescued = result.indicators[0];
+  // Tên thành phần đã mang tên cha; cảnh báo về việc khôi phục được ghi lại.
+  assert.ok(rescued.name.includes('Mầm non'));
+  assert.equal(rescued.parentName, 'Tỷ lệ trường đạt chuẩn quốc gia');
+  assert.ok(rescued.warnings.some(warning => warning.includes('khôi phục')));
+});
+
+test('bảng thật: đơn vị đứng trước giá trị vẫn bắt được ("% ≥ 95", "Căn 28.500")', () => {
+  const bhyt = findValueWithUnit('9 Tỷ lệ người dân tham gia bảo hiểm y tế % ≥ 95 Bảo hiểm xã hội');
+  assert.ok(bhyt.some(match => match.value === 95 && match.unit === '%'));
+  const nhaOXaHoi = findValueWithUnit('18 Số căn hộ nhà ở xã hội đạt Căn 28.500 Sở Xây dựng');
+  assert.ok(nhaOXaHoi.some(match => match.value === 28500 && match.unit.toLowerCase() === 'căn'));
+});
+
 test('chuẩn hóa tiếng Việt và độ tương đồng Dice phục vụ phát hiện trùng', () => {
   assert.equal(normalizeVietnamese('Phòng Văn hóa – Xã hội'), 'phong van hoa xa hoi');
   assert.ok(diceSimilarity('Tỷ lệ hồ sơ đúng hạn', 'Tỷ lệ giải quyết hồ sơ đúng hạn') > 0.7);

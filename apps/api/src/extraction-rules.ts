@@ -145,17 +145,36 @@ export function findValueWithUnit(text: string): ValueMatch[] {
   const unitAlternatives = UNIT_PATTERN
     .map(unit => unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|');
-  const regex = new RegExp(
+  const matches: ValueMatch[] = [];
+  const seenIndexes = new Set<number>();
+  // Văn xuôi: "đạt 98%" — giá trị đứng trước đơn vị.
+  const valueFirst = new RegExp(
     String.raw`(${NUMBER_REGEX})\s*(${unitAlternatives})(?![\p{L}\d])`,
     'giu',
   );
-  const matches: ValueMatch[] = [];
-  for (const match of text.matchAll(regex)) {
+  for (const match of text.matchAll(valueFirst)) {
     const value = parseVietnameseNumber(match[1]);
     if (value === null) continue;
     matches.push({ value, unit: normalizeUnit(match[2]), index: match.index ?? 0, raw: match[0] });
+    seenIndexes.add(match.index ?? 0);
   }
-  return matches;
+  // Bảng: cột Đơn vị tính đứng TRƯỚC cột Kế hoạch — "% ≥ 95", "Căn 28.500",
+  // "m2/người 0,8" (có thể chen dấu so sánh).
+  const unitFirst = new RegExp(
+    String.raw`(?<![\p{L}\d])(${unitAlternatives})\s*(?:≥|≤|>|<|từ)?\s*(${NUMBER_REGEX})(?![\d.])`,
+    'giu',
+  );
+  for (const match of text.matchAll(unitFirst)) {
+    const value = parseVietnameseNumber(match[2]);
+    if (value === null) continue;
+    const index = match.index ?? 0;
+    // Tránh bắt trùng vùng đã khớp theo chiều value-first (vd "30 %/GRDP").
+    const overlapsExisting = matches.some(existing =>
+      index < existing.index + existing.raw.length && existing.index < index + match[0].length);
+    if (overlapsExisting) continue;
+    matches.push({ value, unit: normalizeUnit(match[1]), index, raw: match[0] });
+  }
+  return matches.sort((a, b) => a.index - b.index);
 }
 
 function normalizeUnit(unit: string): string {

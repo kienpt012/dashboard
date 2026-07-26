@@ -51,7 +51,7 @@ export class OllamaService {
   async chatStructured(
     messages: OllamaChatMessage[],
     schema: Record<string, unknown>,
-    options?: { temperature?: number; model?: string },
+    options?: { temperature?: number; model?: string; numCtx?: number },
   ): Promise<OllamaChatResult> {
     const startedAt = Date.now();
     const model = options?.model || this.extractModel;
@@ -69,7 +69,7 @@ export class OllamaService {
           format: schema,
           options: {
             temperature: options?.temperature ?? 0.1,
-            num_ctx: this.numCtx,
+            num_ctx: options?.numCtx ?? this.numCtx,
           },
           messages,
         }),

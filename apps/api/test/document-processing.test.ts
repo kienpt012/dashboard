@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   chunkParsedPages,
   detectDocumentKind,
+  groupTableRows,
+  isTableLikePage,
   normalizeExtractedText,
   parseTesseractTsv,
 } from '../src/document-processing';
@@ -80,6 +82,43 @@ test('đoạn đơn quá dài (bảng lớn) được cắt cứng theo dòng, k
   for (const chunk of chunks) {
     assert.equal(chunk.pageFrom, 3);
     assert.equal(chunk.pageTo, 3);
+  }
+});
+
+test('trang bảng chỉ tiêu: chunk theo cụm hàng, giữ tiêu đề mục và không tách hàng nối dòng', () => {
+  const tableText = [
+    'II Chỉ tiêu văn hóa - xã hội',
+    '9 Tỷ lệ người dân tham gia bảo hiểm y tế % ≥ 95 Bảo hiểm xã hội',
+    'Thành phố',
+    '- Tỷ lệ người dân tham gia bảo hiểm xã hội đạt ít',
+    'nhất 58% lực lượng lao động trong độ tuổi % ≥ 58',
+    '10 Tỷ lệ trường đạt chuẩn quốc gia',
+    '- Mầm non đạt tỷ lệ % 38 Sở Giáo dục',
+    '- Tiểu học đạt tỷ lệ % 35,3 Sở Giáo dục',
+  ].join('\n');
+  assert.equal(isTableLikePage(tableText), true);
+  const rows = groupTableRows(tableText, 2);
+  // Dòng nối ("Thành phố", "nhất 58%...") phải dính vào hàng phía trên.
+  const bhytRow = rows.find(row => row.text.includes('bảo hiểm y tế'));
+  assert.ok(bhytRow && bhytRow.text.includes('Thành phố'));
+  const bhxhRow = rows.find(row => row.text.startsWith('- Tỷ lệ người dân tham gia bảo hiểm xã hội'));
+  assert.ok(bhxhRow && bhxhRow.text.includes('nhất 58%'));
+
+  const chunks = chunkParsedPages([{ pageNumber: 2, text: tableText, ocrUsed: false }]);
+  assert.equal(chunks.length, 1);
+  assert.ok(chunks[0].text.startsWith('[Mục: II Chỉ tiêu văn hóa - xã hội]'));
+  assert.equal(chunks[0].pageFrom, 2);
+});
+
+test('bảng dài được cắt theo số hàng dữ liệu, mỗi chunk mang lại tiêu đề mục', () => {
+  const lines = ['I Chỉ tiêu về kinh tế'];
+  for (let i = 1; i <= 20; i += 1) lines.push(`${i} Chỉ tiêu số ${i} đạt mức kế hoạch % ${i * 2} Sở Ngành ${i}`);
+  const chunks = chunkParsedPages([{ pageNumber: 1, text: lines.join('\n'), ocrUsed: false }]);
+  assert.ok(chunks.length >= 2, `cần >=2 chunk, được ${chunks.length}`);
+  for (const chunk of chunks) {
+    assert.ok(chunk.text.includes('[Mục: I Chỉ tiêu về kinh tế]'));
+    const dataRows = chunk.text.split('\n').filter(line => /^\d{1,2}\s/.test(line)).length;
+    assert.ok(dataRows <= 8, `chunk có ${dataRows} hàng dữ liệu (>8)`);
   }
 });
 

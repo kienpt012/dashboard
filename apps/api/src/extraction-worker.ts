@@ -395,12 +395,18 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     });
 
     // Vùng chồng lấn giữa hai chunk có thể sinh hai phiên bản của cùng một chỉ
-    // tiêu (một bản thường bị đứt dòng, tên lệch nhẹ): giữ bản confidence cao,
-    // loại bản mờ trùng tên ≥ 0.8 theo Dice.
+    // tiêu (một bản thường bị đứt dòng, tên lệch nhẹ): giữ bản confidence cao.
+    // Chỉ coi là trùng khi tên rất giống VÀ cùng giá trị+đơn vị — các họ chỉ tiêu
+    // thành phần ("Tỷ lệ nước thải... xử lý" vs "... thu gom") có tên gần nhau
+    // nhưng giá trị khác, tuyệt đối không được gộp.
     const deduplicated: typeof pending = [];
     for (const item of [...pending].sort((a, b) => b.payload.confidence - a.payload.confidence)) {
       const nearDuplicate = deduplicated.some(kept =>
-        diceSimilarity(kept.payload.name, item.payload.name) >= 0.8);
+        diceSimilarity(kept.payload.name, item.payload.name) >= 0.8
+        && kept.payload.targetValue !== null
+        && item.payload.targetValue !== null
+        && Math.abs(kept.payload.targetValue - item.payload.targetValue) < 1e-9
+        && (kept.payload.unit ?? '').toLowerCase().trim() === (item.payload.unit ?? '').toLowerCase().trim());
       if (!nearDuplicate) deduplicated.push(item);
     }
 
@@ -436,6 +442,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         model: isLlm ? this.ollama.extractModel : null,
         promptVersion: isLlm ? EXTRACTION_PROMPT_VERSION : 'rule-v1',
         name: payload.name,
+        ordinal: llmPayload?.ordinal ?? null,
+        parentName: llmPayload?.parentName ?? null,
         description: llmPayload?.description ?? null,
         category: llmPayload?.category ?? null,
         unit: payload.unit,

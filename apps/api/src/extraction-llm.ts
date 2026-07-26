@@ -1,15 +1,18 @@
 import { TargetDirection, TargetFrequency } from '@prisma/client';
 import { Logger } from '@nestjs/common';
+import { diceSimilarity as diceSimilarityForNames } from './matching';
 import { OllamaService } from './ollama';
 
 // Trích xuất chỉ tiêu bằng LLM local với JSON schema ràng buộc (grammar-constrained).
 // Nội dung tài liệu luôn được coi là DỮ LIỆU không đáng tin: mọi chỉ dẫn viết bên trong
 // tài liệu không được thực thi, chỉ được trích xuất như văn bản.
 
-export const EXTRACTION_PROMPT_VERSION = 'extract-v3';
+export const EXTRACTION_PROMPT_VERSION = 'extract-v4';
 
 export interface LlmExtractedIndicator {
   name: string;
+  ordinal: string | null;
+  parentName: string | null;
   description: string | null;
   category: string | null;
   targetValue: number | null;
@@ -35,7 +38,9 @@ const EXTRACTION_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          indicatorName: { type: 'string', description: 'Tên chỉ tiêu, ngắn gọn, không kèm giá trị số' },
+          indicatorName: { type: 'string', description: 'Tên chỉ tiêu, ngắn gọn, không kèm giá trị số và không kèm số thứ tự' },
+          ordinalNumber: { type: ['string', 'null'], description: 'Số thứ tự (STT) của dòng trong bảng nếu có, ví dụ "9"; dòng "-" thì null' },
+          parentIndicator: { type: ['string', 'null'], description: 'Với dòng "-" (thành phần): tên chỉ tiêu đánh số gần nhất phía trên; dòng thường thì null' },
           description: { type: ['string', 'null'] },
           category: {
             type: ['string', 'null'],
@@ -70,6 +75,8 @@ const EXTRACTION_SCHEMA = {
         },
         required: [
           'indicatorName',
+          'ordinalNumber',
+          'parentIndicator',
           'targetValue',
           'unit',
           'valueDirection',
@@ -102,9 +109,15 @@ QUY TẮC BẮT BUỘC:
    nguyên văn khoảng vào description; "9.800 USD/người" → targetValue 9800, unit "USD/người".
 9. Bảng nhiều cột: mỗi DÒNG dữ liệu là một chỉ tiêu; cột thường theo thứ tự STT, tên chỉ tiêu, đơn vị tính,
    kế hoạch/mục tiêu, đơn vị chủ trì, ghi chú. Đừng nhầm số thứ tự (STT) hoặc số hiệu mục (I, II, 1.2)
-   với giá trị mục tiêu.
-10. confidence và fieldConfidence: đánh giá trung thực từ 0 đến 1; trường không có trong văn bản thì để null và chấm confidence thấp.
-11. Nếu đoạn văn không có chỉ tiêu nào, trả về danh sách rỗng.`;
+   với giá trị mục tiêu. Trong bảng, ĐƠN VỊ thường đứng TRƯỚC giá trị: "% ≥ 95" nghĩa là ≥95% (lấy 95);
+   "Căn 28.500" nghĩa là 28500 căn; "m2/người 0,8" nghĩa là 0.8 m2/người.
+10. Dòng bắt đầu bằng "-" là CHỈ TIÊU THÀNH PHẦN của chỉ tiêu đánh số gần nhất phía trên: điền
+   parentIndicator = tên chỉ tiêu cha, ordinalNumber = null. Dòng đánh số điền ordinalNumber = STT.
+   Dòng cha chỉ là tiêu đề nhóm KHÔNG có giá trị số riêng (ví dụ "Tỷ lệ trường đạt chuẩn quốc gia" rồi
+   liệt kê Mầm non/Tiểu học...) thì KHÔNG tạo chỉ tiêu cho dòng cha — chỉ tạo cho từng thành phần.
+11. TRÍCH XUẤT ĐỦ MỌI DÒNG dữ liệu trong đoạn, không được bỏ sót hay gộp dòng.
+12. confidence và fieldConfidence: đánh giá trung thực từ 0 đến 1; trường không có trong văn bản thì để null và chấm confidence thấp.
+13. Nếu đoạn văn không có chỉ tiêu nào, trả về danh sách rỗng.`;
 
 export interface LlmExtractionContext {
   documentTitle?: string;
@@ -129,6 +142,8 @@ export function buildExtractionMessages(chunkText: string, context: LlmExtractio
 
 interface RawLlmIndicator {
   indicatorName?: unknown;
+  ordinalNumber?: unknown;
+  parentIndicator?: unknown;
   description?: unknown;
   category?: unknown;
   targetValue?: unknown;
@@ -173,15 +188,35 @@ function normalizeQuoteForComparison(value: string): string {
 
 // Kiểm chứng và làm sạch đầu ra LLM trước khi ghi nhận: đầu ra model cũng là dữ
 // liệu không đáng tin cho tới khi được validate.
+// Khi generation bị cắt giữa chừng (hết ngân sách token), JSON hỏng ở phần đuôi
+// nhưng các phần tử đã sinh trọn vẹn vẫn cứu được: cắt lùi về dấu đóng object
+// gần nhất rồi tự đóng mảng — thà nhận N-1 chỉ tiêu còn hơn mất cả đoạn.
+export function repairTruncatedIndicatorJson(rawContent: string): { indicators?: unknown } | null {
+  for (let cut = rawContent.lastIndexOf('}'); cut > 0; cut = rawContent.lastIndexOf('}', cut - 1)) {
+    const attempt = `${rawContent.slice(0, cut + 1)}]}`;
+    try {
+      const parsed = JSON.parse(attempt) as { indicators?: unknown };
+      if (Array.isArray(parsed.indicators)) return parsed;
+    } catch {
+      // thử vị trí đóng trước đó
+    }
+  }
+  return null;
+}
+
 export function sanitizeLlmIndicators(
   rawContent: string,
   chunkText: string,
-): { indicators: LlmExtractedIndicator[]; parseError: boolean } {
+): { indicators: LlmExtractedIndicator[]; parseError: boolean; repaired?: boolean } {
   let parsed: { indicators?: unknown };
+  let repaired = false;
   try {
     parsed = JSON.parse(rawContent) as { indicators?: unknown };
   } catch {
-    return { indicators: [], parseError: true };
+    const rescue = repairTruncatedIndicatorJson(rawContent);
+    if (!rescue) return { indicators: [], parseError: true };
+    parsed = rescue;
+    repaired = true;
   }
   if (!Array.isArray(parsed.indicators)) return { indicators: [], parseError: true };
   const normalizedChunk = normalizeQuoteForComparison(chunkText);
@@ -194,6 +229,15 @@ export function sanitizeLlmIndicators(
     // khi phần còn lại vẫn là một cụm tên hợp lệ.
     const withoutOrdinal = name.replace(/^\d{1,3}[.)\s]+\s*/, '');
     if (withoutOrdinal.length >= 5 && /^\p{Lu}/u.test(withoutOrdinal)) name = withoutOrdinal;
+
+    const ordinal = asTrimmedString(raw.ordinalNumber, 10);
+    let parentName = asTrimmedString(raw.parentIndicator, 250);
+    if (parentName && diceSimilarityForNames(parentName, name) >= 0.9) parentName = null;
+    // Tên hiển thị của thành phần mang theo tên cha để tự đứng vững ngoài ngữ cảnh bảng.
+    if (parentName && !normalizeQuoteForComparison(name).includes(normalizeQuoteForComparison(parentName))) {
+      const composed = `${parentName} — ${name}`;
+      name = composed.length > 250 ? `${composed.slice(0, 247)}...` : composed;
+    }
 
     const warnings: string[] = [];
     const quoteFound = normalizedChunk.includes(normalizeQuoteForComparison(sourceQuote));
@@ -238,8 +282,14 @@ export function sanitizeLlmIndicators(
     const targetValue = asFiniteNumber(raw.targetValue);
     if (targetValue === null) warnings.push('Không xác định được giá trị mục tiêu dạng số.');
 
+    if (repaired) {
+      warnings.push('Đoạn nguồn dài khiến kết quả bị cắt; hệ thống đã khôi phục phần đầy đủ.');
+    }
+
     indicators.push({
       name,
+      ordinal,
+      parentName,
       description: asTrimmedString(raw.description, 1000),
       category: asTrimmedString(raw.category, 100),
       targetValue,
@@ -272,7 +322,9 @@ export class LlmIndicatorExtractor {
     const result = await this.ollama.chatStructured(
       buildExtractionMessages(chunkText, context),
       EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
-      { temperature: 0.1 },
+      // Trích xuất cần ngân sách sinh lớn (mỗi chỉ tiêu ~180 token đầu ra):
+      // 8192 để chunk bảng 8 dòng không bao giờ bị cắt — bài học PL1 QĐ333.
+      { temperature: 0.1, numCtx: 8192 },
     );
     const { indicators, parseError } = sanitizeLlmIndicators(result.content, chunkText);
     if (parseError) {

@@ -365,10 +365,105 @@ function splitTextIntoPseudoPages(text: string): ParsedPage[] {
 
 const CHUNK_TARGET_CHARS = 1800;
 const CHUNK_OVERLAP_CHARS = 200;
+// Bảng chỉ tiêu: mỗi chunk tối đa ~8 dòng dữ liệu để đầu ra LLM (~180 token/chỉ tiêu)
+// không bao giờ vượt ngân sách sinh — bài học từ PL1 QĐ333: chunk 12 dòng làm JSON
+// bị cắt giữa chừng và mất trọn chunk.
+const TABLE_ROWS_PER_CHUNK = 8;
 
-// Cắt tài liệu thành đoạn ~1800 ký tự theo ranh giới đoạn văn, giữ dấu vết trang
-// để mọi kết quả trích xuất truy ngược được về đúng trang nguồn.
+// Dòng bắt đầu một hàng dữ liệu bảng: số thứ tự (1-2 chữ số) hoặc gạch đầu dòng thành phần.
+const TABLE_ROW_START = /^\s*(\d{1,2}|-)\s+\S/;
+// Tiêu đề mục La Mã ("II Chỉ tiêu văn hóa - xã hội") — giữ làm ngữ cảnh cho mọi chunk thuộc mục.
+const SECTION_HEADER = /^\s*(?:[IVX]{1,4})\s+\p{Lu}/u;
+
+interface TableRow {
+  text: string;
+  page: number;
+  isSection: boolean;
+}
+
+// Trang "dạng bảng" khi có từ 3 hàng dữ liệu trở lên.
+export function isTableLikePage(text: string): boolean {
+  let rowStarts = 0;
+  for (const line of text.split('\n')) {
+    if (TABLE_ROW_START.test(line)) rowStarts += 1;
+    if (rowStarts >= 3) return true;
+  }
+  return false;
+}
+
+// Gom các dòng vật lý thành hàng logic của bảng (hàng mới bắt đầu bằng STT hoặc "-";
+// dòng nối tiếp thuộc hàng trước do PDF xuống dòng giữa ô).
+export function groupTableRows(text: string, page: number): TableRow[] {
+  const rows: TableRow[] = [];
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (SECTION_HEADER.test(trimmed) && trimmed.length < 80) {
+      rows.push({ text: trimmed, page, isSection: true });
+      continue;
+    }
+    if (TABLE_ROW_START.test(trimmed) || !rows.length || rows[rows.length - 1].isSection) {
+      rows.push({ text: trimmed, page, isSection: false });
+    } else {
+      rows[rows.length - 1].text += ` ${trimmed}`;
+    }
+  }
+  return rows;
+}
+
+// Cắt tài liệu thành đoạn theo ranh giới đoạn văn (văn xuôi) hoặc theo cụm hàng
+// (bảng chỉ tiêu), luôn giữ dấu vết trang để truy ngược nguồn. Chunk bảng được
+// gắn tiêu đề mục gần nhất làm ngữ cảnh (phục vụ lĩnh vực + chỉ tiêu cha).
 export function chunkParsedPages(pages: ParsedPage[]): DocumentChunkInput[] {
+  const tableLike = pages.filter(page => isTableLikePage(page.text)).length >= Math.max(1, Math.ceil(pages.length / 2));
+  if (tableLike) return chunkTablePages(pages);
+  return chunkProsePages(pages);
+}
+
+function chunkTablePages(pages: ParsedPage[]): DocumentChunkInput[] {
+  const rows: TableRow[] = [];
+  for (const page of pages) {
+    rows.push(...groupTableRows(page.text, page.pageNumber));
+  }
+  const chunks: DocumentChunkInput[] = [];
+  let currentHeader = '';
+  let buffer: TableRow[] = [];
+  const flush = () => {
+    const dataRows = buffer.filter(row => !row.isSection);
+    if (!dataRows.length) {
+      buffer = [];
+      return;
+    }
+    const text = [
+      currentHeader ? `[Mục: ${currentHeader}]` : null,
+      ...buffer.map(row => row.text),
+    ].filter((line): line is string => Boolean(line)).join('\n');
+    chunks.push({
+      chunkIndex: chunks.length,
+      pageFrom: Math.min(...dataRows.map(row => row.page)),
+      pageTo: Math.max(...dataRows.map(row => row.page)),
+      text,
+      charCount: text.length,
+    });
+    buffer = [];
+  };
+  for (const row of rows) {
+    if (row.isSection) {
+      flush();
+      currentHeader = row.text;
+      continue;
+    }
+    buffer.push(row);
+    const dataCount = buffer.filter(item => !item.isSection).length;
+    // Không cắt ngay sau hàng cha (hàng kế tiếp có thể là thành phần "-" của nó).
+    const nextRowIsSub = false;
+    if (dataCount >= TABLE_ROWS_PER_CHUNK && !nextRowIsSub) flush();
+  }
+  flush();
+  return chunks;
+}
+
+function chunkProsePages(pages: ParsedPage[]): DocumentChunkInput[] {
   const segments: { text: string; page: number }[] = [];
   for (const page of pages) {
     for (const paragraph of page.text.split(/\n\n+/)) {
