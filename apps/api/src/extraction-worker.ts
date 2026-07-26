@@ -21,7 +21,13 @@ import {
   resolveOcrConfig,
   type ParsedDocument,
 } from './document-processing';
-import { EXTRACTION_PROMPT_VERSION, LlmIndicatorExtractor, type LlmExtractedIndicator } from './extraction-llm';
+import {
+  categoryFromSectionHeader,
+  EXTRACTION_PROMPT_VERSION,
+  LlmIndicatorExtractor,
+  parseSectionHeader,
+  type LlmExtractedIndicator,
+} from './extraction-llm';
 import { chunkLikelyHasIndicators, extractIndicatorsFromText, type RuleExtractedIndicator } from './extraction-rules';
 import { diceSimilarity, matchDepartmentByName } from './matching';
 import { OllamaService } from './ollama';
@@ -410,6 +416,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       if (!nearDuplicate) deduplicated.push(item);
     }
 
+    const chunkTextById = new Map(chunks.map(chunk => [chunk.id, chunk.text]));
     const candidateRows: Prisma.IndicatorCandidateCreateManyInput[] = [];
     const seenKeys = new Set<string>();
     for (const item of deduplicated) {
@@ -445,7 +452,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         ordinal: llmPayload?.ordinal ?? null,
         parentName: llmPayload?.parentName ?? null,
         description: llmPayload?.description ?? null,
-        category: llmPayload?.category ?? null,
+        // Lĩnh vực: model điền, không có thì suy tất định từ tiêu đề mục của chunk.
+        category: llmPayload?.category
+          ?? categoryFromSectionHeader(parseSectionHeader(chunkTextById.get(item.chunkId) ?? '')),
         unit: payload.unit,
         targetValue: payload.targetValue,
         targetYear: payload.targetYear ?? document.year ?? null,

@@ -186,6 +186,61 @@ function normalizeQuoteForComparison(value: string): string {
     .trim();
 }
 
+// Tiêu đề mục được chunking gắn vào đầu đoạn dạng "[Mục: II Chỉ tiêu văn hóa - xã hội]".
+export function parseSectionHeader(chunkText: string): string | null {
+  const match = chunkText.match(/^\[Mục:\s*([^\]]+)\]/u);
+  return match ? match[1].trim() : null;
+}
+
+// Suy lĩnh vực từ tiêu đề mục: "II Chỉ tiêu văn hóa - xã hội" → "văn hóa - xã hội".
+export function categoryFromSectionHeader(header: string | null): string | null {
+  if (!header) return null;
+  const cleaned = header
+    .replace(/^[IVX]{1,4}\s+/u, '')
+    .replace(/^chỉ tiêu\s+(về\s+)?/iu, '')
+    .trim();
+  return cleaned.length >= 3 ? cleaned.slice(0, 100) : null;
+}
+
+// Tên chỉ tiêu trong bảng hay dính đuôi cột đơn vị/giá trị ("... đạt Căn", "... % 38",
+// "... chiếm từ %"): gọt phần đuôi vô nghĩa, giữ nguyên văn trong sourceQuote.
+export function cleanIndicatorDisplayName(name: string): string {
+  let cleaned = name.trim();
+  for (let pass = 0; pass < 3; pass += 1) {
+    const before = cleaned;
+    cleaned = cleaned
+      .replace(/\s*\d{1,3}(?:\.\d{3})*(?:,\d+)?\s*$/u, '')
+      .replace(/\s*(?:%\/GRDP|m2\/người|m²\/người|%|căn|hạng|lần|usd\/người)\s*$/iu, '')
+      .replace(/\s*(?:đạt|chiếm từ|chiếm|khoảng|xếp hạng|từ hạng|tối thiểu|ít nhất|duy trì ổn định)\s*$/iu, '')
+      .replace(/[\s—–-]+$/u, '')
+      .trim();
+    if (cleaned === before) break;
+  }
+  return cleaned.length >= 5 ? cleaned : name.trim();
+}
+
+// Ô tiêu đề bảng bị model tưởng là chỉ tiêu — lọc tất định trước khi ghi.
+const TABLE_HEADER_NAMES = new Set([
+  'chi tieu', 'don vi tinh', 'ke hoach nam 2026', 'ke hoach', 'don vi chu tri',
+  'don vi chu tri bao cao', 'ghi chu', 'stt', 'ten chi tieu',
+]);
+
+export function isTableHeaderArtifact(name: string, targetValue: number | null, unit: string | null): boolean {
+  const normalized = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Đ/g, 'D')
+    .replace(/đ/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (TABLE_HEADER_NAMES.has(normalized.replace(/\s*\d{4}$/, '').trim()) || TABLE_HEADER_NAMES.has(normalized)) {
+    return true;
+  }
+  return targetValue === null && unit === null && name.length < 30;
+}
+
 // Kiểm chứng và làm sạch đầu ra LLM trước khi ghi nhận: đầu ra model cũng là dữ
 // liệu không đáng tin cho tới khi được validate.
 // Khi generation bị cắt giữa chừng (hết ngân sách token), JSON hỏng ở phần đuôi
@@ -233,6 +288,16 @@ export function sanitizeLlmIndicators(
     const ordinal = asTrimmedString(raw.ordinalNumber, 10);
     let parentName = asTrimmedString(raw.parentIndicator, 250);
     if (parentName && diceSimilarityForNames(parentName, name) >= 0.9) parentName = null;
+    // Tiêu đề mục ([Mục: V Chỉ tiêu đảm bảo an ninh]) không phải chỉ tiêu cha —
+    // model hay nhầm khi cả chunk chỉ có các dòng rời.
+    const sectionHeader = parseSectionHeader(chunkText);
+    if (parentName && sectionHeader
+      && (diceSimilarityForNames(parentName, sectionHeader) >= 0.75
+        || normalizeQuoteForComparison(sectionHeader).includes(normalizeQuoteForComparison(parentName)))) {
+      parentName = null;
+    }
+    name = cleanIndicatorDisplayName(name);
+    if (parentName) parentName = cleanIndicatorDisplayName(parentName);
     // Tên hiển thị của thành phần mang theo tên cha để tự đứng vững ngoài ngữ cảnh bảng.
     if (parentName && !normalizeQuoteForComparison(name).includes(normalizeQuoteForComparison(parentName))) {
       const composed = `${parentName} — ${name}`;
@@ -282,6 +347,10 @@ export function sanitizeLlmIndicators(
     const targetValue = asFiniteNumber(raw.targetValue);
     if (targetValue === null) warnings.push('Không xác định được giá trị mục tiêu dạng số.');
 
+    const unitValue = asTrimmedString(raw.unit, 50);
+    // Ô tiêu đề bảng ("Chỉ tiêu", "Đơn vị tính"...) không phải chỉ tiêu — bỏ tất định.
+    if (isTableHeaderArtifact(name, targetValue, unitValue)) continue;
+
     if (repaired) {
       warnings.push('Đoạn nguồn dài khiến kết quả bị cắt; hệ thống đã khôi phục phần đầy đủ.');
     }
@@ -293,7 +362,7 @@ export function sanitizeLlmIndicators(
       description: asTrimmedString(raw.description, 1000),
       category: asTrimmedString(raw.category, 100),
       targetValue,
-      unit: asTrimmedString(raw.unit, 50),
+      unit: unitValue,
       direction,
       frequency,
       deadline,
