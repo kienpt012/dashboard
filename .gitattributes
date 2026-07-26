@@ -1,0 +1,9 @@
+* text=auto
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gguf binary
