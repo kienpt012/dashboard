@@ -1,6 +1,6 @@
 # Kịch bản demo — vertical slice AI
 
-Thời lượng ~15 phút. Điều kiện: API + web + Postgres chạy, Ollama đang bật (`ollama serve`), Tesseract cài sẵn, đã có `samples/` (sinh bằng `python scripts/generate-sample-documents.py`). Lưu ý: giao diện Kho văn bản/Xác minh trích xuất đang ở trạng thái ◐ hoàn thiện (TASKS.md) — chạy lại checklist này sau khi frontend chốt.
+Thời lượng ~15 phút. Điều kiện: API + web + Postgres chạy, Ollama đang bật (`ollama serve`), Tesseract cài sẵn, đã có `samples/` (sinh bằng `python scripts/generate-sample-documents.py`). Toàn bộ kịch bản đã được kiểm chứng bằng browser ngày 26/07/2026 (xem PROGRESS.md). Có thể chốt demo bằng IOC Copilot (`/admin/copilot`): hỏi "Chỉ tiêu nào sắp trễ hạn?" — trả lời từ dữ liệu thật kèm nguồn.
 
 ## Các bước
 

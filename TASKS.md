@@ -16,12 +16,12 @@ Trạng thái: ☐ chưa làm · ◐ đang làm · ☑ xong. Cập nhật mỗi 
 - ☑ Worker parse (PDF text/OCR, DOCX, XLSX, ảnh) + chunking + job chain
 - ☑ Trích xuất hybrid rule + LLM, confidence per-field, provenance, dedupe, khớp phòng ban, nghi trùng chỉ tiêu
 - ☑ API candidates: sửa/duyệt (tạo Target)/từ chối + audit
-- ◐ Frontend: Kho văn bản + màn hình xác minh trích xuất (đang chạy agent)
-- ◐ E2E bằng tài liệu mẫu (`samples/`, sinh bởi `scripts/generate-sample-documents.py`)
-- ☐ Unit test cho: detectDocumentKind, chunkParsedPages, extraction-rules, sanitizeLlmIndicators, matching, candidates approve/reject
-- ☐ QA e2e script `scripts/qa-documents.mjs` theo mẫu qa-*.mjs
-- ☐ Cập nhật docker-compose (OLLAMA_BASE_URL, TESSERACT trong image api), Dockerfile cài tesseract-ocr-data-vie
-- ☐ Kiểm tra vertical slice bằng browser + cập nhật README
+- ☑ Frontend: Kho văn bản + màn hình xác minh trích xuất (build đạt, browser-verified)
+- ☑ E2E cả 5 định dạng mẫu: DOCX 8/8, PDF scan OCR 8/8, PDF text, XLSX 6/6 (LLM), PNG 3/3
+- ☑ Unit test module mới (19 test — tổng suite 95/95)
+- ☑ QA e2e `npm run qa:documents` — 17/17 checks, tự dọn dữ liệu
+- ☑ docker-compose + Dockerfile (tesseract vie trong image, OLLAMA_*/EXTRACTION_* env) + README
+- ☑ Vertical slice kiểm chứng browser: upload → trích xuất → duyệt → CT-2026-TTCC-001 lên danh mục
 
 ## Giai đoạn 6: Đánh giá & benchmark
 
@@ -37,9 +37,12 @@ Trạng thái: ☐ chưa làm · ◐ đang làm · ☑ xong. Cập nhật mỗi 
 
 ## Giai đoạn 8: IOC Copilot
 
-- ☐ Tool registry (searchDocuments, queryMetrics, createIndicators, updateIndicator, generateReport, comparePeriods…)
-- ☐ Agent loop với Qwen3 tool-calling; read-only trực tiếp, write cần preview + xác nhận; AgentAction/audit
-- ☐ Giao diện chat tiếng Việt + hiển thị nguồn
+- ☑ Copilot v1 (`/admin/copilot` + POST /copilot/messages): LLM định tuyến intent bằng schema ràng buộc
+  (fallback từ khóa khi Ollama tắt); 6 tool chỉ đọc (queryMetrics, queryTargets, findMissingReports,
+  searchDocuments, listCandidates, help); số liệu 100% từ DB có kiểm soát phạm vi; audit COPILOT_QUERY;
+  giao diện chat kèm bảng kết quả + dòng nguồn
+- ☐ v2: thao tác ghi có preview/xác nhận (createIndicators, assignIndicator…), hội thoại đa lượt lưu DB,
+  generateReport/comparePeriods khi có sổ kỳ báo cáo
 
 ## Giai đoạn 9: Cập nhật số liệu từ báo cáo (PROGRESS_UPDATE candidate)
 
