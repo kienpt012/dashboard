@@ -187,16 +187,31 @@ function cleanIndicatorName(raw: string): string {
     .trim();
 }
 
+// Câu thuộc tính đi kèm ("Đơn vị chủ trì: ...", "Báo cáo hàng quý.") thường đứng
+// NGAY SAU câu chỉ tiêu trong văn bản hành chính — cho phép nhìn trước tối đa 2 câu.
+function isAttributeSentence(sentence: string): boolean {
+  return /^(đơn vị|chủ trì|phối hợp|báo cáo|định kỳ|hoàn thành trước)/i.test(sentence.trim())
+    && !findValueWithUnit(sentence).some(match => match.unit !== null && !/^(tháng|quý|năm)$/.test(match.unit));
+}
+
 export function extractIndicatorsFromText(text: string): RuleExtractedIndicator[] {
   const results: RuleExtractedIndicator[] = [];
   const seen = new Set<string>();
   const documentYear = detectTargetYear(text.slice(0, 600));
-  for (const sentence of splitCandidateSentences(text)) {
+  const sentences = splitCandidateSentences(text);
+  for (const [sentenceIndex, sentence] of sentences.entries()) {
     const trigger = sentence.match(TRIGGER_REGEX);
     if (!trigger || trigger.index === undefined) continue;
     const triggerIndex = trigger.index;
     const values = findValueWithUnit(sentence);
     if (!values.length) continue;
+    // Ngữ cảnh mở rộng: câu hiện tại + các câu thuộc tính liền kề phía sau.
+    let extendedContext = sentence;
+    for (let lookAhead = 1; lookAhead <= 2; lookAhead += 1) {
+      const nextSentence = sentences[sentenceIndex + lookAhead];
+      if (!nextSentence || !isAttributeSentence(nextSentence)) break;
+      extendedContext += ` ${nextSentence}`;
+    }
 
     // Giá trị mục tiêu: số đầu tiên xuất hiện sau (hoặc gần) động từ mục tiêu.
     const afterTrigger = values.filter(match => match.index >= triggerIndex);
@@ -219,12 +234,12 @@ export function extractIndicatorsFromText(text: string): RuleExtractedIndicator[
     const direction = LOWER_IS_BETTER_REGEX.test(sentence)
       ? TargetDirection.LOWER_IS_BETTER
       : TargetDirection.HIGHER_IS_BETTER;
-    const { frequency, warning: frequencyWarning } = detectFrequency(sentence);
+    const { frequency, warning: frequencyWarning } = detectFrequency(extendedContext);
     if (frequencyWarning) warnings.push(frequencyWarning);
-    const targetYear = detectTargetYear(sentence) ?? documentYear;
-    const deadline = detectDeadline(sentence, targetYear);
-    const responsible = detectResponsibleDepartment(sentence);
-    const coordinating = detectCoordinating(sentence);
+    const targetYear = detectTargetYear(extendedContext) ?? documentYear;
+    const deadline = detectDeadline(extendedContext, targetYear);
+    const responsible = detectResponsibleDepartment(extendedContext);
+    const coordinating = detectCoordinating(extendedContext);
 
     const fieldConfidence: Record<string, number> = {
       name: warnings.length ? 0.5 : 0.7,
