@@ -419,3 +419,56 @@ export type IndicatorCandidate={
 export type IndicatorCandidateDetail=IndicatorCandidate&{
   chunk?:{id:string;chunkIndex:number;pageFrom:number;pageTo:number;text:string}|null;
 };
+
+export type CopilotIntent=
+  |'DASHBOARD_SUMMARY'
+  |'LIST_TARGETS'
+  |'TARGETS_AT_RISK'
+  |'TARGETS_MISSING_REPORT'
+  |'SEARCH_DOCUMENTS'
+  |'LIST_CANDIDATES'
+  |'HELP';
+export type CopilotPlanner='llm'|'rules';
+export type CopilotSource={tool:string;parameters:Record<string,unknown>};
+
+export type CopilotTargetRow={
+  code:string;
+  title:string;
+  department:string;
+  progress?:number;
+  status?:string;
+  currentValue?:number;
+  targetValue?:number;
+  unit?:string;
+  dueDate?:string|null;
+  lastReportedAt?:string|null;
+};
+export type CopilotDocumentRow={
+  id:string;
+  code:string;
+  title:string;
+  docNumber?:string|null;
+  status:string;
+  candidates:number;
+};
+export type CopilotCandidateRow={
+  documentId:string;
+  name:string;
+  value?:number|null;
+  unit?:string|null;
+  confidence:number;
+  method:string;
+  documentCode:string;
+};
+
+export type CopilotResponse={
+  reply:string;
+  intent:CopilotIntent;
+  planner:CopilotPlanner;
+  source:CopilotSource;
+}&(
+  |{rowType:'targets';rows:CopilotTargetRow[]}
+  |{rowType:'documents';rows:CopilotDocumentRow[]}
+  |{rowType:'candidates';rows:CopilotCandidateRow[]}
+  |{rowType?:undefined;rows?:undefined}
+);

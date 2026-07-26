@@ -1,4 +1,4 @@
-import { Building2, CheckCheck, FileBarChart, FileText, Gauge, History, LogOut, Menu, MessageSquareText, Settings, Sheet, Target, UserRound, Users, X } from 'lucide-react';
+import { Bot, Building2, CheckCheck, FileBarChart, FileText, Gauge, History, LogOut, Menu, MessageSquareText, Settings, Sheet, Target, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, getInitials, hasAnyRole, IMPORT_ROLES, roleLabels } from '../authz';
@@ -6,6 +6,7 @@ import { auth } from '../api';
 
 const items=[
   {to:'/admin',label:'Tổng quan điều hành',icon:Gauge,roles:ALL_ROLES},
+  {to:'/admin/copilot',label:'IOC Copilot',icon:Bot,roles:ALL_ROLES},
   {to:'/admin/targets',label:'Quản lý chỉ tiêu',icon:Target,roles:ALL_ROLES},
   {to:'/admin/reports',label:'Báo cáo chỉ tiêu',icon:FileBarChart,roles:ALL_ROLES},
   {to:'/admin/imports',label:'Nhập dữ liệu báo cáo',icon:Sheet,roles:IMPORT_ROLES},
@@ -21,6 +22,7 @@ const items=[
 
 const titles:Record<string,string>={
   '/admin':'Tổng quan điều hành',
+  '/admin/copilot':'IOC Copilot',
   '/admin/targets':'Quản lý chỉ tiêu',
   '/admin/reports':'Báo cáo chỉ tiêu',
   '/admin/imports':'Nhập dữ liệu báo cáo',

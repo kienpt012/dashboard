@@ -4,6 +4,7 @@ import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, hasAnyRole, IMPORT_ROLES } from
 import { api, ApiError, auth } from './api';
 import Layout from './components/Layout';
 import { Spinner } from './components/UI';
+import Copilot from './pages/Copilot';
 import Dashboard from './pages/Dashboard';
 import Departments from './pages/Departments';
 import DocumentReview from './pages/DocumentReview';
@@ -71,6 +72,7 @@ const pageTitles: Record<string, string> = {
   '/admin/login': 'Đăng nhập nội bộ · IOC Lái Thiêu',
   '/admin/forgot-password': 'Khôi phục mật khẩu · IOC Lái Thiêu',
   '/admin': 'Tổng quan điều hành · IOC Lái Thiêu',
+  '/admin/copilot': 'IOC Copilot · IOC Lái Thiêu',
   '/admin/targets': 'Quản lý chỉ tiêu · IOC Lái Thiêu',
   '/admin/reports': 'Báo cáo chỉ tiêu · IOC Lái Thiêu',
   '/admin/imports': 'Nhập dữ liệu báo cáo · IOC Lái Thiêu',
@@ -105,6 +107,7 @@ export default function App(){
     <Route path="/admin/forgot-password" element={auth.token?<Navigate to="/admin" replace/>:<ForgotPassword/>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>
+      <Route path="copilot" element={<RoleRoute allowed={ALL_ROLES}><Copilot/></RoleRoute>}/>
       <Route path="targets" element={<RoleRoute allowed={ALL_ROLES}><Targets/></RoleRoute>}/>
       <Route path="reports" element={<RoleRoute allowed={ALL_ROLES}><Reports/></RoleRoute>}/>
       <Route path="imports" element={<RoleRoute allowed={IMPORT_ROLES}><Imports/></RoleRoute>}/>
