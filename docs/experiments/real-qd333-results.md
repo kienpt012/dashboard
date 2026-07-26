@@ -49,6 +49,32 @@ ban hành năm 2026 đó, duyệt hết và up lên giúp tôi đi"* →
    (metadata fromCandidate/documentCode/model/confidence) → AGENT_ACTION_EXECUTED.
 5. Ứng viên nghi trùng và thiếu trường bị loại khỏi kế hoạch với lời giải thích — không bao giờ duyệt mù.
 
+## Vòng lặp cải tiến 27/07 — từ 19/39 lên 39/39
+
+Phân tích ground truth (đếm tự động trên text số hóa): PL1 có **26 chỉ tiêu đánh số + 13 thành phần
+dòng "-" ≈ 39 dòng đo được**; phiên bản đầu chỉ ra 19. Nguyên nhân gốc đo được theo từng chunk
+(13/0/6 ứng viên): **cạn ngân sách sinh token ở num_ctx 4096** — chunk trang 2 (12 dòng) bị cắt JSON
+giữa chừng mất trắng, chunk trang 3–4 đứt đuôi. Kèm 2 điểm mù: đơn vị đứng TRƯỚC giá trị trong bảng
+("% ≥ 95") và quan hệ cha–con của dòng "-".
+
+Các fix (commit `a3b8449`, `f5010ce`): chunk theo cụm 8 hàng bảng + tiêu đề mục `[Mục: ...]`;
+num_ctx 8192 riêng cho trích xuất; vá JSON bị cắt (cứu phần tử trọn vẹn); prompt v4 (cha–con qua
+`parentIndicator`, đơn vị-trước-giá-trị, cấm bỏ sót dòng); cột `ordinal`/`parentName`; hậu xử lý
+tất định (lọc ô tiêu đề bảng, gọt đuôi tên, tiêu đề mục không thể làm cha, category suy từ mục).
+
+**Kết quả sau cải tiến (đo 27/07):**
+
+| Chỉ số | Trước | Sau |
+|---|---|---|
+| Số dòng bắt được / ground truth 39 | 19 (49%) | **39 (100%)** |
+| Ứng viên có lĩnh vực (category) | 0 | **39/39** (suy từ tiêu đề mục) |
+| Thành phần có tên ghép cha–con | 0 | 6 ("Tỷ lệ trường đạt chuẩn quốc gia — Mầm non…") |
+| Ứng viên rác từ ô tiêu đề bảng | 5 | **0** |
+| Confidence trung bình | 0.97 | 0.96 (2 dòng nhiễu thật bị hạ 0.4–0.62 đúng vai trò) |
+
+Hai khiếm khuyết còn lại đều là nhiễu thật của tài liệu và đều bị hệ thống tự hạ điểm để người
+xác minh chú ý: một hàng dính header trang (0.62) và một biến thể của khoảng "4–5%" (0.55).
+
 ## Bài học quy mô
 
 - Bảng thật dày chỉ tiêu: 1 chunk sinh 15–25 ứng viên ≈ 3–6 phút GPU/chunk (PL1 3 chunk ≈ 15 phút).

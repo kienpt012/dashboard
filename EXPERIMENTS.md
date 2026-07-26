@@ -35,6 +35,16 @@ Kết quả chi tiết + dữ liệu tái lập lưu ở `docs/experiments/`. M�
   → chuyển OllamaService sang streaming (header về ngay, không còn trần); xác minh bằng lần chạy
   llm sạch 15-38-49 (5/5 tài liệu thành công, có lời gọi 366s).
 
+## E-005 · 2026-07-27 · Vòng lặp cải tiến trên văn bản thật PL1 (QĐ 333): 19/39 → 39/39
+
+- Ground truth đếm tự động: 26 chỉ tiêu đánh số + 13 thành phần "-" = 39 dòng.
+- Nguyên nhân gốc thiếu 20 dòng: cạn ngân sách sinh token (num_ctx 4096) làm JSON đứt →
+  mất trọn/mất đuôi chunk; đo được qua phân bố 13/0/6 ứng viên trên 3 chunk cũ.
+- Fix: chunk 8-hàng-bảng + tiêu đề mục, num_ctx 8192, vá JSON cắt, prompt v4 cha–con +
+  đơn vị-trước-giá-trị, hậu xử lý tất định. Kết quả: **39/39 dòng, 39/39 có lĩnh vực,
+  0 rác tiêu đề bảng**; 2 dòng nhiễu thật tự bị hạ confidence (0.4–0.62).
+- Chi tiết + bảng trước/sau: docs/experiments/real-qd333-results.md.
+
 ## Kế hoạch thí nghiệm kế tiếp (docs/experiments/experiment-plan.md)
 
 - E-005: Dataset-v2 văn bản thật ẩn danh + human correction rate trên UI xác minh.
