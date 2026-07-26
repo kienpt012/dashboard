@@ -63,6 +63,22 @@
 .cop-method.ai{background:#f1ecfb;color:#6a48ad}
 .cop-method.rule{background:#eef2f2;color:#5d6f6c}
 
+/* Thanh xác nhận hành động ghi (preview + confirm) */
+.cop-confirm-bar{margin-top:10px;border:1px solid #ecd9ae;background:#fdf7e9;border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+.cop-confirm-bar.done{background:#f1f5f4;border-color:#dde7e4;display:block}
+.cop-confirm-text{font-size:12px;font-weight:700;color:#8a6116}
+.cop-confirm-actions{display:flex;gap:9px;flex-wrap:wrap}
+.cop-confirm-btn{min-height:44px}
+.cop-confirm-busy{display:flex;align-items:center;gap:8px;color:#8a6116;font-size:12px;font-weight:600}
+.cop-confirm-busy .spinner-wrap{height:auto;flex:none}
+.cop-confirm-busy .spinner{width:15px;height:15px;border-width:2px}
+.cop-confirm-done{display:inline-block;font-size:12px;font-weight:700;color:#71827e}
+
+/* Nhãn kết quả thực thi từng mục */
+.cop-result{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:7px;font-size:11px;font-weight:800;line-height:1.4}
+.cop-result.ok{background:#e5f4ee;color:#1e7a5f}
+.cop-result.fail{background:#fdecec;color:#c04747}
+
 /* Khu vực nhập câu hỏi (dính đáy khung) */
 .cop-composer{flex:none;position:sticky;bottom:0;border-top:1px solid #e4edeb;background:#fbfdfc;padding:11px 14px 12px}
 .cop-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
@@ -90,6 +106,8 @@
   .cop-send{min-width:44px;padding:0 12px}
   .cop-chip{flex:1 1 auto;justify-content:center;text-align:center}
   .cop-hint{display:none}
+  .cop-confirm-actions{flex-direction:column}
+  .cop-confirm-btn{width:100%;justify-content:center}
 }
 @media(prefers-reduced-motion:reduce){
   .cop-chip,.cop-progress-bar i,.cop-send{transition:none}

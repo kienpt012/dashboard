@@ -427,6 +427,7 @@ export type CopilotIntent=
   |'TARGETS_MISSING_REPORT'
   |'SEARCH_DOCUMENTS'
   |'LIST_CANDIDATES'
+  |'BULK_APPROVE_CANDIDATES'
   |'HELP';
 export type CopilotPlanner='llm'|'rules';
 export type CopilotSource={tool:string;parameters:Record<string,unknown>};
@@ -461,14 +462,38 @@ export type CopilotCandidateRow={
   documentCode:string;
 };
 
+export type CopilotPreviewRow={
+  name:string;
+  value?:number|null;
+  unit?:string|null;
+  department:string;
+  confidence:number;
+};
+export type CopilotResultRow={
+  name:string;
+  ok:boolean;
+  code:string|null;
+  error:string|null;
+};
+
+export type CopilotPendingAction={
+  id:string;
+  tool:string;
+  approveCount:number;
+  expiresAt:string;
+};
+
 export type CopilotResponse={
   reply:string;
   intent:CopilotIntent;
   planner:CopilotPlanner;
   source:CopilotSource;
+  pendingAction?:CopilotPendingAction;
 }&(
   |{rowType:'targets';rows:CopilotTargetRow[]}
   |{rowType:'documents';rows:CopilotDocumentRow[]}
   |{rowType:'candidates';rows:CopilotCandidateRow[]}
+  |{rowType:'preview';rows:CopilotPreviewRow[]}
+  |{rowType:'results';rows:CopilotResultRow[]}
   |{rowType?:undefined;rows?:undefined}
 );
