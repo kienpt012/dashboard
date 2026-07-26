@@ -143,6 +143,14 @@ enum CandidateStatus {
   REJECTED
 }
 
+enum AgentActionStatus {
+  PROPOSED
+  EXECUTED
+  CANCELLED
+  FAILED
+  EXPIRED
+}
+
 model Department {
   id          String   @id @default(cuid())
   code        String   @unique
@@ -181,6 +189,7 @@ model User {
   passwordResetChallenges PasswordResetChallenge[]
   uploadedDocuments SourceDocument[] @relation("DocumentUploader")
   reviewedCandidates IndicatorCandidate[] @relation("CandidateReviewer")
+  agentActions AgentAction[] @relation("AgentActionUser")
 }
 
 model PasswordResetChallenge {
@@ -529,6 +538,7 @@ model ExtractionJob {
   promptVersion String?
   chunksTotal   Int?
   chunksDone    Int?
+  note          String?
   startedAt     DateTime?
   finishedAt    DateTime?
   createdById   String
@@ -537,6 +547,29 @@ model ExtractionJob {
 
   @@index([status, availableAt])
   @@index([documentId, kind, createdAt])
+}
+
+// Hành động ghi dữ liệu do Copilot đề xuất: luôn qua preview, chỉ thực thi sau khi
+// đúng người ra lệnh xác nhận trong thời hạn. Là sổ truy vết mọi thao tác agent.
+model AgentAction {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation("AgentActionUser", fields: [userId], references: [id])
+  command       String
+  tool          String
+  parameters    Json
+  preview       Json
+  status        AgentActionStatus @default(PROPOSED)
+  resultSummary String?
+  result        Json?
+  error         String?
+  expiresAt     DateTime
+  confirmedAt   DateTime?
+  executedAt    DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([userId, status, createdAt])
 }
 
 // Chỉ tiêu ứng viên do AI/rule đề xuất. Chỉ trở thành Target chính thức sau khi người có thẩm quyền duyệt.

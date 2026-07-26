@@ -1,18 +1,30 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  ForbiddenException,
+  NotFoundException,
+  Param,
   Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { CandidateStatus, DocumentStatus, Prisma, TargetStatus } from '@prisma/client';
+import {
+  AgentActionStatus,
+  CandidateStatus,
+  DocumentStatus,
+  Prisma,
+  Role,
+  TargetStatus,
+} from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { type Actor, audit, getActor, resolveDepartmentScope } from './access';
+import { approveCandidateById, missingApprovalFields } from './candidates';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
-import { matchDepartmentByName } from './matching';
+import { diceSimilarity, matchDepartmentByName, normalizeVietnamese } from './matching';
 import { OllamaService } from './ollama';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
@@ -42,6 +54,7 @@ export type CopilotIntent =
   | 'TARGETS_MISSING_REPORT'
   | 'SEARCH_DOCUMENTS'
   | 'LIST_CANDIDATES'
+  | 'BULK_APPROVE_CANDIDATES'
   | 'HELP';
 
 export interface CopilotPlan {
@@ -52,6 +65,9 @@ export interface CopilotPlan {
   belowProgress?: number | null;
   searchQuery?: string | null;
   candidateStatus?: CandidateStatus | null;
+  documentQuery?: string | null;
+  category?: string | null;
+  includeDuplicates?: boolean | null;
 }
 
 const INTENT_SCHEMA = {
@@ -66,6 +82,7 @@ const INTENT_SCHEMA = {
         'TARGETS_MISSING_REPORT',
         'SEARCH_DOCUMENTS',
         'LIST_CANDIDATES',
+        'BULK_APPROVE_CANDIDATES',
         'HELP',
       ],
     },
@@ -78,8 +95,14 @@ const INTENT_SCHEMA = {
     belowProgress: { type: ['number', 'null'], description: 'Ngưỡng phần trăm khi người dùng hỏi chỉ tiêu dưới X%' },
     searchQuery: { type: ['string', 'null'] },
     candidateStatus: { type: ['string', 'null'], enum: ['PROPOSED', 'APPROVED', 'REJECTED', null] },
+    documentQuery: {
+      type: ['string', 'null'],
+      description: 'Cách người dùng gọi tên văn bản khi ra lệnh duyệt, ví dụ "phụ lục 1", "kế hoạch kinh tế xã hội", "VB-2026-0005"',
+    },
+    category: { type: ['string', 'null'], description: 'Lĩnh vực người dùng nêu khi duyệt: kinh tế, văn hóa, đô thị...' },
+    includeDuplicates: { type: ['boolean', 'null'], description: 'true chỉ khi người dùng nói rõ duyệt cả mục nghi trùng' },
   },
-  required: ['intent', 'year', 'departmentName', 'status', 'belowProgress', 'searchQuery', 'candidateStatus'],
+  required: ['intent', 'year', 'departmentName', 'status', 'belowProgress', 'searchQuery', 'candidateStatus', 'documentQuery', 'category', 'includeDuplicates'],
 } as const;
 
 const INTENT_SYSTEM_PROMPT = `Bạn là bộ định tuyến câu lệnh cho hệ thống IOC phường (tiếng Việt).
@@ -90,6 +113,10 @@ Phân loại câu của người dùng vào đúng một intent:
 - TARGETS_MISSING_REPORT: chỉ tiêu chưa có/thiếu số liệu báo cáo trong kỳ.
 - SEARCH_DOCUMENTS: tìm văn bản, tài liệu, kế hoạch, quyết định trong kho.
 - LIST_CANDIDATES: đề xuất chỉ tiêu do AI trích xuất đang chờ xác minh/đã duyệt/đã từ chối.
+- BULK_APPROVE_CANDIDATES: người dùng RA LỆNH duyệt/phê duyệt/chấp thuận các đề xuất (thường kèm tên
+  văn bản, lĩnh vực, năm). Ví dụ: "duyệt hết chỉ tiêu kinh tế trong phụ lục 1 đi", "phê duyệt các đề
+  xuất của kế hoạch vừa tải". Khi đó điền documentQuery (cụm người dùng dùng để chỉ văn bản),
+  category (lĩnh vực nếu nêu), includeDuplicates=true chỉ khi nói rõ duyệt cả mục nghi trùng.
 - HELP: câu hỏi ngoài phạm vi hoặc hỏi Copilot làm được gì.
 Trích tham số nếu người dùng nêu: year (năm), departmentName (tên phòng ban đúng như người dùng viết),
 status, belowProgress (số % trong câu "dưới 70%"), searchQuery (từ khóa tìm văn bản), candidateStatus.
@@ -101,6 +128,18 @@ export function ruleBasedPlan(message: string): CopilotPlan {
   const yearMatch = normalized.match(/năm\s+(20\d{2})/);
   const year = yearMatch ? Number(yearMatch[1]) : null;
   const below = normalized.match(/dưới\s+(\d{1,3})\s*%/);
+  if (/(duyệt|phê duyệt|chấp thuận)\s+(hết|tất cả|toàn bộ|các|những|luôn|giúp)/.test(normalized)
+    || /(duyệt|phê duyệt).*(đề xuất|ứng viên|chỉ tiêu.*(phụ lục|văn bản|kho))/.test(normalized)) {
+    const categoryMatch = normalized.match(/(kinh tế|văn hóa|xã hội|đô thị|môi trường|an ninh|cải cách|chuyển đổi số)/);
+    const docMatch = normalized.match(/(phụ lục\s*\d+|pl\s*\d+|vb-\d{4}-\d{4}|kế hoạch[^,.;]{0,40}|quyết định[^,.;]{0,40}|bảng[^,.;]{0,40})/);
+    return {
+      intent: 'BULK_APPROVE_CANDIDATES',
+      year,
+      category: categoryMatch ? categoryMatch[1] : null,
+      documentQuery: docMatch ? docMatch[1].trim() : null,
+      includeDuplicates: /(cả|kể cả|bao gồm).*(trùng|nghi trùng)/.test(normalized) || null,
+    };
+  }
   if (/(trễ hạn|quá hạn|rủi ro|cần chú ý|sắp trễ|nguy cơ)/.test(normalized)) {
     return { intent: 'TARGETS_AT_RISK', year };
   }
@@ -135,7 +174,8 @@ function sanitizePlan(raw: unknown): CopilotPlan | null {
   const candidate = raw as Record<string, unknown>;
   const intents: CopilotIntent[] = [
     'DASHBOARD_SUMMARY', 'LIST_TARGETS', 'TARGETS_AT_RISK',
-    'TARGETS_MISSING_REPORT', 'SEARCH_DOCUMENTS', 'LIST_CANDIDATES', 'HELP',
+    'TARGETS_MISSING_REPORT', 'SEARCH_DOCUMENTS', 'LIST_CANDIDATES',
+    'BULK_APPROVE_CANDIDATES', 'HELP',
   ];
   if (!intents.includes(candidate.intent as CopilotIntent)) return null;
   const year = typeof candidate.year === 'number' && Number.isInteger(candidate.year)
@@ -156,6 +196,9 @@ function sanitizePlan(raw: unknown): CopilotPlan | null {
     belowProgress,
     searchQuery: text(candidate.searchQuery, 200),
     candidateStatus,
+    documentQuery: text(candidate.documentQuery, 200),
+    category: text(candidate.category, 100),
+    includeDuplicates: candidate.includeDuplicates === true,
   };
 }
 
@@ -165,8 +208,17 @@ interface CopilotAnswer {
   planner: 'llm' | 'rules';
   source: { tool: string; parameters: Record<string, unknown> };
   rows?: Record<string, unknown>[];
-  rowType?: 'targets' | 'documents' | 'candidates';
+  rowType?: 'targets' | 'documents' | 'candidates' | 'preview' | 'results';
+  pendingAction?: {
+    id: string;
+    tool: string;
+    approveCount: number;
+    expiresAt: Date;
+  };
 }
+
+const AGENT_ACTION_TTL_MS = 15 * 60 * 1000;
+const BULK_APPROVE_MAX = 50;
 
 @Controller('copilot')
 @UseGuards(JwtAuthGuard)
@@ -196,7 +248,9 @@ export class CopilotController {
     }
     if (!plan) plan = ruleBasedPlan(dto.message);
 
-    const answer = await this.execute(actor, plan, planner);
+    const answer = plan.intent === 'BULK_APPROVE_CANDIDATES'
+      ? await this.proposeBulkApprove(actor, plan, planner, dto.message)
+      : await this.execute(actor, plan, planner);
     await audit(this.prisma, actor, {
       action: 'COPILOT_QUERY',
       entityType: 'Copilot',
@@ -207,6 +261,252 @@ export class CopilotController {
       },
     });
     return answer;
+  }
+
+  // Lệnh GHI qua Copilot không bao giờ thực thi ngay: hệ thống lập kế hoạch, lưu
+  // AgentAction ở trạng thái PROPOSED kèm bản xem trước, và chỉ chạy khi chính
+  // người ra lệnh bấm xác nhận trong thời hạn 15 phút.
+  private async proposeBulkApprove(
+    actor: Actor,
+    plan: CopilotPlan,
+    planner: 'llm' | 'rules',
+    command: string,
+  ): Promise<CopilotAnswer> {
+    if (actor.role !== Role.ADMIN) {
+      return {
+        reply: 'Duyệt chỉ tiêu hàng loạt cần quyền quản trị hệ thống. Bạn có thể xem và đề nghị duyệt từng mục tại màn hình "Kho văn bản".',
+        intent: 'BULK_APPROVE_CANDIDATES',
+        planner,
+        source: { tool: 'bulkApproveCandidates', parameters: { denied: 'role' } },
+      };
+    }
+    // Xác định văn bản người dùng nhắc tới.
+    const documents = await this.prisma.sourceDocument.findMany({
+      where: { status: DocumentStatus.PROCESSED },
+      select: {
+        id: true, code: true, title: true, docNumber: true,
+        _count: { select: { candidates: { where: { status: CandidateStatus.PROPOSED } } } },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 100,
+    });
+    const withPending = documents.filter(document => document._count.candidates > 0);
+    let selected: typeof documents = [];
+    if (plan.documentQuery) {
+      const scored = withPending
+        .map(document => ({ document, score: scoreDocumentMatch(plan.documentQuery!, document) }))
+        .filter(entry => entry.score >= 0.5)
+        .sort((a, b) => b.score - a.score);
+      selected = scored.slice(0, 1).map(entry => entry.document);
+    } else if (withPending.length === 1) {
+      selected = withPending;
+    }
+    if (!selected.length) {
+      return {
+        reply: plan.documentQuery
+          ? `Tôi chưa xác định được văn bản "${plan.documentQuery}" trong số các văn bản còn đề xuất chờ duyệt. Các văn bản đang có đề xuất: ${withPending.map(document => `${document.code} (${document.title.slice(0, 40)}, ${document._count.candidates} đề xuất)`).join('; ') || 'không có'}. Hãy nêu rõ mã văn bản.`
+          : `Hiện có ${withPending.length} văn bản còn đề xuất chờ duyệt. Hãy nêu rõ văn bản muốn duyệt: ${withPending.map(document => `${document.code} (${document._count.candidates} đề xuất)`).join('; ') || 'không có'}.`,
+        intent: 'BULK_APPROVE_CANDIDATES',
+        planner,
+        source: { tool: 'bulkApproveCandidates', parameters: { documentQuery: plan.documentQuery ?? null } },
+      };
+    }
+    const document = selected[0];
+    const candidates = await this.prisma.indicatorCandidate.findMany({
+      where: { documentId: document.id, status: CandidateStatus.PROPOSED },
+      select: {
+        id: true, name: true, unit: true, targetValue: true, targetYear: true,
+        category: true, confidence: true, isDuplicateSuspect: true, version: true,
+        responsibleDepartmentId: true, frequency: true, deadline: true,
+        responsibleDepartment: { select: { name: true } },
+        matchedTarget: { select: { code: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: BULK_APPROVE_MAX,
+    });
+    const categoryNeedle = plan.category ? normalizeVietnamese(plan.category) : null;
+    const inScope = candidates.filter(candidate => {
+      if (plan.year && candidate.targetYear && candidate.targetYear !== plan.year) return false;
+      if (!categoryNeedle) return true;
+      const haystack = normalizeVietnamese(`${candidate.category ?? ''} ${candidate.name}`);
+      return haystack.includes(categoryNeedle);
+    });
+    const approvable = inScope.filter(candidate =>
+      !missingApprovalFields(candidate).length
+      && (plan.includeDuplicates || !candidate.isDuplicateSuspect));
+    const skippedDuplicates = inScope.filter(candidate =>
+      candidate.isDuplicateSuspect && !plan.includeDuplicates
+      && !missingApprovalFields(candidate).length);
+    const skippedIncomplete = inScope.filter(candidate => missingApprovalFields(candidate).length > 0);
+
+    if (!approvable.length) {
+      return {
+        reply: `Không có đề xuất nào đủ điều kiện duyệt ngay trong ${document.code}${plan.category ? ` (lĩnh vực ${plan.category})` : ''}: `
+          + `${skippedDuplicates.length} mục nghi trùng chỉ tiêu hiện có, ${skippedIncomplete.length} mục thiếu trường bắt buộc `
+          + `(thường là phòng ban hoặc tần suất). Hãy bổ sung tại màn hình Xác minh trích xuất, hoặc ra lệnh "duyệt cả mục nghi trùng" nếu chủ đích.`,
+        intent: 'BULK_APPROVE_CANDIDATES',
+        planner,
+        source: { tool: 'bulkApproveCandidates', parameters: { documentId: document.id, category: plan.category ?? null } },
+      };
+    }
+
+    const action = await this.prisma.agentAction.create({
+      data: {
+        userId: actor.id,
+        command: command.slice(0, 1000),
+        tool: 'bulkApproveCandidates',
+        parameters: {
+          documentId: document.id,
+          documentCode: document.code,
+          candidateIds: approvable.map(candidate => candidate.id),
+          candidateVersions: Object.fromEntries(approvable.map(candidate => [candidate.id, candidate.version])),
+          category: plan.category ?? null,
+          year: plan.year ?? null,
+        },
+        preview: approvable.map(candidate => ({
+          candidateId: candidate.id,
+          name: candidate.name,
+          value: candidate.targetValue,
+          unit: candidate.unit,
+          department: candidate.responsibleDepartment?.name ?? null,
+          confidence: candidate.confidence,
+        })) as Prisma.InputJsonValue,
+        expiresAt: new Date(Date.now() + AGENT_ACTION_TTL_MS),
+      },
+    });
+    await audit(this.prisma, actor, {
+      action: 'AGENT_ACTION_PROPOSED',
+      entityType: 'AgentAction',
+      entityId: action.id,
+      metadata: { tool: 'bulkApproveCandidates', documentCode: document.code, approved: approvable.length },
+    });
+    const skippedNote = [
+      skippedDuplicates.length
+        ? `${skippedDuplicates.length} mục nghi trùng (${skippedDuplicates.slice(0, 3).map(candidate => candidate.matchedTarget?.code ?? '?').join(', ')}${skippedDuplicates.length > 3 ? '…' : ''}) sẽ KHÔNG duyệt`
+        : null,
+      skippedIncomplete.length ? `${skippedIncomplete.length} mục thiếu trường bắt buộc sẽ KHÔNG duyệt` : null,
+    ].filter(Boolean).join('; ');
+    return {
+      reply: `Kế hoạch: duyệt ${approvable.length} đề xuất từ ${document.code} — ${document.title.slice(0, 60)}`
+        + `${plan.category ? ` (lĩnh vực ${plan.category})` : ''}. ${skippedNote ? `${skippedNote}. ` : ''}`
+        + `Xem bảng dưới và bấm Xác nhận trong 15 phút để hệ thống tạo chỉ tiêu chính thức; mọi thao tác đều vào nhật ký.`,
+      intent: 'BULK_APPROVE_CANDIDATES',
+      planner,
+      source: { tool: 'bulkApproveCandidates', parameters: { documentId: document.id, documentCode: document.code } },
+      rowType: 'preview',
+      rows: approvable.map(candidate => ({
+        name: candidate.name,
+        value: candidate.targetValue,
+        unit: candidate.unit,
+        department: candidate.responsibleDepartment?.name ?? '—',
+        confidence: candidate.confidence,
+      })),
+      pendingAction: {
+        id: action.id,
+        tool: 'bulkApproveCandidates',
+        approveCount: approvable.length,
+        expiresAt: action.expiresAt,
+      },
+    };
+  }
+
+  @Post('actions/:id/confirm')
+  async confirmAction(@Req() req: any, @Param('id') id: string): Promise<CopilotAnswer> {
+    const actor = getActor(req);
+    const action = await this.prisma.agentAction.findUnique({ where: { id } });
+    if (!action) throw new NotFoundException('Không tìm thấy hành động chờ xác nhận');
+    if (action.userId !== actor.id) {
+      throw new ForbiddenException('Chỉ người ra lệnh mới được xác nhận hành động này');
+    }
+    if (action.status !== AgentActionStatus.PROPOSED) {
+      throw new ConflictException('Hành động đã được xử lý hoặc đã hủy');
+    }
+    if (action.expiresAt < new Date()) {
+      await this.prisma.agentAction.update({ where: { id }, data: { status: AgentActionStatus.EXPIRED } });
+      throw new ConflictException('Bản xem trước đã hết hạn (15 phút). Vui lòng ra lệnh lại để tạo bản mới.');
+    }
+    // Khóa hành động trước khi thực thi để hai lần bấm xác nhận không chạy trùng.
+    const claimed = await this.prisma.agentAction.updateMany({
+      where: { id, status: AgentActionStatus.PROPOSED },
+      data: { status: AgentActionStatus.EXECUTED, confirmedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new ConflictException('Hành động vừa được xử lý ở nơi khác');
+    }
+    const parameters = action.parameters as {
+      candidateIds?: string[];
+      candidateVersions?: Record<string, number>;
+      documentCode?: string;
+    };
+    const candidateIds = Array.isArray(parameters.candidateIds) ? parameters.candidateIds : [];
+    const results: { name: string; ok: boolean; code?: string; error?: string }[] = [];
+    for (const candidateId of candidateIds) {
+      try {
+        const expectedVersion = parameters.candidateVersions?.[candidateId];
+        const outcome = await approveCandidateById(this.prisma, actor, candidateId, { expectedVersion });
+        results.push({ name: outcome.candidate.name, ok: true, code: outcome.target.code });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Lỗi không xác định';
+        results.push({ name: candidateId, ok: false, error: message.slice(0, 160) });
+      }
+    }
+    const succeeded = results.filter(result => result.ok);
+    const failed = results.filter(result => !result.ok);
+    const summary = `Đã tạo ${succeeded.length}/${candidateIds.length} chỉ tiêu chính thức từ ${parameters.documentCode ?? 'văn bản'}`
+      + (failed.length ? `; ${failed.length} mục không duyệt được (thường do dữ liệu vừa thay đổi).` : '.');
+    await this.prisma.agentAction.update({
+      where: { id },
+      data: {
+        status: failed.length && !succeeded.length ? AgentActionStatus.FAILED : AgentActionStatus.EXECUTED,
+        executedAt: new Date(),
+        resultSummary: summary.slice(0, 500),
+        result: results as unknown as Prisma.InputJsonValue,
+        error: failed.length && !succeeded.length ? 'ALL_ITEMS_FAILED' : null,
+      },
+    });
+    await audit(this.prisma, actor, {
+      action: 'AGENT_ACTION_EXECUTED',
+      entityType: 'AgentAction',
+      entityId: id,
+      metadata: {
+        tool: action.tool,
+        documentCode: parameters.documentCode ?? null,
+        approved: succeeded.length,
+        failed: failed.length,
+      },
+    });
+    return {
+      reply: `${summary} ${succeeded.length ? `Mã đã cấp: ${succeeded.map(result => result.code).join(', ')}. Các chỉ tiêu đã xuất hiện trong Danh mục và Dashboard.` : ''}`,
+      intent: 'BULK_APPROVE_CANDIDATES',
+      planner: 'rules',
+      source: { tool: 'bulkApproveCandidates', parameters: { actionId: id } },
+      rowType: 'results',
+      rows: results.map(result => ({
+        name: result.name,
+        ok: result.ok,
+        code: result.code ?? null,
+        error: result.error ?? null,
+      })),
+    };
+  }
+
+  @Post('actions/:id/cancel')
+  async cancelAction(@Req() req: any, @Param('id') id: string): Promise<{ cancelled: boolean }> {
+    const actor = getActor(req);
+    const action = await this.prisma.agentAction.findUnique({ where: { id }, select: { userId: true, status: true } });
+    if (!action) throw new NotFoundException('Không tìm thấy hành động');
+    if (action.userId !== actor.id) throw new ForbiddenException('Chỉ người ra lệnh mới được hủy');
+    const changed = await this.prisma.agentAction.updateMany({
+      where: { id, status: AgentActionStatus.PROPOSED },
+      data: { status: AgentActionStatus.CANCELLED },
+    });
+    if (changed.count !== 1) throw new ConflictException('Hành động đã được xử lý trước đó');
+    await audit(this.prisma, actor, {
+      action: 'AGENT_ACTION_CANCELLED',
+      entityType: 'AgentAction',
+      entityId: id,
+    });
+    return { cancelled: true };
   }
 
   private async execute(actor: Actor, plan: CopilotPlan, planner: 'llm' | 'rules'): Promise<CopilotAnswer> {
@@ -395,8 +695,9 @@ export class CopilotController {
           reply: 'Tôi hỗ trợ các câu lệnh tiếng Việt về: tổng quan tiến độ ("tình hình thực hiện năm 2026"), '
             + 'lọc chỉ tiêu ("chỉ tiêu nào dưới 70%", "chỉ tiêu của Phòng Văn hóa - Xã hội"), cảnh báo '
             + '("chỉ tiêu nào sắp trễ hạn"), số liệu thiếu ("chỉ tiêu nào chưa có số liệu"), tìm văn bản '
-            + '("tìm kế hoạch kinh tế xã hội") và đề xuất AI ("có đề xuất nào chờ xác minh không"). '
-            + 'Các thao tác ghi dữ liệu vẫn thực hiện trên giao diện để bảo đảm quy trình duyệt.',
+            + '("tìm kế hoạch kinh tế xã hội"), đề xuất AI ("có đề xuất nào chờ xác minh không") và — với '
+            + 'quyền quản trị — duyệt hàng loạt có xem trước ("duyệt hết chỉ tiêu kinh tế trong phụ lục 1"): '
+            + 'tôi sẽ lập danh sách để bạn xác nhận trước khi hệ thống ghi bất kỳ dữ liệu nào.',
           intent: 'HELP',
           planner,
           source: { tool: 'help', parameters: {} },
@@ -431,6 +732,35 @@ export class CopilotController {
       };
     });
   }
+}
+
+// Khớp cách người dùng gọi văn bản ("phụ lục 1", "kế hoạch KTXH", mã VB) với
+// tài liệu trong kho. Trả điểm 0..1; dưới ngưỡng thì hỏi lại thay vì đoán bừa.
+export function scoreDocumentMatch(
+  query: string,
+  document: { code: string; title: string; docNumber: string | null },
+): number {
+  const normalizedQuery = normalizeVietnamese(query);
+  if (!normalizedQuery) return 0;
+  const code = document.code.toLowerCase();
+  if (normalizedQuery.includes(code) || code.includes(normalizedQuery)) return 1;
+  if (document.docNumber && normalizeVietnamese(document.docNumber).includes(normalizedQuery)) return 0.95;
+  let score = diceSimilarity(query, document.title);
+  // "phụ lục 1" ↔ tiêu đề chứa "PL1"/"phu luc 1".
+  const appendixMatch = normalizedQuery.match(/(?:phu luc|pl)\s*(\d+)/);
+  if (appendixMatch) {
+    const normalizedTitle = normalizeVietnamese(document.title);
+    if (normalizedTitle.includes(`pl${appendixMatch[1]}`) || normalizedTitle.includes(`phu luc ${appendixMatch[1]}`)) {
+      score = Math.max(score, 0.9);
+    }
+  }
+  const titleNormalized = normalizeVietnamese(document.title);
+  const queryTokens = normalizedQuery.split(' ').filter(token => token.length > 2);
+  if (queryTokens.length) {
+    const hit = queryTokens.filter(token => titleNormalized.includes(token)).length / queryTokens.length;
+    score = Math.max(score, hit * 0.8);
+  }
+  return Math.round(score * 100) / 100;
 }
 
 function statusLabel(status: TargetStatus): string {

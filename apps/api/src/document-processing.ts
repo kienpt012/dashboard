@@ -263,13 +263,25 @@ export async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
   const pages: ParsedPage[] = [];
   workbook.eachSheet((worksheet, sheetId) => {
     const lines: string[] = [`[Bảng: ${worksheet.name}]`];
+    let previousLine = '';
     worksheet.eachRow({ includeEmpty: false }, (row) => {
       const cells: string[] = [];
       row.eachCell({ includeEmpty: true }, (cell) => {
         cells.push(cellText(cell.value));
       });
-      const line = cells.join('\t').replace(/\t+$/g, '');
-      if (line.trim()) lines.push(line);
+      // Ô gộp (merged) được exceljs trả cùng giá trị cho MỌI ô trong vùng gộp —
+      // nén các ô liên tiếp trùng nội dung về một, và bỏ dòng lặp nguyên văn
+      // dòng trước (gộp dọc), nếu không văn bản đưa vào LLM sẽ đầy nhiễu.
+      const compressed: string[] = [];
+      for (const value of cells) {
+        if (value && compressed.length && compressed[compressed.length - 1] === value) continue;
+        compressed.push(value);
+      }
+      const line = compressed.join('\t').replace(/\t+$/g, '');
+      if (line.trim() && line !== previousLine) {
+        lines.push(line);
+        previousLine = line;
+      }
     });
     pages.push({
       pageNumber: sheetId,

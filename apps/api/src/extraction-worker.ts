@@ -61,6 +61,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly pollIntervalMs: number;
   private readonly maxAttempts: number;
   private readonly maxOcrPages: number;
+  private readonly maxLlmChunks: number;
   private readonly llmExtractor: LlmIndicatorExtractor;
 
   constructor(
@@ -71,6 +72,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.pollIntervalMs = parseBoundedInteger(config.get<string>('EXTRACTION_POLL_MS'), 4_000, 1_000, 60_000);
     this.maxAttempts = parseBoundedInteger(config.get<string>('EXTRACTION_MAX_ATTEMPTS'), 3, 1, 10);
     this.maxOcrPages = parseBoundedInteger(config.get<string>('EXTRACTION_MAX_OCR_PAGES'), 20, 1, 100);
+    // Tài liệu hàng trăm trang: mỗi đoạn LLM tốn 2–5 phút GPU nên phải có trần;
+    // đoạn vượt trần vẫn được bộ luật xử lý và job ghi chú rõ để người dùng biết.
+    this.maxLlmChunks = parseBoundedInteger(config.get<string>('EXTRACTION_MAX_LLM_CHUNKS'), 40, 1, 500);
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
   }
 
@@ -339,12 +343,16 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       payload: LlmExtractedIndicator | RuleExtractedIndicator;
     }
     const pending: PendingCandidate[] = [];
+    let llmChunksUsed = 0;
+    let likelyChunksTotal = 0;
 
     for (const [index, chunk] of chunks.entries()) {
       const likely = chunkLikelyHasIndicators(chunk.text);
+      if (likely) likelyChunksTotal += 1;
       const ruleResults = likely ? extractIndicatorsFromText(chunk.text) : [];
       let llmResults: LlmExtractedIndicator[] = [];
-      if (llmAvailable && likely) {
+      if (llmAvailable && likely && llmChunksUsed < this.maxLlmChunks) {
+        llmChunksUsed += 1;
         try {
           const result = await this.llmExtractor.extractFromChunk(chunk.text, {
             documentTitle: document.title,
@@ -454,11 +462,15 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       }
     });
 
+    const capped = llmAvailable && likelyChunksTotal > this.maxLlmChunks;
     await this.completeJob(job, {
       chunksTotal: chunks.length,
       chunksDone: chunks.length,
       model: llmAvailable ? this.ollama.extractModel : null,
       promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-v1',
+      note: capped
+        ? `Tài liệu lớn: LLM đọc ${this.maxLlmChunks}/${likelyChunksTotal} đoạn có tín hiệu chỉ tiêu, phần còn lại dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
+        : llmAvailable ? null : 'Ollama không hoạt động: toàn bộ trích xuất dùng bộ luật.',
     });
     this.logger.log(
       `Đã trích xuất ${candidateRows.length} chỉ tiêu ứng viên từ tài liệu ${document.id} (LLM ${llmAvailable ? 'bật' : 'tắt'})`,

@@ -290,102 +290,10 @@ export class CandidatesController {
   @Roles(Role.ADMIN)
   async approve(@Req() req: any, @Param('id') id: string, @Body() dto: ApproveCandidateDto) {
     const actor = getActor(req);
-    const candidate = await this.prisma.indicatorCandidate.findUnique({
-      where: { id },
-      select: {
-        ...CANDIDATE_SELECT,
-        document: { select: { id: true, code: true, title: true, docNumber: true } },
-      },
+    return approveCandidateById(this.prisma, actor, id, {
+      expectedVersion: dto.expectedVersion,
+      weight: dto.weight,
     });
-    if (!candidate) throw new NotFoundException('Không tìm thấy chỉ tiêu ứng viên');
-    if (candidate.status !== CandidateStatus.PROPOSED) {
-      throw new ConflictException('Chỉ tiêu ứng viên đã được xử lý trước đó');
-    }
-    if (candidate.version !== dto.expectedVersion) {
-      throw new ConflictException('Chỉ tiêu ứng viên vừa được thay đổi. Vui lòng tải lại.');
-    }
-    const missing: string[] = [];
-    if (!candidate.name || candidate.name.trim().length < 3) missing.push('tên chỉ tiêu');
-    if (!candidate.unit) missing.push('đơn vị đo');
-    if (candidate.targetValue === null || candidate.targetValue < 0) missing.push('giá trị mục tiêu');
-    if (!candidate.targetYear) missing.push('năm kế hoạch');
-    if (!candidate.responsibleDepartmentId) missing.push('phòng ban phụ trách');
-    if (!candidate.frequency) missing.push('tần suất báo cáo');
-    if (!candidate.deadline) missing.push('hạn hoàn thành');
-    if (missing.length) {
-      throw new BadRequestException(
-        `Cần bổ sung trước khi duyệt: ${missing.join(', ')}. Hãy chỉnh sửa ứng viên rồi duyệt lại.`,
-      );
-    }
-
-    // Tạo Target bằng đúng luồng cấp mã dùng chung với tạo thủ công.
-    const created = await createTargetWithGeneratedCode(this.prisma, actor, {
-      title: candidate.name,
-      description: candidate.description ?? buildCandidateDescription(candidate),
-      unit: candidate.unit!,
-      targetValue: candidate.targetValue!,
-      weight: dto.weight ?? 1,
-      year: candidate.targetYear!,
-      frequency: candidate.frequency!,
-      direction: candidate.direction ?? TargetDirection.HIGHER_IS_BETTER,
-      dueDate: candidate.deadline!,
-      departmentId: candidate.responsibleDepartmentId!,
-      isHighlighted: false,
-      legalBasis: candidate.legalBasis ?? candidate.document.docNumber ?? undefined,
-      sourceDocumentId: candidate.documentId,
-    }, {
-      fromCandidate: candidate.id,
-      documentCode: candidate.document.code,
-      extractionMethod: candidate.extractionMethod,
-      aiModel: candidate.model ?? 'rule-based',
-      confidence: candidate.confidence,
-    });
-
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const changed = await tx.indicatorCandidate.updateMany({
-          where: { id, version: dto.expectedVersion, status: CandidateStatus.PROPOSED },
-          data: {
-            status: CandidateStatus.APPROVED,
-            reviewedById: actor.id,
-            reviewedAt: new Date(),
-            createdTargetId: created.id,
-            version: { increment: 1 },
-          },
-        });
-        if (changed.count !== 1) {
-          // Target đã được tạo nhưng ứng viên bị thay đổi song song: báo lỗi rõ ràng
-          // để người duyệt kiểm tra; audit của Target vẫn ghi nguồn từ ứng viên này.
-          throw new ConflictException(
-            `Chỉ tiêu ${created.code} đã được tạo nhưng trạng thái ứng viên thay đổi song song. Vui lòng tải lại để kiểm tra.`,
-          );
-        }
-        await audit(tx, actor, {
-          action: 'AI_CANDIDATE_APPROVED',
-          entityType: 'IndicatorCandidate',
-          entityId: id,
-          departmentId: candidate.responsibleDepartmentId,
-          metadata: {
-            candidateName: candidate.name,
-            targetCode: created.code,
-            documentCode: candidate.document.code,
-            extractionMethod: candidate.extractionMethod,
-            confidence: candidate.confidence,
-            humanEdited: candidate.humanEdited,
-          },
-        });
-        const fresh = await tx.indicatorCandidate.findUniqueOrThrow({
-          where: { id },
-          select: CANDIDATE_SELECT,
-        });
-        return { candidate: fresh, target: created };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    } catch (error) {
-      if (isConcurrencyError(error)) {
-        throw new ConflictException('Chỉ tiêu ứng viên vừa thay đổi. Vui lòng tải lại và thử lại.');
-      }
-      throw error;
-    }
   }
 
   @Post(':id/reject')
@@ -432,6 +340,128 @@ export class CandidatesController {
       throw error;
     }
   }
+}
+
+// Lõi duyệt ứng viên dùng chung cho API duyệt tay và Copilot duyệt hàng loạt:
+// validate đủ trường → tạo Target qua luồng cấp mã chung → chuyển trạng thái + audit.
+// Không truyền expectedVersion (chế độ hàng loạt) thì dùng version hiện tại của ứng viên.
+export async function approveCandidateById(
+  prisma: PrismaService,
+  actor: import('./access').Actor,
+  id: string,
+  options: { expectedVersion?: number; weight?: number },
+) {
+  const candidate = await prisma.indicatorCandidate.findUnique({
+    where: { id },
+    select: {
+      ...CANDIDATE_SELECT,
+      document: { select: { id: true, code: true, title: true, docNumber: true } },
+    },
+  });
+  if (!candidate) throw new NotFoundException('Không tìm thấy chỉ tiêu ứng viên');
+  if (candidate.status !== CandidateStatus.PROPOSED) {
+    throw new ConflictException('Chỉ tiêu ứng viên đã được xử lý trước đó');
+  }
+  const expectedVersion = options.expectedVersion ?? candidate.version;
+  if (candidate.version !== expectedVersion) {
+    throw new ConflictException('Chỉ tiêu ứng viên vừa được thay đổi. Vui lòng tải lại.');
+  }
+  const missing = missingApprovalFields(candidate);
+  if (missing.length) {
+    throw new BadRequestException(
+      `Cần bổ sung trước khi duyệt: ${missing.join(', ')}. Hãy chỉnh sửa ứng viên rồi duyệt lại.`,
+    );
+  }
+
+  // Tạo Target bằng đúng luồng cấp mã dùng chung với tạo thủ công.
+  const created = await createTargetWithGeneratedCode(prisma, actor, {
+    title: candidate.name,
+    description: candidate.description ?? buildCandidateDescription(candidate),
+    unit: candidate.unit!,
+    targetValue: candidate.targetValue!,
+    weight: options.weight ?? 1,
+    year: candidate.targetYear!,
+    frequency: candidate.frequency!,
+    direction: candidate.direction ?? TargetDirection.HIGHER_IS_BETTER,
+    dueDate: candidate.deadline!,
+    departmentId: candidate.responsibleDepartmentId!,
+    isHighlighted: false,
+    legalBasis: candidate.legalBasis ?? candidate.document.docNumber ?? undefined,
+    sourceDocumentId: candidate.documentId,
+  }, {
+    fromCandidate: candidate.id,
+    documentCode: candidate.document.code,
+    extractionMethod: candidate.extractionMethod,
+    aiModel: candidate.model ?? 'rule-based',
+    confidence: candidate.confidence,
+  });
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const changed = await tx.indicatorCandidate.updateMany({
+        where: { id, version: expectedVersion, status: CandidateStatus.PROPOSED },
+        data: {
+          status: CandidateStatus.APPROVED,
+          reviewedById: actor.id,
+          reviewedAt: new Date(),
+          createdTargetId: created.id,
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) {
+        // Target đã được tạo nhưng ứng viên bị thay đổi song song: báo lỗi rõ ràng
+        // để người duyệt kiểm tra; audit của Target vẫn ghi nguồn từ ứng viên này.
+        throw new ConflictException(
+          `Chỉ tiêu ${created.code} đã được tạo nhưng trạng thái ứng viên thay đổi song song. Vui lòng tải lại để kiểm tra.`,
+        );
+      }
+      await audit(tx, actor, {
+        action: 'AI_CANDIDATE_APPROVED',
+        entityType: 'IndicatorCandidate',
+        entityId: id,
+        departmentId: candidate.responsibleDepartmentId,
+        metadata: {
+          candidateName: candidate.name,
+          targetCode: created.code,
+          documentCode: candidate.document.code,
+          extractionMethod: candidate.extractionMethod,
+          confidence: candidate.confidence,
+          humanEdited: candidate.humanEdited,
+        },
+      });
+      const fresh = await tx.indicatorCandidate.findUniqueOrThrow({
+        where: { id },
+        select: CANDIDATE_SELECT,
+      });
+      return { candidate: fresh, target: created };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (isConcurrencyError(error)) {
+      throw new ConflictException('Chỉ tiêu ứng viên vừa thay đổi. Vui lòng tải lại và thử lại.');
+    }
+    throw error;
+  }
+}
+
+// Các trường bắt buộc để một ứng viên trở thành chỉ tiêu chính thức.
+export function missingApprovalFields(candidate: {
+  name: string;
+  unit: string | null;
+  targetValue: number | null;
+  targetYear: number | null;
+  responsibleDepartmentId: string | null;
+  frequency: unknown;
+  deadline: Date | null;
+}): string[] {
+  const missing: string[] = [];
+  if (!candidate.name || candidate.name.trim().length < 3) missing.push('tên chỉ tiêu');
+  if (!candidate.unit) missing.push('đơn vị đo');
+  if (candidate.targetValue === null || candidate.targetValue < 0) missing.push('giá trị mục tiêu');
+  if (!candidate.targetYear) missing.push('năm kế hoạch');
+  if (!candidate.responsibleDepartmentId) missing.push('phòng ban phụ trách');
+  if (!candidate.frequency) missing.push('tần suất báo cáo');
+  if (!candidate.deadline) missing.push('hạn hoàn thành');
+  return missing;
 }
 
 function buildCandidateDescription(candidate: {

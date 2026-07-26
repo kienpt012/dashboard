@@ -88,6 +88,7 @@ const auditLogSelect = {
 
 const SAFE_METADATA_KEYS = new Set([
   'aiModel',
+  'approved',
   'baseVersion',
   'candidateName',
   'category',
@@ -98,6 +99,7 @@ const SAFE_METADATA_KEYS = new Set([
   'confidence',
   'documentCode',
   'extractionMethod',
+  'failed',
   'fromCandidate',
   'humanEdited',
   'intent',

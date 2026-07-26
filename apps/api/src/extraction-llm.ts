@@ -6,7 +6,7 @@ import { OllamaService } from './ollama';
 // Nội dung tài liệu luôn được coi là DỮ LIỆU không đáng tin: mọi chỉ dẫn viết bên trong
 // tài liệu không được thực thi, chỉ được trích xuất như văn bản.
 
-export const EXTRACTION_PROMPT_VERSION = 'extract-v2';
+export const EXTRACTION_PROMPT_VERSION = 'extract-v3';
 
 export interface LlmExtractedIndicator {
   name: string;
@@ -95,9 +95,16 @@ QUY TẮC BẮT BUỘC:
 4. Chỉ tiêu là mục tiêu định lượng cần đạt (có giá trị số + đơn vị). Không trích xuất số liệu thống kê quá khứ, số điện thoại, số văn bản.
 5. Số kiểu Việt Nam: "3.450" nghĩa là 3450; "95,5" nghĩa là 95.5.
 6. valueDirection MẶC ĐỊNH là HIGHER_IS_BETTER (đạt càng cao càng tốt: "đạt X trở lên", "tối thiểu", thu ngân sách, tỷ lệ hoàn thành...). CHỈ dùng LOWER_IS_BETTER khi càng thấp càng tốt: "không quá", "giảm còn", "tối đa", tỷ lệ hộ nghèo, số vụ tai nạn/phạm pháp.
-7. reportingFrequency: "hàng tháng" = MONTHLY, "hàng quý" = QUARTERLY, "năm/cả năm" = YEARLY; "6 tháng" hoặc không nêu = null.
-8. confidence và fieldConfidence: đánh giá trung thực từ 0 đến 1; trường không có trong văn bản thì để null và chấm confidence thấp.
-9. Nếu đoạn văn không có chỉ tiêu nào, trả về danh sách rỗng.`;
+7. reportingFrequency: "hàng tháng" = MONTHLY, "hàng quý" = QUARTERLY, "năm/cả năm" = YEARLY; "6 tháng" = null.
+   TUYỆT ĐỐI KHÔNG ĐOÁN: nếu đoạn văn/bảng không có chữ nào về chu kỳ báo cáo thì reportingFrequency = null
+   (bảng chỉ tiêu thường KHÔNG có cột tần suất — khi đó mọi dòng đều null).
+8. Giá trị dạng khoảng hoặc so sánh: "> 10" lấy 10; "đạt từ 30" lấy 30; "2 - 3%" lấy cận dưới 2 và ghi
+   nguyên văn khoảng vào description; "9.800 USD/người" → targetValue 9800, unit "USD/người".
+9. Bảng nhiều cột: mỗi DÒNG dữ liệu là một chỉ tiêu; cột thường theo thứ tự STT, tên chỉ tiêu, đơn vị tính,
+   kế hoạch/mục tiêu, đơn vị chủ trì, ghi chú. Đừng nhầm số thứ tự (STT) hoặc số hiệu mục (I, II, 1.2)
+   với giá trị mục tiêu.
+10. confidence và fieldConfidence: đánh giá trung thực từ 0 đến 1; trường không có trong văn bản thì để null và chấm confidence thấp.
+11. Nếu đoạn văn không có chỉ tiêu nào, trả về danh sách rỗng.`;
 
 export interface LlmExtractionContext {
   documentTitle?: string;
