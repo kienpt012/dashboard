@@ -20,6 +20,10 @@ import { RateLimitService } from './rate-limit';
 import { HealthController } from './health';
 import { FeedbackMailOutboxWorker, MailService } from './mail';
 import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
+import { DocumentsController } from './documents';
+import { CandidatesController } from './candidates';
+import { ExtractionWorker } from './extraction-worker';
+import { OllamaService } from './ollama';
 
 @Module({
   imports: [
@@ -49,6 +53,8 @@ import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
     SettingsController,
     FeedbackController,
     AuditLogsController,
+    DocumentsController,
+    CandidatesController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,
@@ -58,6 +64,8 @@ import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
     RateLimitService,
     MailService,
     FeedbackMailOutboxWorker,
+    OllamaService,
+    ExtractionWorker,
   ],
 })
 export class AppModule {}

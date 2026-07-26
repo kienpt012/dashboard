@@ -87,12 +87,23 @@ const auditLogSelect = {
 } satisfies Prisma.AuditLogSelect;
 
 const SAFE_METADATA_KEYS = new Set([
+  'aiModel',
   'baseVersion',
+  'candidateName',
   'category',
   'channel',
   'changedFields',
   'changedRows',
   'code',
+  'confidence',
+  'documentCode',
+  'extractionMethod',
+  'fromCandidate',
+  'humanEdited',
+  'mimeType',
+  'reason',
+  'size',
+  'targetCode',
   'currentActive',
   'currentRole',
   'errorRows',

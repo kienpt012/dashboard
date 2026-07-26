@@ -44,6 +44,7 @@ import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear, parsePlanningDueDate } from './planning-date';
 import { PrismaService } from './prisma.service';
+import { createTargetWithGeneratedCode } from './target-create';
 import { archiveTargetData, restoreTargetData } from './target-lifecycle';
 
 const Trim = () => Transform(({ value }: { value: unknown }) =>
@@ -56,33 +57,7 @@ function isTargetConcurrencyError(error: unknown) {
     && (error.code === 'P2025' || error.code === 'P2034');
 }
 
-function isTargetCodeAllocationError(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError
-    && (error.code === 'P2002' || error.code === 'P2034');
-}
-
-const TARGET_CODE_PREFIX = 'CT';
-
-export function normalizeTargetDepartmentCode(code: string) {
-  const normalized = code
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/Đ/g, 'D')
-    .replace(/đ/g, 'd')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
-  return normalized || 'DV';
-}
-
-export function nextTargetCode(year: number, departmentCode: string, existingCodes: string[]) {
-  const prefix = `${TARGET_CODE_PREFIX}-${year}-${normalizeTargetDepartmentCode(departmentCode)}-`;
-  const highestSequence = existingCodes.reduce((highest, code) => {
-    if (!code.startsWith(prefix)) return highest;
-    const sequence = Number(code.slice(prefix.length));
-    return Number.isSafeInteger(sequence) && sequence > highest ? sequence : highest;
-  }, 0);
-  return `${prefix}${String(highestSequence + 1).padStart(3, '0')}`;
-}
+export { nextTargetCode, normalizeTargetDepartmentCode } from './target-create';
 
 export class CreateTargetDto {
   @Trim() @IsString() @MinLength(3) @MaxLength(300) title!: string;
@@ -443,10 +418,10 @@ export class TargetsController {
     if (dueDate.getUTCFullYear() !== dto.year) {
       throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
     }
-    const data = {
-      title: dto.title.trim(),
-      description: dto.description?.trim(),
-      unit: dto.unit.trim(),
+    return createTargetWithGeneratedCode(this.prisma, actor, {
+      title: dto.title,
+      description: dto.description,
+      unit: dto.unit,
       targetValue: dto.targetValue,
       weight: dto.weight ?? 1,
       year: dto.year,
@@ -454,49 +429,9 @@ export class TargetsController {
       direction: dto.direction ?? TargetDirection.HIGHER_IS_BETTER,
       dueDate,
       departmentId,
-      isPublic: false,
       isHighlighted: dto.isHighlighted ?? false,
       publicOrder: dto.publicOrder,
-    };
-
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        return await this.prisma.$transaction(async (tx) => {
-          const department = await tx.department.findUnique({ where: { id: departmentId } });
-          if (!department || !department.isActive) {
-            throw new BadRequestException('Phòng ban phụ trách không tồn tại hoặc đã ngừng hoạt động');
-          }
-          const codePrefix = `${TARGET_CODE_PREFIX}-${dto.year}-${normalizeTargetDepartmentCode(department.code)}-`;
-          const existingCodes = await tx.target.findMany({
-            where: {
-              code: { startsWith: codePrefix },
-            },
-            select: { code: true },
-          });
-          const code = nextTargetCode(dto.year, department.code, existingCodes.map(target => target.code));
-          const created = await tx.target.create({
-            data: { ...data, code },
-            include: { department: true },
-          });
-          await audit(tx, actor, {
-            action: 'TARGET_CREATED',
-            entityType: 'Target',
-            entityId: created.id,
-            departmentId,
-            metadata: { code: created.code, year: created.year, codeGeneratedBySystem: true },
-          });
-          return created;
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      } catch (error) {
-        if (isTargetCodeAllocationError(error) && attempt < 3) continue;
-        if (isTargetCodeAllocationError(error)) {
-          throw new ConflictException('Hệ thống chưa thể cấp mã chỉ tiêu do có thao tác đồng thời. Vui lòng thử lại.');
-        }
-        throw error;
-      }
-    }
-
-    throw new ConflictException('Hệ thống chưa thể cấp mã chỉ tiêu. Vui lòng thử lại.');
+    });
   }
 
   @Patch(':id/visibility')
