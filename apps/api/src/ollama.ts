@@ -29,7 +29,10 @@ export class OllamaService {
     this.baseUrl = (config.get<string>('OLLAMA_BASE_URL') || 'http://127.0.0.1:11434').replace(/\/+$/, '');
     this.extractModel = config.get<string>('OLLAMA_EXTRACT_MODEL') || 'qwen3:4b-instruct-2507-q4_K_M';
     this.embedModel = config.get<string>('OLLAMA_EMBED_MODEL') || 'bge-m3';
-    this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 240_000, 30_000, 900_000);
+    // Trên GPU 4GB (~10 tok/s), một chunk nhiều chỉ tiêu có thể cần sinh >2000 token
+    // (~4 phút). Job chạy nền nên timeout dài là an toàn; lời gọi ngắn (Copilot định
+    // tuyến intent) tự kết thúc sớm hơn nhiều.
+    this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 900_000);
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
   }
 

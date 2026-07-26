@@ -12,6 +12,9 @@
 
 6. GTX 1650 4GB không chứa trọn Qwen3-4B + KV cache → offload ~30% sang CPU, ~10 tok/s.
    Trích xuất 1 tài liệu 5–10 trang mất 3–10 phút (chạy nền). Không phù hợp chat realtime dài.
+   Chunk chứa nhiều chỉ tiêu (≥8) sinh JSON >2000 token ≈ 4 phút/lời gọi — vì vậy
+   `OLLAMA_TIMEOUT_MS` mặc định 480s (đừng hạ dưới 300s trên máy GPU 4GB kẻo job nhiều
+   chỉ tiêu timeout hàng loạt; đã gặp thực tế ở benchmark 26/07).
 7. OCR Tesseract đọc tốt bản in rõ nét; scan mờ/nghiêng nhiều hoặc chữ viết tay sẽ kém —
    đường nâng cấp ghi ở DECISIONS D-003. `maxOcrPages` mặc định 20 trang/tài liệu để giữ thời gian xử lý.
 8. Tần suất báo cáo "6 tháng" không nằm trong enum TargetFrequency (MONTHLY/QUARTERLY/YEARLY) —
