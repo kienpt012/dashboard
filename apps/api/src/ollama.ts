@@ -55,6 +55,9 @@ export class OllamaService {
   ): Promise<OllamaChatResult> {
     const startedAt = Date.now();
     const model = options?.model || this.extractModel;
+    // Dùng stream để tránh trần headersTimeout 300s của undici (fetch Node):
+    // với stream, header trả về ngay và token chảy liên tục nên chỉ còn giới hạn
+    // tổng thời gian do AbortSignal kiểm soát.
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/api/chat`, {
@@ -62,7 +65,7 @@ export class OllamaService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model,
-          stream: false,
+          stream: true,
           format: schema,
           options: {
             temperature: options?.temperature ?? 0.1,
@@ -81,20 +84,37 @@ export class OllamaService {
       this.logger.error(`Ollama trả lỗi ${response.status} cho model ${model}: ${detail}`);
       throw new ServiceUnavailableException('Dịch vụ AI cục bộ trả về lỗi. Vui lòng thử lại sau.');
     }
-    const payload = (await response.json()) as {
-      message?: { content?: string };
-      prompt_eval_count?: number;
-      eval_count?: number;
-    };
-    const content = payload.message?.content;
-    if (typeof content !== 'string' || !content.trim()) {
+    let raw: string;
+    try {
+      raw = await response.text();
+    } catch (error) {
+      this.logger.error(`Luồng phản hồi Ollama bị ngắt (${model}): ${error instanceof Error ? error.name : 'lỗi'}`);
+      throw new ServiceUnavailableException('Dịch vụ AI cục bộ bị gián đoạn. Vui lòng thử lại.');
+    }
+    let content = '';
+    let promptTokens: number | undefined;
+    let evalTokens: number | undefined;
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let chunk: { message?: { content?: string }; prompt_eval_count?: number; eval_count?: number };
+      try {
+        chunk = JSON.parse(trimmed) as typeof chunk;
+      } catch {
+        continue;
+      }
+      if (typeof chunk.message?.content === 'string') content += chunk.message.content;
+      if (typeof chunk.prompt_eval_count === 'number') promptTokens = chunk.prompt_eval_count;
+      if (typeof chunk.eval_count === 'number') evalTokens = chunk.eval_count;
+    }
+    if (!content.trim()) {
       throw new ServiceUnavailableException('Dịch vụ AI không trả về nội dung hợp lệ.');
     }
     return {
       content,
       model,
-      promptTokens: payload.prompt_eval_count,
-      evalTokens: payload.eval_count,
+      promptTokens,
+      evalTokens,
       durationMs: Date.now() - startedAt,
     };
   }

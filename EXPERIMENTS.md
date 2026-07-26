@@ -18,8 +18,25 @@ Kết quả chi tiết + dữ liệu tái lập lưu ở `docs/experiments/`. M�
 
 - `/api/embed` với 2 câu tiếng Việt: 1024 chiều, lần đầu 8.8s (gồm load model), các lần sau <1s. CPU-friendly.
 
-## Kế hoạch thí nghiệm kế tiếp (xem docs/experiments/experiment-plan.md khi tạo)
+## E-003 · 2026-07-26 · Benchmark rule vs LLM vs hybrid (dataset-v1, 28 chỉ tiêu, 5 định dạng)
 
-- E-003: Benchmark field-level P/R/F1 rule-based vs LLM vs hybrid trên evaluation dataset v1.
-- E-004: OCR CER trên bản scan synthetic + đo thời gian/trang.
-- E-005: Đối chiếu qwen3:4b vs qwen2.5:7b-instruct (partial offload) về chất lượng/thời gian.
+- **Kết quả** (chi tiết + file tái lập: docs/experiments/results.md):
+  rule P=0.90/R=0.643/F1=0.75 (~20ms, mù bảng XLSX 0/6);
+  llm P=1.0/R=1.0/F1=1.0 (~19.6 phút; field: value/unit/direction 1.0, department 0.929,
+  deadline 0.857, frequency 0.75 — lỗi chủ yếu là đoán tần suất khi văn bản không nêu);
+  hybrid P=1.0/R=1.0/F1=1.0, giữ nguyên hoạt động khi LLM chết (2 tài liệu fallback luật trong lần chạy).
+- **Kết luận RQ2**: hybrid là cấu hình production; fine-tune chưa có căn cứ.
+
+## E-004 · 2026-07-26 · Hai lỗi hạ tầng phát hiện nhờ benchmark
+
+- Trần `OLLAMA_TIMEOUT_MS` 240s giết lời gọi sinh >2000 token (chunk 8 chỉ tiêu ≈ 4 phút ở 10 tok/s)
+  → nâng mặc định 480s.
+- Trần headersTimeout 300s của undici fetch (Node) giết lời gọi >5 phút bất kể AbortSignal
+  → chuyển OllamaService sang streaming (header về ngay, không còn trần); xác minh bằng lần chạy
+  llm sạch 15-38-49 (5/5 tài liệu thành công, có lời gọi 366s).
+
+## Kế hoạch thí nghiệm kế tiếp (docs/experiments/experiment-plan.md)
+
+- E-005: Dataset-v2 văn bản thật ẩn danh + human correction rate trên UI xác minh.
+- E-006: Prompt v3 (tần suất null-when-absent) → đo lại field accuracy.
+- E-007: qwen2.5:7b-instruct accuracy-mode; OCR CER trên scan chất lượng thấp.

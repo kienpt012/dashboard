@@ -43,5 +43,16 @@
   với số liệu thật (11 chỉ tiêu, 71%, phát hiện đúng chỉ tiêu mới chưa có số liệu).
 - Docker parity: image API cài tesseract vie, compose có OLLAMA_*/EXTRACTION_*, .env.example, README mới.
 
-**Việc tiếp theo**: hoàn tất benchmark LLM/hybrid + docs/experiments; test browser Copilot;
-giai đoạn kế: RAG/pgvector, PROGRESS_UPDATE candidate, speech-to-text, CI.
+## 2026-07-26 · Phiên 1 (kết): Benchmark hoàn tất + 2 fix hạ tầng
+
+- **Benchmark cuối (E-003)**: rule F1=0.75 (20ms, mù bảng), **llm F1=1.0**, **hybrid F1=1.0**
+  trên 28 chỉ tiêu / 5 định dạng. Field-level: giá trị/đơn vị/chiều hướng 100%, phòng ban 93–96%,
+  tần suất 75% (đã định vị nguyên nhân — model đoán khi văn bản không nêu). Chi tiết + file tái lập:
+  docs/experiments/results.md, model-comparison.md.
+- **2 lỗi hạ tầng phát hiện & sửa nhờ benchmark (E-004)**: OLLAMA_TIMEOUT_MS 240s→480s;
+  OllamaService chuyển streaming để né trần headersTimeout 300s của undici. Suite 95/95 sau fix.
+- Copilot kiểm chứng trên browser: bảng 5 chỉ tiêu dưới 70% + dòng nguồn `queryTargets`.
+
+**Việc tiếp theo (phiên sau)**: prompt v3 (tần suất null-when-absent) + đo lại; RAG/pgvector (D-005);
+PROGRESS_UPDATE candidate (giai đoạn 9); Copilot v2 (thao tác ghi có preview); speech-to-text; CI;
+dataset-v2 văn bản thật + human correction rate.
