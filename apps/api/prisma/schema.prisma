@@ -205,7 +205,7 @@ model PasswordResetChallenge {
   resetTokenExpiresAt DateTime?
   consumedAt          DateTime?
   createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  updatedAt           DateTime  @default(now()) @updatedAt
 
   @@index([userId, createdAt])
   @@index([expiresAt])
@@ -390,6 +390,7 @@ model Feedback {
   @@index([assignedToId, status])
   @@index([dueAt])
   @@index([citizenResponseDueAt])
+  @@index([reopenRequestedAt])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 

@@ -6,7 +6,7 @@ và **lớp AI cục bộ tự đọc văn bản hành chính để đề xuất
 - Frontend: React 19 + TypeScript + Vite
 - Backend: NestJS 11 + Prisma ORM (modular monolith)
 - Database: PostgreSQL 17
-- AI cục bộ: Ollama (Qwen3-4B trích xuất, bge-m3 embedding) + Tesseract OCR tiếng Việt — không gửi dữ liệu ra ngoài
+- AI cục bộ: Ollama (Qwen3-4B cho trích xuất và IOC Copilot; bge-m3 đã sẵn sàng cho giai đoạn RAG) + Tesseract OCR tiếng Việt/Anh — không gửi dữ liệu ra ngoài
 - Triển khai cục bộ: Docker Compose
 
 Tài liệu nghiên cứu và kiến trúc: xem thư mục `docs/` (bắt đầu từ `docs/PROJECT_VISION.md`,
@@ -14,15 +14,22 @@ Tài liệu nghiên cứu và kiến trúc: xem thư mục `docs/` (bắt đầu
 
 ## Chạy hệ thống
 
-Docker Desktop cần ở trạng thái Running, sau đó tại thư mục dự án:
+Tại thư mục dự án, chạy một trong hai lệnh tương đương sau. Launcher sẽ kiểm tra/khởi động Ollama trên máy host, kiểm tra đủ model, khởi động Docker Desktop nếu cần, dựng PostgreSQL + API + web và kiểm tra AI/OCR từ bên trong container API:
 
 ```powershell
-docker compose up --build -d
+npm run start:ioc
+# hoặc nhấp đúp start-ioc.cmd
+```
+
+Khi source và image không thay đổi, có thể bỏ qua bước build để khởi động nhanh:
+
+```powershell
+npm run start:ioc:fast
 ```
 
 Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt `RUN_DEMO_SEED=true` trong `.env` cho lần khởi tạo đầu tiên, chạy hệ thống, rồi đổi lại thành `false`. Không bật tùy chọn này trong môi trường vận hành thật.
 
-Schema hiện có **23 migration**. Các migration mới nhất bổ sung tệp minh chứng, bản chụp phản ánh công khai, phiên OTP khôi phục mật khẩu, mã chỉ tiêu duy nhất toàn hệ thống và outbox email tiến độ. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
+Schema hiện có **27 migration**. Các migration mới nhất bổ sung kho văn bản, hàng đợi trích xuất, đề xuất chỉ tiêu có nguồn gốc kiểm chứng, tác vụ Copilot, cùng các nghiệp vụ tệp minh chứng, phản ánh công khai, OTP và outbox email. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
 
 Truy cập:
 
@@ -31,6 +38,8 @@ Truy cập:
 - Đăng nhập quản trị: http://localhost:8080/admin/login
 - Quên mật khẩu quản trị: http://localhost:8080/admin/forgot-password
 - Trung tâm điều hành sau đăng nhập: http://localhost:8080/admin
+- Kho văn bản và xác minh trích xuất: http://localhost:8080/admin/documents
+- IOC Copilot: http://localhost:8080/admin/copilot
 - Tiếp nhận phản ánh nội bộ: http://localhost:8080/admin/feedback
 - Hồ sơ và bảo mật tài khoản: http://localhost:8080/admin/profile
 - Nhật ký hệ thống (quản trị viên): http://localhost:8080/admin/audit-logs
@@ -85,9 +94,13 @@ ollama pull qwen3:4b-instruct-2507-q4_K_M
 ollama pull bge-m3
 ```
 
-Docker image API đã cài sẵn Tesseract OCR tiếng Việt. API trong Docker mặc định gọi Ollama của máy host
+Môi trường đã được xác minh với Ollama `0.32.4`. Model `qwen3:4b-instruct-2507-q4_K_M` đang phục vụ cả trích xuất chỉ tiêu và IOC Copilot. Model `bge-m3:latest` đã được cài, kiểm thử vector 1024 chiều và được launcher kiểm tra, nhưng ứng dụng chưa gọi model này cho đến khi triển khai RAG/pgvector.
+
+Docker image API đã cài sẵn Tesseract OCR với hai ngôn ngữ `vie+eng`. Tesseract được API gọi theo từng tác vụ OCR, không có service riêng cần khởi động. API trong Docker mặc định gọi Ollama của máy host
 qua `http://host.docker.internal:11434` (đổi bằng `OLLAMA_BASE_URL` trong `.env`). Khi Ollama không chạy,
 hệ thống vẫn hoạt động: trích xuất tự hạ cấp về bộ luật tiếng Việt và ghi rõ phương pháp trên từng đề xuất.
+
+Compose truyền mặc định `OLLAMA_TIMEOUT_MS=480000`, `OLLAMA_NUM_CTX=4096` và `EXTRACTION_MAX_LLM_CHUNKS=40`. Endpoint `/api/health` chủ ý chỉ kiểm tra API và cơ sở dữ liệu; launcher một chạm thực hiện thêm kiểm tra kết nối Ollama và hai ngôn ngữ OCR trong container.
 
 Máy cấu hình thấp (GPU 4GB): model 4B Q4 chạy ~10 token/giây; một tài liệu 1–2 trang mất khoảng 3–4 phút
 trích xuất trong nền. Sinh bộ tài liệu mẫu để thử: `python scripts/generate-sample-documents.py` → `samples/`.
@@ -158,9 +171,10 @@ npm run qa:import
 
 Các lệnh `qa:*` yêu cầu PostgreSQL và API đang chạy tại cấu hình cục bộ. Mỗi kịch bản tự tạo tài khoản và dữ liệu kiểm thử bằng ID riêng, luôn dọn người dùng, dữ liệu nghiệp vụ và nhật ký tương ứng, rồi mới báo thành công; không sử dụng hoặc làm thay đổi thời điểm đăng nhập của tài khoản demo.
 
-Mốc double-check gần nhất (22/07/2026):
+Mốc double-check gần nhất (27/07/2026):
 
-- `npm test`: **76/76** kiểm thử đơn vị đạt, gồm tính tiến độ/trạng thái, mã chỉ tiêu tự sinh duy nhất toàn hệ thống, phân trang công khai ổn định, cấu hình SMTP, outbox email có retry/dead-letter, khôi phục mật khẩu và vô hiệu hóa OTP/token cũ, graceful shutdown thư đang gửi, tổng hợp theo trọng số, chính sách ẩn danh và kiểm tra tệp minh chứng.
+- `npm test`: **103/103** kiểm thử đơn vị đạt, bao gồm nghiệp vụ nền trước đây và các lớp xử lý văn bản, trích xuất AI/OCR, xác minh đề xuất, IOC Copilot cùng cơ chế dự phòng.
+- Nhánh AI/OCR đã được dựng và chạy qua Docker tại `http://localhost:8080`; launcher xác minh container API nhìn thấy hai model Ollama trên host và Tesseract có đủ `vie`, `eng`.
 - `npm run qa:access`: **35/35** kiểm thử đạt, bao phủ đăng nhập, phân quyền/phạm vi phòng ban, ràng buộc quản trị, mã chỉ tiêu do máy chủ cấp, bật/tắt công khai, lưu trữ chỉ tiêu và thu hồi token.
 - `npm run qa:feedback`: **80/80** kiểm thử đạt, bao phủ gửi/tra cứu phản ánh, ảnh/PDF minh chứng, kiểm tra tệp và phân quyền tải, chống gửi trùng, phân công, SLA chờ bổ sung, sắp xếp hồ sơ mới nhất, đóng/mở lại, đánh giá, công bố tự động từ hồ sơ gốc, chi tiết tiến trình công khai, chống xung đột và che dữ liệu.
 - `npm run qa:import`: **8/8** kiểm thử end-to-end đạt, bao phủ tải phiếu Excel hiện hành, xem trước, phát hiện phạm vi/xung đột, áp dụng dữ liệu và đối soát kết quả.

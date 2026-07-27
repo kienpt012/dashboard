@@ -2,7 +2,7 @@
 
 ## Hệ thống nền (có từ trước)
 
-1. Không có CI — build/test chạy tay. (Kế hoạch: workflow GitHub Actions ở giai đoạn 10.)
+1. Đã có workflow GitHub Actions để kiểm tra build/test khi làm việc qua GitHub; kiểm thử AI/OCR đầy đủ vẫn cần máy chạy Ollama, model local và Docker vì runner CI không có bộ runtime/model này.
 2. Rate limit trong bộ nhớ tiến trình — chỉ đúng với 1 API instance.
 3. Danh sách chỉ tiêu/status filter lọc trong JS sau khi load toàn bộ — chậm nếu >1000 chỉ tiêu.
 4. `ImportBatch.createdBy` lưu username (không phải FK) — đổi tên đăng nhập làm mồ côi quyền apply batch.
@@ -32,6 +32,14 @@
     của QĐ 333). Hướng xử lý: xen kẽ job nhỏ giữa các chunk, hoặc hàng đợi ưu tiên theo kích thước.
 15. Máy ngủ (sleep) giữa chừng làm treo lời gọi LLM đang chạy; job được reclaim sau lease nhưng
     mất tiến độ chunk của lần chạy dở. Chunk-level checkpoint là cải tiến tương lai.
-16. Trường `category` của ứng viên thường bị model bỏ trống trên bảng thật (tiêu đề mục "I. Chỉ tiêu
-    về kinh tế" nằm ngoài dòng dữ liệu) — bộ lọc lĩnh vực của lệnh duyệt hàng loạt vì vậy dựa cả vào
-    tên chỉ tiêu; cải tiến: truyền tiêu đề mục gần nhất vào ngữ cảnh chunk khi trích xuất.
+16. Trường `category` của ứng viên đôi khi vẫn bị model bỏ trống trên bảng thật. Pipeline đã truyền tiêu
+    đề mục gần nhất vào từng chunk và bộ lọc lĩnh vực của lệnh duyệt hàng loạt còn đối chiếu tên chỉ tiêu,
+    nhưng người duyệt vẫn cần xác minh các bảng có tiêu đề/ô gộp bất thường.
+
+## Chuỗi cung ứng phần mềm
+
+17. Audit ngày 27/07/2026 còn 12 cảnh báo high và 1 moderate, không có critical. Các cảnh báo high quy
+    về ExcelJS/brace-expansion, React Router RSC và PostCSS. Ứng dụng không dùng React Server Components;
+    PostCSS chỉ chạy lúc build; ExcelJS vẫn là dependency runtime cho import/export nhưng bản 4.4.0 hiện
+    chưa có bản vá tương thích. Không chạy `npm audit fix --force` vì npm sẽ hạ ExcelJS xuống 3.4.0 và có
+    nguy cơ phá vỡ luồng Excel; cần theo dõi upstream và kiểm thử hồi quy trước khi pin/override major.
