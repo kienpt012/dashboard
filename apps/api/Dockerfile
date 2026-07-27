@@ -9,6 +9,12 @@ RUN npm run prisma:generate -w @ioc/api && npm run build -w @ioc/api
 
 FROM node:22-alpine
 WORKDIR /app
+# OCR tiếng Việt và tiếng Anh cho pipeline trích xuất tài liệu.
+# Tesseract được Node khởi chạy theo từng tác vụ, không cần service riêng.
+RUN apk add --no-cache \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    tesseract-ocr-data-vie
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/prisma ./prisma

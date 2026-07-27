@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-07-26",
+  "description": "Ground truth cho bộ tài liệu hành chính synthetic (sinh bởi scripts/generate-sample-documents.py). Mỗi chỉ tiêu ghi giá trị đúng của từng trường; trường null nghĩa là văn bản không nêu và hệ thống phải trả null.",
+  "documents": [
+    {
+      "file": "samples/ke-hoach-ktxh-2026.docx",
+      "kind": "docx",
+      "indicators": [
+        { "name": "Tỷ lệ hồ sơ thủ tục hành chính giải quyết đúng hạn", "targetValue": 98, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": "QUARTERLY", "responsibleDepartment": "Trung tâm Phục vụ hành chính công", "targetYear": 2026, "deadline": null },
+        { "name": "Tổng thu ngân sách nhà nước", "targetValue": 3450, "unit": "tỷ đồng", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Phòng Kinh tế, Hạ tầng và Đô thị", "targetYear": 2026, "deadline": "2026-12-31" },
+        { "name": "Tỷ lệ người dân tham gia bảo hiểm y tế", "targetValue": 95.5, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": "QUARTERLY", "responsibleDepartment": "Phòng Văn hóa - Xã hội", "targetYear": 2026, "deadline": null },
+        { "name": "Trồng mới cây xanh đô thị", "targetValue": 1200, "unit": "cây", "direction": "HIGHER_IS_BETTER", "frequency": "QUARTERLY", "responsibleDepartment": "Phòng Kinh tế, Hạ tầng và Đô thị", "targetYear": 2026, "deadline": null },
+        { "name": "Tỷ lệ hộ nghèo theo chuẩn đa chiều", "targetValue": 0.8, "unit": "%", "direction": "LOWER_IS_BETTER", "frequency": "QUARTERLY", "responsibleDepartment": "Phòng Văn hóa - Xã hội", "targetYear": 2026, "deadline": null },
+        { "name": "Giải quyết việc làm mới", "targetValue": 2500, "unit": "người", "direction": "HIGHER_IS_BETTER", "frequency": "MONTHLY", "responsibleDepartment": "Phòng Văn hóa - Xã hội", "targetYear": 2026, "deadline": null },
+        { "name": "Tỷ lệ hồ sơ dịch vụ công trực tuyến toàn trình", "targetValue": 70, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": "MONTHLY", "responsibleDepartment": "Trung tâm Phục vụ hành chính công", "targetYear": 2026, "deadline": null },
+        { "name": "Số vụ phạm pháp hình sự", "targetValue": 45, "unit": "vụ", "direction": "LOWER_IS_BETTER", "frequency": "MONTHLY", "responsibleDepartment": "Công an phường", "targetYear": 2026, "deadline": null }
+      ]
+    },
+    {
+      "file": "samples/ke-hoach-ktxh-2026-scan.pdf",
+      "kind": "pdf-scan",
+      "indicators": "same-as:samples/ke-hoach-ktxh-2026.docx"
+    },
+    {
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026.pdf",
+      "kind": "pdf-text",
+      "indicators": [
+        { "name": "Tỷ lệ số hóa hồ sơ, kết quả giải quyết thủ tục hành chính", "targetValue": 100, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": "MONTHLY", "responsibleDepartment": "Trung tâm Phục vụ hành chính công", "targetYear": 2026, "deadline": null },
+        { "name": "Tỷ lệ người dân trưởng thành có tài khoản định danh điện tử mức độ 2", "targetValue": 90, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": "QUARTERLY", "responsibleDepartment": "Công an phường", "targetYear": 2026, "deadline": null },
+        { "name": "Lắp đặt mới điểm camera an ninh", "targetValue": 25, "unit": "điểm", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Công an phường", "targetYear": 2026, "deadline": "2026-09-30" }
+      ]
+    },
+    {
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026-anh.png",
+      "kind": "image",
+      "indicators": "same-as:samples/quyet-dinh-chuyen-doi-so-2026.pdf"
+    },
+    {
+      "file": "samples/bao-cao-chi-tieu-6-thang-2026.xlsx",
+      "kind": "xlsx",
+      "indicators": [
+        { "name": "Tỷ lệ hồ sơ TTHC giải quyết đúng hạn", "targetValue": 98, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Trung tâm Phục vụ hành chính công", "targetYear": 2026, "deadline": null },
+        { "name": "Tổng thu ngân sách nhà nước", "targetValue": 3450, "unit": "tỷ đồng", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Phòng Kinh tế, Hạ tầng và Đô thị", "targetYear": 2026, "deadline": null },
+        { "name": "Tỷ lệ người dân tham gia BHYT", "targetValue": 95.5, "unit": "%", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Phòng Văn hóa - Xã hội", "targetYear": 2026, "deadline": null },
+        { "name": "Trồng mới cây xanh đô thị", "targetValue": 1200, "unit": "cây", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Phòng Kinh tế, Hạ tầng và Đô thị", "targetYear": 2026, "deadline": null },
+        { "name": "Tỷ lệ hộ nghèo đa chiều", "targetValue": 0.8, "unit": "%", "direction": "LOWER_IS_BETTER", "frequency": null, "responsibleDepartment": "Phòng Văn hóa - Xã hội", "targetYear": 2026, "deadline": null },
+        { "name": "Giải quyết việc làm mới", "targetValue": 2500, "unit": "người", "direction": "HIGHER_IS_BETTER", "frequency": null, "responsibleDepartment": "Phòng Văn hóa - Xã hội", "targetYear": 2026, "deadline": null }
+      ]
+    }
+  ]
+}

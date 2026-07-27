@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -97,6 +98,60 @@ enum MailOutboxStatus {
   DEAD_LETTER
 }
 
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum DocumentType {
+  KE_HOACH
+  QUYET_DINH
+  CONG_VAN
+  BAO_CAO
+  NGHI_QUYET
+  PHU_LUC
+  KHAC
+}
+
+enum ExtractionJobKind {
+  DOCUMENT_PARSE
+  INDICATOR_EXTRACT
+}
+
+enum ExtractionJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
+enum ExtractionMethod {
+  RULE_BASED
+  LLM
+}
+
+enum CandidateKind {
+  NEW_INDICATOR
+  PROGRESS_UPDATE
+}
+
+enum CandidateStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+}
+
+enum AgentActionStatus {
+  PROPOSED
+  EXECUTED
+  CANCELLED
+  FAILED
+  EXPIRED
+}
+
 model Department {
   id          String   @id @default(cuid())
   code        String   @unique
@@ -111,6 +166,8 @@ model Department {
   targets     Target[]
   importBatches ImportBatch[]
   feedbacks   Feedback[]
+  documents   SourceDocument[]
+  indicatorCandidates IndicatorCandidate[]
 }
 
 model User {
@@ -131,6 +188,9 @@ model User {
   updates      ProgressUpdate[]
   assignedFeedbacks Feedback[] @relation("FeedbackAssignee")
   passwordResetChallenges PasswordResetChallenge[]
+  uploadedDocuments SourceDocument[] @relation("DocumentUploader")
+  reviewedCandidates IndicatorCandidate[] @relation("CandidateReviewer")
+  agentActions AgentAction[] @relation("AgentActionUser")
 }
 
 model PasswordResetChallenge {
@@ -146,7 +206,7 @@ model PasswordResetChallenge {
   resetTokenExpiresAt DateTime?
   consumedAt          DateTime?
   createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  updatedAt           DateTime  @default(now()) @updatedAt
 
   @@index([userId, createdAt])
   @@index([expiresAt])
@@ -196,9 +256,14 @@ model Target {
   dueDate       DateTime
   departmentId  String
   department    Department      @relation(fields: [departmentId], references: [id])
+  legalBasis    String?
+  sourceDocumentId String?
+  sourceDocument SourceDocument? @relation("TargetSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   updates       ProgressUpdate[]
+  sourceCandidate IndicatorCandidate? @relation("CandidateCreatedTarget")
+  matchedCandidates IndicatorCandidate[] @relation("CandidateMatchedTarget")
 
   @@index([year, status])
   @@index([departmentId])
@@ -326,6 +391,7 @@ model Feedback {
   @@index([assignedToId, status])
   @@index([dueAt])
   @@index([citizenResponseDueAt])
+  @@index([reopenRequestedAt])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
@@ -390,6 +456,176 @@ model MailOutbox {
 
   @@index([status, availableAt])
   @@index([status, lockedAt])
+}
+
+// Kho văn bản nguồn: mọi dữ liệu AI đề xuất đều phải truy vết được về một tài liệu.
+model SourceDocument {
+  id              String         @id @default(cuid())
+  code            String         @unique
+  title           String
+  originalName    String
+  mimeType        String
+  size            Int
+  sha256          String         @unique
+  data            Bytes
+  docType         DocumentType   @default(KHAC)
+  docNumber       String?
+  issuedBy        String?
+  issuedDate      DateTime?
+  description     String?
+  status          DocumentStatus @default(UPLOADED)
+  processingError String?
+  pageCount       Int?
+  hasTextLayer    Boolean?
+  ocrUsed         Boolean        @default(false)
+  year            Int?
+  departmentId    String?
+  department      Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  uploadedById    String
+  uploadedBy      User           @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  version         Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  pages           DocumentPage[]
+  chunks          DocumentChunk[]
+  jobs            ExtractionJob[]
+  candidates      IndicatorCandidate[]
+  sourcedTargets  Target[]       @relation("TargetSourceDocument")
+
+  @@index([status, createdAt])
+  @@index([departmentId, createdAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model DocumentPage {
+  id            String         @id @default(cuid())
+  documentId    String
+  document      SourceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  pageNumber    Int
+  text          String
+  ocrUsed       Boolean        @default(false)
+  ocrConfidence Float?
+
+  @@unique([documentId, pageNumber])
+}
+
+model DocumentChunk {
+  id         String         @id @default(cuid())
+  documentId String
+  document   SourceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  pageFrom   Int
+  pageTo     Int
+  text       String
+  charCount  Int
+  candidates IndicatorCandidate[]
+
+  @@unique([documentId, chunkIndex])
+}
+
+// Hàng đợi xử lý bất đồng bộ theo mô hình MailOutbox: claim bằng FOR UPDATE SKIP LOCKED,
+// lease 10 phút (job AI chạy lâu hơn gửi mail), backoff mũ, DEAD_LETTER khi hết lượt thử.
+model ExtractionJob {
+  id            String              @id @default(cuid())
+  documentId    String
+  document      SourceDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  kind          ExtractionJobKind
+  status        ExtractionJobStatus @default(PENDING)
+  attempts      Int                 @default(0)
+  availableAt   DateTime            @default(now())
+  lockedAt      DateTime?
+  lockedBy      String?
+  lastError     String?             @db.VarChar(300)
+  model         String?
+  promptVersion String?
+  chunksTotal   Int?
+  chunksDone    Int?
+  note          String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdById   String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([status, availableAt])
+  @@index([documentId, kind, createdAt])
+}
+
+// Hành động ghi dữ liệu do Copilot đề xuất: luôn qua preview, chỉ thực thi sau khi
+// đúng người ra lệnh xác nhận trong thời hạn. Là sổ truy vết mọi thao tác agent.
+model AgentAction {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation("AgentActionUser", fields: [userId], references: [id])
+  command       String
+  tool          String
+  parameters    Json
+  preview       Json
+  status        AgentActionStatus @default(PROPOSED)
+  resultSummary String?
+  result        Json?
+  error         String?
+  expiresAt     DateTime
+  confirmedAt   DateTime?
+  executedAt    DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([userId, status, createdAt])
+}
+
+// Chỉ tiêu ứng viên do AI/rule đề xuất. Chỉ trở thành Target chính thức sau khi người có thẩm quyền duyệt.
+model IndicatorCandidate {
+  id                        String           @id @default(cuid())
+  documentId                String
+  document                  SourceDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkId                   String?
+  chunk                     DocumentChunk?   @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+  pageNumber                Int?
+  kind                      CandidateKind    @default(NEW_INDICATOR)
+  status                    CandidateStatus  @default(PROPOSED)
+  extractionMethod          ExtractionMethod
+  model                     String?
+  promptVersion             String?
+  name                      String
+  ordinal                   String?
+  parentName                String?
+  description               String?
+  category                  String?
+  unit                      String?
+  targetValue               Float?
+  actualValue               Float?
+  targetYear                Int?
+  direction                 TargetDirection?
+  frequency                 TargetFrequency?
+  deadline                  DateTime?
+  responsibleDepartmentName String?
+  responsibleDepartmentId   String?
+  responsibleDepartment     Department?      @relation(fields: [responsibleDepartmentId], references: [id], onDelete: SetNull)
+  coordinatingDepartments   String?
+  legalBasis                String?
+  formula                   String?
+  sourceQuote               String
+  confidence                Float
+  fieldConfidence           Json?
+  warnings                  Json?
+  isDuplicateSuspect        Boolean          @default(false)
+  matchedTargetId           String?
+  matchedTarget             Target?          @relation("CandidateMatchedTarget", fields: [matchedTargetId], references: [id], onDelete: SetNull)
+  humanEdited               Boolean          @default(false)
+  editedFields              Json?
+  reviewNote                String?
+  reviewedById              String?
+  reviewedBy                User?            @relation("CandidateReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt                DateTime?
+  createdTargetId           String?          @unique
+  createdTarget             Target?          @relation("CandidateCreatedTarget", fields: [createdTargetId], references: [id], onDelete: SetNull)
+  version                   Int              @default(1)
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([documentId, status])
 }
 
 model AuditLog {

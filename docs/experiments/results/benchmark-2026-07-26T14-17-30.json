@@ -1,0 +1,271 @@
+{
+  "runAt": "2026-07-26T14:17:30.276Z",
+  "datasetVersion": "1.0",
+  "model": "qwen3:4b-instruct-2507-q4_K_M",
+  "methods": [
+    "llm",
+    "hybrid"
+  ],
+  "summary": [
+    {
+      "method": "llm",
+      "documents": 5,
+      "truthCount": 28,
+      "predictedCount": 6,
+      "truePositives": 6,
+      "precision": 1,
+      "recall": 0.214,
+      "f1": 0.353,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "totalExtractMs": 1035168
+    },
+    {
+      "method": "hybrid",
+      "documents": 5,
+      "truthCount": 28,
+      "predictedCount": 22,
+      "truePositives": 22,
+      "precision": 1,
+      "recall": 0.786,
+      "f1": 0.88,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 0.955,
+        "deadline": 0.909,
+        "department": 0.955
+      },
+      "totalExtractMs": 1015391
+    }
+  ],
+  "perDocument": [
+    {
+      "method": "llm",
+      "file": "samples/ke-hoach-ktxh-2026.docx",
+      "kind": "docx",
+      "truthCount": 8,
+      "predictedCount": 0,
+      "truePositives": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "fieldAccuracy": {
+        "value": null,
+        "unit": null,
+        "direction": null,
+        "frequency": null,
+        "deadline": null,
+        "department": null
+      },
+      "parseMs": 627,
+      "extractMs": 240046,
+      "ocrUsed": false
+    },
+    {
+      "method": "llm",
+      "file": "samples/ke-hoach-ktxh-2026-scan.pdf",
+      "kind": "pdf-scan",
+      "truthCount": 8,
+      "predictedCount": 0,
+      "truePositives": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "fieldAccuracy": {
+        "value": null,
+        "unit": null,
+        "direction": null,
+        "frequency": null,
+        "deadline": null,
+        "department": null
+      },
+      "parseMs": 9556,
+      "extractMs": 240009,
+      "ocrUsed": true
+    },
+    {
+      "method": "llm",
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026.pdf",
+      "kind": "pdf-text",
+      "truthCount": 3,
+      "predictedCount": 3,
+      "truePositives": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "parseMs": 416,
+      "extractMs": 146356,
+      "ocrUsed": false
+    },
+    {
+      "method": "llm",
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026-anh.png",
+      "kind": "image",
+      "truthCount": 3,
+      "predictedCount": 3,
+      "truePositives": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "parseMs": 2540,
+      "extractMs": 168743,
+      "ocrUsed": true
+    },
+    {
+      "method": "llm",
+      "file": "samples/bao-cao-chi-tieu-6-thang-2026.xlsx",
+      "kind": "xlsx",
+      "truthCount": 6,
+      "predictedCount": 0,
+      "truePositives": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "fieldAccuracy": {
+        "value": null,
+        "unit": null,
+        "direction": null,
+        "frequency": null,
+        "deadline": null,
+        "department": null
+      },
+      "parseMs": 2025,
+      "extractMs": 240014,
+      "ocrUsed": false
+    },
+    {
+      "method": "hybrid",
+      "file": "samples/ke-hoach-ktxh-2026.docx",
+      "kind": "docx",
+      "truthCount": 8,
+      "predictedCount": 8,
+      "truePositives": 8,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 1,
+        "department": 1
+      },
+      "parseMs": 330,
+      "extractMs": 240024,
+      "ocrUsed": false
+    },
+    {
+      "method": "hybrid",
+      "file": "samples/ke-hoach-ktxh-2026-scan.pdf",
+      "kind": "pdf-scan",
+      "truthCount": 8,
+      "predictedCount": 8,
+      "truePositives": 8,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 0.875,
+        "deadline": 1,
+        "department": 0.875
+      },
+      "parseMs": 13844,
+      "extractMs": 240012,
+      "ocrUsed": true
+    },
+    {
+      "method": "hybrid",
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026.pdf",
+      "kind": "pdf-text",
+      "truthCount": 3,
+      "predictedCount": 3,
+      "truePositives": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "parseMs": 52,
+      "extractMs": 156679,
+      "ocrUsed": false
+    },
+    {
+      "method": "hybrid",
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026-anh.png",
+      "kind": "image",
+      "truthCount": 3,
+      "predictedCount": 3,
+      "truePositives": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "parseMs": 4496,
+      "extractMs": 138665,
+      "ocrUsed": true
+    },
+    {
+      "method": "hybrid",
+      "file": "samples/bao-cao-chi-tieu-6-thang-2026.xlsx",
+      "kind": "xlsx",
+      "truthCount": 6,
+      "predictedCount": 0,
+      "truePositives": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "fieldAccuracy": {
+        "value": null,
+        "unit": null,
+        "direction": null,
+        "frequency": null,
+        "deadline": null,
+        "department": null
+      },
+      "parseMs": 47,
+      "extractMs": 240011,
+      "ocrUsed": false
+    }
+  ]
+}

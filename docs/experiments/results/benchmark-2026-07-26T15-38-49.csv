@@ -1,0 +1,6 @@
+method,file,kind,truth,predicted,tp,precision,recall,f1,value_acc,unit_acc,direction_acc,frequency_acc,deadline_acc,department_acc,parse_ms,extract_ms
+llm,samples/ke-hoach-ktxh-2026.docx,docx,8,8,8,1,1,1,1,1,1,0.875,0.875,0.875,519,209136
+llm,samples/ke-hoach-ktxh-2026-scan.pdf,pdf-scan,8,8,8,1,1,1,1,1,1,1,0.875,0.875,8856,366896
+llm,samples/quyet-dinh-chuyen-doi-so-2026.pdf,pdf-text,3,3,3,1,1,1,1,1,1,1,0.667,1,56,145913
+llm,samples/quyet-dinh-chuyen-doi-so-2026-anh.png,image,3,3,3,1,1,1,1,1,1,1,0.667,1,3227,143862
+llm,samples/bao-cao-chi-tieu-6-thang-2026.xlsx,xlsx,6,6,6,1,1,1,1,1,1,0,1,1,952,309500

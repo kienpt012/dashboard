@@ -1,0 +1,11 @@
+method,file,kind,truth,predicted,tp,precision,recall,f1,value_acc,unit_acc,direction_acc,frequency_acc,deadline_acc,department_acc,parse_ms,extract_ms
+llm,samples/ke-hoach-ktxh-2026.docx,docx,8,8,8,1,1,1,1,1,1,0.875,0.875,0.875,549,292460
+llm,samples/ke-hoach-ktxh-2026-scan.pdf,pdf-scan,8,0,0,0,0,0,,,,,,,9664,307756
+llm,samples/quyet-dinh-chuyen-doi-so-2026.pdf,pdf-text,3,3,3,1,1,1,1,1,1,1,0.667,1,76,149615
+llm,samples/quyet-dinh-chuyen-doi-so-2026-anh.png,image,3,3,3,1,1,1,1,1,1,1,0.667,1,3508,146089
+llm,samples/bao-cao-chi-tieu-6-thang-2026.xlsx,xlsx,6,6,6,1,1,1,1,1,1,0,1,1,857,306482
+hybrid,samples/ke-hoach-ktxh-2026.docx,docx,8,8,8,1,1,1,1,1,1,1,1,1,232,307725
+hybrid,samples/ke-hoach-ktxh-2026-scan.pdf,pdf-scan,8,8,8,1,1,1,1,1,1,0.875,1,0.875,9113,307504
+hybrid,samples/quyet-dinh-chuyen-doi-so-2026.pdf,pdf-text,3,3,3,1,1,1,1,1,1,1,0.667,1,50,147282
+hybrid,samples/quyet-dinh-chuyen-doi-so-2026-anh.png,image,3,3,3,1,1,1,1,1,1,1,0.667,1,2894,145374
+hybrid,samples/bao-cao-chi-tieu-6-thang-2026.xlsx,xlsx,6,6,6,1,1,1,1,1,1,0,1,1,23,304915

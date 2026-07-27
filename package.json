@@ -3,14 +3,19 @@
   "private": true,
   "workspaces": ["apps/*"],
   "scripts": {
+    "start:ioc": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-ioc.ps1",
+    "start:ioc:fast": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-ioc.ps1 -SkipBuild",
+    "stop:ioc": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-ioc.ps1",
     "dev": "concurrently -n API,WEB -c blue,green \"npm run start:dev -w @ioc/api\" \"npm run dev -w @ioc/web\"",
     "build": "npm run build -w @ioc/api && npm run build -w @ioc/web",
     "db:generate": "npm run prisma:generate -w @ioc/api",
     "db:migrate": "npm run prisma:migrate -w @ioc/api",
+    "db:supabase:deploy": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-supabase.ps1",
     "db:seed": "npm run prisma:seed -w @ioc/api",
     "qa:feedback": "node scripts/qa-feedback.mjs",
     "qa:access": "node scripts/qa-access.mjs",
     "qa:import": "node scripts/qa-import.mjs",
+    "qa:documents": "node scripts/qa-documents.mjs",
     "test": "npm run test -w @ioc/api"
   },
   "devDependencies": {"concurrently": "^9.2.1"}

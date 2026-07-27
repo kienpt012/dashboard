@@ -4,8 +4,11 @@ import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, hasAnyRole, IMPORT_ROLES } from
 import { api, ApiError, auth } from './api';
 import Layout from './components/Layout';
 import { Spinner } from './components/UI';
+import Copilot from './pages/Copilot';
 import Dashboard from './pages/Dashboard';
 import Departments from './pages/Departments';
+import DocumentReview from './pages/DocumentReview';
+import Documents from './pages/Documents';
 import Forbidden from './pages/Forbidden';
 import Imports from './pages/Imports';
 import Login from './pages/Login';
@@ -69,9 +72,11 @@ const pageTitles: Record<string, string> = {
   '/admin/login': 'Đăng nhập nội bộ · IOC Lái Thiêu',
   '/admin/forgot-password': 'Khôi phục mật khẩu · IOC Lái Thiêu',
   '/admin': 'Tổng quan điều hành · IOC Lái Thiêu',
+  '/admin/copilot': 'IOC Copilot · IOC Lái Thiêu',
   '/admin/targets': 'Quản lý chỉ tiêu · IOC Lái Thiêu',
   '/admin/reports': 'Báo cáo chỉ tiêu · IOC Lái Thiêu',
   '/admin/imports': 'Nhập dữ liệu báo cáo · IOC Lái Thiêu',
+  '/admin/documents': 'Kho văn bản · IOC Lái Thiêu',
   '/admin/approvals': 'Duyệt báo cáo · IOC Lái Thiêu',
   '/admin/feedback': 'Tiếp nhận phản ánh · IOC Lái Thiêu',
   '/admin/departments': 'Cơ cấu phòng ban · IOC Lái Thiêu',
@@ -86,7 +91,9 @@ function DocumentTitle(){
   useEffect(()=>{
     document.title=location.pathname.startsWith('/phan-anh/cong-khai/')
       ?'Chi tiết phản ánh công khai · Phường Lái Thiêu'
-      :(pageTitles[location.pathname]||'IOC Lái Thiêu');
+      :location.pathname.startsWith('/admin/documents/')
+        ?'Xác minh trích xuất AI · IOC Lái Thiêu'
+        :(pageTitles[location.pathname]||'IOC Lái Thiêu');
   },[location.pathname]);
   return null;
 }
@@ -100,9 +107,12 @@ export default function App(){
     <Route path="/admin/forgot-password" element={auth.token?<Navigate to="/admin" replace/>:<ForgotPassword/>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>
+      <Route path="copilot" element={<RoleRoute allowed={ALL_ROLES}><Copilot/></RoleRoute>}/>
       <Route path="targets" element={<RoleRoute allowed={ALL_ROLES}><Targets/></RoleRoute>}/>
       <Route path="reports" element={<RoleRoute allowed={ALL_ROLES}><Reports/></RoleRoute>}/>
       <Route path="imports" element={<RoleRoute allowed={IMPORT_ROLES}><Imports/></RoleRoute>}/>
+      <Route path="documents" element={<RoleRoute allowed={ALL_ROLES}><Documents/></RoleRoute>}/>
+      <Route path="documents/:id" element={<RoleRoute allowed={ALL_ROLES}><DocumentReview/></RoleRoute>}/>
       <Route path="approvals" element={<RoleRoute allowed={APPROVAL_ROLES}><Approvals/></RoleRoute>}/>
       <Route path="feedback" element={<RoleRoute allowed={ALL_ROLES}><FeedbackAdmin/></RoleRoute>}/>
       <Route path="departments" element={<RoleRoute allowed={ALL_ROLES}><Departments/></RoleRoute>}/>

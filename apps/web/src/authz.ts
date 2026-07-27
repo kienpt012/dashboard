@@ -2,6 +2,7 @@ import type { Role, User } from './types';
 
 export const ALL_ROLES:readonly Role[]=['ADMIN','MANAGER','STAFF','VIEWER'];
 export const IMPORT_ROLES:readonly Role[]=['ADMIN','MANAGER','STAFF'];
+export const DOCUMENT_ROLES:readonly Role[]=IMPORT_ROLES;
 export const APPROVAL_ROLES:readonly Role[]=['ADMIN','MANAGER'];
 export const ADMIN_ROLES:readonly Role[]=['ADMIN'];
 
