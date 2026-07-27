@@ -33,6 +33,16 @@ Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với m
 
 Schema hiện có **27 migration**. Các migration mới nhất bổ sung kho văn bản, hàng đợi trích xuất, đề xuất chỉ tiêu có nguồn gốc kiểm chứng, tác vụ Copilot, cùng các nghiệp vụ tệp minh chứng, phản ánh công khai, OTP và outbox email. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
 
+### Triển khai schema lên Supabase
+
+Prisma quản lý các bảng nghiệp vụ trong schema riêng `ioc`, không đặt trong `public` để tránh vô tình mở dữ liệu qua Supabase Data API. Sao chép `.env.supabase.example` thành `.env.supabase.local`, điền project ref, hostname Supavisor lấy từ **Connect → ORM → Prisma** và mật khẩu PostgreSQL của dự án, rồi chạy:
+
+```powershell
+npm run db:supabase:deploy
+```
+
+Lệnh trên tự percent-encode mật khẩu, chỉ chạy 27 migration đã commit bằng `prisma migrate deploy`, kiểm tra trạng thái và sinh lại Prisma Client; không reset và không tạo dữ liệu mẫu. `DATABASE_URL` dùng Supavisor session mode cho ứng dụng, còn `DIRECT_URL` dùng kết nối direct hoặc session mode cổng 5432 cho migration. Không dùng transaction pooler cổng 6543 làm `DIRECT_URL`. File `.env.supabase.local` chứa mật khẩu và đã được Git bỏ qua.
+
 Truy cập:
 
 - Trang công khai dành cho người dân: http://localhost:8080

@@ -10,6 +10,7 @@
     "build": "npm run build -w @ioc/api && npm run build -w @ioc/web",
     "db:generate": "npm run prisma:generate -w @ioc/api",
     "db:migrate": "npm run prisma:migrate -w @ioc/api",
+    "db:supabase:deploy": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-supabase.ps1",
     "db:seed": "npm run prisma:seed -w @ioc/api",
     "qa:feedback": "node scripts/qa-feedback.mjs",
     "qa:access": "node scripts/qa-access.mjs",
