@@ -27,6 +27,8 @@ Khi source và image không thay đổi, có thể bỏ qua bước build để 
 npm run start:ioc:fast
 ```
 
+Khi cần giải phóng RAM/GPU để dùng máy cho công việc khác hoặc chơi game, nhấp đúp `stop-ioc.cmd` (hoặc chạy `npm run stop:ioc`). Launcher sẽ dừng web, API, PostgreSQL, giải phóng các model Ollama và tắt Docker Desktop nhưng **giữ nguyên toàn bộ dữ liệu PostgreSQL**. Chạy lại `start-ioc.cmd` khi muốn sử dụng hệ thống.
+
 Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt `RUN_DEMO_SEED=true` trong `.env` cho lần khởi tạo đầu tiên, chạy hệ thống, rồi đổi lại thành `false`. Không bật tùy chọn này trong môi trường vận hành thật.
 
 Schema hiện có **27 migration**. Các migration mới nhất bổ sung kho văn bản, hàng đợi trích xuất, đề xuất chỉ tiêu có nguồn gốc kiểm chứng, tác vụ Copilot, cùng các nghiệp vụ tệp minh chứng, phản ánh công khai, OTP và outbox email. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
@@ -146,8 +148,8 @@ Invoke-RestMethod http://127.0.0.1:3000/api/health
 # Xem log API
 docker compose logs -f api
 
-# Dừng hệ thống nhưng giữ dữ liệu
-docker compose down
+# Dừng toàn bộ IOC, Ollama và Docker Desktop nhưng giữ dữ liệu
+npm run stop:ioc
 
 # Dừng và xóa toàn bộ dữ liệu PostgreSQL
 docker compose down -v
