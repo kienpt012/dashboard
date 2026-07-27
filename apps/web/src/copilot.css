@@ -1,0 +1,114 @@
+/* IOC Copilot — hội thoại trợ lý điều hành.
+   Feature CSS imported by pages/Copilot.tsx.
+   Append-only: every selector is prefixed cop- to avoid touching global styles. */
+
+/* Khung hội thoại */
+.cop-shell{display:flex;flex-direction:column;padding:0;overflow:hidden;height:calc(100vh - 245px);min-height:460px}
+.cop-messages{flex:1;overflow-y:auto;padding:18px 18px 12px;display:flex;flex-direction:column;gap:13px;overscroll-behavior:contain}
+
+/* Màn hình chào */
+.cop-welcome{margin:auto;max-width:440px;text-align:center;color:#54706c;padding:22px 12px}
+.cop-welcome-icon{width:52px;height:52px;margin:0 auto 12px;border-radius:50%;background:#e8f3f1;color:#0f766e;display:flex;align-items:center;justify-content:center}
+.cop-welcome-icon svg{width:26px;height:26px}
+.cop-welcome strong{display:block;font:700 15px Manrope;color:#1f3a37;margin-bottom:6px}
+.cop-welcome p{margin:0;font-size:13px;line-height:1.65}
+
+/* Bong bóng tin nhắn */
+.cop-row{display:flex;gap:9px}
+.cop-row.user{justify-content:flex-end}
+.cop-row.assistant{justify-content:flex-start;align-items:flex-start}
+.cop-avatar{width:30px;height:30px;border-radius:50%;background:#0f766e;color:#fff;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px}
+.cop-avatar svg{width:16px;height:16px}
+.cop-bubble{max-width:78%;min-width:0;border-radius:14px;padding:11px 13px;font-size:13px;line-height:1.6}
+.cop-bubble.user{background:var(--teal);color:#fff;border-bottom-right-radius:5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cop-bubble.assistant{background:#f4f8f7;border:1px solid #e2ebe9;color:#2b4441;border-bottom-left-radius:5px}
+.cop-reply{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Dòng nguồn dữ liệu */
+.cop-source{display:block;margin-top:9px;padding-top:8px;border-top:1px dashed #d8e4e1;color:#84948f;font-size:11px}
+
+/* Bong bóng đang xử lý */
+.cop-pending{display:flex;align-items:center;gap:10px;color:#557370}
+.cop-pending .spinner-wrap{height:auto;flex:none}
+.cop-pending .spinner{width:16px;height:16px;border-width:2px}
+
+/* Bong bóng lỗi */
+.cop-bubble.cop-error{background:#fff1f1;border-color:#f0d1d1;color:#a94343}
+.cop-error strong{display:block;font-size:13px}
+.cop-error p{margin:4px 0 0}
+.cop-error-hint{color:#b97a7a;font-size:12px}
+
+/* Bảng kết quả gọn trong bong bóng trả lời */
+.cop-table-wrap{margin-top:10px;overflow-x:auto;border:1px solid #e2ebe9;border-radius:10px;background:#fff;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+.cop-table{width:100%;border-collapse:collapse;font-size:12px;min-width:460px}
+.cop-table th{text-align:left;padding:8px 10px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#7b8e8a;background:#f8fbfa;border-bottom:1px solid #e8efed;white-space:nowrap}
+.cop-table td{padding:8px 10px;border-bottom:1px solid #eef3f2;color:#33504c;vertical-align:top;line-height:1.5}
+.cop-table tr:last-child td{border-bottom:0}
+.cop-cell-title{min-width:170px;max-width:300px}
+.cop-muted{color:#8a9997}
+.cop-link{color:#0e796f;font-weight:700;white-space:nowrap}
+.cop-link:hover{text-decoration:underline}
+
+/* Thanh tiến độ mini */
+.cop-progress{display:flex;align-items:center;gap:7px;min-width:112px}
+.cop-progress-bar{flex:1;height:6px;border-radius:6px;background:#e7eeec;overflow:hidden}
+.cop-progress-bar i{display:block;height:100%;border-radius:6px;background:var(--teal)}
+.cop-progress-bar i.green{background:#23866f}
+.cop-progress-bar i.amber{background:#d98b22}
+.cop-progress-bar i.red{background:#dc4f4f}
+.cop-progress b{font-size:11px;color:#3f5753;min-width:32px;text-align:right}
+
+/* Nhãn phương pháp trích xuất */
+.cop-method{display:inline-flex;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.3px}
+.cop-method.ai{background:#f1ecfb;color:#6a48ad}
+.cop-method.rule{background:#eef2f2;color:#5d6f6c}
+
+/* Thanh xác nhận hành động ghi (preview + confirm) */
+.cop-confirm-bar{margin-top:10px;border:1px solid #ecd9ae;background:#fdf7e9;border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+.cop-confirm-bar.done{background:#f1f5f4;border-color:#dde7e4;display:block}
+.cop-confirm-text{font-size:12px;font-weight:700;color:#8a6116}
+.cop-confirm-actions{display:flex;gap:9px;flex-wrap:wrap}
+.cop-confirm-btn{min-height:44px}
+.cop-confirm-busy{display:flex;align-items:center;gap:8px;color:#8a6116;font-size:12px;font-weight:600}
+.cop-confirm-busy .spinner-wrap{height:auto;flex:none}
+.cop-confirm-busy .spinner{width:15px;height:15px;border-width:2px}
+.cop-confirm-done{display:inline-block;font-size:12px;font-weight:700;color:#71827e}
+
+/* Nhãn kết quả thực thi từng mục */
+.cop-result{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:7px;font-size:11px;font-weight:800;line-height:1.4}
+.cop-result.ok{background:#e5f4ee;color:#1e7a5f}
+.cop-result.fail{background:#fdecec;color:#c04747}
+
+/* Khu vực nhập câu hỏi (dính đáy khung) */
+.cop-composer{flex:none;position:sticky;bottom:0;border-top:1px solid #e4edeb;background:#fbfdfc;padding:11px 14px 12px}
+.cop-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+.cop-chip{border:1px solid #d9e5e2;border-radius:16px;background:#fff;padding:6px 12px;font-size:12px;color:#48605c;font-weight:600;cursor:pointer;transition:.15s}
+.cop-chip:hover:not(:disabled){border-color:#9fcac5;color:#0e796f}
+.cop-chip:disabled{opacity:.55;cursor:not-allowed}
+.cop-input-row{display:flex;gap:9px;align-items:flex-end}
+.cop-input-row textarea{flex:1;resize:none;border:1px solid #d7e2e0;border-radius:11px;padding:11px 13px;font:inherit;font-size:13px;line-height:1.5;min-height:44px;max-height:100px;overflow-y:auto;background:#fff;color:var(--ink)}
+.cop-input-row textarea:focus{outline:2px solid rgba(15,118,110,.35);outline-offset:1px;border-color:#0f766e}
+.cop-input-row textarea:disabled{background:#f2f6f5;cursor:not-allowed}
+.cop-send{flex:none}
+.cop-hint{margin:7px 0 0;color:#8a9997;font-size:11px}
+
+/* Đáp ứng màn hình hẹp */
+@media(max-width:800px){
+  .cop-shell{height:calc(100vh - 200px);min-height:400px}
+  .cop-messages{padding:13px 12px 10px}
+  .cop-bubble{max-width:100%}
+  .cop-row.assistant .cop-bubble{max-width:calc(100% - 39px)}
+  .cop-composer{padding:10px 11px 11px}
+  .cop-table{min-width:420px}
+}
+@media(max-width:520px){
+  .cop-send span{display:none}
+  .cop-send{min-width:44px;padding:0 12px}
+  .cop-chip{flex:1 1 auto;justify-content:center;text-align:center}
+  .cop-hint{display:none}
+  .cop-confirm-actions{flex-direction:column}
+  .cop-confirm-btn{width:100%;justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){
+  .cop-chip,.cop-progress-bar i,.cop-send{transition:none}
+}

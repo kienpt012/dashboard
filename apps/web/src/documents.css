@@ -1,0 +1,111 @@
+/* Kho văn bản (document store) + AI extraction review workspace.
+   Feature CSS imported by pages/Documents.tsx and pages/DocumentReview.tsx.
+   Append-only: every selector is prefixed doc- or cand- to avoid touching global styles. */
+
+/* Danh sách kho văn bản */
+.doc-title-cell{min-width:250px;max-width:360px}
+.doc-title-cell strong{display:block;color:#243c39;font-size:12px;line-height:1.45}
+.doc-subline{display:block;margin-top:3px;color:#81918e;font-size:11px}
+.doc-error-line{display:block;margin-top:5px;color:#b04a4a;font-size:11px;line-height:1.5;max-width:340px;overflow-wrap:anywhere}
+.doc-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;min-width:250px}
+.doc-count-link{display:inline-flex;align-items:center;gap:5px;color:#0e796f;font-size:12px;font-weight:700}
+.doc-count-link:hover{text-decoration:underline}
+.doc-count-muted{color:#899794;font-size:12px}
+.doc-file-note{display:block;margin-top:4px;color:#8a9997;font-size:11px}
+
+/* Không gian đối chiếu hai cột */
+.doc-workspace{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);gap:15px;align-items:start;margin-top:4px}
+.doc-workspace>.panel{min-width:0}
+
+/* Đầu mục tài liệu bên trái */
+.doc-meta{padding:14px 15px;border:1px solid #e4edeb;border-radius:12px;background:#f8fbfa;margin-bottom:13px}
+.doc-meta .code{font-size:11px}
+.doc-meta>strong{display:block;font:700 15px Manrope;color:#1f3a37;margin:3px 0 6px;line-height:1.4}
+.doc-meta-line{display:block;color:#6d827f;font-size:12px;line-height:1.6}
+.doc-meta-tags{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:10px}
+.doc-meta-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:7px;background:#eef4f3;color:#54706c;font-size:11px;font-weight:700}
+.doc-ocr-badge{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:7px;background:#f1ecfb;color:#6a48ad;font-size:11px;font-weight:800;cursor:help}
+.doc-progress-line{display:flex;align-items:center;gap:7px;margin-top:10px;color:#3a6db7;font-size:12px;font-weight:600}
+.doc-progress-line svg{width:15px;animation:doc-spin 1.1s linear infinite}
+@keyframes doc-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.doc-progress-line svg{animation:none}}
+
+/* Trình xem nội dung theo trang */
+.doc-viewer{max-height:72vh;overflow:auto;border:1px solid #e4edeb;border-radius:12px;background:#fff;overscroll-behavior:contain}
+.doc-page{padding:15px 17px 18px;border-top:1px solid #e8efed}
+.doc-page:first-child{border-top:0}
+.doc-page-head{display:flex;align-items:center;gap:9px;margin-bottom:9px;padding-bottom:8px;border-bottom:1px dashed #dfe9e7}
+.doc-page-head>b{font:800 11px Manrope;letter-spacing:.6px;text-transform:uppercase;color:#0b7d72}
+.doc-page-head .doc-ocr-badge{padding:3px 7px;font-size:10px}
+.doc-page pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:13px;line-height:1.75;color:#33504c}
+mark.doc-mark{background:#ffe9a3;color:#4a3a07;border-radius:3px;padding:1px 2px;box-shadow:0 0 0 2px #ffe9a3}
+.doc-quote-warning{display:flex;gap:9px;align-items:flex-start;margin-bottom:11px;padding:10px 12px;border:1px solid #f1dfb7;border-radius:10px;background:#fff8e8;color:#86601d;font-size:12px;line-height:1.55}
+.doc-quote-warning svg{width:16px;flex:none;color:#c7861f}
+
+/* Cột chỉ tiêu ứng viên bên phải */
+.cand-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
+.cand-chip{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;border-radius:19px;border:1px solid #dbe6e4;background:#fff;color:#48605c;font-size:12px;font-weight:700;transition:.15s}
+.cand-chip b{font-size:12px;color:inherit}
+.cand-chip:hover{border-color:#9fcac5}
+.cand-chip.active{background:#0f766e;border-color:#0f766e;color:#fff;box-shadow:0 5px 14px rgba(15,118,110,.18)}
+.cand-list{display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow:auto;padding:2px;overscroll-behavior:contain}
+.cand-card{border:1px solid #e0e9e7;border-radius:13px;background:#fff;padding:15px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.cand-card:hover{border-color:#9fcac5}
+.cand-card.selected{border-color:#0f8a7e;box-shadow:0 0 0 3px rgba(15,138,126,.13)}
+.cand-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.cand-head h4{margin:0;font:700 14px Manrope;color:#213c39;line-height:1.45;display:flex;align-items:baseline;gap:7px}
+.cand-badge{display:inline-flex;flex:none;padding:4px 8px;border-radius:7px;background:#edf3fc;color:#3971bb;font-size:10px;font-weight:800;white-space:nowrap}
+.cand-meta-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
+.cand-method{display:inline-flex;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.3px}
+.cand-method.ai{background:#f1ecfb;color:#6a48ad}
+.cand-method.rule{background:#eef2f2;color:#5d6f6c}
+.cand-model{font-size:11px;color:#8a9997}
+.cand-value{display:flex;align-items:baseline;gap:7px;margin:9px 0 0;flex-wrap:wrap}
+.cand-value strong{font:800 21px Manrope;color:#0d685f}
+.cand-value span{font-size:12px;color:#6d7f7e}
+.cand-confidence{display:flex;align-items:center;gap:9px;margin:10px 0 0}
+.cand-confidence-bar{flex:1;height:6px;border-radius:6px;background:#eaf0ef;overflow:hidden}
+.cand-confidence-bar i{display:block;height:100%;border-radius:6px}
+.cand-confidence-bar i.green{background:#23866f}
+.cand-confidence-bar i.amber{background:#d98b22}
+.cand-confidence-bar i.red{background:#dc4f4f}
+.cand-confidence>b{font-size:11px;color:#3f5753;min-width:34px;text-align:right}
+.cand-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:12px}
+.cand-fields>div{min-width:0}
+.cand-fields span{display:block;font-size:10px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#7b8e8a}
+.cand-fields strong{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:12px;font-weight:600;color:#2f4c47;line-height:1.5;overflow-wrap:anywhere}
+.cand-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.cand-dot.green{background:#23866f}
+.cand-dot.amber{background:#d98b22}
+.cand-dot.red{background:#dc4f4f}
+.cand-note{display:block;margin-top:4px;color:#a5691f;font-size:11px}
+.cand-duplicate{display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding:9px 11px;border:1px solid #f0d1d1;border-radius:9px;background:#fff1f1;color:#a94343;font-size:12px;line-height:1.55}
+.cand-duplicate svg{width:15px;flex:none;margin-top:1px}
+.cand-warning{margin:12px 0 0;padding:9px 11px 9px 26px;border:1px solid #f1dfb7;border-radius:9px;background:#fff8e8;color:#86601d;font-size:12px;line-height:1.6}
+.cand-warning li{margin:2px 0}
+.cand-actions{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+.cand-created{margin-top:12px;padding:9px 11px;border:1px solid #cfe9dd;border-radius:9px;background:#edf8f3;color:#226e55;font-size:12px;line-height:1.55}
+.cand-created-link{color:#0c6d65;font-weight:800;text-decoration:underline}
+.cand-review-note{margin-top:12px;padding:9px 11px;border:1px solid #e5ecea;border-radius:9px;background:#f7faf9;color:#536764;font-size:12px;line-height:1.6}
+.cand-review-note strong{color:#a94343}
+
+/* Đáp ứng màn hình hẹp */
+@media(max-width:1100px){
+  .doc-workspace{grid-template-columns:1fr}
+  .doc-viewer{max-height:56vh}
+  .cand-list{max-height:none;overflow:visible;padding:0}
+}
+@media(max-width:800px){
+  .doc-actions{min-width:0}
+  .doc-viewer{max-height:48vh}
+  .doc-meta>strong{font-size:14px}
+  .cand-card{padding:13px 14px}
+}
+@media(max-width:520px){
+  .cand-fields{grid-template-columns:1fr}
+  .cand-chip{flex:1;justify-content:center}
+  .cand-actions .btn{flex:1}
+  .doc-actions{flex-direction:column;align-items:stretch}
+  .doc-actions .btn{width:100%;justify-content:center}
+  .doc-page{padding:12px 13px 14px}
+}

@@ -1,11 +1,16 @@
-# IOC Lái Thiêu · Control Room
+# IOC Lái Thiêu · Nền tảng IOC thông minh
 
-Hệ thống điều hành số của Phường Lái Thiêu, hỗ trợ quản trị chỉ tiêu, báo cáo và tiếp nhận phản ánh người dân, với kiến trúc:
+Hệ thống điều hành số của Phường Lái Thiêu: quản trị chỉ tiêu, báo cáo, tiếp nhận phản ánh người dân,
+và **lớp AI cục bộ tự đọc văn bản hành chính để đề xuất chỉ tiêu** (con người xác minh trước khi thành dữ liệu chính thức).
 
 - Frontend: React 19 + TypeScript + Vite
-- Backend: NestJS 11 + Prisma ORM
+- Backend: NestJS 11 + Prisma ORM (modular monolith)
 - Database: PostgreSQL 17
+- AI cục bộ: Ollama (Qwen3-4B trích xuất, bge-m3 embedding) + Tesseract OCR tiếng Việt — không gửi dữ liệu ra ngoài
 - Triển khai cục bộ: Docker Compose
+
+Tài liệu nghiên cứu và kiến trúc: xem thư mục `docs/` (bắt đầu từ `docs/PROJECT_VISION.md`,
+`docs/ARCHITECTURE.md`); nhật ký quyết định ở `DECISIONS.md`, tiến độ ở `PROGRESS.md`.
 
 ## Chạy hệ thống
 
@@ -59,6 +64,33 @@ Quy trình khởi tạo mới đã được kiểm tra từ volume PostgreSQL tr
 - Hồ sơ cá nhân cho mọi vai trò; đổi mật khẩu yêu cầu mật khẩu mạnh, cấp lại phiên hiện tại và thu hồi các phiên đăng nhập cũ.
 - Khôi phục mật khẩu không cần đăng nhập bằng OTP 6 số gửi tới email công vụ đã đăng ký; OTP và token đặt lại chỉ lưu dưới dạng HMAC, có thời hạn, giới hạn số lần thử, dùng một lần và thu hồi toàn bộ phiên cũ sau khi hoàn tất. Mọi mã đang còn hiệu lực được vô hiệu hóa nguyên tử nếu tài khoản đổi mật khẩu, đổi email hoặc bị khóa.
 - Giao diện responsive cho máy tính bảng và điện thoại.
+- **Kho văn bản + trích xuất chỉ tiêu bằng AI cục bộ**: tải PDF (có chữ hoặc scan), DOCX, XLSX, ảnh;
+  hệ thống kiểm tra chữ ký nội dung tệp, chống tải trùng theo SHA-256, cấp mã `VB-{năm}-{số}`;
+  worker bất đồng bộ đọc text/OCR tiếng Việt, cắt đoạn rồi trích xuất chỉ tiêu bằng LLM local
+  (kết hợp bộ luật tiếng Việt làm phương án dự phòng khi Ollama tắt). Mỗi đề xuất kèm câu trích
+  nguyên văn được kiểm chứng lại với tài liệu, độ tin cậy từng trường, phòng ban được tự khớp tên
+  và cảnh báo nghi trùng với chỉ tiêu hiện có.
+- **Màn hình xác minh trích xuất**: đối chiếu văn bản gốc ↔ đề xuất (highlight câu trích), hiệu chỉnh
+  từng trường, duyệt (tạo chỉ tiêu chính thức qua đúng luồng cấp mã, lưu vết văn bản nguồn) hoặc
+  từ chối có lý do; trích xuất lại idempotent — không ghi đè đề xuất đã có người hiệu chỉnh.
+  Toàn bộ thao tác AI đều vào nhật ký hệ thống.
+
+## Nền tảng AI cục bộ
+
+Lớp AI chạy hoàn toàn trên máy (không gọi dịch vụ ngoài). Cài một lần:
+
+```powershell
+winget install Ollama.Ollama
+ollama pull qwen3:4b-instruct-2507-q4_K_M
+ollama pull bge-m3
+```
+
+Docker image API đã cài sẵn Tesseract OCR tiếng Việt. API trong Docker mặc định gọi Ollama của máy host
+qua `http://host.docker.internal:11434` (đổi bằng `OLLAMA_BASE_URL` trong `.env`). Khi Ollama không chạy,
+hệ thống vẫn hoạt động: trích xuất tự hạ cấp về bộ luật tiếng Việt và ghi rõ phương pháp trên từng đề xuất.
+
+Máy cấu hình thấp (GPU 4GB): model 4B Q4 chạy ~10 token/giây; một tài liệu 1–2 trang mất khoảng 3–4 phút
+trích xuất trong nền. Sinh bộ tài liệu mẫu để thử: `python scripts/generate-sample-documents.py` → `samples/`.
 
 ## Cấu hình SMTP
 

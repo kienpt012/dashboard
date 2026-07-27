@@ -44,6 +44,16 @@ services:
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8080}
       RUN_DEMO_SEED: ${RUN_DEMO_SEED:-false}
       PORT: 3000
+      # Lớp AI cục bộ: mặc định dùng Ollama chạy trên máy host (Docker Desktop).
+      # Khi Ollama tắt, hệ thống tự hạ cấp về trích xuất bằng luật, không lỗi.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EXTRACT_MODEL: ${OLLAMA_EXTRACT_MODEL:-qwen3:4b-instruct-2507-q4_K_M}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
+      EXTRACTION_POLL_MS: ${EXTRACTION_POLL_MS:-4000}
+      EXTRACTION_MAX_ATTEMPTS: ${EXTRACTION_MAX_ATTEMPTS:-3}
+      EXTRACTION_MAX_OCR_PAGES: ${EXTRACTION_MAX_OCR_PAGES:-20}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:

@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@ioc/web"],
+      "port": 5173,
+      "env": {
+        "VITE_API_URL": "http://localhost:3100/api"
+      }
+    }
+  ]
+}

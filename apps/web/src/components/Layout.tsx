@@ -1,4 +1,4 @@
-import { Building2, CheckCheck, FileBarChart, Gauge, History, LogOut, Menu, MessageSquareText, Settings, Sheet, Target, UserRound, Users, X } from 'lucide-react';
+import { Bot, Building2, CheckCheck, FileBarChart, FileText, Gauge, History, LogOut, Menu, MessageSquareText, Settings, Sheet, Target, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, getInitials, hasAnyRole, IMPORT_ROLES, roleLabels } from '../authz';
@@ -6,9 +6,11 @@ import { auth } from '../api';
 
 const items=[
   {to:'/admin',label:'Tổng quan điều hành',icon:Gauge,roles:ALL_ROLES},
+  {to:'/admin/copilot',label:'IOC Copilot',icon:Bot,roles:ALL_ROLES},
   {to:'/admin/targets',label:'Quản lý chỉ tiêu',icon:Target,roles:ALL_ROLES},
   {to:'/admin/reports',label:'Báo cáo chỉ tiêu',icon:FileBarChart,roles:ALL_ROLES},
   {to:'/admin/imports',label:'Nhập dữ liệu báo cáo',icon:Sheet,roles:IMPORT_ROLES},
+  {to:'/admin/documents',label:'Kho văn bản',icon:FileText,roles:ALL_ROLES},
   {to:'/admin/approvals',label:'Duyệt báo cáo',icon:CheckCheck,roles:APPROVAL_ROLES},
   {to:'/admin/feedback',label:'Phản ánh người dân',icon:MessageSquareText,roles:ALL_ROLES},
   {to:'/admin/departments',label:'Phòng ban',icon:Building2,roles:ALL_ROLES},
@@ -20,9 +22,11 @@ const items=[
 
 const titles:Record<string,string>={
   '/admin':'Tổng quan điều hành',
+  '/admin/copilot':'IOC Copilot',
   '/admin/targets':'Quản lý chỉ tiêu',
   '/admin/reports':'Báo cáo chỉ tiêu',
   '/admin/imports':'Nhập dữ liệu báo cáo',
+  '/admin/documents':'Kho văn bản',
   '/admin/approvals':'Duyệt báo cáo',
   '/admin/feedback':'Tiếp nhận phản ánh',
   '/admin/departments':'Cơ cấu phòng ban',
@@ -55,7 +59,7 @@ export default function Layout(){
   const roleLabel=user?roleLabels[user.role]:'Người dùng';
   const scopeLabel=isAdmin?'Toàn hệ thống':user?.department?.name||'Chưa gán phòng ban';
   const visibleItems=items.filter(item=>hasAnyRole(user,item.roles));
-  const title=(!isAdmin&&departmentTitles[location.pathname])||titles[location.pathname]||'Trung tâm điều hành';
+  const title=(!isAdmin&&departmentTitles[location.pathname])||titles[location.pathname]||(location.pathname.startsWith('/admin/documents/')?'Xác minh trích xuất AI':'Trung tâm điều hành');
   const labelFor=(to:string,label:string)=>(!isAdmin&&departmentTitles[to])||label;
 
   useEffect(()=>setOpen(false),[location.pathname]);

@@ -1,0 +1,141 @@
+{
+  "runAt": "2026-07-26T15:38:49.533Z",
+  "datasetVersion": "1.0",
+  "model": "qwen3:4b-instruct-2507-q4_K_M",
+  "methods": [
+    "llm"
+  ],
+  "summary": [
+    {
+      "method": "llm",
+      "documents": 5,
+      "truthCount": 28,
+      "predictedCount": 28,
+      "truePositives": 28,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 0.75,
+        "deadline": 0.857,
+        "department": 0.929
+      },
+      "totalExtractMs": 1175307
+    }
+  ],
+  "perDocument": [
+    {
+      "method": "llm",
+      "file": "samples/ke-hoach-ktxh-2026.docx",
+      "kind": "docx",
+      "truthCount": 8,
+      "predictedCount": 8,
+      "truePositives": 8,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 0.875,
+        "deadline": 0.875,
+        "department": 0.875
+      },
+      "parseMs": 519,
+      "extractMs": 209136,
+      "ocrUsed": false
+    },
+    {
+      "method": "llm",
+      "file": "samples/ke-hoach-ktxh-2026-scan.pdf",
+      "kind": "pdf-scan",
+      "truthCount": 8,
+      "predictedCount": 8,
+      "truePositives": 8,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.875,
+        "department": 0.875
+      },
+      "parseMs": 8856,
+      "extractMs": 366896,
+      "ocrUsed": true
+    },
+    {
+      "method": "llm",
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026.pdf",
+      "kind": "pdf-text",
+      "truthCount": 3,
+      "predictedCount": 3,
+      "truePositives": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "parseMs": 56,
+      "extractMs": 145913,
+      "ocrUsed": false
+    },
+    {
+      "method": "llm",
+      "file": "samples/quyet-dinh-chuyen-doi-so-2026-anh.png",
+      "kind": "image",
+      "truthCount": 3,
+      "predictedCount": 3,
+      "truePositives": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 1,
+        "deadline": 0.667,
+        "department": 1
+      },
+      "parseMs": 3227,
+      "extractMs": 143862,
+      "ocrUsed": true
+    },
+    {
+      "method": "llm",
+      "file": "samples/bao-cao-chi-tieu-6-thang-2026.xlsx",
+      "kind": "xlsx",
+      "truthCount": 6,
+      "predictedCount": 6,
+      "truePositives": 6,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fieldAccuracy": {
+        "value": 1,
+        "unit": 1,
+        "direction": 1,
+        "frequency": 0,
+        "deadline": 1,
+        "department": 1
+      },
+      "parseMs": 952,
+      "extractMs": 309500,
+      "ocrUsed": false
+    }
+  ]
+}
