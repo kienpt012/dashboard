@@ -122,7 +122,8 @@ export default function DocumentReview() {
   const [notice, setNotice] = useState<ReactNode>('');
   const [tab, setTab] = useState<CandidateStatus>('PROPOSED');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [modal, setModal] = useState<'edit' | 'approve' | 'reject' | 'reextract' | null>(null);
+  const [modal, setModal] = useState<'edit' | 'approve' | 'reject' | 'reextract' | 'cancelExtract' | null>(null);
+  const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const [modalCandidate, setModalCandidate] = useState<IndicatorCandidate | null>(null);
   const [editForm, setEditForm] = useState<CandidateForm | null>(null);
   const [approveWeight, setApproveWeight] = useState('1');
@@ -261,6 +262,7 @@ export default function DocumentReview() {
   function closeModal() {
     if (submitting) return;
     setModal(null);
+    setCancelJobId(null);
     setModalCandidate(null);
     setEditForm(null);
     setError('');
@@ -443,9 +445,34 @@ export default function DocumentReview() {
     }
   }
 
+  async function confirmCancelExtraction() {
+    if (!cancelJobId) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      await api(`/documents/${id}/extraction-jobs/${cancelJobId}/cancel`, { method: 'POST' });
+      setModal(null);
+      setCancelJobId(null);
+      setNotice('Đã dừng lượt trích xuất. Kết quả chưa hoàn tất không được áp dụng; dữ liệu đã duyệt hoặc hiệu chỉnh vẫn được giữ nguyên.');
+      await Promise.all([loadDocument(), loadText(), loadCandidates()]);
+    } catch (reason) {
+      setError(messageOf(reason));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const docMeta = doc ? statusMeta(doc.status, doc.jobs) : null;
   const activeExtract = doc ? latestExtractJob(doc.jobs) : undefined;
-  const showExtractProgress = Boolean(activeExtract && activeExtract.status === 'PROCESSING');
+  const canCancelExtraction = Boolean(
+    canReextract
+    && activeExtract
+    && (activeExtract.status === 'PENDING' || activeExtract.status === 'PROCESSING'),
+  );
+  const showExtractStatus = Boolean(
+    activeExtract
+    && (activeExtract.status === 'PENDING' || activeExtract.status === 'PROCESSING' || activeExtract.status === 'CANCELLED'),
+  );
 
   function pageBody(page: DocumentPage): ReactNode {
     if (quoteMatch && quoteMatch.pageNumber === page.pageNumber) {
@@ -465,7 +492,18 @@ export default function DocumentReview() {
       description="Đối chiếu từng đề xuất của hệ thống với nội dung văn bản gốc, hiệu chỉnh khi cần và chỉ duyệt những chỉ tiêu đã được xác minh."
       actions={<>
         <Link className="btn secondary" to="/admin/documents"><ArrowLeft />Kho văn bản</Link>
+        {canCancelExtraction && activeExtract && <button
+          type="button"
+          className="btn danger"
+          disabled={submitting}
+          onClick={() => {
+            setError('');
+            setCancelJobId(activeExtract.id);
+            setModal('cancelExtract');
+          }}
+        ><XCircle />Dừng trích xuất</button>}
         {canReextract && <button
+          type="button"
           className="btn primary"
           disabled={!doc || doc.status !== 'PROCESSED' || jobsActive || submitting}
           title={doc && doc.status !== 'PROCESSED' ? 'Chỉ trích xuất lại được khi văn bản đã xử lý xong' : ''}
@@ -496,7 +534,24 @@ export default function DocumentReview() {
               <span className="doc-meta-chip">{doc.counts.candidates} đề xuất</span>
               {doc.ocrUsed && <span className="doc-ocr-badge" title="Văn bản được nhận dạng ký tự quang học (OCR); độ chính xác từng trang hiển thị ngay trong nội dung bên dưới.">OCR</span>}
             </div>
-            {showExtractProgress && activeExtract && <div className="doc-progress-line"><RefreshCw />Đang trích xuất chỉ tiêu{activeExtract.chunksTotal ? ` · ${activeExtract.chunksDone ?? 0}/${activeExtract.chunksTotal} đoạn` : ''}...</div>}
+            {showExtractStatus && activeExtract && <div
+              className={`doc-progress-line${activeExtract.status === 'CANCELLED' ? ' cancelled' : ''}`}
+              role="status"
+              aria-live="polite"
+            >
+              {activeExtract.status === 'CANCELLED' ? <XCircle /> : <RefreshCw />}
+              {activeExtract.status === 'CANCELLED'
+                ? 'Đã dừng trích xuất chỉ tiêu'
+                : activeExtract.status === 'PENDING'
+                  ? 'Đang chờ trích xuất chỉ tiêu'
+                  : 'Đang trích xuất chỉ tiêu'}
+              {activeExtract.chunksTotal != null
+                ? ` · Tiến độ ${activeExtract.chunksDone ?? 0}/${activeExtract.chunksTotal} đoạn`
+                : activeExtract.chunksDone != null
+                  ? ` · Đã xử lý ${activeExtract.chunksDone} đoạn`
+                  : ''}
+              {activeExtract.status !== 'CANCELLED' ? '...' : ''}
+            </div>}
             {doc.status === 'FAILED' && doc.processingError && <small className="doc-error-line">{doc.processingError}</small>}
           </div>
           {quoteMissing && <div className="doc-quote-warning"><AlertTriangle />Không tìm thấy chính xác đoạn trích dẫn của đề xuất đang chọn trong bản số hóa. Vui lòng đối chiếu thủ công{selectedCandidate?.pageNumber ? ` tại trang ${selectedCandidate.pageNumber}` : ''}.</div>}
@@ -672,6 +727,17 @@ export default function DocumentReview() {
         <div className="modal-actions full">
           <button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button>
           <button type="button" className="btn primary" disabled={submitting} onClick={() => void confirmReextract()}>{submitting ? 'Đang gửi yêu cầu...' : 'Trích xuất lại'}</button>
+        </div>
+      </div>
+    </Modal>}
+
+    {modal === 'cancelExtract' && <Modal title="Dừng trích xuất chỉ tiêu" onClose={closeModal}>
+      <div className="form-grid single">
+        {error && <div className="form-error full" role="alert">{error}</div>}
+        <div className="permission-note warning"><AlertTriangle /><div><strong>Xác nhận dừng lượt trích xuất đang chạy</strong><p>Kết quả chưa hoàn tất của lượt chạy này sẽ không được áp dụng. Dữ liệu đã được duyệt hoặc hiệu chỉnh thủ công vẫn được giữ nguyên.</p></div></div>
+        <div className="modal-actions full">
+          <button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Tiếp tục trích xuất</button>
+          <button type="button" className="btn danger" disabled={submitting} onClick={() => void confirmCancelExtraction()}>{submitting ? 'Đang dừng...' : 'Xác nhận dừng'}</button>
         </div>
       </div>
     </Modal>}

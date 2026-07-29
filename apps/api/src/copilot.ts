@@ -228,9 +228,11 @@ export class CopilotController {
   @Post('messages')
   async message(@Req() req: any, @Body() dto: CopilotMessageDto): Promise<CopilotAnswer> {
     const actor = getActor(req);
-    let plan: CopilotPlan | null = null;
+    // Các truy vấn nghiệp vụ phổ biến đã có bộ định tuyến xác định và không cần
+    // xếp hàng chờ LLM. Chỉ nhờ LLM phân loại khi luật chưa hiểu câu hỏi.
+    let plan: CopilotPlan | null = ruleBasedPlan(dto.message);
     let planner: 'llm' | 'rules' = 'rules';
-    if (await this.ollama.isAvailable()) {
+    if (plan.intent === 'HELP' && await this.ollama.isAvailable()) {
       try {
         const result = await this.ollama.chatStructured(
           [
@@ -238,15 +240,18 @@ export class CopilotController {
             { role: 'user', content: dto.message },
           ],
           INTENT_SCHEMA as unknown as Record<string, unknown>,
-          { temperature: 0 },
+          { temperature: 0, timeoutMs: 15_000 },
         );
-        plan = sanitizePlan(JSON.parse(result.content));
-        if (plan) planner = 'llm';
+        const llmPlan = sanitizePlan(JSON.parse(result.content));
+        if (llmPlan) {
+          plan = llmPlan;
+          planner = 'llm';
+        }
       } catch {
-        plan = null;
+        // Ollama có thể đang bận trích xuất tài liệu. Giữ phương án HELP thay vì
+        // để request chờ đến khi nginx trả trang lỗi 504.
       }
     }
-    if (!plan) plan = ruleBasedPlan(dto.message);
 
     const answer = plan.intent === 'BULK_APPROVE_CANDIDATES'
       ? await this.proposeBulkApprove(actor, plan, planner, dto.message)

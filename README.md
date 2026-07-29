@@ -12,6 +12,8 @@ và **lớp AI cục bộ tự đọc văn bản hành chính để đề xuất
 Tài liệu nghiên cứu và kiến trúc: xem thư mục `docs/` (bắt đầu từ `docs/PROJECT_VISION.md`,
 `docs/ARCHITECTURE.md`); nhật ký quyết định ở `DECISIONS.md`, tiến độ ở `PROGRESS.md`.
 
+Hướng dẫn triển khai production lên VPS và CI/CD: xem [`docs/DEPLOYMENT_VPS.md`](docs/DEPLOYMENT_VPS.md).
+
 ## Chạy hệ thống
 
 Tại thư mục dự án, chạy một trong hai lệnh tương đương sau. Launcher sẽ kiểm tra/khởi động Ollama trên máy host, kiểm tra đủ model, khởi động Docker Desktop nếu cần, dựng PostgreSQL + API + web và kiểm tra AI/OCR từ bên trong container API:
@@ -29,9 +31,12 @@ npm run start:ioc:fast
 
 Khi cần giải phóng RAM/GPU để dùng máy cho công việc khác hoặc chơi game, nhấp đúp `stop-ioc.cmd` (hoặc chạy `npm run stop:ioc`). Launcher sẽ dừng web, API, PostgreSQL, giải phóng các model Ollama và tắt Docker Desktop nhưng **giữ nguyên toàn bộ dữ liệu PostgreSQL**. Chạy lại `start-ioc.cmd` khi muốn sử dụng hệ thống.
 
-Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt `RUN_DEMO_SEED=true` trong `.env` cho lần khởi tạo đầu tiên, chạy hệ thống, rồi đổi lại thành `false`. Không bật tùy chọn này trong môi trường vận hành thật.
+Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt
+`RUN_DEMO_SEED=true` cùng `DEMO_ADMIN_PASSWORD` và `DEMO_USER_PASSWORD` riêng trong `.env` cho lần
+khởi tạo đầu tiên, chạy hệ thống, rồi đổi lại thành `false`. Hai mật khẩu phải dài ít nhất 12 ký tự và
+có chữ hoa, chữ thường, số, ký tự đặc biệt; seed production sẽ từ chối giá trị mặc định hoặc yếu.
 
-Schema hiện có **27 migration**. Các migration mới nhất bổ sung kho văn bản, hàng đợi trích xuất, đề xuất chỉ tiêu có nguồn gốc kiểm chứng, tác vụ Copilot, cùng các nghiệp vụ tệp minh chứng, phản ánh công khai, OTP và outbox email. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
+Schema hiện có **28 migration**. Các migration mới nhất bổ sung kho văn bản, hàng đợi trích xuất, cơ chế dừng tác vụ an toàn, đề xuất chỉ tiêu có nguồn gốc kiểm chứng, tác vụ Copilot, cùng các nghiệp vụ tệp minh chứng, phản ánh công khai, OTP và outbox email. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
 
 ### Triển khai schema lên Supabase
 
@@ -41,7 +46,7 @@ Prisma quản lý các bảng nghiệp vụ trong schema riêng `ioc`, không đ
 npm run db:supabase:deploy
 ```
 
-Lệnh trên tự percent-encode mật khẩu, chỉ chạy 27 migration đã commit bằng `prisma migrate deploy`, kiểm tra trạng thái và sinh lại Prisma Client; không reset và không tạo dữ liệu mẫu. `DATABASE_URL` dùng Supavisor session mode cho ứng dụng, còn `DIRECT_URL` dùng kết nối direct hoặc session mode cổng 5432 cho migration. Không dùng transaction pooler cổng 6543 làm `DIRECT_URL`. File `.env.supabase.local` chứa mật khẩu và đã được Git bỏ qua.
+Lệnh trên tự percent-encode mật khẩu, chỉ chạy 28 migration đã commit bằng `prisma migrate deploy`, kiểm tra trạng thái và sinh lại Prisma Client; không reset và không tạo dữ liệu mẫu. `DATABASE_URL` dùng Supavisor session mode cho ứng dụng, còn `DIRECT_URL` dùng kết nối direct hoặc session mode cổng 5432 cho migration. Không dùng transaction pooler cổng 6543 làm `DIRECT_URL`. File `.env.supabase.local` chứa mật khẩu và đã được Git bỏ qua.
 
 Truy cập:
 
@@ -62,7 +67,7 @@ Truy cập:
 Tài khoản quản trị mẫu (chỉ được tạo khi bật `RUN_DEMO_SEED=true`):
 
 - Tên đăng nhập: `admin`
-- Mật khẩu khi seed môi trường mới: `Admin@12345`
+- Mật khẩu khi seed môi trường mới: giá trị `DEMO_ADMIN_PASSWORD` do người triển khai đặt trong `.env`
 
 Quy trình khởi tạo mới đã được kiểm tra từ volume PostgreSQL trống: seed tạo tài khoản `ADMIN` với `departmentId = NULL`, đúng phạm vi quản trị toàn hệ thống.
 
@@ -185,7 +190,7 @@ Các lệnh `qa:*` yêu cầu PostgreSQL và API đang chạy tại cấu hình 
 
 Mốc double-check gần nhất (27/07/2026):
 
-- `npm test`: **103/103** kiểm thử đơn vị đạt, bao gồm nghiệp vụ nền trước đây và các lớp xử lý văn bản, trích xuất AI/OCR, xác minh đề xuất, IOC Copilot cùng cơ chế dự phòng.
+- `npm test`: **109/109** kiểm thử đơn vị đạt, bao gồm nghiệp vụ nền trước đây và các lớp xử lý văn bản, dừng trích xuất an toàn, trích xuất AI/OCR, xác minh đề xuất, IOC Copilot cùng cơ chế dự phòng.
 - Nhánh AI/OCR đã được dựng và chạy qua Docker tại `http://localhost:8080`; launcher xác minh container API nhìn thấy hai model Ollama trên host và Tesseract có đủ `vie`, `eng`.
 - `npm run qa:access`: **35/35** kiểm thử đạt, bao phủ đăng nhập, phân quyền/phạm vi phòng ban, ràng buộc quản trị, mã chỉ tiêu do máy chủ cấp, bật/tắt công khai, lưu trữ chỉ tiêu và thu hồi token.
 - `npm run qa:feedback`: **80/80** kiểm thử đạt, bao phủ gửi/tra cứu phản ánh, ảnh/PDF minh chứng, kiểm tra tệp và phân quyền tải, chống gửi trùng, phân công, SLA chờ bổ sung, sắp xếp hồ sơ mới nhất, đóng/mở lại, đánh giá, công bố tự động từ hồ sơ gốc, chi tiết tiến trình công khai, chống xung đột và che dữ liệu.

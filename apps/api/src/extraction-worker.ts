@@ -42,6 +42,27 @@ interface ClaimedJob {
   createdById: string;
 }
 
+export class ExtractionJobCancelledError extends Error {
+  constructor(readonly jobId: string) {
+    super(`Extraction job ${jobId} was cancelled`);
+    this.name = 'ExtractionJobCancelledError';
+  }
+}
+
+class ExtractionJobOwnershipLostError extends Error {
+  constructor(readonly jobId: string) {
+    super(`Extraction job ${jobId} is no longer owned by this worker`);
+    this.name = 'ExtractionJobOwnershipLostError';
+  }
+}
+
+class ExtractionWorkerShutdownError extends Error {
+  constructor() {
+    super('Extraction worker đang dừng');
+    this.name = 'ExtractionWorkerShutdownError';
+  }
+}
+
 const JOB_LEASE_MINUTES = 10;
 
 function parseBoundedInteger(raw: string | undefined, fallback: number, min: number, max: number): number {
@@ -64,6 +85,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly workerId = `${process.pid}-${randomUUID()}`;
   private timer: NodeJS.Timeout | null = null;
   private activeRun: Promise<number> | null = null;
+  private readonly activeJobControllers = new Map<string, AbortController>();
   private readonly pollIntervalMs: number;
   private readonly maxAttempts: number;
   private readonly maxOcrPages: number;
@@ -94,7 +116,17 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    for (const controller of this.activeJobControllers.values()) {
+      if (!controller.signal.aborted) controller.abort(new ExtractionWorkerShutdownError());
+    }
     if (this.activeRun) await this.activeRun;
+  }
+
+  requestCancellation(jobId: string): boolean {
+    const controller = this.activeJobControllers.get(jobId);
+    if (!controller || controller.signal.aborted) return false;
+    controller.abort(new ExtractionJobCancelledError(jobId));
+    return true;
   }
 
   private runSafely(): Promise<number> {
@@ -114,19 +146,68 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     await this.escalateExhaustedJobs();
     const claimed = await this.claimNextJob();
     if (!claimed) return 0;
+    const controller = claimed.kind === ExtractionJobKind.INDICATOR_EXTRACT
+      ? new AbortController()
+      : null;
+    if (controller) this.activeJobControllers.set(claimed.id, controller);
     try {
       if (claimed.kind === ExtractionJobKind.DOCUMENT_PARSE) {
         await this.processParseJob(claimed);
       } else {
-        await this.processExtractJob(claimed);
+        await this.processExtractJob(claimed, controller!.signal);
       }
       return 1;
     } catch (error) {
+      if (error instanceof ExtractionWorkerShutdownError) {
+        await this.releaseJobAfterShutdown(claimed);
+        this.logger.log(`Đã trả job ${claimed.id} về hàng đợi khi worker dừng`);
+        return 0;
+      }
+      if (error instanceof ExtractionJobCancelledError || error instanceof ExtractionJobOwnershipLostError
+        || await this.isJobCancelled(claimed.id)) {
+        this.logger.log(`Đã dừng job trích xuất ${claimed.id} mà không ghi kết quả dở dang`);
+        return 1;
+      }
       const message = error instanceof Error ? error.message.slice(0, 280) : 'UNKNOWN_ERROR';
       this.logger.error(`Job ${claimed.id} thất bại: ${message}`);
       await this.markFailed(claimed, message);
       return 0;
+    } finally {
+      if (controller && this.activeJobControllers.get(claimed.id) === controller) {
+        this.activeJobControllers.delete(claimed.id);
+      }
     }
+  }
+
+  private async isJobCancelled(jobId: string): Promise<boolean> {
+    try {
+      const job = await this.prisma.extractionJob.findUnique({
+        where: { id: jobId },
+        select: { status: true, cancelRequestedAt: true },
+      });
+      return Boolean(job && (job.status === ExtractionJobStatus.CANCELLED || job.cancelRequestedAt !== null));
+    } catch {
+      return false;
+    }
+  }
+
+  private async releaseJobAfterShutdown(job: ClaimedJob): Promise<void> {
+    await this.prisma.extractionJob.updateMany({
+      where: {
+        id: job.id,
+        status: ExtractionJobStatus.PROCESSING,
+        lockedBy: this.workerId,
+        cancelRequestedAt: null,
+      },
+      data: {
+        status: ExtractionJobStatus.PENDING,
+        attempts: { decrement: 1 },
+        availableAt: new Date(),
+        lockedAt: null,
+        lockedBy: null,
+        lastError: null,
+      },
+    });
   }
 
   private async escalateExhaustedJobs(): Promise<void> {
@@ -172,6 +253,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         SELECT "id"
         FROM "ExtractionJob"
         WHERE "attempts" < ${this.maxAttempts}
+          AND "cancelRequestedAt" IS NULL
           AND (
             ("status" = 'PENDING'::"ExtractionJobStatus" AND "availableAt" <= CURRENT_TIMESTAMP)
             OR (
@@ -200,7 +282,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private async markFailed(job: ClaimedJob, errorMessage: string): Promise<void> {
     const exhausted = job.attempts >= this.maxAttempts;
     await this.prisma.extractionJob.updateMany({
-      where: { id: job.id, status: ExtractionJobStatus.PROCESSING, lockedBy: this.workerId },
+      where: {
+        id: job.id,
+        status: ExtractionJobStatus.PROCESSING,
+        lockedBy: this.workerId,
+        cancelRequestedAt: null,
+      },
       data: {
         status: exhausted ? ExtractionJobStatus.DEAD_LETTER : ExtractionJobStatus.PENDING,
         availableAt: exhausted ? new Date() : new Date(Date.now() + extractionRetryDelayMs(job.attempts)),
@@ -221,7 +308,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
 
   private async completeJob(job: ClaimedJob, data: Prisma.ExtractionJobUpdateManyMutationInput): Promise<void> {
     await this.prisma.extractionJob.updateMany({
-      where: { id: job.id, status: ExtractionJobStatus.PROCESSING, lockedBy: this.workerId },
+      where: {
+        id: job.id,
+        status: ExtractionJobStatus.PROCESSING,
+        lockedBy: this.workerId,
+        cancelRequestedAt: null,
+      },
       data: {
         ...data,
         status: ExtractionJobStatus.COMPLETED,
@@ -231,6 +323,34 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         lastError: null,
       },
     });
+  }
+
+  private async assertExtractJobActive(job: ClaimedJob, signal: AbortSignal): Promise<void> {
+    throwIfAborted(signal);
+    const current = await this.prisma.extractionJob.findUnique({
+      where: { id: job.id },
+      select: { status: true, lockedBy: true, cancelRequestedAt: true },
+    });
+    if (current?.status === ExtractionJobStatus.PROCESSING
+      && current.lockedBy === this.workerId
+      && current.cancelRequestedAt === null) {
+      return;
+    }
+    throw await this.resolveExtractJobStop(job, current);
+  }
+
+  private async resolveExtractJobStop(
+    job: ClaimedJob,
+    known?: { status: ExtractionJobStatus; cancelRequestedAt: Date | null } | null,
+  ): Promise<Error> {
+    const current = known ?? await this.prisma.extractionJob.findUnique({
+      where: { id: job.id },
+      select: { status: true, cancelRequestedAt: true },
+    });
+    if (current?.status === ExtractionJobStatus.CANCELLED || current?.cancelRequestedAt) {
+      return new ExtractionJobCancelledError(job.id);
+    }
+    return new ExtractionJobOwnershipLostError(job.id);
   }
 
   private async processParseJob(job: ClaimedJob): Promise<void> {
@@ -313,7 +433,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.logger.log(`Đã phân tích tài liệu ${document.id}: ${parsed.pageCount} trang, ${chunks.length} đoạn`);
   }
 
-  private async processExtractJob(job: ClaimedJob): Promise<void> {
+  private async processExtractJob(job: ClaimedJob, signal: AbortSignal): Promise<void> {
+    await this.assertExtractJobActive(job, signal);
     const document = await this.prisma.sourceDocument.findUnique({
       where: { id: job.documentId },
       select: { id: true, title: true, docNumber: true, year: true, status: true },
@@ -331,16 +452,23 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       throw new Error('Tài liệu chưa có nội dung được phân tích.');
     }
 
-    const llmAvailable = await this.ollama.isAvailable();
-    await this.prisma.extractionJob.updateMany({
-      where: { id: job.id, lockedBy: this.workerId },
+    const llmAvailable = await this.ollama.isAvailable(signal);
+    const initialized = await this.prisma.extractionJob.updateMany({
+      where: {
+        id: job.id,
+        status: ExtractionJobStatus.PROCESSING,
+        lockedBy: this.workerId,
+        cancelRequestedAt: null,
+      },
       data: {
         chunksTotal: chunks.length,
         chunksDone: 0,
+        lockedAt: new Date(),
         model: llmAvailable ? this.ollama.extractModel : null,
         promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-only',
       },
     });
+    if (initialized.count !== 1) throw await this.resolveExtractJobStop(job);
 
     interface PendingCandidate {
       chunkId: string;
@@ -353,6 +481,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     let likelyChunksTotal = 0;
 
     for (const [index, chunk] of chunks.entries()) {
+      throwIfAborted(signal);
       const likely = chunkLikelyHasIndicators(chunk.text);
       if (likely) likelyChunksTotal += 1;
       const ruleResults = likely ? extractIndicatorsFromText(chunk.text) : [];
@@ -364,9 +493,10 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
             documentTitle: document.title,
             docNumber: document.docNumber,
             defaultYear: document.year,
-          });
+          }, signal);
           llmResults = result.indicators;
         } catch (error) {
+          throwIfAborted(signal);
           this.logger.warn(
             `LLM lỗi ở đoạn ${chunk.chunkIndex} của tài liệu ${document.id}: ${error instanceof Error ? error.name : 'unknown'}`,
           );
@@ -385,12 +515,19 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           pending.push({ chunkId: chunk.id, pageNumber: chunk.pageFrom, method: ExtractionMethod.RULE_BASED, payload: item });
         }
       }
-      await this.prisma.extractionJob.updateMany({
-        where: { id: job.id, lockedBy: this.workerId },
-        data: { chunksDone: index + 1 },
+      const progressed = await this.prisma.extractionJob.updateMany({
+        where: {
+          id: job.id,
+          status: ExtractionJobStatus.PROCESSING,
+          lockedBy: this.workerId,
+          cancelRequestedAt: null,
+        },
+        data: { chunksDone: index + 1, lockedAt: new Date() },
       });
+      if (progressed.count !== 1) throw await this.resolveExtractJobStop(job);
     }
 
+    await this.assertExtractJobActive(job, signal);
     const departments = await this.prisma.department.findMany({
       where: { isActive: true },
       select: { id: true, name: true, code: true },
@@ -474,7 +611,43 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       });
     }
 
+    await this.assertExtractJobActive(job, signal);
+    const capped = llmAvailable && likelyChunksTotal > this.maxLlmChunks;
     await this.prisma.$transaction(async (tx) => {
+      // Khóa chuyển trạng thái trước khi đụng vào ứng viên. Endpoint hủy dùng cùng mức
+      // cô lập Serializable: chỉ một phía (hoàn tất hoặc hủy) có thể thắng race này.
+      const completed = await tx.extractionJob.updateMany({
+        where: {
+          id: job.id,
+          status: ExtractionJobStatus.PROCESSING,
+          lockedBy: this.workerId,
+          cancelRequestedAt: null,
+        },
+        data: {
+          status: ExtractionJobStatus.COMPLETED,
+          chunksTotal: chunks.length,
+          chunksDone: chunks.length,
+          model: llmAvailable ? this.ollama.extractModel : null,
+          promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-v1',
+          note: capped
+            ? `Tài liệu lớn: LLM đọc ${this.maxLlmChunks}/${likelyChunksTotal} đoạn có tín hiệu chỉ tiêu, phần còn lại dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
+            : llmAvailable ? null : 'Ollama không hoạt động: toàn bộ trích xuất dùng bộ luật.',
+          finishedAt: new Date(),
+          lockedAt: null,
+          lockedBy: null,
+          lastError: null,
+        },
+      });
+      if (completed.count !== 1) {
+        const current = await tx.extractionJob.findUnique({
+          where: { id: job.id },
+          select: { status: true, cancelRequestedAt: true },
+        });
+        if (current?.status === ExtractionJobStatus.CANCELLED || current?.cancelRequestedAt) {
+          throw new ExtractionJobCancelledError(job.id);
+        }
+        throw new ExtractionJobOwnershipLostError(job.id);
+      }
       // Trích xuất lại là idempotent: xóa đề xuất cũ chưa ai đụng tới, giữ nguyên
       // các ứng viên đã duyệt/từ chối/chỉnh sửa để không mất công sức con người.
       await tx.indicatorCandidate.deleteMany({
@@ -487,22 +660,17 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       if (candidateRows.length) {
         await tx.indicatorCandidate.createMany({ data: candidateRows });
       }
-    });
-
-    const capped = llmAvailable && likelyChunksTotal > this.maxLlmChunks;
-    await this.completeJob(job, {
-      chunksTotal: chunks.length,
-      chunksDone: chunks.length,
-      model: llmAvailable ? this.ollama.extractModel : null,
-      promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-v1',
-      note: capped
-        ? `Tài liệu lớn: LLM đọc ${this.maxLlmChunks}/${likelyChunksTotal} đoạn có tín hiệu chỉ tiêu, phần còn lại dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
-        : llmAvailable ? null : 'Ollama không hoạt động: toàn bộ trích xuất dùng bộ luật.',
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     this.logger.log(
       `Đã trích xuất ${candidateRows.length} chỉ tiêu ứng viên từ tài liệu ${document.id} (LLM ${llmAvailable ? 'bật' : 'tắt'})`,
     );
   }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  if (signal.reason instanceof Error) throw signal.reason;
+  throw new DOMException('The operation was aborted', 'AbortError');
 }
 
 function resolveDeadline(deadline: string | null, targetYear: number | null): Date | null {

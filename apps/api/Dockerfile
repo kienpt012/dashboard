@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm install
+RUN npm ci
 COPY apps/api apps/api
 RUN npm run prisma:generate -w @ioc/api && npm run build -w @ioc/api
 

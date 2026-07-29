@@ -18,6 +18,7 @@ services:
       retries: 10
 
   api:
+    image: "ioc-laithieu-api:${IMAGE_TAG:-local}"
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -43,6 +44,8 @@ services:
       MAIL_OUTBOX_MAX_ATTEMPTS: ${MAIL_OUTBOX_MAX_ATTEMPTS:-8}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8080}
       RUN_DEMO_SEED: ${RUN_DEMO_SEED:-false}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-Admin@12345}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-Demo@12345}
       PORT: 3000
       # Lớp AI cục bộ: mặc định dùng Ollama chạy trên máy host (Docker Desktop).
       # Khi Ollama tắt, hệ thống tự hạ cấp về trích xuất bằng luật, không lỗi.
@@ -72,6 +75,7 @@ services:
         condition: service_healthy
 
   web:
+    image: "ioc-laithieu-web:${IMAGE_TAG:-local}"
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -80,7 +84,7 @@ services:
     container_name: ioc-laithieu-web
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8080}:80"
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 10s

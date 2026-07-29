@@ -27,6 +27,8 @@
 .doc-ocr-badge{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:7px;background:#f1ecfb;color:#6a48ad;font-size:11px;font-weight:800;cursor:help}
 .doc-progress-line{display:flex;align-items:center;gap:7px;margin-top:10px;color:#3a6db7;font-size:12px;font-weight:600}
 .doc-progress-line svg{width:15px;animation:doc-spin 1.1s linear infinite}
+.doc-progress-line.cancelled{color:#a94343}
+.doc-progress-line.cancelled svg{animation:none}
 @keyframes doc-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.doc-progress-line svg{animation:none}}
 

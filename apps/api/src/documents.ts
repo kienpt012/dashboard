@@ -45,6 +45,7 @@ import { memoryStorage } from 'multer';
 import { audit, getActor, resolveDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { detectDocumentKind } from './document-processing';
+import { ExtractionWorker } from './extraction-worker';
 import { PrismaService } from './prisma.service';
 
 const Trim = () => Transform(({ value }: { value: unknown }) =>
@@ -123,7 +124,10 @@ const DOCUMENT_LIST_SELECT = {
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
 export class DocumentsController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly extractionWorker: ExtractionWorker,
+  ) {}
 
   @Get()
   async list(
@@ -187,6 +191,7 @@ export class DocumentsController {
             chunksDone: true,
             startedAt: true,
             finishedAt: true,
+            cancelRequestedAt: true,
             createdAt: true,
           },
           orderBy: { createdAt: 'desc' },
@@ -401,6 +406,97 @@ export class DocumentsController {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  @Post(':id/extraction-jobs/:jobId/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  async cancelExtractionJob(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('jobId') jobId: string,
+  ) {
+    const actor = getActor(req);
+    let cancelledJob;
+    try {
+      cancelledJob = await this.prisma.$transaction(async (tx) => {
+        const document = await tx.sourceDocument.findUnique({
+          where: { id },
+          select: { id: true, code: true, departmentId: true },
+        });
+        if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
+
+        const job = await tx.extractionJob.findUnique({
+          where: { id: jobId },
+          select: {
+            id: true,
+            documentId: true,
+            kind: true,
+            status: true,
+            chunksTotal: true,
+            chunksDone: true,
+            cancelRequestedAt: true,
+            finishedAt: true,
+          },
+        });
+        if (!job || job.documentId !== document.id) {
+          throw new NotFoundException('Không tìm thấy tiến trình trích xuất của tài liệu');
+        }
+        if (job.kind !== ExtractionJobKind.INDICATOR_EXTRACT) {
+          throw new ConflictException('Chỉ có thể dừng tiến trình trích xuất chỉ tiêu AI');
+        }
+        if (job.status === ExtractionJobStatus.CANCELLED) return job;
+        if (job.status !== ExtractionJobStatus.PENDING && job.status !== ExtractionJobStatus.PROCESSING) {
+          throw new ConflictException('Tiến trình trích xuất đã kết thúc nên không thể dừng');
+        }
+
+        const now = new Date();
+        const changed = await tx.extractionJob.updateMany({
+          where: {
+            id: job.id,
+            documentId: document.id,
+            kind: ExtractionJobKind.INDICATOR_EXTRACT,
+            status: { in: [ExtractionJobStatus.PENDING, ExtractionJobStatus.PROCESSING] },
+            cancelRequestedAt: null,
+          },
+          data: {
+            status: ExtractionJobStatus.CANCELLED,
+            cancelRequestedAt: now,
+            finishedAt: now,
+            lockedAt: null,
+            lockedBy: null,
+            lastError: null,
+            note: 'Đã dừng theo yêu cầu của người dùng.',
+          },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException('Tiến trình trích xuất vừa được xử lý ở nơi khác. Vui lòng tải lại.');
+        }
+        await audit(tx, actor, {
+          action: 'DOCUMENT_EXTRACTION_CANCELLED',
+          entityType: 'ExtractionJob',
+          entityId: job.id,
+          departmentId: document.departmentId,
+          metadata: { code: document.code },
+        });
+        return {
+          ...job,
+          status: ExtractionJobStatus.CANCELLED,
+          cancelRequestedAt: now,
+          finishedAt: now,
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (isPrismaMutationConflict(error)) {
+        throw new ConflictException('Tiến trình trích xuất vừa được xử lý ở nơi khác. Vui lòng tải lại.');
+      }
+      throw error;
+    }
+
+    // Chỉ phát tín hiệu sau khi trạng thái CANCELLED đã commit. Worker vẫn kiểm tra DB
+    // trước khi ghi kết quả, còn tín hiệu này giúp đóng ngay luồng fetch đang giữ Ollama.
+    this.extractionWorker.requestCancellation(jobId);
+    return cancelledJob;
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
@@ -436,6 +532,11 @@ export class DocumentsController {
 function isCodeAllocationError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError
     && (error.code === 'P2002' || error.code === 'P2034');
+}
+
+function isPrismaMutationConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && (error.code === 'P2002' || error.code === 'P2025' || error.code === 'P2034');
 }
 
 export function sanitizeDocumentFileName(value: string): string {

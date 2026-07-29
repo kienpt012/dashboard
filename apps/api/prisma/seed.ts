@@ -10,6 +10,30 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+function seedPassword(
+  name: 'DEMO_ADMIN_PASSWORD' | 'DEMO_USER_PASSWORD',
+  fallback: string,
+) {
+  const configured = process.env[name]?.trim();
+  const value = configured || fallback;
+  const isWeak =
+    !configured
+    || configured === fallback
+    || configured.startsWith('replace-with-')
+    || value.length < 12
+    || !/[a-z]/.test(value)
+    || !/[A-Z]/.test(value)
+    || !/\d/.test(value)
+    || !/[^A-Za-z0-9]/.test(value);
+
+  if (process.env.NODE_ENV === 'production' && isWeak) {
+    throw new Error(
+      `${name} must be explicitly set to a strong, non-default password in production.`,
+    );
+  }
+  return value;
+}
+
 function planningDueDate(value: string) {
   return new Date(`${value}T16:59:59.999Z`);
 }
@@ -44,8 +68,14 @@ async function main() {
     departmentIds[code] = department.id;
   }
 
-  const adminPassword = await bcrypt.hash('Admin@12345', 10);
-  const demoPassword = await bcrypt.hash('Demo@12345', 10);
+  const adminPassword = await bcrypt.hash(
+    seedPassword('DEMO_ADMIN_PASSWORD', 'Admin@12345'),
+    10,
+  );
+  const demoPassword = await bcrypt.hash(
+    seedPassword('DEMO_USER_PASSWORD', 'Demo@12345'),
+    10,
+  );
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     // Tuyệt đối không đặt lại mật khẩu, vai trò hay phòng ban khi chạy lại seed.
