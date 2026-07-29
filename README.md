@@ -31,7 +31,10 @@ npm run start:ioc:fast
 
 Khi cần giải phóng RAM/GPU để dùng máy cho công việc khác hoặc chơi game, nhấp đúp `stop-ioc.cmd` (hoặc chạy `npm run stop:ioc`). Launcher sẽ dừng web, API, PostgreSQL, giải phóng các model Ollama và tắt Docker Desktop nhưng **giữ nguyên toàn bộ dữ liệu PostgreSQL**. Chạy lại `start-ioc.cmd` khi muốn sử dụng hệ thống.
 
-Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt `RUN_DEMO_SEED=true` trong `.env` cho lần khởi tạo đầu tiên, chạy hệ thống, rồi đổi lại thành `false`. Không bật tùy chọn này trong môi trường vận hành thật.
+Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt
+`RUN_DEMO_SEED=true` cùng `DEMO_ADMIN_PASSWORD` và `DEMO_USER_PASSWORD` riêng trong `.env` cho lần
+khởi tạo đầu tiên, chạy hệ thống, rồi đổi lại thành `false`. Hai mật khẩu phải dài ít nhất 12 ký tự và
+có chữ hoa, chữ thường, số, ký tự đặc biệt; seed production sẽ từ chối giá trị mặc định hoặc yếu.
 
 Schema hiện có **28 migration**. Các migration mới nhất bổ sung kho văn bản, hàng đợi trích xuất, cơ chế dừng tác vụ an toàn, đề xuất chỉ tiêu có nguồn gốc kiểm chứng, tác vụ Copilot, cùng các nghiệp vụ tệp minh chứng, phản ánh công khai, OTP và outbox email. PostgreSQL, API và web đều có healthcheck; web chỉ khởi động sau khi API khỏe và API chỉ khởi động sau khi PostgreSQL sẵn sàng.
 
@@ -64,7 +67,7 @@ Truy cập:
 Tài khoản quản trị mẫu (chỉ được tạo khi bật `RUN_DEMO_SEED=true`):
 
 - Tên đăng nhập: `admin`
-- Mật khẩu khi seed môi trường mới: `Admin@12345`
+- Mật khẩu khi seed môi trường mới: giá trị `DEMO_ADMIN_PASSWORD` do người triển khai đặt trong `.env`
 
 Quy trình khởi tạo mới đã được kiểm tra từ volume PostgreSQL trống: seed tạo tài khoản `ADMIN` với `departmentId = NULL`, đúng phạm vi quản trị toàn hệ thống.
 

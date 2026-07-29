@@ -52,6 +52,10 @@ test và production build. Riêng push lên `main`, sau khi CI đạt, job produ
 3. Gọi script triển khai cố định do `root` sở hữu.
 4. Chỉ báo thành công khi web, API, database và model trích xuất đều sẵn sàng.
 
+Runner cố định sẽ từ chối release nếu nội dung `deploy/ioc-deploy` trong Git khác bản đã được `root`
+cài tại `/usr/local/sbin/ioc-deploy`. Cơ chế này ngăn khóa CI tự thay mã có quyền root; khi runner thay
+đổi, quản trị viên phải rà soát và cài bản mới trên VPS trước khi cho phép job production chạy.
+
 SMTP có thể để trống trong giai đoạn nghiệm thu IP. Khi trỏ tên miền, cập nhật `PUBLIC_APP_URL`,
 `CORS_ORIGINS`, cấu hình SMTP và cấp TLS trước khi dùng tài khoản quản trị trong vận hành thật.
 
