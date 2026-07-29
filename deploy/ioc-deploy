@@ -58,7 +58,9 @@ else
 fi
 
 if [[ ! -f "$RELEASE_DIR/deploy/ioc-deploy" ]] \
-    || ! cmp -s "$RELEASE_DIR/deploy/ioc-deploy" /usr/local/sbin/ioc-deploy; then
+    || ! cmp -s \
+      <(sed 's/\r$//' "$RELEASE_DIR/deploy/ioc-deploy") \
+      <(sed 's/\r$//' /usr/local/sbin/ioc-deploy); then
   echo "The root-owned deployment runner differs from this release; install the reviewed runner first." >&2
   exit 4
 fi
