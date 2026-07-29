@@ -9,4 +9,5 @@ work/
 outputs/
 backups/
 qa-artifacts/
+.codex-report-work*/
 *.tsbuildinfo

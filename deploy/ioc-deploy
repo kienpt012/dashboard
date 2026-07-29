@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+BASE_DIR=/opt/ioc-laithieu
+SHARED_DIR="$BASE_DIR/shared"
+RELEASES_DIR="$BASE_DIR/releases"
+BACKUPS_DIR="$BASE_DIR/backups"
+ENV_FILE="$SHARED_DIR/.env"
+PROJECT_NAME=ioc-laithieu
+
+exec 9>/var/lock/ioc-laithieu-deploy.lock
+if ! flock -n 9; then
+  echo "Another IOC deployment is already running." >&2
+  exit 3
+fi
+
+SHA="${1:-}"
+ARCHIVE="${2:-}"
+
+if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "Invalid release SHA." >&2
+  exit 2
+fi
+if [[ "$ARCHIVE" != "/tmp/ioc-${SHA}.tar.gz" || ! -f "$ARCHIVE" ]]; then
+  echo "Release archive is missing or invalid." >&2
+  exit 2
+fi
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Production environment file is missing: $ENV_FILE" >&2
+  exit 2
+fi
+
+RELEASE_DIR="$RELEASES_DIR/$SHA"
+export IMAGE_TAG="$SHA"
+PREVIOUS_RELEASE=""
+if [[ -L "$BASE_DIR/current" ]]; then
+  PREVIOUS_RELEASE="$(readlink -f "$BASE_DIR/current" || true)"
+fi
+
+install -d -m 0750 "$RELEASE_DIR" "$BACKUPS_DIR"
+tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
+rm -f "$ARCHIVE"
+
+compose() {
+  docker compose \
+    --project-name "$PROJECT_NAME" \
+    --env-file "$ENV_FILE" \
+    --file "$RELEASE_DIR/docker-compose.yml" \
+    "$@"
+}
+
+if docker ps --format '{{.Names}}' | grep -qx 'ioc-laithieu-db'; then
+  BACKUP_FILE="$BACKUPS_DIR/pre-${SHA}-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+  compose exec -T postgres sh -c \
+    'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+    | gzip -9 > "$BACKUP_FILE"
+  chmod 0600 "$BACKUP_FILE"
+fi
+
+rollback() {
+  status=$?
+  echo "Deployment failed; attempting rollback." >&2
+  if [[ -n "$PREVIOUS_RELEASE" && -f "$PREVIOUS_RELEASE/docker-compose.yml" ]]; then
+    previous_sha="$(basename "$PREVIOUS_RELEASE")"
+    IMAGE_TAG="$previous_sha" docker compose \
+      --project-name "$PROJECT_NAME" \
+      --env-file "$ENV_FILE" \
+      --file "$PREVIOUS_RELEASE/docker-compose.yml" \
+      up -d --no-build --remove-orphans || true
+  else
+    compose stop api web || true
+  fi
+  exit "$status"
+}
+trap rollback ERR
+
+compose config --quiet
+compose build --pull api web
+compose up -d --remove-orphans
+
+web_binding="$(compose port web 80)"
+web_port="${web_binding##*:}"
+
+healthy=false
+for _ in $(seq 1 60); do
+  if curl --fail --silent --show-error --max-time 5 \
+      "http://127.0.0.1:${web_port}/api/health" \
+      | grep -q '"status":"ok"'; then
+    healthy=true
+    break
+  fi
+  sleep 5
+done
+
+if [[ "$healthy" != true ]]; then
+  compose ps
+  compose logs --tail=120 api web
+  echo "Application health check timed out." >&2
+  false
+fi
+
+compose exec -T api node -e \
+  'fetch(process.env.OLLAMA_BASE_URL + "/api/tags", {signal: AbortSignal.timeout(10000)}).then(r => {if (!r.ok) throw new Error(String(r.status)); return r.json()}).then(data => {const expected=process.env.OLLAMA_EXTRACT_MODEL; const names=(data.models||[]).flatMap(model => [model.name, model.model]); if (!names.some(name => name === expected || name === expected + ":latest")) process.exit(2)}).catch(error => {console.error(error.message); process.exit(1)})'
+
+ln -sfn "$RELEASE_DIR" "$BASE_DIR/current"
+trap - ERR
+
+find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+  | sort -nr \
+  | tail -n +6 \
+  | cut -d' ' -f2- \
+  | xargs -r rm -rf --
+find "$BACKUPS_DIR" -type f -name '*.sql.gz' -mtime +14 -delete
+docker image prune -f >/dev/null
+
+echo "Deployment $SHA completed successfully."

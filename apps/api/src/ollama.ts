@@ -14,6 +14,14 @@ export interface OllamaChatResult {
   durationMs: number;
 }
 
+export interface OllamaChatOptions {
+  temperature?: number;
+  model?: string;
+  numCtx?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
 // Client gọi Ollama local. Mọi lời gọi model đều đi qua service này để thống nhất
 // cấu hình, timeout và không bao giờ log nội dung tài liệu.
 @Injectable()
@@ -36,13 +44,14 @@ export class OllamaService {
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
   }
 
-  async isAvailable(): Promise<boolean> {
+  async isAvailable(signal?: AbortSignal): Promise<boolean> {
     try {
       const response = await fetch(`${this.baseUrl}/api/version`, {
-        signal: AbortSignal.timeout(3_000),
+        signal: combineAbortSignals(3_000, signal),
       });
       return response.ok;
     } catch {
+      rethrowExternalAbort(signal);
       return false;
     }
   }
@@ -51,10 +60,11 @@ export class OllamaService {
   async chatStructured(
     messages: OllamaChatMessage[],
     schema: Record<string, unknown>,
-    options?: { temperature?: number; model?: string; numCtx?: number },
+    options?: OllamaChatOptions,
   ): Promise<OllamaChatResult> {
     const startedAt = Date.now();
     const model = options?.model || this.extractModel;
+    const timeoutMs = boundedInteger(options?.timeoutMs, this.requestTimeoutMs, 1_000, 900_000);
     // Dùng stream để tránh trần headersTimeout 300s của undici (fetch Node):
     // với stream, header trả về ngay và token chảy liên tục nên chỉ còn giới hạn
     // tổng thời gian do AbortSignal kiểm soát.
@@ -73,9 +83,10 @@ export class OllamaService {
           },
           messages,
         }),
-        signal: AbortSignal.timeout(this.requestTimeoutMs),
+        signal: combineAbortSignals(timeoutMs, options?.signal),
       });
     } catch (error) {
+      rethrowExternalAbort(options?.signal);
       this.logger.error(`Không thể kết nối Ollama (${model}): ${error instanceof Error ? error.name : 'lỗi'}`);
       throw new ServiceUnavailableException('Dịch vụ AI cục bộ chưa sẵn sàng. Vui lòng kiểm tra Ollama.');
     }
@@ -88,6 +99,7 @@ export class OllamaService {
     try {
       raw = await response.text();
     } catch (error) {
+      rethrowExternalAbort(options?.signal);
       this.logger.error(`Luồng phản hồi Ollama bị ngắt (${model}): ${error instanceof Error ? error.name : 'lỗi'}`);
       throw new ServiceUnavailableException('Dịch vụ AI cục bộ bị gián đoạn. Vui lòng thử lại.');
     }
@@ -144,10 +156,21 @@ export class OllamaService {
   }
 }
 
-function boundedInteger(raw: string | undefined, fallback: number, min: number, max: number): number {
-  const parsed = Number.parseInt(raw ?? '', 10);
+function boundedInteger(raw: string | number | undefined, fallback: number, min: number, max: number): number {
+  const parsed = typeof raw === 'number' ? Math.floor(raw) : Number.parseInt(raw ?? '', 10);
   if (!Number.isSafeInteger(parsed)) return fallback;
   return Math.min(max, Math.max(min, parsed));
+}
+
+function combineAbortSignals(timeoutMs: number, externalSignal?: AbortSignal): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal;
+}
+
+function rethrowExternalAbort(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  if (signal.reason instanceof Error) throw signal.reason;
+  throw new DOMException('The operation was aborted', 'AbortError');
 }
 
 async function safeErrorText(response: Response): Promise<string> {

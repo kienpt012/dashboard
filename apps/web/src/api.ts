@@ -35,12 +35,20 @@ function errorMessage(payload:any,status:number){
   if(message)return String(message);
   if(status===401)return 'Phiên đăng nhập đã hết hạn';
   if(status===403)return 'Bạn không có quyền thực hiện thao tác này';
+  if(status===504)return 'Yêu cầu xử lý quá thời gian chờ. Dịch vụ AI có thể đang bận; vui lòng thử lại sau.';
+  if(status===502||status===503)return 'Dịch vụ xử lý tạm thời chưa sẵn sàng. Vui lòng thử lại sau.';
   return 'Có lỗi xảy ra khi xử lý yêu cầu';
 }
 
 async function readError(response:Response){
   const contentType=response.headers.get('content-type')||'';
-  try{return contentType.includes('application/json')?await response.json():{message:await response.text()}}
+  try{
+    if(contentType.includes('application/json'))return await response.json();
+    const text=await response.text();
+    // Không đưa nguyên trang lỗi HTML của nginx/proxy lên giao diện người dùng.
+    if(contentType.includes('text/html')||/^\s*(?:<!doctype\s+html|<html)/i.test(text))return {};
+    return text.trim()?{message:text}:{};
+  }
   catch{return {}}
 }
 

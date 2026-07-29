@@ -387,13 +387,14 @@ export class LlmIndicatorExtractor {
   async extractFromChunk(
     chunkText: string,
     context: LlmExtractionContext,
+    signal?: AbortSignal,
   ): Promise<{ indicators: LlmExtractedIndicator[]; model: string; durationMs: number }> {
     const result = await this.ollama.chatStructured(
       buildExtractionMessages(chunkText, context),
       EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
       // Trích xuất cần ngân sách sinh lớn (mỗi chỉ tiêu ~180 token đầu ra):
       // 8192 để chunk bảng 8 dòng không bao giờ bị cắt — bài học PL1 QĐ333.
-      { temperature: 0.1, numCtx: 8192 },
+      { temperature: 0.1, numCtx: 8192, signal },
     );
     const { indicators, parseError } = sanitizeLlmIndicators(result.content, chunkText);
     if (parseError) {

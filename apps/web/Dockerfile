@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm install
+RUN npm ci
 COPY apps/web apps/web
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
