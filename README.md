@@ -29,7 +29,7 @@ Khi source và image không thay đổi, có thể bỏ qua bước build để 
 npm run start:ioc:fast
 ```
 
-Khi cần giải phóng RAM/GPU để dùng máy cho công việc khác hoặc chơi game, nhấp đúp `stop-ioc.cmd` (hoặc chạy `npm run stop:ioc`). Launcher sẽ dừng web, API, PostgreSQL, giải phóng các model Ollama và tắt Docker Desktop nhưng **giữ nguyên toàn bộ dữ liệu PostgreSQL**. Chạy lại `start-ioc.cmd` khi muốn sử dụng hệ thống.
+Nhấp đúp `stop-ioc.cmd` (hoặc chạy `npm run stop:ioc`). Launcher sẽ dừng web, API, PostgreSQL, giải phóng các model Ollama và tắt Docker Desktop nhưng **giữ nguyên toàn bộ dữ liệu PostgreSQL**. Chạy lại `start-ioc.cmd` khi muốn sử dụng hệ thống.
 
 Docker chỉ tự chạy migration, không tự tạo dữ liệu mẫu. Với môi trường demo mới hoàn toàn, đặt
 `RUN_DEMO_SEED=true` cùng `DEMO_ADMIN_PASSWORD` và `DEMO_USER_PASSWORD` riêng trong `.env` cho lần
