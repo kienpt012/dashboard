@@ -1,12 +1,13 @@
+.profile-page .page-head .eyebrow{display:inline-block;white-space:nowrap}
 .profile-layout{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(430px,1.2fr);gap:18px;align-items:start}
 .profile-card,.security-card{padding:26px}
-.profile-identity{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.profile-identity{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:10px 14px;padding-bottom:22px;border-bottom:1px solid var(--line)}
 .profile-avatar{width:58px;height:58px;border-radius:16px;background:linear-gradient(145deg,#e4f4f1,#f5faf8);color:#0f766e;display:grid;place-items:center;border:1px solid #d8eae6}
 .profile-avatar svg{width:27px;height:27px}
-.profile-identity span{font-size:9px;letter-spacing:1.1px;color:#0d8076;font-weight:800}
+.profile-identity span{display:block;font-size:9px;letter-spacing:1.1px;color:#0d8076;font-weight:800;white-space:nowrap}
 .profile-identity h3{font:800 20px Manrope;margin:4px 0 2px;color:#173633}
 .profile-identity p{font-size:11px;color:#7a8d8a;margin:0}
-.profile-identity>i{font-style:normal;font-size:10px;font-weight:700;padding:7px 9px;border-radius:9px;white-space:nowrap}
+.profile-identity>i{grid-column:2;justify-self:start;font-style:normal;font-size:10px;font-weight:700;padding:7px 9px;border-radius:9px;white-space:nowrap}
 .profile-identity>i.active{color:#24745b;background:#eaf7f1}
 .profile-identity>i.inactive{color:#a94343;background:#fff0f0}
 .profile-details{margin:8px 0 0}
@@ -55,7 +56,7 @@
 @media(max-width:1050px){.profile-layout{grid-template-columns:1fr}.profile-card,.security-card{padding:23px}}
 @media(max-width:600px){
   .profile-card,.security-card{padding:18px}
-  .profile-identity{grid-template-columns:auto 1fr}.profile-identity>i{grid-column:1/-1;justify-self:start}
+  .profile-identity{grid-template-columns:auto minmax(0,1fr)}.profile-identity>i{grid-column:2;justify-self:start}
   .profile-details>div{grid-template-columns:1fr;gap:7px}.profile-details dd{text-align:left;padding-left:24px}
   .password-requirements{grid-template-columns:1fr}
   .profile-form-actions{align-items:stretch;flex-direction:column}.profile-form-actions .btn{width:100%}

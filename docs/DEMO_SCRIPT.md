@@ -1,6 +1,6 @@
 # Kịch bản demo — vertical slice AI
 
-Thời lượng ~15 phút. Điều kiện: API + web + Postgres chạy, Ollama đang bật (`ollama serve`), Tesseract cài sẵn, đã có `samples/` (sinh bằng `python scripts/generate-sample-documents.py`). Toàn bộ kịch bản đã được kiểm chứng bằng browser ngày 26/07/2026 (xem PROGRESS.md). Có thể chốt demo bằng IOC Copilot (`/admin/copilot`): hỏi "Chỉ tiêu nào sắp trễ hạn?" — trả lời từ dữ liệu thật kèm nguồn.
+Thời lượng khoảng 15 phút. Điều kiện: API, web và PostgreSQL đang chạy; Ollama sẵn sàng; bộ `samples/` đã được tạo bằng `python scripts/generate-sample-documents.py`. Có thể kết thúc demo bằng IOC Copilot (`/admin/copilot`) với câu hỏi "Chỉ tiêu nào sắp trễ hạn?" để minh họa câu trả lời lấy từ dữ liệu hệ thống kèm nguồn.
 
 ## Các bước
 
@@ -10,7 +10,7 @@ Thời lượng ~15 phút. Điều kiện: API + web + Postgres chạy, Ollama �
 4. **Theo dõi trạng thái xử lý**: UPLOADED → PROCESSING → PROCESSED; job parse tự nối job trích xuất, hiển thị tiến độ đoạn (`chunksDone/chunksTotal`). *Talking point*: LLM local ~10 tok/s nên một tài liệu mất vài phút — kiến trúc bất đồng bộ (outbox + worker) là câu trả lời cho RQ6, người dùng không phải ngồi chờ.
 5. **Mở "Xác minh trích xuất"**: danh sách ứng viên PROPOSED. *Talking point về provenance*: mỗi ứng viên mang tài liệu/trang/đoạn nguồn, model + phiên bản prompt, phương pháp (LLM hay RULE_BASED).
 6. **Đối chiếu quote**: mở một ứng viên — câu trích nguyên văn hiển thị cạnh nội dung đoạn nguồn. *Talking point về chống bịa*: quote được kiểm chứng tự động bằng string-match; không khớp thì ứng viên bị cảnh báo + confidence kẹp trần 0.4. Chỉ vào `fieldConfidence`: độ tin cậy **từng trường**, không phải một con số chung chung — trường model không chắc (tần suất, phòng ban) sẽ thấp rõ rệt.
-7. **Sửa một trường**: chỉnh ví dụ tần suất báo cáo (trường hay để trống vì "6 tháng" không thuộc enum — KNOWN_ISSUES #8). Hệ thống ghi `humanEdited` + `editedFields` — từ nay trích xuất lại không bao giờ ghi đè ứng viên này.
+7. **Sửa một trường**: chỉnh ví dụ tần suất báo cáo (trường có thể để trống vì "6 tháng" chưa thuộc enum — xem [hạn chế đã biết](KNOWN_ISSUES.md)). Hệ thống ghi `humanEdited` + `editedFields` để lần trích xuất sau không ghi đè phần người dùng đã sửa.
 8. **Duyệt một ứng viên**: nếu thiếu phòng ban (đối sánh tên không đủ chắc thì hệ thống cố ý để trống), chọn tay rồi duyệt. Target được tạo qua đúng hàm cấp mã `CT-{năm}-{mãPB}-{seq}` dùng chung với luồng thủ công; audit ghi `TARGET_CREATED` kèm `fromCandidate`.
 9. **Xem kết quả**: chỉ tiêu mới xuất hiện trên **Danh mục chỉ tiêu** (kèm căn cứ pháp lý + tài liệu nguồn) và **Dashboard** như mọi chỉ tiêu khác. *Talking point*: một chỉ tiêu — vài giây đối chiếu + một cú nhấp, thay vì gõ lại hơn 10 trường (RQ4).
 10. **Minh họa OCR**: tải `samples/ke-hoach-ktxh-2026-scan.pdf` (bản scan không text layer) — trang được render ảnh và OCR bằng Tesseract vie, cột `ocrConfidence` ghi độ tin cậy từng trang.

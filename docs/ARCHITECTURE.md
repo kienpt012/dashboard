@@ -1,6 +1,6 @@
 # Kiến trúc hệ thống (kèm lớp AI)
 
-Kiến trúc nền: monorepo npm workspaces — `apps/api` (NestJS 11 + Prisma 6, **modular monolith một module phẳng**: mỗi domain = 1 file controller), `apps/web` (React 19 + Vite), PostgreSQL 17, Docker Compose 3 service. Lớp AI mới bổ sung vào chính monolith này theo quyết định D-001 (`DECISIONS.md`).
+Kiến trúc nền: monorepo npm workspaces — `apps/api` (NestJS 11 + Prisma 6, modular monolith), `apps/web` (React 19 + Vite), PostgreSQL 17 và Docker Compose. Lớp AI được tích hợp vào cùng API theo [quyết định D-001](DECISIONS.md).
 
 ## 1. Sơ đồ thành phần
 
@@ -16,24 +16,25 @@ flowchart LR
       DOCS["documents.ts\nupload · re-extract · delete"]
       CAND["candidates.ts\nsửa · duyệt · từ chối"]
       WORKER["extraction-worker.ts\noutbox claim + parse + extract"]
+      COPILOT["copilot.ts\ntruy vấn · xem trước · xác nhận"]
+      TESS["Tesseract OCR\nvie + eng"]
     end
     PG[("PostgreSQL 17\nSourceDocument · DocumentPage\nDocumentChunk · ExtractionJob\nIndicatorCandidate · Target …")]
   end
-  subgraph localai["AI cục bộ (ngoài Docker hiện tại)"]
+  subgraph localai["AI cục bộ trên máy host"]
     OLLAMA["Ollama\nqwen3:4b-instruct-2507 (trích xuất)\nbge-m3 (embedding)"]
-    TESS["Tesseract 5 + vie\n(spawn child_process)"]
   end
   WEB --> NGINX --> API
   DOM --> PG
   DOCS --> PG
   CAND --> PG
   WORKER --> PG
+  COPILOT --> PG
   WORKER -->|HTTP /api/chat, /api/embed| OLLAMA
   WORKER -->|execFile| TESS
+  COPILOT -->|HTTP /api/chat| OLLAMA
   RAG["pgvector RAG + tra cứu\n(KẾ HOẠCH · giai đoạn 7)"]:::planned
-  COPILOT["IOC Copilot · tool registry\n(KẾ HOẠCH · giai đoạn 8)"]:::planned
   RAG -.-> PG
-  COPILOT -.-> API
   classDef planned stroke-dasharray: 5 5,fill:none
 ```
 
@@ -100,9 +101,9 @@ Trước mỗi job trích xuất, worker kiểm tra `OllamaService.isAvailable()
 - LLM lỗi ở một chunk riêng lẻ chỉ bỏ qua chunk đó (log cảnh báo không kèm nội dung), không đánh hỏng cả job.
 - Heuristic `chunkLikelyHasIndicators` lọc trước để chỉ gọi LLM với chunk có khả năng chứa chỉ tiêu — tiết kiệm GPU.
 
-## 7. Thành phần tương lai (kế hoạch — chưa triển khai)
+## 7. Thành phần hiện có và hướng mở rộng
 
 - **RAG + pgvector** (giai đoạn 7): thêm cột vector cho `DocumentChunk` (schema đã chừa sẵn chỗ), đổi image Postgres sang `pgvector/pgvector:pg17` kèm quy trình dump/restore (D-005); hybrid search FTS + vector + citation; màn hình tra cứu kho tri thức.
-- **IOC Copilot** (giai đoạn 8): tool registry có schema (searchDocuments, queryMetrics, createIndicators…), agent loop Qwen3 tool-calling — đọc trực tiếp, ghi phải qua preview + xác nhận, ghi AgentAction/audit. Cấm LLM sinh SQL tự do (quy tắc bất biến trong `CLAUDE.md`).
+- **IOC Copilot** (đã triển khai): truy vấn dữ liệu qua công cụ có schema và kiểm soát quyền; hành động duyệt hàng loạt phải qua bước xem trước, xác nhận và ghi `AgentAction`/audit. LLM không được sinh SQL tự do để thực thi.
 - **PROGRESS_UPDATE từ báo cáo** (giai đoạn 9): enum `CandidateKind.PROGRESS_UPDATE` đã có sẵn trong schema, luồng trích xuất giá trị thực hiện và duyệt tạo ProgressUpdate chưa hiện thực.
 - **Speech-to-text tiếng Việt** (giai đoạn 10): đánh giá whisper.cpp/faster-whisper local.

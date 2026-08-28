@@ -126,7 +126,7 @@ Nguyên tắc: **tránh phình bảng rỗng** — thực thể khái niệm ch�
 | DocumentVersion | **Kế hoạch — chưa cần** | SHA-256 unique chặn trùng; văn bản hành chính sửa đổi được tải như tài liệu mới có số hiệu riêng. Tách bảng version khi có nghiệp vụ thay thế văn bản. |
 | DocumentPage | Bảng mới `DocumentPage` | 1-1. |
 | DocumentChunk | Bảng mới `DocumentChunk` | 1-1; cột vector thêm ở giai đoạn 7. |
-| ExtractedTable | **Kế hoạch — giai đoạn table-extraction chuyên sâu** | Hiện tại bảng được tuyến tính hóa thành text (tab-separated) trong page/chunk; hạn chế ghi ở KNOWN_ISSUES #9, #10. |
+| ExtractedTable | **Kế hoạch — giai đoạn table-extraction chuyên sâu** | Hiện tại bảng được tuyến tính hóa thành text (tab-separated) trong page/chunk; xem [hạn chế đã biết](KNOWN_ISSUES.md). |
 | LegalReference | Trường `legalBasis` (Candidate + Target) + `docNumber` | Chuỗi tham chiếu đủ cho tra cứu; bảng chuẩn hóa hoãn tới khi cần đồ thị văn bản pháp lý. |
 | IssuingAuthority | Trường `SourceDocument.issuedBy` | Một phường — danh mục cơ quan ban hành chưa cần bảng riêng. |
 | AdministrativeUnit | **Không tạo** | Hệ thống phạm vi một phường; đơn vị hành chính là hằng ngữ cảnh. |
@@ -135,7 +135,7 @@ Nguyên tắc: **tránh phình bảng rỗng** — thực thể khái niệm ch�
 | IndicatorFormula | Trường `IndicatorCandidate.formula` | Lưu công thức dạng chuỗi khi văn bản nêu; engine tính toán không thuộc phạm vi. |
 | IndicatorAssignment | `Target.departmentId` + `coordinatingDepartments` | Chủ trì là FK, phối hợp là chuỗi (đủ cho hiển thị/xác minh). |
 | IndicatorActual | Bảng hiện có `ProgressUpdate` | Luồng candidate PROGRESS_UPDATE nối vào ở giai đoạn 9. |
-| ReportingPeriod | **Kế hoạch — hoãn** | `frequency` hiện là thuộc tính cấu hình; sổ kỳ báo cáo độc lập đã được README ghi nhận là hướng mở rộng, chưa thuộc đề tài. |
+| ReportingPeriod | **Kế hoạch — hoãn** | `frequency` hiện là thuộc tính cấu hình; sổ kỳ báo cáo độc lập chưa thuộc phiên bản hiện tại. |
 | DataSource | `extractionMethod` + `model` + `promptVersion` trên Candidate/Job | Nguồn dữ liệu được mã hóa trong provenance thay vì bảng danh mục. |
 | Evidence | Mẫu `FeedbackAttachment` hiện có; với chỉ tiêu AI: `sourceQuote` + `sourceDocumentId` | Bằng chứng của chỉ tiêu chính là trích dẫn + tài liệu nguồn. |
 | ExtractionJob | Bảng mới `ExtractionJob` | 1-1. |
@@ -144,10 +144,10 @@ Nguyên tắc: **tránh phình bảng rỗng** — thực thể khái niệm ch�
 | ValidationTask | Vòng đời `IndicatorCandidate.status` + màn hình Xác minh trích xuất | Hàng đợi xác minh chính là danh sách PROPOSED. |
 | ApprovalWorkflow | Luồng approve/reject trong `candidates.ts` + `reviewedBy/At` | Một cấp duyệt (ADMIN) — đúng thẩm quyền tạo Target hiện hành; workflow đa cấp chưa cần. |
 | AuditLog | Bảng hiện có `AuditLog` | Bổ sung action mới + key metadata vào `SAFE_METADATA_KEYS`. |
-| AgentAction | **Kế hoạch — giai đoạn 8** | Ghi nhận hành động Copilot khi có tool registry. |
+| AgentAction | Bảng `AgentAction` | Lưu lệnh, công cụ, tham số, bản xem trước, trạng thái, kết quả và thời hạn xác nhận của hành động ghi do Copilot đề xuất. |
 | DataQualityIssue | Trường JSON `warnings` + `isDuplicateSuspect` | Cảnh báo gắn trực tiếp vào ứng viên nơi người duyệt nhìn thấy. |
 | Notification | Mẫu `MailOutbox` hiện có | Thông báo AI (nếu cần) sẽ tái dùng outbox; chưa có nhu cầu ở prototype. |
-| Conversation / CommandExecution | **Kế hoạch — giai đoạn 8** | Thuộc IOC Copilot. |
-| ModelRegistry / ModelExperiment | Trường `model` + `promptVersion` per job/candidate; nhật ký `EXPERIMENTS.md` + `docs/experiments/` | Registry dạng bảng chỉ đáng làm khi có nhiều model chạy đồng thời (giai đoạn 10 có màn hình quản lý model). |
-| EvaluationDataset | Artifact dạng tệp `eval/dataset-v1/` (kế hoạch — giai đoạn 6) | Dataset phải bất biến + version hóa theo Git, không phù hợp lưu DB. |
-| EvaluationResult | Tệp CSV/JSON trong `docs/experiments/` (kế hoạch — giai đoạn 6) | Gắn dataset version + model + promptVersion để tái lập. |
+| Conversation | **Chưa có** | Copilot hiện xử lý từng lượt; lịch sử hội thoại đa lượt là hướng mở rộng. |
+| ModelRegistry / ModelExperiment | Trường `model` + `promptVersion` trên job/candidate; [nhật ký thí nghiệm](experiments/README.md) | Chỉ cần registry dạng bảng khi vận hành đồng thời nhiều model. |
+| EvaluationDataset | Artifact `eval/dataset-v1/` | Dataset được version hóa bằng Git thay vì lưu trong cơ sở dữ liệu. |
+| EvaluationResult | CSV/JSON trong `docs/experiments/results/` | Gắn dataset version, model và prompt version để tái lập. |

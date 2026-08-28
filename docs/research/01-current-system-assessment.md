@@ -1,8 +1,10 @@
-# Báo cáo đánh giá hiện trạng hệ thống IOC Lái Thiêu
+# Đánh giá hiện trạng ban đầu
 
-Ngày khảo sát: 26/07/2026. Phương pháp: đọc toàn bộ mã nguồn (6 agent khảo sát song song theo phân hệ), chạy build/test, chạy hệ thống bằng Docker, kiểm tra giao diện bằng browser, kiểm tra cấu hình phần cứng.
+> Đây là ảnh chụp hiện trạng ngày 26/07/2026, được giữ làm baseline nghiên cứu trước khi lớp AI và các hạng mục tiếp theo được hoàn thiện. Không dùng tài liệu này như mô tả tính năng hiện tại.
 
-## 1. Tổng quan kiến trúc hiện tại
+Phương pháp: rà soát mã nguồn theo phân hệ, chạy build/test, khởi động hệ thống bằng Docker, kiểm tra giao diện và ghi nhận cấu hình phần cứng.
+
+## 1. Tổng quan kiến trúc tại thời điểm khảo sát
 
 | Thành phần | Công nghệ | Ghi chú |
 |---|---|---|
@@ -61,7 +63,7 @@ Ngày khảo sát: 26/07/2026. Phương pháp: đọc toàn bộ mã nguồn (6 
 | 6 | Không CI | Regression khó phát hiện | Bổ sung workflow chạy build+test (giai đoạn sau) |
 | 7 | Rate limit trong RAM tiến trình | Chỉ đúng khi 1 API instance | Giữ nguyên, ghi nhận hạn chế |
 | 8 | Status filter/dashboard load toàn bộ rồi lọc trong JS | Chậm khi >1000 chỉ tiêu | Chấp nhận ở quy mô phường; ghi nhận |
-| 9 | Trang phải đăng ký 4 chỗ ở frontend | Dễ sót khi thêm màn hình | Checklist trong CLAUDE.md |
+| 9 | Trang phải đăng ký ở route, tiêu đề và điều hướng frontend | Dễ sót khi thêm màn hình | Dùng checklist khi review thay đổi giao diện |
 | 10 | `SAFE_METADATA_KEYS` allowlist trong audit-logs | Metadata audit mới bị ẩn nếu quên thêm key | Thêm key mới khi thêm action AI |
 
 ## 6. Cấu hình máy phát triển (đo ngày 26/07/2026)

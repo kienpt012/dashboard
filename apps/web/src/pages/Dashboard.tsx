@@ -76,7 +76,7 @@ export default function Dashboard(){
   return <>
     <div className="command-head">
       <div>
-        <span className="eyebrow">CONTROL ROOM · {data.year}</span>
+        <span className="eyebrow">ĐIỀU HÀNH · {data.year}</span>
         <h2>{isGlobal?'Bức tranh điều hành toàn phường':`Tiến độ của ${scopeName}`}</h2>
         <p>{isGlobal?'Tổng hợp kết quả thực hiện từ các đơn vị trực thuộc.':'Chỉ hiển thị chỉ tiêu và cập nhật thuộc phạm vi đơn vị của bạn.'}</p>
       </div>

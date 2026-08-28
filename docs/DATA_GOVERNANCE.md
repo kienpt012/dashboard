@@ -54,7 +54,7 @@ Key metadata mới phải được thêm vào allowlist `SAFE_METADATA_KEYS` (`a
 ## 7. Chính sách dữ liệu mẫu synthetic
 
 - Bộ `samples/` (và evaluation dataset kế hoạch) là văn bản **synthetic** sinh bằng `scripts/generate-sample-documents.py`: mô phỏng văn phong hành chính, không chứa dữ liệu cá nhân hay nội dung văn bản thật.
-- Không commit dataset nhạy cảm/văn bản thật vào repo (quy tắc cấm trong `CLAUDE.md`); văn bản thật (khi được phép dùng ở giai đoạn đánh giá) chỉ nằm ngoài Git.
+- Không commit dataset nhạy cảm hoặc văn bản thật vào repo. Văn bản thật chỉ được dùng khi có quyền phù hợp và phải lưu ngoài Git.
 
 ## 8. Không log nội dung tài liệu
 

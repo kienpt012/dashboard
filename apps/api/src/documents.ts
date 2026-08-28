@@ -516,6 +516,14 @@ export class DocumentsController {
           'Tài liệu đã có chỉ tiêu được duyệt nên không thể xóa để bảo toàn nguồn gốc dữ liệu',
         );
       }
+      const publicationCount = await tx.documentPublication.count({
+        where: { sourceDocumentId: id },
+      });
+      if (publicationCount > 0) {
+        throw new ConflictException(
+          'Văn bản đã từng được công bố nên phải được giữ lại để bảo toàn lịch sử và khả năng truy vết',
+        );
+      }
       await tx.sourceDocument.delete({ where: { id } });
       await audit(tx, actor, {
         action: 'DOCUMENT_DELETED',

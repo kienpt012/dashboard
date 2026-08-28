@@ -1,6 +1,6 @@
-# EXPERIMENTS.md — Nhật ký thí nghiệm
+# Thí nghiệm và kết quả
 
-Kết quả chi tiết + dữ liệu tái lập lưu ở `docs/experiments/`. Mỗi thí nghiệm có ID.
+Kết quả chi tiết và dữ liệu tái lập được lưu trong thư mục này. Mỗi thí nghiệm có ID.
 
 ## E-001 · 2026-07-26 · Smoke test trích xuất structured tiếng Việt (Qwen3-4B local)
 
@@ -20,7 +20,7 @@ Kết quả chi tiết + dữ liệu tái lập lưu ở `docs/experiments/`. M�
 
 ## E-003 · 2026-07-26 · Benchmark rule vs LLM vs hybrid (dataset-v1, 28 chỉ tiêu, 5 định dạng)
 
-- **Kết quả** (chi tiết + file tái lập: docs/experiments/results.md):
+- **Kết quả** (chi tiết và file tái lập: [results.md](results.md)):
   rule P=0.90/R=0.643/F1=0.75 (~20ms, mù bảng XLSX 0/6);
   llm P=1.0/R=1.0/F1=1.0 (~19.6 phút; field: value/unit/direction 1.0, department 0.929,
   deadline 0.857, frequency 0.75 — lỗi chủ yếu là đoán tần suất khi văn bản không nêu);
@@ -43,10 +43,12 @@ Kết quả chi tiết + dữ liệu tái lập lưu ở `docs/experiments/`. M�
 - Fix: chunk 8-hàng-bảng + tiêu đề mục, num_ctx 8192, vá JSON cắt, prompt v4 cha–con +
   đơn vị-trước-giá-trị, hậu xử lý tất định. Kết quả: **39/39 dòng, 39/39 có lĩnh vực,
   0 rác tiêu đề bảng**; 2 dòng nhiễu thật tự bị hạ confidence (0.4–0.62).
-- Chi tiết + bảng trước/sau: docs/experiments/real-qd333-results.md.
+- Chi tiết và bảng trước/sau: [real-qd333-results.md](real-qd333-results.md).
 
-## Kế hoạch thí nghiệm kế tiếp (docs/experiments/experiment-plan.md)
+## Hướng thí nghiệm tiếp theo
 
-- E-005: Dataset-v2 văn bản thật ẩn danh + human correction rate trên UI xác minh.
-- E-006: Prompt v3 (tần suất null-when-absent) → đo lại field accuracy.
-- E-007: qwen2.5:7b-instruct accuracy-mode; OCR CER trên scan chất lượng thấp.
+- Dataset v2 từ văn bản thật đã ẩn danh và tỷ lệ trường cần người dùng chỉnh sửa.
+- Đo lại độ chính xác theo trường sau mỗi thay đổi prompt.
+- So sánh model ở chế độ ưu tiên độ chính xác và đo CER trên bản scan chất lượng thấp.
+
+Xem [kế hoạch thí nghiệm](experiment-plan.md) và [so sánh mô hình](model-comparison.md).

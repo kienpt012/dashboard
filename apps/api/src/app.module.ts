@@ -25,6 +25,11 @@ import { CandidatesController } from './candidates';
 import { CopilotController } from './copilot';
 import { ExtractionWorker } from './extraction-worker';
 import { OllamaService } from './ollama';
+import {
+  PublicDashboardAdminController,
+  PublicDashboardPublicController,
+  PublicDashboardService,
+} from './public-dashboard';
 
 @Module({
   imports: [
@@ -43,6 +48,7 @@ import { OllamaService } from './ollama';
   controllers: [
     HealthController,
     PublicController,
+    PublicDashboardPublicController,
     PublicFeedbackController,
     AuthController,
     DepartmentsController,
@@ -57,6 +63,7 @@ import { OllamaService } from './ollama';
     DocumentsController,
     CandidatesController,
     CopilotController,
+    PublicDashboardAdminController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,
@@ -68,6 +75,7 @@ import { OllamaService } from './ollama';
     FeedbackMailOutboxWorker,
     OllamaService,
     ExtractionWorker,
+    PublicDashboardService,
   ],
 })
 export class AppModule {}

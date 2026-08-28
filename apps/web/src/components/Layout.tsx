@@ -1,4 +1,4 @@
-import { Bot, Building2, CheckCheck, FileBarChart, FileText, Gauge, History, LogOut, Menu, MessageSquareText, Settings, Sheet, Target, UserRound, Users, X } from 'lucide-react';
+import { Bot, Building2, CheckCheck, FileBarChart, FileText, Gauge, History, LayoutDashboard, LogOut, Menu, MessageSquareText, Settings, Sheet, Target, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, getInitials, hasAnyRole, IMPORT_ROLES, roleLabels } from '../authz';
@@ -16,6 +16,7 @@ const items=[
   {to:'/admin/departments',label:'Phòng ban',icon:Building2,roles:ALL_ROLES},
   {to:'/admin/users',label:'Tài khoản',icon:Users,roles:ADMIN_ROLES},
   {to:'/admin/settings',label:'Thiết lập hệ thống',icon:Settings,roles:ADMIN_ROLES},
+  {to:'/admin/public-dashboard',label:'Thiết kế trang công khai',icon:LayoutDashboard,roles:ADMIN_ROLES},
   {to:'/admin/audit-logs',label:'Nhật ký hệ thống',icon:History,roles:ADMIN_ROLES},
   {to:'/admin/profile',label:'Hồ sơ & bảo mật',icon:UserRound,roles:ALL_ROLES},
 ];
@@ -32,6 +33,7 @@ const titles:Record<string,string>={
   '/admin/departments':'Cơ cấu phòng ban',
   '/admin/users':'Quản lý tài khoản',
   '/admin/settings':'Thiết lập hệ thống',
+  '/admin/public-dashboard':'Thiết kế trang công khai',
   '/admin/audit-logs':'Nhật ký hệ thống',
   '/admin/profile':'Hồ sơ & bảo mật',
   '/admin/forbidden':'Quyền truy cập',

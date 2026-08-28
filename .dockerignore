@@ -2,11 +2,16 @@
 .claude
 .gitignore
 .env
+.env*.local
 node_modules
 **/node_modules
 **/dist
+coverage
+**/coverage
 **/*.log
 qa-artifacts
+docs/qa
+.agents
 .codex-report-work*
 work
 outputs

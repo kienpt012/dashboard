@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.2",
+    "dompurify": "^3.4.13",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-grid-layout": "^2.2.4",
     "react-router-dom": "^7.8.2",
     "vite": "^7.1.3"
   },

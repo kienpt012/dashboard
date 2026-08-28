@@ -1,9 +1,11 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { installHttpBodyParsers } from './http-config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  installHttpBodyParsers(app);
   app.enableShutdownHooks();
   // Nginx is the single public proxy in Docker. Trust exactly one hop so
   // per-client rate limits use X-Forwarded-For instead of the proxy IP.

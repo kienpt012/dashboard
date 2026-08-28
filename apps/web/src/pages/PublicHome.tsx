@@ -15,6 +15,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { currentVietnamYear } from '../date';
+import { PUBLIC_DASHBOARD_WIDGET_LABELS, normalizePublicDashboardConfig } from '../public-dashboard/defaults';
+import PublicDashboardRenderer from '../public-dashboard/PublicDashboardRenderer';
+import type { PublicDashboardResponse } from '../public-dashboard/types';
 import type {
   FeedbackCategory,
   PublishedFeedback,
@@ -83,6 +86,8 @@ function PublicTargetCard({ item }: { item: PublicTarget }) {
 }
 
 export default function PublicHome() {
+  const [publicDashboard, setPublicDashboard] = useState<PublicDashboardResponse | null>(null);
+  const [dashboardResolved, setDashboardResolved] = useState(false);
   const [data, setData] = useState<PublicOverview>();
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [error, setError] = useState('');
@@ -154,9 +159,19 @@ export default function PublicHome() {
   }
 
   useEffect(() => {
+    let active = true;
+    api<PublicDashboardResponse>('/public/dashboard')
+      .then(result => { if (active) setPublicDashboard(result); })
+      .catch(() => { if (active) setPublicDashboard(null); })
+      .finally(() => { if (active) setDashboardResolved(true); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!dashboardResolved || publicDashboard) return;
     void loadOverview();
     void loadPublishedFeedbacks();
-  }, []);
+  }, [dashboardResolved, publicDashboard]);
 
   useEffect(() => {
     if (targetFilter === FEATURED_FILTER) {
@@ -181,7 +196,7 @@ export default function PublicHome() {
     if(!targetId)return;
     const frame=requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({block:'start'}));
     return()=>cancelAnimationFrame(frame);
-  }, []);
+  }, [dashboardResolved, publicDashboard]);
 
   useEffect(() => {
     if (!menu) return;
@@ -233,6 +248,46 @@ export default function PublicHome() {
     desktop.addEventListener('change', closeDesktopMenu);
     return () => desktop.removeEventListener('change', closeDesktopMenu);
   }, []);
+
+  if (!dashboardResolved) {
+    return <div className="public-site public-dashboard-loading-shell">
+      <header className="public-header"><Link to="/" className="public-brand"><div className="brand-mark">LT</div><div><strong>PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></Link></header>
+      <main role="status" aria-live="polite"><div className="public-dashboard-loading-card"><span className="spinner" /><strong>Đang tải dữ liệu công khai</strong><p>Hệ thống đang đồng bộ phiên bản dashboard đã được công bố.</p></div></main>
+    </div>;
+  }
+
+  if (publicDashboard) {
+    const dashboardConfig = normalizePublicDashboardConfig(publicDashboard.config);
+    const navigationTypes = new Set<string>();
+    const navigationWidgets = dashboardConfig.widgets.filter(widget => {
+      if (!['targetList', 'departmentProgress', 'feedbackList', 'documentList'].includes(widget.type) || navigationTypes.has(widget.type)) return false;
+      navigationTypes.add(widget.type);
+      return true;
+    }).slice(0, 4);
+    return <div className="public-site public-site-dynamic">
+      {dashboardConfig.settings.showHeader && <header className="public-header">
+        <Link to="/" className="public-brand" inert={menu ? true : undefined} aria-hidden={menu ? true : undefined}><div className="brand-mark">LT</div><div><strong>PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></Link>
+        <nav ref={menuNavRef} id="public-navigation" aria-label="Điều hướng cổng thông tin" className={menu ? 'show' : ''} tabIndex={menu ? -1 : undefined}>
+          {navigationWidgets.map(widget => <a key={widget.id} href={`#widget-${widget.id}`} onClick={() => setMenu(false)}>{widget.title || PUBLIC_DASHBOARD_WIDGET_LABELS[widget.type]}</a>)}
+          <Link to="/phan-anh" onClick={() => setMenu(false)}>Gửi phản ánh</Link>
+          <button ref={menuCloseRef} aria-label="Đóng menu" className="public-nav-close" onClick={() => setMenu(false)}><X /></button>
+        </nav>
+        <div className="public-head-actions">
+          <div className="public-live" role="status" inert={menu ? true : undefined} aria-hidden={menu ? true : undefined}><i />Dữ liệu đã công bố</div>
+          <Link aria-label="Đăng nhập hệ thống" to="/admin/login" className="admin-link" inert={menu ? true : undefined} aria-hidden={menu ? true : undefined}><CircleUserRound />Đăng nhập hệ thống</Link>
+          <button ref={menuButtonRef} aria-label="Mở menu" aria-controls="public-navigation" aria-expanded={menu} className="public-menu" onClick={() => setMenu(true)}><Menu /></button>
+        </div>
+      </header>}
+      <main inert={menu ? true : undefined} aria-hidden={menu ? true : undefined}>
+        <PublicDashboardRenderer config={dashboardConfig} data={publicDashboard.data} />
+      </main>
+      {dashboardConfig.settings.showFooter && <footer className="public-footer" inert={menu ? true : undefined} aria-hidden={menu ? true : undefined}><div className="public-container">
+        <div className="footer-brand"><div className="brand-mark">LT</div><div><strong>UBND PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></div>
+        <div className="footer-links">{navigationWidgets.slice(0, 1).map(widget => <a key={widget.id} href={`#widget-${widget.id}`}>{widget.title || PUBLIC_DASHBOARD_WIDGET_LABELS[widget.type]}</a>)}<Link to="/phan-anh">Gửi phản ánh</Link><Link to="/admin/login">Không gian nội bộ</Link></div>
+        <p>© {year} UBND Phường Lái Thiêu.</p>
+      </div></footer>}
+    </div>;
+  }
 
   return <div className="public-site">
     <header className="public-header">
