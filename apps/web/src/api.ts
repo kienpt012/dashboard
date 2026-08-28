@@ -91,3 +91,18 @@ export async function downloadApi(path:string,options:RequestInit={}):Promise<Bl
   const response=await request(path,options);
   return response.blob();
 }
+
+export async function downloadApiResponse(path:string,options:RequestInit={}):Promise<Response>{
+  // Editor preview URLs are also consumed by the public renderer and include
+  // the nginx-facing `/api` prefix. `request` already owns that prefix through
+  // VITE_API_URL, so normalize it here to keep Docker and Vite dev identical.
+  const requestPath=path.replace(/^\/api(?=\/)/,'');
+  return request(requestPath,options);
+}
+
+export function resolveApiUrl(path:string):string{
+  if(/^https:\/\//i.test(path))return path;
+  const normalizedBase=API_URL.replace(/\/$/,'');
+  if(path.startsWith('/api/'))return `${normalizedBase}${path.slice(4)}`;
+  return `${normalizedBase}${path.startsWith('/')?'':'/'}${path}`;
+}

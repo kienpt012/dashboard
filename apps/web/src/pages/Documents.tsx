@@ -246,7 +246,7 @@ export default function Documents() {
       eyebrow="TIẾP NHẬN DỮ LIỆU"
       title="Kho văn bản"
       description="Tải lên văn bản hành chính (PDF, DOCX, XLSX, ảnh scan) để hệ thống tự động đọc nội dung và đề xuất chỉ tiêu; mọi đề xuất đều phải được cán bộ xác minh trước khi trở thành dữ liệu chính thức."
-      actions={canUpload && <button className="btn primary" onClick={openUpload}><UploadCloud />Tải văn bản</button>}
+      actions={canUpload && <button className="btn primary document-upload-action" onClick={openUpload}><UploadCloud />Tải văn bản</button>}
     />
 
     {notice && <div className="notice success" role="status">{notice}<button aria-label="Đóng thông báo" onClick={() => setNotice('')}><X /></button></div>}

@@ -43,5 +43,5 @@ export function Modal({title,children,onClose,wide=false}:{title:string;children
     </div>
   </div>;
 }
-export function Empty({title='Chưa có dữ liệu',description='Dữ liệu sẽ xuất hiện tại đây sau khi được tạo.'}:{title?:string;description?:string}){return <div className="empty"><div aria-hidden="true">○</div><strong>{title}</strong><p>{description}</p></div>}
+export function Empty({title='Chưa có dữ liệu',description='Dữ liệu sẽ xuất hiện tại đây sau khi được tạo.',showIcon=true}:{title?:string;description?:string;showIcon?:boolean}){return <div className="empty">{showIcon&&<div aria-hidden="true">○</div>}<strong>{title}</strong><p>{description}</p></div>}
 export function Spinner(){return <div className="spinner-wrap" role="status" aria-label="Đang tải dữ liệu"><div className="spinner" aria-hidden="true"/></div>}

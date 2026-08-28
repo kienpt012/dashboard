@@ -154,44 +154,44 @@ enum AgentActionStatus {
 }
 
 model Department {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  description String?
-  color       String   @default("#0f766e")
-  isActive    Boolean  @default(true)
-  version     Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       User[]
-  targets     Target[]
-  importBatches ImportBatch[]
-  feedbacks   Feedback[]
-  documents   SourceDocument[]
+  id                  String               @id @default(cuid())
+  code                String               @unique
+  name                String
+  description         String?
+  color               String               @default("#0f766e")
+  isActive            Boolean              @default(true)
+  version             Int                  @default(1)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  users               User[]
+  targets             Target[]
+  importBatches       ImportBatch[]
+  feedbacks           Feedback[]
+  documents           SourceDocument[]
   indicatorCandidates IndicatorCandidate[]
 }
 
 model User {
-  id           String      @id @default(cuid())
-  username     String      @unique
-  passwordHash String
-  fullName     String
-  email        String?     @unique
-  role         Role        @default(STAFF)
-  isActive     Boolean     @default(true)
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  lastLoginAt  DateTime?
-  tokenVersion Int         @default(1)
-  version      Int         @default(1)
-  updates      ProgressUpdate[]
-  assignedFeedbacks Feedback[] @relation("FeedbackAssignee")
+  id                      String                   @id @default(cuid())
+  username                String                   @unique
+  passwordHash            String
+  fullName                String
+  email                   String?                  @unique
+  role                    Role                     @default(STAFF)
+  isActive                Boolean                  @default(true)
+  departmentId            String?
+  department              Department?              @relation(fields: [departmentId], references: [id])
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  lastLoginAt             DateTime?
+  tokenVersion            Int                      @default(1)
+  version                 Int                      @default(1)
+  updates                 ProgressUpdate[]
+  assignedFeedbacks       Feedback[]               @relation("FeedbackAssignee")
   passwordResetChallenges PasswordResetChallenge[]
-  uploadedDocuments SourceDocument[] @relation("DocumentUploader")
-  reviewedCandidates IndicatorCandidate[] @relation("CandidateReviewer")
-  agentActions AgentAction[] @relation("AgentActionUser")
+  uploadedDocuments       SourceDocument[]         @relation("DocumentUploader")
+  reviewedCandidates      IndicatorCandidate[]     @relation("CandidateReviewer")
+  agentActions            AgentAction[]            @relation("AgentActionUser")
 }
 
 model PasswordResetChallenge {
@@ -214,57 +214,57 @@ model PasswordResetChallenge {
 }
 
 model Target {
-  id            String          @id @default(cuid())
-  code          String          @unique
-  title         String
-  description   String?
-  unit          String
-  targetValue   Float
-  currentValue  Float           @default(0)
-  weight        Float           @default(1)
-  year          Int
-  frequency     TargetFrequency @default(YEARLY)
-  direction     TargetDirection @default(HIGHER_IS_BETTER)
-  status        TargetStatus    @default(NOT_STARTED)
-  version       Int             @default(1)
-  publicationVersion Int        @default(1)
-  isArchived    Boolean         @default(false)
-  archivedAt    DateTime?
-  archivedBy    String?
-  archiveReason String?
-  isPublic      Boolean         @default(false)
-  isHighlighted Boolean         @default(false)
-  publicOrder   Int?
-  lastReportedAt DateTime?
-  publishedValue Float?
-  publishedTargetValue Float?
-  publishedDirection TargetDirection?
-  publishedStatus TargetStatus?
-  publishedCode String?
-  publishedTitle String?
-  publishedDescription String?
-  publishedUnit String?
-  publishedWeight Float?
-  publishedYear Int?
-  publishedFrequency TargetFrequency?
-  publishedDueDate DateTime?
-  publishedDepartmentName String?
+  id                       String               @id @default(cuid())
+  code                     String               @unique
+  title                    String
+  description              String?
+  unit                     String
+  targetValue              Float
+  currentValue             Float                @default(0)
+  weight                   Float                @default(1)
+  year                     Int
+  frequency                TargetFrequency      @default(YEARLY)
+  direction                TargetDirection      @default(HIGHER_IS_BETTER)
+  status                   TargetStatus         @default(NOT_STARTED)
+  version                  Int                  @default(1)
+  publicationVersion       Int                  @default(1)
+  isArchived               Boolean              @default(false)
+  archivedAt               DateTime?
+  archivedBy               String?
+  archiveReason            String?
+  isPublic                 Boolean              @default(false)
+  isHighlighted            Boolean              @default(false)
+  publicOrder              Int?
+  lastReportedAt           DateTime?
+  publishedValue           Float?
+  publishedTargetValue     Float?
+  publishedDirection       TargetDirection?
+  publishedStatus          TargetStatus?
+  publishedCode            String?
+  publishedTitle           String?
+  publishedDescription     String?
+  publishedUnit            String?
+  publishedWeight          Float?
+  publishedYear            Int?
+  publishedFrequency       TargetFrequency?
+  publishedDueDate         DateTime?
+  publishedDepartmentName  String?
   publishedDepartmentColor String?
-  publishedHighlighted Boolean?
-  publishedOrder Int?
-  publishedAt DateTime?
-  publishedBy String?
-  dueDate       DateTime
-  departmentId  String
-  department    Department      @relation(fields: [departmentId], references: [id])
-  legalBasis    String?
-  sourceDocumentId String?
-  sourceDocument SourceDocument? @relation("TargetSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  updates       ProgressUpdate[]
-  sourceCandidate IndicatorCandidate? @relation("CandidateCreatedTarget")
-  matchedCandidates IndicatorCandidate[] @relation("CandidateMatchedTarget")
+  publishedHighlighted     Boolean?
+  publishedOrder           Int?
+  publishedAt              DateTime?
+  publishedBy              String?
+  dueDate                  DateTime
+  departmentId             String
+  department               Department           @relation(fields: [departmentId], references: [id])
+  legalBasis               String?
+  sourceDocumentId         String?
+  sourceDocument           SourceDocument?      @relation("TargetSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  updates                  ProgressUpdate[]
+  sourceCandidate          IndicatorCandidate?  @relation("CandidateCreatedTarget")
+  matchedCandidates        IndicatorCandidate[] @relation("CandidateMatchedTarget")
 
   @@index([year, status])
   @@index([departmentId])
@@ -272,120 +272,120 @@ model Target {
 }
 
 model ProgressUpdate {
-  id        String   @id @default(cuid())
-  value     Float
-  note      String?
-  reviewStatus ProgressReviewStatus @default(APPROVED)
-  baseVersion Int @default(1)
-  reviewedBy String?
-  reviewedAt DateTime?
-  reviewNote String?
-  createdAt DateTime @default(now())
-  targetId  String
-  target    Target   @relation(fields: [targetId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  id            String               @id @default(cuid())
+  value         Float
+  note          String?
+  reviewStatus  ProgressReviewStatus @default(APPROVED)
+  baseVersion   Int                  @default(1)
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNote    String?
+  createdAt     DateTime             @default(now())
+  targetId      String
+  target        Target               @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User                 @relation(fields: [userId], references: [id])
   importBatchId String?
-  importBatch ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch   ImportBatch?         @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
   @@index([reviewStatus, targetId])
   @@index([importBatchId, reviewStatus])
 }
 
 model ImportBatch {
-  id          String   @id @default(cuid())
-  fileName    String
-  totalRows   Int
-  successRows Int
-  errorRows   Int
-  errors      Json?
-  changes     Json?
-  createdBy   String
+  id           String            @id @default(cuid())
+  fileName     String
+  totalRows    Int
+  successRows  Int
+  errorRows    Int
+  errors       Json?
+  changes      Json?
+  createdBy    String
   departmentId String?
-  department Department? @relation(fields: [departmentId], references: [id])
-  status      ImportBatchStatus @default(PREVIEWED)
-  submittedAt DateTime?
-  appliedAt   DateTime?
-  createdAt   DateTime @default(now())
-  updates     ProgressUpdate[]
+  department   Department?       @relation(fields: [departmentId], references: [id])
+  status       ImportBatchStatus @default(PREVIEWED)
+  submittedAt  DateTime?
+  appliedAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updates      ProgressUpdate[]
 
   @@index([departmentId, createdAt])
 }
 
 model SystemSetting {
-  id            String   @id @default("default")
-  defaultYear   Int      @default(2026)
-  warningDays   Int      @default(14)
-  riskThreshold Float    @default(70)
-  feedbackFirstResponseDays Int @default(2)
-  feedbackResolutionDays Int @default(10)
-  feedbackCitizenResponseDays Int @default(7)
-  version       Int      @default(1)
-  updatedBy     String?
-  updatedAt     DateTime @updatedAt
+  id                          String   @id @default("default")
+  defaultYear                 Int      @default(2026)
+  warningDays                 Int      @default(14)
+  riskThreshold               Float    @default(70)
+  feedbackFirstResponseDays   Int      @default(2)
+  feedbackResolutionDays      Int      @default(10)
+  feedbackCitizenResponseDays Int      @default(7)
+  version                     Int      @default(1)
+  updatedBy                   String?
+  updatedAt                   DateTime @updatedAt
 }
 
 model Feedback {
-  id                 String           @id @default(cuid())
-  code               String           @unique
-  lookupSecretHash   String
-  clientSubmissionId String?          @unique
-  title              String
-  content            String
-  category           FeedbackCategory
-  priority           FeedbackPriority @default(NORMAL)
-  status             FeedbackStatus   @default(RECEIVED)
-  submitterName      String
-  submitterPhone     String
-  submitterEmail     String?
-  address            String?
-  preferredContact   String            @default("PHONE")
-  consentAcceptedAt  DateTime
-  scopeConfirmedAt   DateTime
-  consentPolicyVersion String
-  departmentId       String?
-  department         Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  assignedToId       String?
-  assignedTo         User?             @relation("FeedbackAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  dueAt              DateTime?
-  firstResponseDueAt DateTime?
-  firstResponseAt    DateTime?
-  waitingCitizenAt  DateTime?
-  citizenResponseDueAt DateTime?
-  submittedForReviewAt DateTime?
-  submittedForReviewBy String?
-  resolvedAt         DateTime?
-  closedAt           DateTime?
-  resolutionSummary  String?
-  rejectionReason    String?
-  closureReason      FeedbackClosureReason?
-  version            Int              @default(1)
-  reopenCount        Int              @default(0)
-  reopenRequestedAt  DateTime?
-  reopenRequestReason String?
-  reopenRequestCount Int              @default(0)
-  reopenRequestDecision String?
+  id                        String                 @id @default(cuid())
+  code                      String                 @unique
+  lookupSecretHash          String
+  clientSubmissionId        String?                @unique
+  title                     String
+  content                   String
+  category                  FeedbackCategory
+  priority                  FeedbackPriority       @default(NORMAL)
+  status                    FeedbackStatus         @default(RECEIVED)
+  submitterName             String
+  submitterPhone            String
+  submitterEmail            String?
+  address                   String?
+  preferredContact          String                 @default("PHONE")
+  consentAcceptedAt         DateTime
+  scopeConfirmedAt          DateTime
+  consentPolicyVersion      String
+  departmentId              String?
+  department                Department?            @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignedToId              String?
+  assignedTo                User?                  @relation("FeedbackAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  dueAt                     DateTime?
+  firstResponseDueAt        DateTime?
+  firstResponseAt           DateTime?
+  waitingCitizenAt          DateTime?
+  citizenResponseDueAt      DateTime?
+  submittedForReviewAt      DateTime?
+  submittedForReviewBy      String?
+  resolvedAt                DateTime?
+  closedAt                  DateTime?
+  resolutionSummary         String?
+  rejectionReason           String?
+  closureReason             FeedbackClosureReason?
+  version                   Int                    @default(1)
+  reopenCount               Int                    @default(0)
+  reopenRequestedAt         DateTime?
+  reopenRequestReason       String?
+  reopenRequestCount        Int                    @default(0)
+  reopenRequestDecision     String?
   reopenRequestDecisionNote String?
-  reopenRequestReviewedAt DateTime?
-  reopenRequestReviewedBy String?
-  rating             Int?
-  ratingComment      String?
-  ratedAt            DateTime?
-  isPublic           Boolean          @default(false)
-  publicSnapshotVersion Int           @default(0)
-  publicTitle        String?
-  publicSummary      String?
-  publicResolutionSummary String?
-  publicCategory     FeedbackCategory?
-  publicDepartmentName String?
-  publicResolvedAt   DateTime?
-  publicPublishedAt  DateTime?
-  publicPublishedBy  String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  messages           FeedbackMessage[]
-  events             FeedbackEvent[]
-  attachments        FeedbackAttachment[]
+  reopenRequestReviewedAt   DateTime?
+  reopenRequestReviewedBy   String?
+  rating                    Int?
+  ratingComment             String?
+  ratedAt                   DateTime?
+  isPublic                  Boolean                @default(false)
+  publicSnapshotVersion     Int                    @default(0)
+  publicTitle               String?
+  publicSummary             String?
+  publicResolutionSummary   String?
+  publicCategory            FeedbackCategory?
+  publicDepartmentName      String?
+  publicResolvedAt          DateTime?
+  publicPublishedAt         DateTime?
+  publicPublishedBy         String?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  messages                  FeedbackMessage[]
+  events                    FeedbackEvent[]
+  attachments               FeedbackAttachment[]
 
   @@index([status, createdAt])
   @@index([departmentId, status])
@@ -461,41 +461,100 @@ model MailOutbox {
 
 // Kho văn bản nguồn: mọi dữ liệu AI đề xuất đều phải truy vết được về một tài liệu.
 model SourceDocument {
-  id              String         @id @default(cuid())
-  code            String         @unique
+  id              String                @id @default(cuid())
+  code            String                @unique
   title           String
   originalName    String
   mimeType        String
   size            Int
-  sha256          String         @unique
+  sha256          String                @unique
   data            Bytes
-  docType         DocumentType   @default(KHAC)
+  docType         DocumentType          @default(KHAC)
   docNumber       String?
   issuedBy        String?
   issuedDate      DateTime?
   description     String?
-  status          DocumentStatus @default(UPLOADED)
+  status          DocumentStatus        @default(UPLOADED)
   processingError String?
   pageCount       Int?
   hasTextLayer    Boolean?
-  ocrUsed         Boolean        @default(false)
+  ocrUsed         Boolean               @default(false)
   year            Int?
   departmentId    String?
-  department      Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  department      Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   uploadedById    String
-  uploadedBy      User           @relation("DocumentUploader", fields: [uploadedById], references: [id])
-  version         Int            @default(1)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  uploadedBy      User                  @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  version         Int                   @default(1)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
   pages           DocumentPage[]
   chunks          DocumentChunk[]
   jobs            ExtractionJob[]
   candidates      IndicatorCandidate[]
-  sourcedTargets  Target[]       @relation("TargetSourceDocument")
+  sourcedTargets  Target[]              @relation("TargetSourceDocument")
+  publications    DocumentPublication[]
 
   @@index([status, createdAt])
   @@index([departmentId, createdAt])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+// Bản nháp duy nhất của trang dashboard công khai. Trang người dân không đọc
+// trực tiếp bản ghi này mà chỉ đọc revision đã được công bố.
+model PublicDashboard {
+  id                String                    @id @default("public-home")
+  draftName         String                    @default("Trang thông tin công khai")
+  draftTemplateKey  String                    @default("transparency")
+  draftConfig       Json                      @default("{}")
+  draftVersion      Int                       @default(1)
+  publishedRevision Int?
+  updatedBy         String?
+  updatedAt         DateTime                  @updatedAt
+  revisions         PublicDashboardRevision[]
+}
+
+// Revision là lịch sử công bố bất biến. Khôi phục chỉ sao chép revision về bản
+// nháp; không cập nhật hay xóa lịch sử đã phát hành.
+model PublicDashboardRevision {
+  id          String          @id @default(cuid())
+  dashboardId String
+  dashboard   PublicDashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  revision    Int
+  name        String
+  templateKey String
+  config      Json
+  changeNote  String?
+  publishedBy String
+  publishedAt DateTime        @default(now())
+
+  @@unique([dashboardId, revision])
+  @@index([dashboardId, publishedAt(sort: Desc)])
+}
+
+// Bản chụp tệp dùng riêng cho kênh công khai. Công bố lần đầu hoặc công bố lại
+// sau khi thu hồi tạo snapshot mới; chỉnh metadata của bản đang hiệu lực giữ
+// nguyên id/publicCode và tăng version để không làm gãy dashboard đã công bố.
+// Partial unique index trong migration giữ tối đa một bản đang hiệu lực.
+model DocumentPublication {
+  id               String         @id @default(cuid())
+  sourceDocumentId String
+  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  publicCode       String         @unique
+  title            String
+  summary          String?
+  originalName     String
+  mimeType         String
+  size             Int
+  sha256           String
+  data             Bytes
+  publishedBy      String
+  publishedAt      DateTime       @default(now())
+  revokedAt        DateTime?
+  revokedBy        String?
+  version          Int            @default(1)
+
+  @@index([sourceDocumentId, publishedAt(sort: Desc)])
+  @@index([revokedAt, publishedAt(sort: Desc)])
 }
 
 model DocumentPage {
@@ -511,9 +570,9 @@ model DocumentPage {
 }
 
 model DocumentChunk {
-  id         String         @id @default(cuid())
+  id         String               @id @default(cuid())
   documentId String
-  document   SourceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document   SourceDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
   chunkIndex Int
   pageFrom   Int
   pageTo     Int
@@ -527,27 +586,27 @@ model DocumentChunk {
 // Hàng đợi xử lý bất đồng bộ theo mô hình MailOutbox: claim bằng FOR UPDATE SKIP LOCKED,
 // lease 10 phút (job AI chạy lâu hơn gửi mail), backoff mũ, DEAD_LETTER khi hết lượt thử.
 model ExtractionJob {
-  id            String              @id @default(cuid())
-  documentId    String
-  document      SourceDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  kind          ExtractionJobKind
-  status        ExtractionJobStatus @default(PENDING)
-  attempts      Int                 @default(0)
-  availableAt   DateTime            @default(now())
-  lockedAt      DateTime?
-  lockedBy      String?
-  lastError     String?             @db.VarChar(300)
-  model         String?
-  promptVersion String?
-  chunksTotal   Int?
-  chunksDone    Int?
-  note          String?
-  startedAt     DateTime?
-  finishedAt    DateTime?
+  id                String              @id @default(cuid())
+  documentId        String
+  document          SourceDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  kind              ExtractionJobKind
+  status            ExtractionJobStatus @default(PENDING)
+  attempts          Int                 @default(0)
+  availableAt       DateTime            @default(now())
+  lockedAt          DateTime?
+  lockedBy          String?
+  lastError         String?             @db.VarChar(300)
+  model             String?
+  promptVersion     String?
+  chunksTotal       Int?
+  chunksDone        Int?
+  note              String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
   cancelRequestedAt DateTime?
-  createdById   String
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  createdById       String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@index([status, availableAt])
   @@index([documentId, kind, createdAt])

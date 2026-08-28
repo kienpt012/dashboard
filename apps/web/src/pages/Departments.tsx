@@ -147,7 +147,7 @@ export default function Departments() {
       </div>
       <span>{department.code}</span>
       <h3>{department.name}</h3>
-      <p>{department.description || 'Chưa có mô tả cho đơn vị này.'}</p>
+      {department.description?.trim() ? <p>{department.description}</p> : null}
       <div className="dep-card-stats">
         <div><Users /><span>Nhân sự<b>{department._count?.users ?? 0}</b></span></div>
         <div><Target /><span>Chỉ tiêu<b>{department._count?.targets ?? 0}</b></span></div>

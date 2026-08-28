@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, hasAnyRole, IMPORT_ROLES } from './authz';
 import { api, ApiError, auth } from './api';
@@ -25,6 +25,8 @@ import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import type { AuthMeResponse, Role, User } from './types';
+
+const PublicDashboardStudio = lazy(() => import('./pages/PublicDashboardStudio'));
 
 function Protected(){
   const token=auth.token;
@@ -84,6 +86,7 @@ const pageTitles: Record<string, string> = {
   '/admin/settings': 'Thiết lập hệ thống · IOC Lái Thiêu',
   '/admin/audit-logs': 'Nhật ký hệ thống · IOC Lái Thiêu',
   '/admin/profile': 'Hồ sơ và bảo mật · IOC Lái Thiêu',
+  '/admin/public-dashboard': 'Thiết kế trang công khai · IOC Lái Thiêu',
 };
 
 function DocumentTitle(){
@@ -118,6 +121,7 @@ export default function App(){
       <Route path="departments" element={<RoleRoute allowed={ALL_ROLES}><Departments/></RoleRoute>}/>
       <Route path="users" element={<RoleRoute allowed={ADMIN_ROLES}><Users/></RoleRoute>}/>
       <Route path="settings" element={<RoleRoute allowed={ADMIN_ROLES}><Settings/></RoleRoute>}/>
+      <Route path="public-dashboard" element={<RoleRoute allowed={ADMIN_ROLES}><Suspense fallback={<Spinner/>}><PublicDashboardStudio/></Suspense></RoleRoute>}/>
       <Route path="audit-logs" element={<RoleRoute allowed={ADMIN_ROLES}><AuditLogs/></RoleRoute>}/>
       <Route path="profile" element={<RoleRoute allowed={ALL_ROLES}><Profile/></RoleRoute>}/>
       <Route path="forbidden" element={<Forbidden/>}/>

@@ -94,7 +94,7 @@ export default function Approvals() {
     {isAdmin && <div className="toolbar scope-toolbar"><select aria-label="Lọc báo cáo chờ duyệt theo phòng ban" disabled={loading} value={departmentId} onChange={event => setDepartmentId(event.target.value)}><option value="">Tất cả phòng ban</option>{departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>}
     {error && !selected && <div className="notice error" role="alert">{error}<button onClick={() => void load()}>Thử lại</button></div>}
     <div className="table-card">
-      <div className="table-summary"><span><b>{updates.length}</b> báo cáo đang chờ xử lý</span><span>Duyệt theo thứ tự gửi sớm nhất</span></div>
+      <div className="table-summary"><span><b>{updates.length}</b> báo cáo đang chờ duyệt</span><span>Duyệt theo thứ tự gửi sớm nhất</span></div>
       {loading ? <Spinner /> : updates.length ? <div className="table-wrap"><table>
         <thead><tr><th>Chỉ tiêu</th><th>Người báo cáo</th><th>Số liệu đề xuất</th><th>Thời gian gửi</th><th>Kiểm tra phiên bản</th><th>Quyết định</th></tr></thead>
         <tbody>{updates.map(update => {
@@ -108,7 +108,7 @@ export default function Approvals() {
             <td>{update.canReview === false ? <span className="status amber"><i />Chờ quản trị viên</span> : <div className="approval-actions"><button className="btn secondary compact danger-text" onClick={() => openReview(update, 'REJECT')}><X />Từ chối</button><button className="btn primary compact" disabled={stale} onClick={() => openReview(update, 'APPROVE')}><Check />Duyệt</button></div>}</td>
           </tr>;
         })}</tbody>
-      </table></div> : <Empty title="Không có báo cáo chờ duyệt" description="Tất cả số liệu gửi lên đã được xử lý." />}
+      </table></div> : <Empty showIcon={false} title="Không có báo cáo chờ duyệt" description="Tất cả báo cáo chờ duyệt đã được xử lý." />}
     </div>
 
     {selected && <Modal title={decision === 'APPROVE' ? 'Xác nhận duyệt số liệu' : 'Trả lại báo cáo'} onClose={() => setSelected(null)}>

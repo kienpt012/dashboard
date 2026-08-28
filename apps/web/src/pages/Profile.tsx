@@ -92,7 +92,7 @@ export default function Profile(){
 
   const scopeName=user.role==='ADMIN'?'Toàn hệ thống':user.department?.name||'Chưa gán phòng ban';
 
-  return <>
+  return <div className="profile-page">
     <PageHead eyebrow="TÀI KHOẢN CÁ NHÂN" title="Hồ sơ & bảo mật" description="Kiểm tra phạm vi tài khoản và chủ động bảo vệ phiên làm việc của bạn."/>
     <div className="profile-layout">
       <section className="panel profile-card" aria-labelledby="profile-heading">
@@ -147,5 +147,5 @@ export default function Profile(){
         </form>
       </section>
     </div>
-  </>;
+  </div>;
 }

@@ -77,6 +77,9 @@ const actionNames: Record<string, string> = {
   PROGRESS_APPROVED_DIRECTLY: 'Cập nhật tiến độ trực tiếp',
   PROGRESS_REJECTED: 'Từ chối số liệu tiến độ',
   PROGRESS_SUBMITTED: 'Gửi số liệu chờ duyệt',
+  PUBLIC_DASHBOARD_DRAFT_SAVED: 'Lưu bản nháp trang công khai',
+  PUBLIC_DASHBOARD_PUBLISHED: 'Công bố trang công khai',
+  PUBLIC_DASHBOARD_REVISION_RESTORED: 'Khôi phục phiên bản trang công khai',
   RESOLUTION_APPROVED: 'Duyệt kết quả phản ánh',
   RESOLUTION_RETURNED: 'Yêu cầu xử lý lại phản ánh',
   SYSTEM_SETTINGS_UPDATED: 'Cập nhật cấu hình hệ thống',
@@ -92,6 +95,8 @@ const entityNames: Record<string, string> = {
   Feedback: 'Phản ánh',
   ImportBatch: 'Phiên nhập Excel',
   ProgressUpdate: 'Báo cáo tiến độ',
+  PublicDashboard: 'Trang thông tin công khai',
+  PublicDashboardRevision: 'Phiên bản trang công khai',
   SystemSetting: 'Cấu hình hệ thống',
   Target: 'Chỉ tiêu',
   User: 'Tài khoản',
@@ -138,10 +143,37 @@ function messageOf(error: unknown) {
   return error instanceof Error ? error.message : 'Không thể tải nhật ký hệ thống';
 }
 
+function dateFilterToIso(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return '';
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  const displayMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(normalized);
+  const parts = isoMatch
+    ? { year: Number(isoMatch[1]), month: Number(isoMatch[2]), day: Number(isoMatch[3]) }
+    : displayMatch
+      ? { year: Number(displayMatch[3]), month: Number(displayMatch[2]), day: Number(displayMatch[1]) }
+      : null;
+  if (!parts) return null;
+
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  if (
+    date.getUTCFullYear() !== parts.year
+    || date.getUTCMonth() !== parts.month - 1
+    || date.getUTCDate() !== parts.day
+  ) return null;
+
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
 function paramsOf(filters: Filters, page: number, pageSize: number) {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   for (const [key, value] of Object.entries(filters)) {
-    if (value.trim()) params.set(key, value.trim());
+    if (!value.trim()) continue;
+    if (key === 'fromDate' || key === 'toDate') {
+      const isoValue = dateFilterToIso(value);
+      if (isoValue) params.set(key, isoValue);
+    } else params.set(key, value.trim());
   }
   return params.toString();
 }
@@ -226,7 +258,13 @@ export default function AuditLogs() {
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    if (draft.fromDate && draft.toDate && draft.fromDate > draft.toDate) {
+    const fromDate = dateFilterToIso(draft.fromDate);
+    const toDate = dateFilterToIso(draft.toDate);
+    if ((draft.fromDate && !fromDate) || (draft.toDate && !toDate)) {
+      setError('Ngày lọc cần đúng định dạng dd/mm/yyyy');
+      return;
+    }
+    if (fromDate && toDate && fromDate > toDate) {
       setError('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc');
       return;
     }
@@ -265,8 +303,8 @@ export default function AuditLogs() {
       <label><span>Hành động</span><select value={draft.action} onChange={event => setDraft(current => ({ ...current, action: event.target.value }))}><option value="">Tất cả hành động</option>{actions.map(action => <option key={action} value={action}>{actionNames[action] || action}</option>)}</select></label>
       <label><span>Đối tượng</span><select value={draft.entityType} onChange={event => setDraft(current => ({ ...current, entityType: event.target.value }))}><option value="">Tất cả đối tượng</option>{entityTypes.map(entity => <option key={entity} value={entity}>{entityNames[entity] || entity}</option>)}</select></label>
       <label><span>Phòng ban</span><select value={draft.departmentId} onChange={event => setDraft(current => ({ ...current, departmentId: event.target.value }))}><option value="">Toàn hệ thống</option>{departments.map(department => <option key={department.id} value={department.id}>{department.name}{department.isActive ? '' : ' (đã ngừng)'}</option>)}</select></label>
-      <label><span>Từ ngày</span><div className="audit-date"><CalendarDays /><input type="date" value={draft.fromDate} onChange={event => setDraft(current => ({ ...current, fromDate: event.target.value }))} /></div></label>
-      <label><span>Đến ngày</span><div className="audit-date"><CalendarDays /><input type="date" value={draft.toDate} onChange={event => setDraft(current => ({ ...current, toDate: event.target.value }))} /></div></label>
+      <label><span>Từ ngày</span><div className="audit-date"><CalendarDays /><input type="text" inputMode="numeric" maxLength={10} placeholder="dd/mm/yyyy" aria-label="Từ ngày, định dạng ngày tháng năm" value={draft.fromDate} onChange={event => setDraft(current => ({ ...current, fromDate: event.target.value }))} /></div></label>
+      <label><span>Đến ngày</span><div className="audit-date"><CalendarDays /><input type="text" inputMode="numeric" maxLength={10} placeholder="dd/mm/yyyy" aria-label="Đến ngày, định dạng ngày tháng năm" value={draft.toDate} onChange={event => setDraft(current => ({ ...current, toDate: event.target.value }))} /></div></label>
       <div className="audit-filter-actions"><button type="submit" className="btn primary" disabled={loading}><Filter />Áp dụng</button><button type="button" className="btn secondary" onClick={clearFilters} disabled={loading}>Xóa bộ lọc</button></div>
     </form>
 
