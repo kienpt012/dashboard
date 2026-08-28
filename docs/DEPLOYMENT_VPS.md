@@ -34,6 +34,7 @@ Repository secrets:
 
 Repository variables:
 
+- `DEPLOY_PRODUCTION`: đặt `true` để cho phép job triển khai; mọi giá trị khác sẽ chỉ chạy test/build.
 - `VPS_HOST`
 - `VPS_PORT`
 - `VPS_USER`
@@ -45,7 +46,8 @@ Tham khảo cấu trúc tại `deploy/production.env.example`.
 ## Quy trình CI/CD
 
 Mỗi pull request và mỗi push lên `main` đều chạy cài dependency, sinh Prisma Client, toàn bộ unit
-test và production build. Riêng push lên `main`, sau khi CI đạt, job production sẽ:
+test và production build. Sau một push lên `main`, job production chỉ chạy khi biến
+`DEPLOY_PRODUCTION=true`. Khi được bật, job sẽ:
 
 1. Đóng gói chính xác commit hiện tại, không kèm `.env`, dependency hay thư mục làm việc cục bộ.
 2. Tải release lên VPS bằng SSH key.

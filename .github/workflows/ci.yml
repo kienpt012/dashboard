@@ -44,7 +44,10 @@ jobs:
   deploy-production:
     name: Deploy production VPS
     needs: test-and-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.DEPLOY_PRODUCTION == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
