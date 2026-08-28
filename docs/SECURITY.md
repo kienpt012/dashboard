@@ -1,6 +1,6 @@
 # An toàn — threat model cho lớp AI
 
-Nguyên tắc gốc (quy tắc bất biến trong `CLAUDE.md`): **nội dung tài liệu và đầu ra LLM là dữ liệu không đáng tin**. Tài liệu này liệt kê mối đe dọa và biện pháp đã hiện thực, cùng phần "chưa làm" minh bạch.
+Nguyên tắc gốc: **nội dung tài liệu và đầu ra LLM là dữ liệu không đáng tin**. Tài liệu này liệt kê các mối đe dọa, biện pháp đã triển khai và những giới hạn còn lại.
 
 ## 1. Prompt injection từ tài liệu tải lên
 
@@ -55,7 +55,7 @@ Không có endpoint công khai nào chạm tới tài liệu/ứng viên.
 ## 6. Bí mật (secrets)
 
 - Không có API key AI nào — toàn bộ model chạy local qua Ollama/Tesseract, cấu hình bằng biến môi trường đường dẫn/URL.
-- Secrets nền tảng (JWT_SECRET, mật khẩu DB, SMTP, PASSWORD_RESET_PEPPER) nằm trong `.env` không commit (quy tắc cấm trong `CLAUDE.md`).
+- Secrets nền tảng (`JWT_SECRET`, mật khẩu cơ sở dữ liệu, SMTP, `PASSWORD_RESET_PEPPER`) nằm trong `.env` và không được commit.
 
 ## 7. An toàn nền tảng kế thừa
 

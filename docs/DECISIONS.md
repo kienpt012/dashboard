@@ -1,4 +1,4 @@
-# DECISIONS.md — Nhật ký quyết định kiến trúc
+# Quyết định kiến trúc
 
 Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa chọn → căn cứ. Quyết định chỉ được
 đảo ngược khi có bằng chứng mới, ghi rõ lý do và tác động migration.
@@ -20,7 +20,7 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   vs Vistral-7B 50.07 vs SeaLLM-7b-v2 45.79); Apache 2.0; structured output + tool calling; đo thực tế trên
   GTX 1650: ~10 token/s, trích xuất 1 chunk ≈ 50–60s (chấp nhận được vì pipeline bất đồng bộ).
   qwen2.5:3b bị loại vì license non-commercial; phi-4-mini/llama3.2 không hỗ trợ tiếng Việt chính thức.
-  Chi tiết benchmark: docs/AI_MODEL_STRATEGY.md.
+  Chi tiết benchmark: [AI_MODEL_STRATEGY.md](AI_MODEL_STRATEGY.md).
 
 ## D-003 · 2026-07-26 · Embedding bge-m3, OCR Tesseract native vie
 
@@ -56,4 +56,4 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 ## D-008 · 2026-07-26 · Tài liệu lưu Bytes trong Postgres (≤25MB), chưa dùng object storage
 
 - Nhất quán với FeedbackAttachment hiện có; blob không bao giờ được select trong query danh sách;
-  worker chỉ đọc blob khi xử lý. Ghi nhận giới hạn trong KNOWN_ISSUES; object storage là hướng production.
+  worker chỉ đọc blob khi xử lý. Giới hạn được ghi trong [hạn chế đã biết](KNOWN_ISSUES.md); object storage là hướng production.

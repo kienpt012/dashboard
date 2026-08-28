@@ -1,6 +1,6 @@
 # Chiến lược model AI
 
-Bản tóm tắt định hướng. Toàn bộ căn cứ lựa chọn (bảng VMLU, VN-MTEB, so sánh OCR, số đo thực tế trên máy) nằm ở [research/02-model-selection.md](research/02-model-selection.md); quyết định chính thức ghi tại `DECISIONS.md` (D-002, D-003).
+Bản tóm tắt định hướng. Căn cứ lựa chọn (VMLU, VN-MTEB, so sánh OCR và số đo thực tế) nằm ở [tài liệu lựa chọn mô hình](research/02-model-selection.md); quyết định chính thức được ghi trong [nhật ký quyết định kiến trúc](DECISIONS.md) (D-002, D-003).
 
 ## 1. Stack hiện dùng
 
@@ -20,7 +20,7 @@ Tổng tải ~3.8GB, toàn bộ license cho phép, chạy hoàn toàn local.
 
 **LLM trích xuất**:
 
-1. `qwen3:4b` (hiện tại) → 2. `qwen2.5:7b-instruct` chạy **batch/accuracy-mode** (offload một phần, chậm nhưng chấp nhận được cho job nền — đối chiếu ở E-005 theo kế hoạch) → 3. **fine-tune LoRA — chỉ khi có bằng chứng**, với điều kiện tiên quyết đầy đủ:
+1. `qwen3:4b` (hiện tại) → 2. model 7B chạy **batch/accuracy-mode** nếu benchmark cho thấy lợi ích rõ ràng → 3. **fine-tune LoRA — chỉ khi có bằng chứng**, với các điều kiện tiên quyết:
    - prompt + schema đã được tối ưu hết mức (hết dư địa cải thiện rẻ);
    - có dataset gán nhãn đủ lớn từ dữ liệu thật;
    - có baseline định lượng để so sánh;
@@ -29,7 +29,7 @@ Tổng tải ~3.8GB, toàn bộ license cho phép, chạy hoàn toàn local.
 
 ## 3. Fine-tuning: CHƯA bắt đầu
 
-Khẳng định hiện trạng: **chưa thực hiện bất kỳ fine-tuning nào** và chưa đủ điều kiện để bắt đầu — hiện chưa có dữ liệu thật gán nhãn, chưa có baseline benchmark (E-003 chưa chạy). Mọi cải thiện chất lượng ở giai đoạn này đi qua prompt engineering (đã có ví dụ: quy tắc số 7 về tần suất, sinh từ lỗi quan sát ở E-001), luật bổ khuyết và cơ chế kiểm chứng quote.
+Hiện chưa thực hiện fine-tuning. Baseline E-003 đã có, nhưng chưa có tập dữ liệu thật được gán nhãn đủ lớn và quy trình train/validation/test phù hợp. Các cải thiện hiện tại tập trung vào prompt, luật bổ khuyết và cơ chế kiểm chứng trích dẫn.
 
 ## 4. Ghi nhận model (model registry tối giản)
 
@@ -37,4 +37,4 @@ Thay cho bảng registry riêng (tránh phình schema ở prototype):
 
 - Mỗi `ExtractionJob` và mỗi `IndicatorCandidate` ghi `model` (tag Ollama) + `promptVersion` (`extract-v1` / `rule-v1` / `rule-only`).
 - Đổi prompt bắt buộc tăng `EXTRACTION_PROMPT_VERSION` (`extraction-llm.ts`) — mọi kết quả quy về được đúng cấu hình sinh ra nó.
-- Nhật ký thí nghiệm tập trung ở `EXPERIMENTS.md` + `docs/experiments/` (kế hoạch); màn hình quản lý model là hạng mục giai đoạn 10.
+- Nhật ký và dữ liệu đánh giá tập trung tại [thư mục thí nghiệm](experiments/README.md); màn hình quản lý model là hạng mục mở rộng.

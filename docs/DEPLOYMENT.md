@@ -2,7 +2,7 @@
 
 ## 1. Môi trường dev cục bộ (đang dùng)
 
-Yêu cầu: Node 24, Docker Desktop và Ollama. Tesseract 5 cùng dữ liệu ngôn ngữ `vie+eng` đã nằm trong image API khi chạy Docker, không cần cài hay khởi động service OCR trên host.
+Yêu cầu: Node.js 22, Docker Desktop và Ollama. Tesseract 5 cùng dữ liệu ngôn ngữ `vie+eng` đã nằm trong image API khi chạy Docker, không cần cài hay khởi động service OCR trên host.
 
 Khởi động đầy đủ bằng một lệnh tại thư mục dự án:
 
