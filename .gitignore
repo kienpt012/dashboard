@@ -1,5 +1,6 @@
 node_modules
 dist
+coverage/
 .env
 .env*.local
 *.log
@@ -9,5 +10,13 @@ work/
 outputs/
 backups/
 qa-artifacts/
+/docs/qa/
 .codex-report-work*/
 *.tsbuildinfo
+
+# Local AI tooling and working notes
+/.agents/
+/.claude/worktrees/
+/CLAUDE.md
+/TASKS.md
+/PROGRESS.md
