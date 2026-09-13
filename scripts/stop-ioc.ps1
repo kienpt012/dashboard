@@ -67,9 +67,16 @@ function Stop-IocContainers {
 
   $code = Invoke-IocCompose $repoRoot @('stop', '--timeout', '30')
   if ($code -ne 0) {
-    Write-Caution 'Dừng thông thường thất bại. Thử lại bằng "compose down" (volume dữ liệu vẫn giữ nguyên).'
-    $code = Invoke-IocCompose $repoRoot @('down', '--remove-orphans', '--timeout', '10')
-    if ($code -ne 0) { throw 'Không dừng được các container IOC.' }
+    # Compose không đọc được cấu hình (thường do .env bị xoá). Dừng thẳng theo nhãn dự
+    # án. KHÔNG dùng "compose down": xoá container sẽ mất luôn bản cấu hình duy nhất
+    # còn lại mà start-ioc.cmd cần để kết nối lại dữ liệu khi .env đã mất.
+    Write-Caution 'Docker Compose không đọc được cấu hình. Dừng trực tiếp các container của dự án.'
+    $project = Get-IocComposeProjectName $repoRoot (Read-IocDotEnv $envPath)
+    $ids = Invoke-IocNative 'docker' @('ps', '--quiet', '--filter', "label=com.docker.compose.project=$project")
+    foreach ($id in @($ids.Text -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+      $stopped = Invoke-IocNative 'docker' @('stop', '-t', '30', $id)
+      if ($stopped.ExitCode -ne 0) { throw "Không dừng được container ${id}: $($stopped.Text)" }
+    }
   }
   Write-Ok 'Đã dừng container IOC. Volume dữ liệu PostgreSQL không bị xoá.'
 }
@@ -109,11 +116,19 @@ function Stop-OllamaRuntime {
 # Container đang chạy không thuộc dự án IOC này — ví dụ cơ sở dữ liệu của dự án khác.
 function Get-ForeignContainers {
   $project = Get-IocComposeProjectName $repoRoot (Read-IocDotEnv $envPath)
-  $result = Invoke-IocNative 'docker' @('ps', '--format', '{{.Names}}|{{.Label "com.docker.compose.project"}}')
+  # Không dùng {{.Label "..."}}: PowerShell 5.1 làm rơi nháy kép, mẫu hỏng và docker
+  # trả lỗi — kiểm tra này sẽ im lặng không bao giờ cảnh báo. Lấy toàn bộ nhãn rồi tự
+  # tách nhãn dự án.
+  $result = Invoke-IocNative 'docker' @('ps', '--format', '{{.Names}}|{{.Labels}}')
   if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Text)) { return @() }
   return @($result.Text -split "`n" | ForEach-Object {
-      $parts = $_.Trim().Split('|')
-      if ($parts[0] -and $parts[1] -ne $project) { $parts[0] }
+      $line = $_.Trim()
+      $separator = $line.IndexOf('|')
+      if ($separator -lt 1) { return }
+      $name = $line.Substring(0, $separator)
+      $match = [regex]::Match($line.Substring($separator + 1), '(?:^|,)com\.docker\.compose\.project=([^,]*)')
+      $owner = if ($match.Success) { $match.Groups[1].Value } else { '' }
+      if ($owner -ne $project) { $name }
     })
 }
 

@@ -18,7 +18,7 @@ services:
       retries: 10
 
   api:
-    image: "ioc-laithieu-api:${IMAGE_TAG:-local}"
+    image: "${IOC_INSTANCE:-ioc-laithieu}-api:${IMAGE_TAG:-local}"
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -76,7 +76,7 @@ services:
         condition: service_healthy
 
   web:
-    image: "ioc-laithieu-web:${IMAGE_TAG:-local}"
+    image: "${IOC_INSTANCE:-ioc-laithieu}-web:${IMAGE_TAG:-local}"
     build:
       context: .
       dockerfile: apps/web/Dockerfile

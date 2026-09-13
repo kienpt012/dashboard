@@ -127,6 +127,11 @@ function Read-IocDotEnv([string]$Path) {
         ($value.StartsWith('"') -and $value.EndsWith('"')) -or
         ($value.StartsWith("'") -and $value.EndsWith("'")))) {
       $value = $value.Substring(1, $value.Length - 2)
+    } else {
+      # Giống Docker Compose: với giá trị không có nháy, "#" đứng sau khoảng trắng là
+      # chú thích cuối dòng. Thiếu bước này, "WEB_PORT=8081  # đổi cổng" được Compose
+      # hiểu là 8081 nhưng script lại đọc cả chú thích và dừng vì không đổi được ra số.
+      $value = ($value -replace '\s+#.*$', '').Trim()
     }
     $values[$key] = $value
   }
@@ -150,14 +155,22 @@ function Set-IocDotEnvValue([string]$Path, [string]$Key, [string]$Value) {
   $replaced = $false
   for ($i = 0; $i -lt $lines.Count; $i++) {
     if ($lines[$i] -match $pattern) {
-      $lines[$i] = "$Key=$Value"
+      $lines[$i] = "$Key=$(ConvertTo-IocDotEnvLiteral $Value)"
       $replaced = $true
       break
     }
   }
-  if (-not $replaced) { $lines.Add("$Key=$Value") }
+  if (-not $replaced) { $lines.Add("$Key=$(ConvertTo-IocDotEnvLiteral $Value)") }
 
   Write-IocTextFile -Path $Path -Text (($lines -join "`r`n") + "`r`n")
+}
+
+# Compose hiểu "$" trong .env là biến và " #" là chú thích. Khoá do script sinh ra không
+# bao giờ chứa các ký tự này, nhưng giá trị lấy lại từ container cũ (ví dụ mật khẩu SMTP
+# người dùng tự đặt) thì có thể — đặt trong nháy đơn để Compose đọc nguyên văn.
+function ConvertTo-IocDotEnvLiteral([string]$Value) {
+  if ($Value -match '[\s#$"\\]' -and -not $Value.Contains("'")) { return "'$Value'" }
+  return $Value
 }
 
 function Get-IocSetting($Settings, [string]$Key, [string]$Default) {
@@ -248,6 +261,17 @@ function Invoke-IocNative {
     [string]$WorkingDirectory
   )
 
+  # Windows PowerShell 5.1 KHÔNG thoát dấu nháy kép nằm trong tham số khi gọi chương
+  # trình ngoài: 'FROM "User"' tới nơi thành 'FROM User'. Lỗi này im lặng cho ra kết
+  # quả sai thay vì báo lỗi — đã từng khiến script đếm nhầm 1 tài khoản trên một cơ sở
+  # dữ liệu trống (PostgreSQL hiểu "user" là hàm người dùng hiện tại) và bỏ qua bước
+  # tạo tài khoản quản trị. Chặn ngay từ đầu để lỗi không bao giờ quay lại.
+  foreach ($argument in $Arguments) {
+    if ($argument.Contains('"')) {
+      throw "Tham số truyền cho '$FilePath' không được chứa dấu nháy kép (PowerShell 5.1 làm rơi mất): $argument"
+    }
+  }
+
   $previous = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   if ($WorkingDirectory) { Push-Location -LiteralPath $WorkingDirectory }
@@ -275,6 +299,26 @@ function Invoke-IocNative {
 #  Docker Compose
 # ---------------------------------------------------------------------------
 
+# Đường dẫn dạng chuẩn để so sánh hai thư mục. Cùng một thư mục có thể được viết khác
+# nhau: chữ hoa/thường, dấu \ cuối, hay tên ngắn 8.3 (C:\Users\PHANT~1\...) mà %TEMP%
+# hay dùng. Mỗi đoạn được tra lại tên thật trên đĩa để hai cách viết cho cùng kết quả.
+function Get-IocCanonicalPath([string]$Path) {
+  try {
+    $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $root = [IO.Path]::GetPathRoot($full)
+    $current = $root
+    foreach ($segment in $full.Substring($root.Length).Split('\')) {
+      if (-not $segment) { continue }
+      $found = @()
+      if (Test-Path -LiteralPath $current) { $found = @([IO.Directory]::GetFileSystemEntries($current, $segment)) }
+      $current = if ($found.Count -eq 1) { $found[0] } else { Join-Path $current $segment }
+    }
+    return $current.TrimEnd('\').ToLowerInvariant()
+  } catch {
+    return ([string]$Path).TrimEnd('\').ToLowerInvariant()
+  }
+}
+
 # Tên dự án Compose quyết định tên volume dữ liệu. Tính giống hệt cách Compose tự
 # tính: ưu tiên COMPOSE_PROJECT_NAME, nếu không thì lấy tên thư mục đã chuẩn hoá.
 function Get-IocComposeProjectName([string]$RepoRoot, $Settings) {
@@ -285,11 +329,48 @@ function Get-IocComposeProjectName([string]$RepoRoot, $Settings) {
   return $name
 }
 
+function ConvertTo-IocPort($Settings, [string]$Key, [string]$Default) {
+  $raw = Get-IocSetting $Settings $Key $Default
+  $port = 0
+  if (-not [int]::TryParse($raw, [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
+    throw "Giá trị $Key=$raw trong .env không phải số cổng hợp lệ (1–65535)."
+  }
+  return $port
+}
+
 function Get-IocPorts($Settings) {
   return [ordered]@{
-    Web = [int](Get-IocSetting $Settings 'WEB_PORT' '8080')
-    Api = [int](Get-IocSetting $Settings 'API_PORT' '3000')
-    Database = [int](Get-IocSetting $Settings 'POSTGRES_PORT' '5432')
+    Web = ConvertTo-IocPort $Settings 'WEB_PORT' '8080'
+    Api = ConvertTo-IocPort $Settings 'API_PORT' '3000'
+    Database = ConvertTo-IocPort $Settings 'POSTGRES_PORT' '5432'
+  }
+}
+
+# Hyper-V và WSL giữ chỗ trước những dải cổng ngẫu nhiên sau mỗi lần khởi động máy.
+# Cổng trong dải này KHÔNG có ai lắng nghe nên trông như đang trống, nhưng Docker vẫn
+# không mở được — lỗi rất hay gặp với 3000 và 5432 trên Windows.
+function Get-IocExcludedPortRanges {
+  $ranges = @()
+  $result = Invoke-IocNative 'netsh.exe' @('interface', 'ipv4', 'show', 'excludedportrange', 'protocol=tcp')
+  if ($result.ExitCode -ne 0) { return $ranges }
+  foreach ($line in ($result.Text -split "`n")) {
+    $match = [regex]::Match($line, '^\s*(\d+)\s+(\d+)')
+    if ($match.Success) {
+      $ranges += [pscustomobject]@{ Start = [int]$match.Groups[1].Value; End = [int]$match.Groups[2].Value }
+    }
+  }
+  return $ranges
+}
+
+# Địa chỉ IPv4 trong mạng nội bộ của máy (bỏ loopback và địa chỉ tự cấp 169.254.x.x).
+function Get-IocLanAddresses {
+  try {
+    return @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop | Where-Object {
+        $_.IPAddress -notmatch '^(127\.|169\.254\.)' -and $_.PrefixOrigin -ne 'WellKnown' -and
+        $_.InterfaceAlias -notmatch '(?i)vEthernet|WSL|Docker|Loopback'
+      } | Select-Object -ExpandProperty IPAddress)
+  } catch {
+    return @()
   }
 }
 
