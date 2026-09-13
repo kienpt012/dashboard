@@ -83,6 +83,8 @@ $script:problems = New-Object System.Collections.Generic.List[string]
 $script:dockerReady = $false
 $script:envCreated = $false
 $script:pendingProjectName = $null
+$script:pendingInstance = $null
+$script:isNewProject = $false
 
 # Dừng script vì cần người dùng tự làm một việc (cài phần mềm, khởi động lại máy...).
 # Khác với lỗi: đây là bước bình thường trên máy mới, nên thông báo nhẹ nhàng hơn.
@@ -525,6 +527,8 @@ function Resolve-ProjectConflict([string]$Project, [bool]$EnvExists) {
     if (-not (Test-ExplicitSetting 'IOC_INSTANCE')) { Set-IocDotEnvValue $envPath 'IOC_INSTANCE' $candidate }
   } else {
     $script:pendingProjectName = $candidate
+    $script:pendingInstance = $candidate
+    $script:isNewProject = $true
   }
   Write-Ok "Bản này dùng tên dự án riêng '$candidate' — không đụng tới bản ở '$other'"
   return $candidate
@@ -538,7 +542,20 @@ function Initialize-EnvFile {
   if (-not $project) {
     throw 'Tên thư mục không dùng được làm tên dự án Docker. Hãy đổi tên thư mục (chữ không dấu, số, - hoặc _), hoặc đặt biến COMPOSE_PROJECT_NAME.'
   }
-  $project = Resolve-ProjectConflict $project $envExists
+  # .env đã mất nhưng thư mục này từng chạy IOC dưới một tên dự án khác tên thư mục (tên
+  # riêng do script đặt khi chạy song song): dùng lại đúng tên đó để nối lại dữ liệu cũ.
+  if (-not $envExists -and $script:dockerReady -and -not (Test-ExplicitSetting 'COMPOSE_PROJECT_NAME')) {
+    $own = @(Get-IocDirectoryDeployments $repoRoot | Where-Object { Test-DatabaseVolumeExists $_.Project }) | Select-Object -First 1
+    if ($own) {
+      if ($own.Project -ne $project) {
+        Write-Note "Thư mục này từng chạy IOC với tên dự án '$($own.Project)' — dùng lại tên đó."
+        $project = $own.Project
+        $script:pendingProjectName = $own.Project
+      }
+      $script:pendingInstance = $own.Instance
+    }
+  }
+  if (-not $script:pendingProjectName) { $project = Resolve-ProjectConflict $project $envExists }
 
   if ($ResetData) {
     if ($CheckOnly) { Write-Note "-ResetData: khi chạy thật sẽ hỏi xác nhận rồi xoá dữ liệu của dự án '$project'." }
@@ -555,7 +572,7 @@ function Initialize-EnvFile {
   # mục rồi clone lại. Sinh mật khẩu mới lúc này sẽ không khớp dữ liệu cũ và API khởi
   # động lại liên tục — phải lấy lại cấu hình cũ, hoặc dừng lại hướng dẫn.
   $previous = @{}
-  if (-not $script:pendingProjectName -and -not ($ResetData -and $CheckOnly) -and (Test-DatabaseVolumeExists $project)) {
+  if (-not $script:isNewProject -and -not ($ResetData -and $CheckOnly) -and (Test-DatabaseVolumeExists $project)) {
     Write-Caution "Máy đã có cơ sở dữ liệu IOC của dự án '$project' từ lần cài trước, nhưng thư mục này chưa có .env."
     $previous = Get-PreviousSettings $project
     $hasPassword = $previous.ContainsKey('POSTGRES_PASSWORD') -and -not [string]::IsNullOrWhiteSpace([string]$previous['POSTGRES_PASSWORD'])
@@ -599,9 +616,9 @@ function New-EnvFile([hashtable]$Previous) {
   }
   if ($script:pendingProjectName) {
     Set-IocDotEnvValue $envPath 'COMPOSE_PROJECT_NAME' $script:pendingProjectName
-    if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('IOC_INSTANCE'))) {
-      Set-IocDotEnvValue $envPath 'IOC_INSTANCE' $script:pendingProjectName
-    }
+  }
+  if ($script:pendingInstance -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('IOC_INSTANCE'))) {
+    Set-IocDotEnvValue $envPath 'IOC_INSTANCE' $script:pendingInstance
   }
 
   if ($Previous.Count -gt 0) {

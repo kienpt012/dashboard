@@ -329,6 +329,35 @@ function Get-IocComposeProjectName([string]$RepoRoot, $Settings) {
   return $name
 }
 
+# Các dự án Compose từng được chạy từ ĐÚNG thư mục này, dựa vào nhãn working_dir mà
+# Compose gắn vào mọi container. Cần khi .env đã mất: tên dự án có thể đã được đặt
+# riêng (ví dụ "ioc-2" khi chạy song song) và không còn suy ra được từ tên thư mục.
+function Get-IocDirectoryDeployments([string]$RepoRoot) {
+  $result = Invoke-IocNative 'docker' @('ps', '--all', '--format', '{{.Names}}|{{.Labels}}')
+  if ($result.ExitCode -ne 0) { return @() }
+  $here = Get-IocCanonicalPath $RepoRoot
+  $found = [ordered]@{}
+  foreach ($line in ($result.Text -split "`n")) {
+    $separator = $line.IndexOf('|')
+    if ($separator -lt 1) { continue }
+    $name = $line.Substring(0, $separator).Trim()
+    $labels = $line.Substring($separator + 1).Trim()
+    $directory = [regex]::Match($labels, '(?:^|,)com\.docker\.compose\.project\.working_dir=([^,]*)')
+    if (-not $directory.Success -or (Get-IocCanonicalPath $directory.Groups[1].Value) -ne $here) { continue }
+    $project = [regex]::Match($labels, '(?:^|,)com\.docker\.compose\.project=([^,]*)').Groups[1].Value
+    $service = [regex]::Match($labels, '(?:^|,)com\.docker\.compose\.service=([^,]*)').Groups[1].Value
+    if (-not $project) { continue }
+    if (-not $found.Contains($project)) {
+      $found[$project] = [pscustomobject]@{ Project = $project; Instance = $null }
+    }
+    # container_name của PostgreSQL là "<IOC_INSTANCE>-db".
+    if ($service -eq 'postgres' -and $name.EndsWith('-db')) {
+      $found[$project].Instance = $name.Substring(0, $name.Length - 3)
+    }
+  }
+  return @($found.Values)
+}
+
 function ConvertTo-IocPort($Settings, [string]$Key, [string]$Default) {
   $raw = Get-IocSetting $Settings $Key $Default
   $port = 0

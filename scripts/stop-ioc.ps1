@@ -71,11 +71,16 @@ function Stop-IocContainers {
     # án. KHÔNG dùng "compose down": xoá container sẽ mất luôn bản cấu hình duy nhất
     # còn lại mà start-ioc.cmd cần để kết nối lại dữ liệu khi .env đã mất.
     Write-Caution 'Docker Compose không đọc được cấu hình. Dừng trực tiếp các container của dự án.'
-    $project = Get-IocComposeProjectName $repoRoot (Read-IocDotEnv $envPath)
-    $ids = Invoke-IocNative 'docker' @('ps', '--quiet', '--filter', "label=com.docker.compose.project=$project")
-    foreach ($id in @($ids.Text -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
-      $stopped = Invoke-IocNative 'docker' @('stop', '-t', '30', $id)
-      if ($stopped.ExitCode -ne 0) { throw "Không dừng được container ${id}: $($stopped.Text)" }
+    # Tìm theo thư mục làm việc trước: tên dự án có thể đã được đặt riêng và không còn
+    # suy ra được từ tên thư mục khi .env không còn.
+    $projects = @(Get-IocDirectoryDeployments $repoRoot | ForEach-Object { $_.Project })
+    if ($projects.Count -eq 0) { $projects = @(Get-IocComposeProjectName $repoRoot (Read-IocDotEnv $envPath)) }
+    foreach ($project in $projects) {
+      $ids = Invoke-IocNative 'docker' @('ps', '--quiet', '--filter', "label=com.docker.compose.project=$project")
+      foreach ($id in @($ids.Text -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+        $stopped = Invoke-IocNative 'docker' @('stop', '-t', '30', $id)
+        if ($stopped.ExitCode -ne 0) { throw "Không dừng được container ${id}: $($stopped.Text)" }
+      }
     }
   }
   Write-Ok 'Đã dừng container IOC. Volume dữ liệu PostgreSQL không bị xoá.'
