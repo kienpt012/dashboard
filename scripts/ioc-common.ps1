@@ -144,10 +144,15 @@ function Write-IocTextFile([string]$Path, [string]$Text) {
 }
 
 # Đặt giá trị cho một khoá: thay tại chỗ nếu đã có dòng KEY=, nếu chưa thì thêm cuối
-# file. Mọi dòng khác (kể cả chú thích) giữ nguyên thứ tự và nội dung.
+# file. Mọi dòng khác (kể cả chú thích) giữ nguyên thứ tự và nội dung, và giữ nguyên
+# kiểu xuống dòng sẵn có của file: .env viết bằng LF mà bị đổi sang CRLF sẽ hỏng khi
+# được "source" trong shell Linux (giá trị dính ký tự \r).
 function Set-IocDotEnvValue([string]$Path, [string]$Key, [string]$Value) {
   $lines = New-Object System.Collections.Generic.List[string]
+  $newline = "`r`n"
   if (Test-Path -LiteralPath $Path) {
+    $raw = [IO.File]::ReadAllText($Path)
+    if ($raw.Contains("`n") -and -not $raw.Contains("`r`n")) { $newline = "`n" }
     foreach ($line in [IO.File]::ReadAllLines($Path)) { $lines.Add($line) }
   }
 
@@ -162,7 +167,7 @@ function Set-IocDotEnvValue([string]$Path, [string]$Key, [string]$Value) {
   }
   if (-not $replaced) { $lines.Add("$Key=$(ConvertTo-IocDotEnvLiteral $Value)") }
 
-  Write-IocTextFile -Path $Path -Text (($lines -join "`r`n") + "`r`n")
+  Write-IocTextFile -Path $Path -Text (($lines -join $newline) + $newline)
 }
 
 # Compose hiểu "$" trong .env là biến và " #" là chú thích. Khoá do script sinh ra không
