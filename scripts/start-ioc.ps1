@@ -361,7 +361,7 @@ $envOverrideKeys = @('COMPOSE_PROJECT_NAME', 'IOC_INSTANCE', 'IMAGE_TAG', 'WEB_P
 $restorableKeys = @(
   'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD', 'JWT_SECRET', 'PASSWORD_RESET_PEPPER',
   'DEMO_ADMIN_PASSWORD', 'DEMO_USER_PASSWORD', 'PUBLIC_APP_URL', 'CORS_ORIGINS',
-  'PUBLIC_DASHBOARD_ALLOWED_LINK_HOSTS',
+  'PUBLIC_DASHBOARD_ALLOWED_LINK_HOSTS', 'WEB_PORT', 'API_PORT', 'POSTGRES_PORT', 'WEB_BIND_ADDRESS',
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_REQUIRE_TLS', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'
 )
 
@@ -437,21 +437,45 @@ function Get-ProjectOwnerElsewhere([string]$Project) {
 # có mật khẩu PostgreSQL. Đây là nguồn duy nhất còn lại khi .env đã mất theo thư mục cũ.
 function Get-PreviousSettings([string]$Project) {
   $values = @{}
-  # api đọc sau nên giá trị của nó được ưu tiên; postgres bù khi container api đã bị xoá.
-  foreach ($service in @('postgres', 'api')) {
+  # Cổng máy chủ không nằm trong biến môi trường mà nằm trong port binding của container.
+  $published = @{ '80/tcp' = 'WEB_PORT'; '3000/tcp' = 'API_PORT'; '5432/tcp' = 'POSTGRES_PORT' }
+
+  # api đọc sau cùng nên giá trị của nó được ưu tiên; postgres bù khi container api đã bị xoá.
+  foreach ($service in @('postgres', 'web', 'api')) {
     $ids = @(Get-DockerLines @(
         'ps', '--all', '--quiet',
         '--filter', "label=com.docker.compose.project=$Project",
         '--filter', "label=com.docker.compose.service=$service"
       ))
     if ($ids.Count -eq 0) { continue }
+
     $inspect = Invoke-IocNative 'docker' @('inspect', '--format', '{{json .Config.Env}}', $ids[0])
-    if ($inspect.ExitCode -ne 0) { continue }
-    try { $entries = ConvertFrom-Json -InputObject $inspect.Text } catch { continue }
-    foreach ($entry in @($entries)) {
-      $text = [string]$entry
-      $index = $text.IndexOf('=')
-      if ($index -gt 0) { $values[$text.Substring(0, $index)] = $text.Substring($index + 1) }
+    if ($inspect.ExitCode -eq 0) {
+      try { $entries = ConvertFrom-Json -InputObject $inspect.Text } catch { $entries = @() }
+      if ($service -ne 'web') {
+        foreach ($entry in @($entries)) {
+          $text = [string]$entry
+          $index = $text.IndexOf('=')
+          if ($index -gt 0) { $values[$text.Substring(0, $index)] = $text.Substring($index + 1) }
+        }
+      }
+    }
+
+    $ports = Invoke-IocNative 'docker' @('inspect', '--format', '{{json .HostConfig.PortBindings}}', $ids[0])
+    if ($ports.ExitCode -ne 0) { continue }
+    try { $bindings = ConvertFrom-Json -InputObject $ports.Text } catch { $bindings = $null }
+    if (-not $bindings) { continue }
+    foreach ($property in $bindings.PSObject.Properties) {
+      if (-not $published.ContainsKey($property.Name)) { continue }
+      $binding = @($property.Value) | Select-Object -First 1
+      if (-not $binding) { continue }
+      # Đọc qua PSObject: thiếu trường thì StrictMode ném lỗi khi truy cập thẳng.
+      $hostPort = $binding.PSObject.Properties['HostPort']
+      $hostIp = $binding.PSObject.Properties['HostIp']
+      if (-not $hostPort -or -not $hostPort.Value) { continue }
+      $key = $published[$property.Name]
+      $values[$key] = [string]$hostPort.Value
+      if ($key -eq 'WEB_PORT' -and $hostIp -and $hostIp.Value) { $values['WEB_BIND_ADDRESS'] = [string]$hostIp.Value }
     }
   }
   return $values
@@ -624,6 +648,8 @@ function New-EnvFile([hashtable]$Previous) {
   if ($Previous.Count -gt 0) {
     $restored = 0
     foreach ($key in $restorableKeys) {
+      # Giá trị người dùng chỉ định bằng biến môi trường lúc chạy lần này được ưu tiên.
+      if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { continue }
       $value = if ($Previous.ContainsKey($key)) { [string]$Previous[$key] } else { '' }
       if ([string]::IsNullOrWhiteSpace($value)) { continue }
       Set-IocDotEnvValue $envPath $key $value
