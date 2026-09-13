@@ -296,12 +296,17 @@ function Get-IocPorts($Settings) {
 # Chạy docker compose trong thư mục dự án, cho đầu ra hiện thẳng lên màn hình (dùng
 # cho build/up để người dùng thấy tiến độ). Không chuyển hướng stderr nên không dính
 # lỗi của PowerShell 5.1 nói ở trên.
+#
+# BẮT BUỘC có "| Out-Host": một hàm PowerShell trả về MỌI dòng đầu ra chưa được bắt,
+# không chỉ giá trị sau "return". Thiếu nó, các dòng chữ của compose bị gộp chung với
+# mã thoát thành một mảng, "$code -ne 0" luôn đúng và một lần khởi động thành công bị
+# báo là thất bại — lỗi này đã xảy ra thật khi chạy thử trên bản clone mới.
 function Invoke-IocCompose([string]$RepoRoot, [string[]]$Arguments) {
   $previous = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   Push-Location -LiteralPath $RepoRoot
   try {
-    & docker compose @Arguments
+    & docker compose @Arguments | Out-Host
     return [int]$LASTEXITCODE
   } finally {
     Pop-Location
