@@ -1,14 +1,14 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: ioc-laithieu-db
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ioc_laithieu}
       POSTGRES_USER: ${POSTGRES_USER:-ioc_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ioc_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,11 +18,11 @@ services:
       retries: 10
 
   api:
-    image: "ioc-laithieu-api:${IMAGE_TAG:-local}"
+    image: "${IOC_INSTANCE:-ioc-laithieu}-api:${IMAGE_TAG:-local}"
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: ioc-laithieu-api
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-api
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -64,7 +64,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
@@ -76,13 +76,13 @@ services:
         condition: service_healthy
 
   web:
-    image: "ioc-laithieu-web:${IMAGE_TAG:-local}"
+    image: "${IOC_INSTANCE:-ioc-laithieu}-web:${IMAGE_TAG:-local}"
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: /api
-    container_name: ioc-laithieu-web
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-web
     restart: unless-stopped
     ports:
       - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8080}:80"

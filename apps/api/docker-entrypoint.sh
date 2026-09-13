@@ -29,10 +29,27 @@ if [ -z "${DIRECT_URL:-}" ]; then
 fi
 export DIRECT_URL
 
-npx prisma migrate deploy --schema=prisma/schema.prisma
-
-if [ "${RUN_DEMO_SEED:-false}" = "true" ]; then
-  ALLOW_DEMO_SEED=true npx tsx prisma/seed.ts
-fi
-
-exec node dist/main.js
+# Commands:
+#   serve (default)  apply migrations, optionally seed, then run the API.
+#   seed             apply migrations and create demo data, then exit. Used by
+#                    scripts/start-ioc.ps1 on a fresh database through
+#                    `docker compose exec api ./docker-entrypoint.sh seed`, so the
+#                    database URL is derived exactly as the running API derives it.
+#                    The seed is idempotent and never overwrites existing rows.
+case "${1:-serve}" in
+  seed)
+    npx prisma migrate deploy --schema=prisma/schema.prisma
+    ALLOW_DEMO_SEED=true exec npx tsx prisma/seed.ts
+    ;;
+  serve)
+    npx prisma migrate deploy --schema=prisma/schema.prisma
+    if [ "${RUN_DEMO_SEED:-false}" = "true" ]; then
+      ALLOW_DEMO_SEED=true npx tsx prisma/seed.ts
+    fi
+    exec node dist/main.js
+    ;;
+  *)
+    echo "Unknown command: $1 (expected: serve or seed)" >&2
+    exit 64
+    ;;
+esac

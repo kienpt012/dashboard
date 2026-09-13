@@ -1,200 +1,240 @@
+﻿<#
+.SYNOPSIS
+  Dừng IOC Lái Thiêu và giải phóng RAM, GPU. Dữ liệu PostgreSQL được giữ nguyên.
+
+.DESCRIPTION
+  Chạy qua stop-ioc.cmd ở thư mục gốc. Theo thứ tự:
+    1. Dừng các container web, API và PostgreSQL của IOC (không xoá volume dữ liệu).
+    2. Gỡ model AI khỏi bộ nhớ và dừng Ollama.
+    3. Dừng Docker Desktop cùng máy ảo WSL của nó.
+
+  Nếu đang có container của dự án KHÁC chạy, script hỏi trước khi tắt Docker Desktop
+  — người clone dự án về có thể đang dùng Docker cho việc khác.
+
+.PARAMETER KeepDocker
+  Chỉ dừng IOC và Ollama, để nguyên Docker Desktop.
+
+.PARAMETER KeepAI
+  Để nguyên Ollama đang chạy.
+
+.PARAMETER NoPause
+  Không dừng chờ nhấn phím trước khi đóng cửa sổ.
+#>
 [CmdletBinding()]
-param()
+param(
+  [switch]$KeepDocker,
+  [switch]$KeepAI,
+  [switch]$NoPause
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'ioc-common.ps1')
+Initialize-IocConsole
+
+$envPath = Join-Path $repoRoot '.env'
 $ollamaUrl = 'http://127.0.0.1:11434'
-$ollamaModels = @(
-  'qwen3:4b-instruct-2507-q4_K_M',
-  'bge-m3:latest'
-)
-$iocPorts = @(3000, 5432, 8080, 11434)
-$dockerProcessNames = @(
-  'Docker Desktop',
-  'com.docker.backend',
-  'com.docker.build'
-)
-$ollamaProcessNames = @(
-  'ollama app',
-  'ollama',
-  'llama-server'
-)
+$ollamaModels = @('qwen3:4b-instruct-2507-q4_K_M', 'bge-m3:latest')
+$dockerProcessNames = @('Docker Desktop', 'com.docker.backend', 'com.docker.build')
+$ollamaProcessNames = @('ollama app', 'ollama', 'llama-server')
 
-function Write-Step([string]$Message) {
-  Write-Host "`n==> $Message" -ForegroundColor Cyan
-}
-
-function Test-Endpoint([string]$Uri, [int]$TimeoutSec = 2) {
-  try {
-    $null = Invoke-RestMethod -Uri $Uri -TimeoutSec $TimeoutSec
-    return $true
-  } catch {
-    return $false
-  }
-}
+$script:dockerStopped = $false
+$script:aiStopped = $false
 
 function Test-DockerEngine {
-  try {
-    $version = (& docker info --format '{{.ServerVersion}}' 2>$null | Out-String).Trim()
-    return ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($version))
-  } catch {
-    return $false
-  }
+  if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { return $false }
+  $result = Invoke-IocNative 'docker' @('info', '--format', '{{.ServerVersion}}')
+  return ($result.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($result.Text))
 }
 
 function Get-DockerDesktopProcesses {
-  return @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
-    $dockerProcessNames -contains $_.ProcessName
-  })
+  return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $dockerProcessNames -contains $_.ProcessName })
 }
 
 function Get-OllamaProcesses {
-  return @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
-    $ollamaProcessNames -contains $_.ProcessName
-  })
+  return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $ollamaProcessNames -contains $_.ProcessName })
 }
 
-function Stop-IocCompose {
+function Stop-IocContainers {
+  Write-Step 'Dừng web, API và PostgreSQL của IOC'
+
   if (-not (Test-DockerEngine)) {
-    Write-Step 'IOC containers are already stopped'
+    Write-Ok 'Docker đang tắt — các container IOC đã dừng sẵn'
     return
   }
 
-  Write-Step 'Stopping IOC web, API and PostgreSQL containers'
-  Push-Location $repoRoot
-  try {
-    & docker compose stop --timeout 30
-    if ($LASTEXITCODE -ne 0) {
-      Write-Warning 'Normal container stop failed. Retrying with compose down (data volume is preserved).'
-      & docker compose down --remove-orphans --timeout 10
-      if ($LASTEXITCODE -ne 0) {
-        throw 'Could not stop the IOC Docker Compose stack.'
+  $code = Invoke-IocCompose $repoRoot @('stop', '--timeout', '30')
+  if ($code -ne 0) {
+    # Compose không đọc được cấu hình (thường do .env bị xoá). Dừng thẳng theo nhãn dự
+    # án. KHÔNG dùng "compose down": xoá container sẽ mất luôn bản cấu hình duy nhất
+    # còn lại mà start-ioc.cmd cần để kết nối lại dữ liệu khi .env đã mất.
+    Write-Caution 'Docker Compose không đọc được cấu hình. Dừng trực tiếp các container của dự án.'
+    # Tìm theo thư mục làm việc trước: tên dự án có thể đã được đặt riêng và không còn
+    # suy ra được từ tên thư mục khi .env không còn.
+    $projects = @(Get-IocDirectoryDeployments $repoRoot | ForEach-Object { $_.Project })
+    if ($projects.Count -eq 0) { $projects = @(Get-IocComposeProjectName $repoRoot (Read-IocDotEnv $envPath)) }
+    foreach ($project in $projects) {
+      $ids = Invoke-IocNative 'docker' @('ps', '--quiet', '--filter', "label=com.docker.compose.project=$project")
+      foreach ($id in @($ids.Text -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+        $stopped = Invoke-IocNative 'docker' @('stop', '-t', '30', $id)
+        if ($stopped.ExitCode -ne 0) { throw "Không dừng được container ${id}: $($stopped.Text)" }
       }
     }
-  } finally {
-    Pop-Location
   }
-
-  Write-Host 'IOC containers stopped. PostgreSQL volume was not removed.' -ForegroundColor Green
+  Write-Ok 'Đã dừng container IOC. Volume dữ liệu PostgreSQL không bị xoá.'
 }
 
 function Stop-OllamaRuntime {
-  Write-Step 'Unloading local AI models and stopping Ollama'
+  Write-Step 'Gỡ model AI khỏi bộ nhớ và dừng Ollama'
 
-  $ollamaCommand = Get-Command ollama.exe -ErrorAction SilentlyContinue
-  if ($ollamaCommand -and (Test-Endpoint -Uri "$ollamaUrl/api/version")) {
+  if ($KeepAI) {
+    Write-Note 'Để nguyên Ollama theo tham số -KeepAI.'
+    return
+  }
+
+  $ollama = Get-Command ollama.exe -ErrorAction SilentlyContinue
+  if ($ollama -and (Test-IocEndpoint "$ollamaUrl/api/version" 2)) {
     foreach ($model in $ollamaModels) {
-      try {
-        & $ollamaCommand.Source stop $model 2>$null | Out-Null
-      } catch {
-        # A model that is not currently loaded does not need any action.
+      $null = Invoke-IocNative $ollama.Source @('stop', $model)
+    }
+  }
+
+  foreach ($service in @(Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^Ollama' -or $_.DisplayName -match '^Ollama' })) {
+    if ($service.Status -ne 'Stopped') { Stop-Service -InputObject $service -Force -ErrorAction SilentlyContinue }
+  }
+
+  for ($attempt = 0; $attempt -lt 2 -and @(Get-OllamaProcesses).Count -gt 0; $attempt++) {
+    Get-OllamaProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+  }
+
+  if (@(Get-OllamaProcesses).Count -gt 0) {
+    Write-Caution 'Một số tiến trình Ollama vẫn còn chạy.'
+  } else {
+    Write-Ok 'Đã dừng Ollama, RAM và bộ nhớ GPU đã được giải phóng'
+    $script:aiStopped = $true
+  }
+}
+
+# Container đang chạy không thuộc dự án IOC này — ví dụ cơ sở dữ liệu của dự án khác.
+function Get-ForeignContainers {
+  $project = Get-IocComposeProjectName $repoRoot (Read-IocDotEnv $envPath)
+  # Không dùng {{.Label "..."}}: PowerShell 5.1 làm rơi nháy kép, mẫu hỏng và docker
+  # trả lỗi — kiểm tra này sẽ im lặng không bao giờ cảnh báo. Lấy toàn bộ nhãn rồi tự
+  # tách nhãn dự án.
+  $result = Invoke-IocNative 'docker' @('ps', '--format', '{{.Names}}|{{.Labels}}')
+  if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Text)) { return @() }
+  return @($result.Text -split "`n" | ForEach-Object {
+      $line = $_.Trim()
+      $separator = $line.IndexOf('|')
+      if ($separator -lt 1) { return }
+      $name = $line.Substring(0, $separator)
+      $match = [regex]::Match($line.Substring($separator + 1), '(?:^|,)com\.docker\.compose\.project=([^,]*)')
+      $owner = if ($match.Success) { $match.Groups[1].Value } else { '' }
+      if ($owner -ne $project) { $name }
+    })
+}
+
+function Stop-DockerDesktopRuntime {
+  Write-Step 'Dừng Docker Desktop'
+
+  if ($KeepDocker) {
+    Write-Note 'Để nguyên Docker Desktop theo tham số -KeepDocker.'
+    return
+  }
+
+  if (Test-DockerEngine) {
+    $foreign = @(Get-ForeignContainers)
+    if ($foreign.Count -gt 0) {
+      Write-Caution "Docker đang chạy container của dự án khác: $($foreign -join ', ')"
+      if (-not (Confirm-IocChoice -Question 'Vẫn tắt Docker Desktop? (các container trên cũng sẽ dừng)' -DefaultYes $false)) {
+        Write-Note 'Giữ Docker Desktop chạy.'
+        return
       }
     }
   }
 
-  $ollamaServices = @(Get-Service -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -match '^Ollama' -or $_.DisplayName -match '^Ollama'
-  })
-  foreach ($service in $ollamaServices) {
-    if ($service.Status -ne 'Stopped') {
-      Stop-Service -InputObject $service -Force -ErrorAction SilentlyContinue
-    }
-  }
-
-  $processes = @(Get-OllamaProcesses)
-  if ($processes.Count -gt 0) {
-    $processes | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-  }
-
-  $remaining = @(Get-OllamaProcesses)
-  if ($remaining.Count -gt 0) {
-    $remaining | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
-  }
-
-  if (@(Get-OllamaProcesses).Count -gt 0) {
-    throw 'Ollama processes are still running.'
-  }
-  Write-Host 'Ollama and loaded AI models stopped; RAM and GPU memory are released.' -ForegroundColor Green
-}
-
-function Stop-DockerDesktopRuntime {
-  Write-Step 'Stopping Docker Desktop and its WSL runtime'
-
-  $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
-  $desktopProcesses = @(Get-DockerDesktopProcesses)
-  if ($dockerCommand -and $desktopProcesses.Count -gt 0) {
-    & $dockerCommand.Source desktop stop --timeout 90 2>$null
-    if ($LASTEXITCODE -ne 0) {
-      Write-Warning 'Docker Desktop did not stop normally. Retrying with force.'
-      & $dockerCommand.Source desktop stop --force --timeout 30 2>$null
+  $docker = Get-Command docker.exe -ErrorAction SilentlyContinue
+  if ($docker -and @(Get-DockerDesktopProcesses).Count -gt 0) {
+    $result = Invoke-IocNative $docker.Source @('desktop', 'stop', '--timeout', '90')
+    if ($result.ExitCode -ne 0) {
+      $null = Invoke-IocNative $docker.Source @('desktop', 'stop', '--force', '--timeout', '30')
     }
   }
 
   Start-Sleep -Seconds 2
-  $remaining = @(Get-DockerDesktopProcesses)
-  if ($remaining.Count -gt 0) {
-    $remaining | Stop-Process -Force -ErrorAction SilentlyContinue
+  if (@(Get-DockerDesktopProcesses).Count -gt 0) {
+    Get-DockerDesktopProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
   }
 
-  $wslCommand = Get-Command wsl.exe -ErrorAction SilentlyContinue
-  if ($wslCommand) {
-    $runningDistros = @(& $wslCommand.Source --list --running --quiet 2>$null)
-    foreach ($distro in $runningDistros) {
-      $name = ([string]$distro).Replace([char]0, '').Trim()
-      if ($name -like 'docker-desktop*') {
-        & $wslCommand.Source --terminate $name 2>$null | Out-Null
-      }
+  # Chỉ tắt máy ảo WSL của Docker; các bản phân phối Linux khác của người dùng giữ nguyên.
+  $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
+  if ($wsl) {
+    $running = Invoke-IocNative $wsl.Source @('--list', '--running', '--quiet')
+    foreach ($line in ($running.Text -split "`n")) {
+      $name = $line.Replace([string][char]0, '').Trim()
+      if ($name -like 'docker-desktop*') { $null = Invoke-IocNative $wsl.Source @('--terminate', $name) }
     }
   }
 
   $remaining = @(Get-DockerDesktopProcesses)
   if ($remaining.Count -gt 0) {
-    throw "Docker Desktop processes are still running: $($remaining.ProcessName -join ', ')"
+    throw "Docker Desktop vẫn còn chạy: $(($remaining | ForEach-Object { $_.ProcessName }) -join ', ')"
   }
-  Write-Host 'Docker Desktop stopped. Other WSL distributions were not touched.' -ForegroundColor Green
+  Write-Ok 'Đã dừng Docker Desktop. Các bản Linux (WSL) khác không bị ảnh hưởng.'
+  $script:dockerStopped = $true
 }
 
-function Assert-IocStopped {
-  Write-Step 'Verifying that IOC resources are released'
+function Test-IocReleased {
+  Write-Step 'Kiểm tra tài nguyên đã được giải phóng'
 
-  $issues = [System.Collections.Generic.List[string]]::new()
-  $remainingProcesses = @()
-  $remainingProcesses += @(Get-DockerDesktopProcesses)
-  $remainingProcesses += @(Get-OllamaProcesses)
-  if ($remainingProcesses.Count -gt 0) {
-    $issues.Add("Processes still running: $($remainingProcesses.ProcessName -join ', ')")
+  $ports = Get-IocPorts (Read-IocDotEnv $envPath)
+  $held = New-Object System.Collections.Generic.List[string]
+  foreach ($port in @($ports.Web, $ports.Api, $ports.Database)) {
+    $owner = Get-IocPortOwner $port
+    # Chỉ tính là IOC còn giữ cổng khi chính Docker đang giữ nó. Một PostgreSQL cài sẵn
+    # trên máy chiếm 5432 không phải lỗi của việc dừng IOC.
+    if ($owner -and (Test-IocDockerPortProcess $owner.ProcessName)) { $held.Add("$port") }
   }
+  if (-not $KeepAI -and (Get-IocPortOwner 11434)) { $held.Add('11434') }
 
-  $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object {
-    $_.LocalPort -in $iocPorts
-  })
-  if ($listeners.Count -gt 0) {
-    $ports = @($listeners | Select-Object -ExpandProperty LocalPort -Unique | Sort-Object)
-    $issues.Add("IOC ports still listening: $($ports -join ', ')")
+  if ($held.Count -gt 0) {
+    if ($KeepDocker -or -not $script:dockerStopped) {
+      Write-Note "Cổng $($held -join ', ') vẫn mở vì Docker hoặc Ollama còn chạy theo lựa chọn của bạn."
+      return
+    }
+    throw "Cổng vẫn còn mở: $($held -join ', ')"
   }
-
-  if ($issues.Count -gt 0) {
-    throw ($issues -join ' | ')
-  }
-
-  Write-Host 'Verified: ports 3000, 5432, 8080 and 11434 are closed.' -ForegroundColor Green
+  Write-Ok "Các cổng $($ports.Web), $($ports.Api), $($ports.Database) đã đóng"
 }
+
+$pauseAtEnd = (-not $NoPause) -and (Test-LaunchedFromExplorer)
+$exitCode = 0
 
 try {
-  Write-Host 'IOC Lai Thieu - full resource shutdown' -ForegroundColor Yellow
-  Stop-IocCompose
+  Write-Host ''
+  Write-Host 'IOC Lái Thiêu — dừng hệ thống' -ForegroundColor White
+
+  Stop-IocContainers
   Stop-OllamaRuntime
   Stop-DockerDesktopRuntime
-  Assert-IocStopped
+  Test-IocReleased
 
-  Write-Host "`nIOC is fully stopped. Database data remains safe in the Docker volume." -ForegroundColor Green
-  Write-Host 'Run start-ioc.cmd when you want to use the system again.'
+  Write-Host ''
+  Write-Host 'Đã dừng IOC. Dữ liệu vẫn nằm an toàn trong volume Docker.' -ForegroundColor Green
+  Write-Host 'Chạy start-ioc.cmd khi muốn dùng lại.' -ForegroundColor Gray
 } catch {
-  Write-Error $_
-  exit 1
+  Write-Host ''
+  Write-Problem $_.Exception.Message
+  $exitCode = 1
+} finally {
+  if ($pauseAtEnd) {
+    Write-Host ''
+    [void](Read-Host 'Nhấn Enter để đóng cửa sổ')
+  }
 }
+
+exit $exitCode
