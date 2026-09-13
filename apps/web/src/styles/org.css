@@ -1,0 +1,1711 @@
+/* ============================================================================
+   IOC Lái Thiêu — Khối quản trị tổ chức
+   Dùng chung cho bốn màn hình: Nhập dữ liệu Excel, Phòng ban, Tài khoản,
+   Thiết lập hệ thống.
+
+   Quy ước:
+   - Chỉ dùng token ngữ nghĩa (--bg-*, --tx-*, --bd-*, --sh-*, --fs-*, --sp-*).
+     Không mã màu trực tiếp, không cỡ chữ px tuỳ tiện, không dưới --fs-micro.
+   - Ưu tiên nguyên thể toàn cục (.panel, .btn, .badge, .status, .table-wrap,
+     .toolbar, .notice, .form-error, .empty…). File này chỉ mô tả phần thật sự
+     riêng của bốn màn hình quản trị.
+   - Tiền tố `org-` cho mọi lớp riêng, tránh giẫm lên CSS của tính năng khác.
+
+   Mục lục:
+     1. Nhịp dọc và khối dùng chung
+     2. Bảng dữ liệu quản trị (kể cả chế độ thẻ trên màn hẹp)
+     3. Biểu mẫu trong hộp thoại
+     4. Màn hình "Nhập dữ liệu Excel"
+     5. Màn hình "Phòng ban & đơn vị"
+     6. Màn hình "Tài khoản người dùng"
+     7. Màn hình "Thiết lập hệ thống"
+     8. Đáp ứng màn hình và thiết bị cảm ứng
+   ========================================================================== */
+
+/* ============================================================================
+   1. NHỊP DỌC VÀ KHỐI DÙNG CHUNG
+   ========================================================================== */
+
+/* Một khối xếp dọc duy nhất cho phần thân trang: mọi mục cách nhau đúng một nhịp,
+   không cần margin rải rác trên từng thành phần. */
+.org-stack {
+  display: grid;
+  gap: var(--sp-5);
+  align-content: start;
+}
+
+/* Dải thông báo kết quả thao tác đặt cạnh `.form-success` / `.form-error`.
+   Toast lo phần báo nhanh; khối này giữ lại chi tiết để đọc kỹ. */
+.org-banner > div {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.org-banner strong {
+  font-size: var(--fs-sm);
+  color: inherit;
+}
+
+.org-banner p {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  opacity: 0.92;
+}
+
+.org-banner > button {
+  margin-left: auto;
+  flex: none;
+}
+
+/* Ghi chú nghiệp vụ / cảnh báo phân quyền, đặt cạnh `.notice` (hoặc `.notice warn`). */
+.org-note > div {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.org-note strong {
+  font-size: var(--fs-sm);
+  color: inherit;
+}
+
+.org-note p {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: inherit;
+  opacity: 0.9;
+}
+
+/* Thanh công cụ nằm bên trong một `.panel.flush`: kẻ ngăn với bảng bên dưới. */
+.org-toolbar.toolbar {
+  margin: 0;
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+/* Hàng hành động nhỏ trong ô bảng hoặc cuối thẻ. */
+.org-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* ============================================================================
+   2. BẢNG DỮ LIỆU QUẢN TRỊ
+   ========================================================================== */
+
+/* Ô số: canh phải, chữ số cùng bề rộng để so sánh theo cột. */
+.org-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+th.org-num {
+  text-align: right;
+}
+
+/* Dòng phụ trong ô bảng (tên chỉ tiêu dưới mã, email dưới tên…). */
+.org-sub {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.org-cell-strong {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+  line-height: var(--lh-snug);
+}
+
+/* Ô chứa trạng thái rỗng: bỏ padding của `td` để `.empty` tự căn giữa. */
+.org-cell-empty {
+  padding: 0 !important;
+}
+
+/* Tông ngữ nghĩa cho từng dòng kết quả đối soát.
+   Đặt trên `tr` nên thắng cả `tbody tr:hover` của nguyên thể. */
+tr.org-row > td {
+  border-left: 3px solid transparent;
+}
+
+tr.org-row > td:not(:first-child) {
+  border-left: 0;
+}
+
+tr.org-row.is-ok {
+  background: var(--bg-ok-soft);
+}
+
+tr.org-row.is-ok > td:first-child {
+  border-left-color: var(--bg-ok);
+}
+
+tr.org-row.is-bad {
+  background: var(--bg-bad-soft);
+}
+
+tr.org-row.is-bad > td:first-child {
+  border-left-color: var(--bg-bad);
+}
+
+tr.org-row.is-ok:hover {
+  background: color-mix(in oklab, var(--bg-ok-soft) 78%, var(--bg-surface-3));
+}
+
+tr.org-row.is-bad:hover {
+  background: color-mix(in oklab, var(--bg-bad-soft) 78%, var(--bg-surface-3));
+}
+
+/* Chú giải tông màu đặt ngay dưới bảng kết quả. */
+.org-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  padding: var(--sp-3) var(--sp-5);
+  border-top: 1px solid var(--bd-subtle);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.org-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.org-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--bd-normal);
+  background: var(--bg-inset);
+  flex: none;
+}
+
+.org-legend i.is-ok {
+  background: var(--bg-ok-soft);
+  border-color: var(--bd-ok);
+}
+
+.org-legend i.is-bad {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+}
+
+/* ============================================================================
+   3. BIỂU MẪU TRONG HỘP THOẠI
+   ========================================================================== */
+
+/* Nhóm trường có tiêu đề — thay cho một dãy nhãn phẳng khó đọc. */
+.org-group {
+  padding: var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+
+.org-group > legend {
+  padding: 0 var(--sp-2);
+  margin-left: calc(var(--sp-2) * -1);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--tx-muted);
+}
+
+.org-group-body {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.org-group-body > .full {
+  grid-column: 1 / -1;
+}
+
+/* Hàng hộp kiểm — vùng chạm đủ lớn, đọc được nhãn trạng thái hiện tại. */
+.org-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+
+.org-check:hover {
+  border-color: var(--bd-strong);
+}
+
+.org-check > input {
+  margin-top: 0;
+}
+
+.org-check > span {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-normal);
+  line-height: var(--lh-snug);
+}
+
+.org-check:has(> input:checked) {
+  border-color: var(--bd-brand);
+  background: var(--bg-brand-soft);
+}
+
+.org-check:has(> input:checked) > span {
+  color: var(--tx-brand);
+}
+
+.org-check:has(> input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Cặp trường chọn màu: ô màu + mã hex gõ tay. */
+.org-color {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.org-color input[type='color'] {
+  width: 56px;
+  min-width: 56px;
+  min-height: 40px;
+  flex: none;
+}
+
+.org-color input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+/* ============================================================================
+   4. MÀN HÌNH "NHẬP DỮ LIỆU EXCEL"
+   ========================================================================== */
+
+/* ---- 4.1 Thanh phạm vi (năm + phòng ban) --------------------------------- */
+.org-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-xs);
+}
+
+.org-scope-field {
+  display: grid;
+  gap: var(--sp-2);
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 300px;
+}
+
+.org-scope-field > label {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--tx-muted);
+}
+
+.org-scope-field > select {
+  margin-top: 0;
+}
+
+.org-scope-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  padding-bottom: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.org-scope-hint svg {
+  width: 15px;
+  height: 15px;
+  color: var(--tx-subtle);
+}
+
+/* ---- 4.2 Luồng ba bước --------------------------------------------------- */
+.org-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.org-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.org-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.org-step-no {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  border: 1px solid var(--bd-normal);
+  color: var(--tx-muted);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out),
+    border-color var(--t-base) var(--ease-out);
+}
+
+.org-step-no svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Bước đang tới lượt: nổi bằng màu thương hiệu. */
+.org-step.is-active .org-step-no {
+  background: var(--bg-brand);
+  border-color: var(--bg-brand);
+  color: var(--tx-onbrand);
+}
+
+/* Bước đã xong: chuyển sang tông hoàn thành. */
+.org-step.is-done .org-step-no {
+  background: var(--bg-ok);
+  border-color: var(--bg-ok);
+  color: var(--tx-onbrand);
+}
+
+.org-step-head h3 {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.org-step-head p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.org-step-head > div {
+  min-width: 0;
+}
+
+/* ---- 4.3 Vùng thả tệp ---------------------------------------------------- */
+.org-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: 200px;
+  padding: var(--sp-6) var(--sp-4);
+  border: 2px dashed var(--bd-normal);
+  border-radius: var(--r-lg);
+  background: var(--bg-inset);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--t-base) var(--ease-out), background-color var(--t-base) var(--ease-out);
+}
+
+.org-drop:hover:not(.disabled),
+.org-drop.drag {
+  border-color: var(--bd-brand);
+  background: var(--bg-brand-soft);
+}
+
+.org-drop.disabled {
+  cursor: not-allowed;
+  border-style: solid;
+  border-color: var(--bd-subtle);
+  opacity: 0.75;
+}
+
+.org-drop strong {
+  max-width: 100%;
+  font-size: var(--fs-base);
+  color: var(--tx-strong);
+  overflow-wrap: anywhere;
+}
+
+.org-drop span {
+  max-width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.org-drop b {
+  color: var(--tx-brand);
+}
+
+.org-drop-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+  transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
+}
+
+.org-drop-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.org-drop.has-file .org-drop-icon {
+  background: var(--bg-ok-soft);
+  color: var(--tx-ok);
+}
+
+.org-drop.disabled .org-drop-icon {
+  background: var(--bg-surface-3);
+  color: var(--tx-subtle);
+}
+
+/* ---- 4.4 Hướng dẫn điền phiếu -------------------------------------------- */
+.org-guide {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.org-guide > li {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.org-guide > li:last-child {
+  border-bottom: 0;
+}
+
+/* Hai cột được phép sửa — đánh dấu bằng tông "cần chú ý". */
+.org-guide > li.is-editable {
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--bg-warn);
+}
+
+.org-guide b {
+  font-size: var(--fs-sm);
+  color: var(--tx-strong);
+}
+
+.org-guide span {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* ---- 4.5 Số liệu tóm tắt kết quả xem trước ------------------------------- */
+.org-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--sp-3);
+}
+
+.org-metric {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+}
+
+.org-metric > span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+  flex: none;
+}
+
+.org-metric > span svg {
+  width: 18px;
+  height: 18px;
+}
+
+.org-metric > div {
+  min-width: 0;
+}
+
+.org-metric b {
+  display: block;
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.org-metric p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.org-metric.is-total > span {
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.org-metric.is-ok {
+  border-color: var(--bd-ok);
+  background: var(--bg-ok-soft);
+}
+
+.org-metric.is-ok > span {
+  background: var(--bg-surface);
+  color: var(--tx-ok);
+}
+
+.org-metric.is-bad {
+  border-color: var(--bd-bad);
+  background: var(--bg-bad-soft);
+}
+
+.org-metric.is-bad > span {
+  background: var(--bg-surface);
+  color: var(--tx-bad);
+}
+
+/* Ô lỗi bằng 0 thì không cần gây chú ý. */
+.org-metric.is-bad.is-empty {
+  border-color: var(--bd-subtle);
+  background: var(--bg-surface);
+}
+
+.org-metric.is-bad.is-empty > span {
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+}
+
+/* ---- 4.6 Ô tên tệp trong lịch sử ----------------------------------------- */
+.org-file {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.org-file > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--tx-accent);
+  flex: none;
+}
+
+.org-file strong {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+  overflow-wrap: anywhere;
+}
+
+.org-file span {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   5. MÀN HÌNH "PHÒNG BAN & ĐƠN VỊ"
+   Màu nhận diện lấy từ cơ sở dữ liệu qua biến nội tuyến `--dep-color`.
+   Chỉ dùng ở mức điểm nhấn (chấm, viền, nền rất nhạt) nên chữ vẫn đọc được ở cả
+   hai chế độ sáng/tối — nền và chữ luôn là token của hệ thống.
+   ========================================================================== */
+.org-dep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-4);
+}
+
+.org-dep-card {
+  --dep-color: var(--bg-brand);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  overflow: hidden;
+  transition: border-color var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out),
+    transform var(--t-base) var(--ease-out);
+}
+
+.org-dep-card:hover {
+  border-color: color-mix(in oklab, var(--dep-color) 45%, var(--bd-normal));
+  box-shadow: var(--sh-md);
+}
+
+/* Dải màu nhận diện chạy dọc mép trái thẻ. */
+.org-dep-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--dep-color);
+}
+
+.org-dep-card.is-inactive::before {
+  opacity: 0.4;
+}
+
+.org-dep-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.org-dep-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--r-md);
+  /* Nền rất nhạt pha từ màu nhận diện, chữ/biểu tượng giữ nguyên màu gốc nên
+     tương phản không phụ thuộc độ sáng của màu phòng ban. */
+  background: color-mix(in oklab, var(--dep-color) 14%, var(--bg-surface));
+  border: 1px solid color-mix(in oklab, var(--dep-color) 35%, transparent);
+  color: var(--dep-color);
+  flex: none;
+}
+
+.org-dep-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.org-dep-code {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-muted);
+}
+
+.org-dep-code i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dep-color);
+  flex: none;
+}
+
+.org-dep-card h3 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-snug);
+}
+
+.org-dep-desc {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.org-dep-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: auto;
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+  overflow: hidden;
+}
+
+.org-dep-stat {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-right: 1px solid var(--bd-subtle);
+  min-width: 0;
+}
+
+.org-dep-stat:last-child {
+  border-right: 0;
+}
+
+.org-dep-stat > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  color: var(--tx-muted);
+}
+
+.org-dep-stat svg {
+  width: 13px;
+  height: 13px;
+  color: var(--tx-subtle);
+}
+
+.org-dep-stat b {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
+}
+
+.org-dep-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+/* Thẻ đơn vị đã ngừng hoạt động: giảm độ nổi nhưng vẫn đọc được. */
+.org-dep-card.is-inactive .org-dep-icon {
+  background: var(--bg-inset);
+  border-color: var(--bd-subtle);
+  color: var(--tx-muted);
+}
+
+.org-dep-card.is-inactive h3 {
+  color: var(--tx-normal);
+}
+
+/* ============================================================================
+   6. MÀN HÌNH "TÀI KHOẢN NGƯỜI DÙNG"
+   ========================================================================== */
+.org-user {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 220px;
+}
+
+.org-user > div:last-child {
+  min-width: 0;
+}
+
+.org-user strong {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+  line-height: var(--lh-snug);
+}
+
+.org-user span {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+/* ---- 6.1 Gợi ý độ mạnh mật khẩu ------------------------------------------ */
+.org-pass {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.org-pass-meter {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.org-pass-meter i {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--bd-normal);
+  transition: background-color var(--t-base) var(--ease-out);
+}
+
+.org-pass-meter i.is-weak {
+  background: var(--bg-bad);
+}
+
+.org-pass-meter i.is-fair {
+  background: var(--bg-warn);
+}
+
+.org-pass-meter i.is-strong {
+  background: var(--bg-ok);
+}
+
+.org-pass-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.org-pass-label b {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.org-pass-label b.is-weak {
+  color: var(--tx-bad);
+}
+
+.org-pass-label b.is-fair {
+  color: var(--tx-warn);
+}
+
+.org-pass-label b.is-strong {
+  color: var(--tx-ok);
+}
+
+.org-pass-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.org-pass-rules li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.org-pass-rules li svg {
+  width: 14px;
+  height: 14px;
+  color: var(--tx-subtle);
+  flex: none;
+}
+
+.org-pass-rules li.is-met {
+  color: var(--tx-ok);
+}
+
+.org-pass-rules li.is-met svg {
+  color: var(--tx-ok);
+}
+
+/* ============================================================================
+   7. MÀN HÌNH "THIẾT LẬP HỆ THỐNG"
+   ========================================================================== */
+.org-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-4);
+}
+
+.org-setting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  transition: border-color var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+}
+
+/* Nhóm có thay đổi chưa lưu: viền đổi tông để nhận ra ngay giữa lưới thẻ. */
+.org-setting.is-dirty {
+  border-color: var(--bd-warn);
+  box-shadow: var(--sh-sm);
+}
+
+.org-setting-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.org-setting-head > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.org-setting-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+  flex: none;
+}
+
+.org-setting-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.org-setting-head h3 {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.org-setting-head p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+}
+
+.org-setting-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--bd-subtle);
+}
+
+.org-setting-foot > span {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Thanh lưu dính đáy trang — luôn thấy được số nhóm đang có thay đổi. */
+.org-savebar {
+  position: sticky;
+  bottom: var(--sp-4);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-md);
+}
+
+.org-savebar > div {
+  display: grid;
+  gap: var(--sp-1);
+  margin-right: auto;
+  min-width: 0;
+}
+
+.org-savebar strong {
+  font-size: var(--fs-sm);
+  color: var(--tx-strong);
+}
+
+.org-savebar span {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* ============================================================================
+   8. ĐÁP ỨNG MÀN HÌNH VÀ THIẾT BỊ CẢM ỨNG
+   ========================================================================== */
+
+@media (max-width: 1280px) {
+  .org-dep-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  /* Luồng ba bước xếp dọc: hướng dẫn nằm dưới vùng thả tệp. */
+  .org-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .org-settings {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .org-stack {
+    gap: var(--sp-4);
+  }
+
+  .org-scope {
+    padding: var(--sp-4);
+  }
+
+  .org-scope-field {
+    max-width: none;
+    flex: 1 1 160px;
+  }
+
+  .org-scope-hint {
+    margin-left: 0;
+    flex: 1 1 100%;
+    padding-bottom: 0;
+  }
+
+  .org-toolbar.toolbar {
+    padding: var(--sp-4);
+  }
+
+  .org-legend {
+    padding: var(--sp-3) var(--sp-4);
+  }
+
+  .org-dep-grid,
+  .org-settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .org-group-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .org-drop {
+    min-height: 170px;
+    padding: var(--sp-5) var(--sp-3);
+  }
+
+  .org-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .org-dep-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .org-dep-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-right: 0;
+    border-bottom: 1px solid var(--bd-subtle);
+  }
+
+  .org-dep-stat:last-child {
+    border-bottom: 0;
+  }
+
+  .org-savebar {
+    bottom: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+
+  .org-savebar .btn {
+    width: 100%;
+  }
+
+  /* ---- Bảng nhiều cột chuyển thành danh sách thẻ -------------------------
+     Mỗi hàng trở thành một thẻ, mỗi ô là một cặp "nhãn — giá trị" lấy từ
+     thuộc tính `data-label`. Không nhân đôi JSX, không cuộn ngang.
+     --------------------------------------------------------------------- */
+  .org-cardtable,
+  .org-cardtable thead,
+  .org-cardtable tbody,
+  .org-cardtable tr,
+  .org-cardtable td {
+    display: block;
+    width: 100%;
+  }
+
+  .org-cardtable thead {
+    display: none;
+  }
+
+  .org-cardtable tr {
+    margin-bottom: var(--sp-3);
+    padding: var(--sp-2) var(--sp-1);
+    border: 1px solid var(--bd-subtle);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+  }
+
+  .org-cardtable tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .org-cardtable td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    min-height: 0;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--bd-subtle);
+  }
+
+  .org-cardtable tr > td:last-child {
+    border-bottom: 0;
+  }
+
+  .org-cardtable td::before {
+    content: attr(data-label);
+    flex: none;
+    font-size: var(--fs-micro);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: var(--ls-caps);
+    color: var(--tx-muted);
+  }
+
+  /* Ô chính (tên tệp, người dùng, chỉ tiêu) chiếm trọn bề ngang, không cần nhãn. */
+  .org-cardtable td.org-cell-lead {
+    display: block;
+    background: var(--bg-surface-2);
+    border-radius: var(--r-sm);
+  }
+
+  .org-cardtable td.org-cell-lead::before,
+  .org-cardtable td.org-cell-empty::before {
+    display: none;
+  }
+
+  .org-cardtable td.org-num {
+    text-align: right;
+  }
+
+  .org-cardtable .org-actions {
+    justify-content: stretch;
+  }
+
+  .org-cardtable .org-actions .btn {
+    flex: 1;
+  }
+
+  .org-cardtable td.org-cell-empty {
+    display: block;
+    border-bottom: 0;
+  }
+
+  /* Trong chế độ thẻ, tông ngữ nghĩa chuyển lên cả thẻ. */
+  .org-cardtable tr.org-row.is-ok {
+    border-color: var(--bd-ok);
+  }
+
+  .org-cardtable tr.org-row.is-bad {
+    border-color: var(--bd-bad);
+  }
+
+  .org-cardtable tr.org-row > td:first-child {
+    border-left: 0;
+  }
+
+  .org-user {
+    min-width: 0;
+  }
+}
+
+/* Thiết bị cảm ứng: bảo đảm vùng chạm tối thiểu 44px cho nút nhỏ trong bảng/thẻ. */
+@media (hover: none) {
+  .org-actions .btn.sm,
+  .org-actions .btn.compact,
+  .org-dep-foot .btn.sm,
+  .org-dep-foot .btn.compact {
+    --btn-h: 44px;
+  }
+
+  .org-drop:hover:not(.disabled) {
+    border-color: var(--bd-normal);
+    background: var(--bg-inset);
+  }
+
+  .org-drop.drag {
+    border-color: var(--bd-brand);
+    background: var(--bg-brand-soft);
+  }
+}
+
+/* Người dùng bật "giảm chuyển động": bỏ mọi chuyển tiếp trang trí của khối này. */
+@media (prefers-reduced-motion: reduce) {
+  .org-dep-card,
+  .org-setting,
+  .org-step-no,
+  .org-drop,
+  .org-drop-icon,
+  .org-pass-meter i,
+  .org-check {
+    transition: none;
+  }
+}
+
+/* ============================================================================
+   BỔ SUNG — Phòng ban, Tài khoản, Thiết lập
+   Ba màn hình này giữ nguyên cấu trúc JSX cũ; phần dưới cấp kiểu dáng cho chúng
+   theo đúng ngôn ngữ thị giác của các lớp org-* ở trên.
+   ========================================================================== */
+
+/* ---- Khối báo thao tác thành công (dùng chung ba màn hình) ---------------- */
+.import-result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-ok);
+  border-left: 3px solid var(--bg-ok);
+  border-radius: var(--r-md);
+  background: var(--bg-ok-soft);
+}
+
+.import-result > svg {
+  width: 19px;
+  height: 19px;
+  margin-top: 1px;
+  color: var(--tx-ok);
+  flex: none;
+}
+
+.import-result strong {
+  display: block;
+  font-size: var(--fs-base);
+  color: var(--tx-ok);
+}
+
+.import-result p {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-normal);
+}
+
+/* ============================================================================
+   PHÒNG BAN — lưới thẻ đơn vị
+   Màu nhận diện đến từ cơ sở dữ liệu qua style nội tuyến. Nó chỉ được dùng ở mức
+   nhấn (dải mép, nền biểu tượng rất nhạt) để chữ luôn đọc được ở cả hai chế độ.
+   ========================================================================== */
+.department-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-4);
+}
+
+.department-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  padding-left: var(--sp-6);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-xs);
+  overflow: hidden;
+  transition: border-color var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+}
+
+.department-card:hover {
+  border-color: var(--bd-normal);
+  box-shadow: var(--sh-md);
+}
+
+/* Dải màu nhận diện chạy dọc mép trái. */
+.dep-accent {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+}
+
+.dep-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
+
+.dep-large-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px currentcolor;
+  flex: none;
+}
+
+.dep-large-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.department-card > span {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-muted);
+}
+
+.department-card h3 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-snug);
+}
+
+.department-card > p {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--tx-muted);
+}
+
+.dep-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+}
+
+.dep-card-stats > div {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.dep-card-stats svg {
+  width: 15px;
+  height: 15px;
+  color: var(--tx-subtle);
+  flex: none;
+}
+
+.dep-card-stats span {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-micro);
+  color: var(--tx-muted);
+  line-height: var(--lh-tight);
+  min-width: 0;
+}
+
+.dep-card-stats b {
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hàng thao tác ở chân thẻ và cuối hàng bảng. */
+.approval-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.department-card .approval-actions {
+  margin-top: var(--sp-4);
+}
+
+/* ============================================================================
+   TÀI KHOẢN
+   ========================================================================== */
+.table-card {
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-xs);
+  overflow: hidden;
+}
+
+/* Ô nhận diện người dùng: ảnh chữ cái + họ tên + tài khoản/email. */
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.user-cell > div:not(.avatar) {
+  min-width: 0;
+}
+
+.user-cell strong {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--tx-strong);
+}
+
+.user-cell span {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Ảnh đại diện chữ cái trong bảng dùng tông ngọc để không lẫn với nút chính. */
+.avatar.color {
+  background: linear-gradient(140deg, var(--accent-400), var(--accent-700));
+}
+
+/* Nhãn vai trò. Bốn vai trò, bốn tông khác nhau, luôn kèm chữ. */
+.role {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-pill);
+  background: var(--bg-inset);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  color: var(--tx-muted);
+  white-space: nowrap;
+}
+
+.role-admin {
+  border-color: var(--bd-ai);
+  background: var(--bg-ai-soft);
+  color: var(--tx-ai);
+}
+
+.role-manager {
+  border-color: var(--brand-100);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.role-staff {
+  border-color: var(--accent-100);
+  background: var(--bg-accent-soft);
+  color: var(--tx-accent);
+}
+
+.role-viewer {
+  border-color: var(--bd-subtle);
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   BIỂU MẪU DÙNG CHUNG (hộp thoại phòng ban và tài khoản)
+   ========================================================================== */
+
+/* Ô chọn màu: bảng màu hệ thống bên trái, mã màu gõ tay bên phải. */
+.color-input {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.color-input input[type="color"] {
+  width: 52px;
+  min-height: 40px;
+  padding: 3px;
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  flex: none;
+}
+
+.color-input input:not([type="color"]) {
+  flex: 1;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+/* Ô đánh dấu kèm nhãn mô tả trạng thái. */
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+  cursor: pointer;
+}
+
+.check-field input[type="checkbox"] {
+  margin-top: 0;
+}
+
+.check-field > span {
+  font-weight: 500;
+  color: var(--tx-muted);
+}
+
+.password-help {
+  display: block;
+  margin-top: calc(var(--sp-2) * -1);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   THIẾT LẬP HỆ THỐNG
+   ========================================================================== */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-4);
+}
+
+.setting-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.setting-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.setting-title > svg {
+  width: 20px;
+  height: 20px;
+  padding: var(--sp-2);
+  box-sizing: content-box;
+  border-radius: var(--r-md);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+  flex: none;
+}
+
+.setting-title h3 {
+  font-size: var(--fs-md);
+}
+
+.setting-title p {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--tx-muted);
+}
+
+.setting-card label {
+  margin-top: auto;
+}
+
+/* Thanh lưu dính đáy: giá trị thay đổi nằm ở nhiều thẻ nên nút lưu phải luôn
+   trong tầm mắt, kèm mốc thời gian lưu gần nhất. */
+.settings-save {
+  position: sticky;
+  bottom: var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-lg);
+}
+
+.settings-save .btn {
+  min-width: 180px;
+}
+
+.settings-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+
+.settings-load-error p {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+/* ============================================================================
+   MÀN HÌNH HẸP
+   ========================================================================== */
+@media (max-width: 640px) {
+  .department-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dep-card-stats {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+
+  .settings-save {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-save .btn {
+    width: 100%;
+  }
+}

@@ -14,8 +14,11 @@ import {
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
-import { Spinner } from '../components/UI';
+import { toast } from '../components/Toast';
+import { Empty, Skeleton, SkeletonCards, StateCard } from '../components/UI';
+import { CountUp, Reveal } from '../components/Motion';
 import { statusMeta } from '../types';
+import '../styles/dashboard.css';
 
 type DashboardDepartment={id:string;name:string;color:string;total:number;completed:number;progress:number};
 type DashboardAlert={id:string;code:string;title:string;status:string;dueDate:string;department:{name:string}};
@@ -31,6 +34,42 @@ type DashboardData={
   updatedAt:string;
   riskThreshold:number;
 };
+
+/** Khung xương đúng hình hài trang tổng quan: đầu trang, dải băng, bốn thẻ số
+ *  liệu và lưới bốn bảng. Người xem thấy ngay bố cục và không bị nhảy layout. */
+function DashboardSkeleton(){
+  return <div className="dash-skeleton" role="status" aria-label="Đang tải dữ liệu tổng quan">
+    <div className="dash-skeleton-head">
+      <div>
+        <Skeleton className="skeleton-text" style={{width:150}}/>
+        <Skeleton className="skeleton-title" style={{width:'min(420px, 72%)'}}/>
+        <Skeleton className="skeleton-text" style={{width:'min(560px, 92%)'}}/>
+      </div>
+      <Skeleton style={{width:210,height:40}}/>
+    </div>
+    <Skeleton className="dash-skeleton-hero"/>
+    <SkeletonCards count={4}/>
+    <div className="dashboard-grid">
+      <div className="panel span-2 dash-dept">
+        <Skeleton className="skeleton-title"/>
+        {[0,1,2,3].map(index=><Skeleton key={index} style={{height:44}}/>)}
+      </div>
+      <div className="panel alert-panel">
+        <Skeleton className="skeleton-title"/>
+        {[0,1,2].map(index=><Skeleton key={index} style={{height:58}}/>)}
+      </div>
+      <div className="panel span-2 dash-timeline">
+        <Skeleton className="skeleton-title"/>
+        {[0,1,2,3].map(index=><Skeleton key={index} style={{height:38}}/>)}
+      </div>
+      <div className="panel dash-stack">
+        <Skeleton className="skeleton-title"/>
+        <Skeleton style={{height:14}}/>
+        {[0,1,2].map(index=><Skeleton key={index} style={{height:18}}/>)}
+      </div>
+    </div>
+  </div>;
+}
 
 export default function Dashboard(){
   const user=auth.user;
@@ -48,14 +87,22 @@ export default function Dashboard(){
       const result=await api<DashboardData>(`/dashboard${requestedYear?`?year=${requestedYear}`:''}`);
       setData(result);setYear(String(result.year));
     }catch(reason){
-      setError(reason instanceof Error?reason.message:'Không thể tải dữ liệu tổng quan');
+      const message=reason instanceof Error?reason.message:'Không thể tải dữ liệu tổng quan';
+      setError(message);
+      // Lần tải đầu đã có màn hình lỗi riêng; chỉ báo nổi khi trang đang hiển thị dữ liệu.
+      if(data)toast.error('Không thể tải dữ liệu tổng quan',message);
     }finally{setLoading(false)}
   }
 
   useEffect(()=>{void load()},[]);
 
-  if(loading&&!data)return <Spinner/>;
-  if(!data)return <section className="panel"><h3>Chưa thể tải tổng quan</h3><p>{error}</p><button className="btn primary" onClick={()=>void load()}>Thử lại</button></section>;
+  if(loading&&!data)return <DashboardSkeleton/>;
+  if(!data)return <StateCard
+    icon={<CircleAlert/>}
+    title="Chưa thể tải tổng quan"
+    description={error||'Không thể tải dữ liệu tổng quan'}
+    action={<button className="btn primary" onClick={()=>void load()}>Thử lại</button>}
+  />;
 
   const completed=data.counts.COMPLETED??0;
   const onTrack=data.counts.ON_TRACK??0;
@@ -66,6 +113,7 @@ export default function Dashboard(){
   const ringProgress=Math.max(0,Math.min(data.overallProgress,100));
   const selectedYear=year===''?Number.NaN:Number(year);
   const yearIsValid=Number.isInteger(selectedYear)&&selectedYear>=2000&&selectedYear<=2100;
+  const statusEntries=Object.entries(data.counts);
   const cards=[
     {label:'Tổng chỉ tiêu',value:data.total,meta:`Kế hoạch năm ${data.year}`,icon:Target,tone:'teal'},
     {label:'Đã hoàn thành',value:completed,meta:`${completedRate}% tổng chỉ tiêu`,icon:CheckCircle2,tone:'blue'},
@@ -91,45 +139,119 @@ export default function Dashboard(){
       </div>
     </div>
 
-    {error&&<div className="form-error" role="alert">{error}</div>}
+    {error&&<div className="form-error load-error" role="alert">
+      <span>{error}</span>
+      <button type="button" className="btn sm secondary" disabled={loading} onClick={()=>void load(yearIsValid?selectedYear:undefined)}>Thử lại</button>
+    </div>}
 
-    <div className="overview-banner">
-      <div>
-        <span>TIẾN ĐỘ CHUNG {isGlobal?'TOÀN PHƯỜNG':'CỦA ĐƠN VỊ'}</span>
-        <strong>{data.overallProgress}<small>%</small></strong>
-        <p>{data.overallProgress>=data.riskThreshold?'Tiến độ đang bám sát kế hoạch':'Cần ưu tiên các chỉ tiêu chậm tiến độ'}</p>
+    {/* Dải băng tổng quan: vòng tiến độ là tiêu điểm, con số tổng đứng ngay cạnh,
+        ba chỉ số nhịp độ và mốc dữ liệu tách sang cột phụ. */}
+    <section className="overview-banner" aria-label="Tiến độ chung">
+      <div className="ov-main">
+        <div key={data.year} className="ring grow" role="img" aria-label={`Tiến độ chung ${data.overallProgress}%`} style={{'--p':`${ringProgress*3.6}deg`} as React.CSSProperties}><span><CountUp value={data.overallProgress} suffix="%"/></span></div>
+        <div className="ov-lead">
+          <span className="eyebrow light">TIẾN ĐỘ CHUNG {isGlobal?'TOÀN PHƯỜNG':'CỦA ĐƠN VỊ'}</span>
+          <strong><CountUp value={data.overallProgress}/><small>%</small></strong>
+          <p>{data.overallProgress>=data.riskThreshold?'Tiến độ đang bám sát kế hoạch':'Cần ưu tiên các chỉ tiêu chậm tiến độ'}</p>
+        </div>
       </div>
-      <div className="ring" style={{'--p':`${ringProgress*3.6}deg`} as React.CSSProperties}><span>{data.overallProgress}%</span></div>
-      <div className="banner-stats">
-        <div><CheckCircle2/><span><b>{completed}</b> hoàn thành</span></div>
-        <div><Clock3/><span><b>{onTrack}</b> đúng tiến độ</span></div>
-        <div><CircleAlert/><span><b>{needsAttention}</b> cần xử lý</span></div>
+      <div className="ov-side">
+        <div className="banner-stats">
+          <div><CheckCircle2 aria-hidden="true"/><span><b><CountUp value={completed}/></b> hoàn thành</span></div>
+          <div><Clock3 aria-hidden="true"/><span><b><CountUp value={onTrack}/></b> đúng tiến độ</span></div>
+          <div><CircleAlert aria-hidden="true"/><span><b><CountUp value={needsAttention}/></b> cần xử lý</span></div>
+        </div>
+        <p className="banner-date"><CalendarDays aria-hidden="true"/><span>Dữ liệu cập nhật<br/><b>{new Date(data.updatedAt).toLocaleString('vi-VN')}</b></span></p>
       </div>
-      <div className="banner-date"><CalendarDays/><span>Dữ liệu cập nhật<br/><b>{new Date(data.updatedAt).toLocaleString('vi-VN')}</b></span></div>
-    </div>
+    </section>
 
-    <div className="stat-grid">{cards.map(({label,value,meta,icon:Icon,tone})=><div className="stat-card" key={label}><div className={`stat-icon ${tone}`}><Icon/></div><span>{label}</span><strong>{value}</strong><p>{meta}</p></div>)}</div>
+    <div className="stat-grid">{cards.map(({label,value,meta,icon:Icon,tone},index)=><Reveal key={label} index={index} asChild>
+      <div className="stat-card lift"><div className={`stat-icon ${tone}`} aria-hidden="true"><Icon/></div><span>{label}</span><strong><CountUp value={value}/></strong><p>{meta}</p></div>
+    </Reveal>)}</div>
 
     <div className="dashboard-grid">
-      <section className="panel span-2">
-        <div className="panel-head"><div><h3>{isGlobal?'Tiến độ theo phòng ban':'Tiến độ của đơn vị'}</h3><p>{isGlobal?'So sánh kết quả thực hiện giữa các đơn vị':`Các chỉ tiêu thuộc ${scopeName}`}</p></div><Link to="/admin/departments">{isGlobal?'Xem cơ cấu':'Thông tin đơn vị'} <ChevronRight/></Link></div>
-        <div className="department-progress">{data.departments.length?data.departments.map(department=><div className="dep-row" key={department.id}><div className="dep-symbol" style={{background:`${department.color}18`,color:department.color}}><Building2/></div><div className="dep-info"><div><strong>{department.name}</strong><span>{department.completed}/{department.total} hoàn thành</span></div><div className="progress"><i style={{width:`${Math.min(department.progress,100)}%`,background:department.color}}/></div></div><b>{department.progress}%</b></div>):<p>Chưa có chỉ tiêu trong năm đã chọn.</p>}</div>
+      <Reveal asChild index={0}>
+      <section className="panel span-2 dash-dept">
+        <div className="panel-head">
+          <div>
+            <h3>{isGlobal?'Tiến độ theo phòng ban':'Tiến độ của đơn vị'}</h3>
+            <p>{isGlobal?'So sánh kết quả thực hiện giữa các đơn vị':`Các chỉ tiêu thuộc ${scopeName}`}</p>
+          </div>
+          <Link to="/admin/departments">{isGlobal?'Xem cơ cấu':'Thông tin đơn vị'} <ChevronRight/></Link>
+        </div>
+        {data.departments.length
+          ? <div className="department-progress">{data.departments.map(department=><div className="dep-row" key={department.id}>
+              <span className="dep-symbol" style={{background:`${department.color}18`,color:department.color}} aria-hidden="true"><Building2/></span>
+              <div className="dep-info">
+                <div className="dep-line">
+                  <strong>{department.name}</strong>
+                  <span>{department.completed}/{department.total} hoàn thành</span>
+                </div>
+                <div className="progress"><i style={{width:`${Math.min(department.progress,100)}%`,background:department.color}}/></div>
+              </div>
+              <b className="dep-pct">{department.progress}%</b>
+            </div>)}</div>
+          : <Empty showIcon={false} title="Chưa có chỉ tiêu trong năm đã chọn" description={`Hãy chọn năm kế hoạch khác hoặc đặt chỉ tiêu cho ${scopeName}.`}/>}
       </section>
+      </Reveal>
 
+      <Reveal asChild index={1}>
       <section className="panel alert-panel">
-        <div className="panel-head"><div><h3>Cần chú ý</h3><p>Ưu tiên xử lý sớm</p></div><span className="alert-count">{data.alerts.length}</span></div>
-        <div className="alerts">{data.alerts.length?data.alerts.map(target=><Link to={`/admin/targets?year=${data.year}&search=${encodeURIComponent(target.code)}`} key={target.id}><div className={`alert-dot ${target.status==='OVERDUE'?'danger':''}`}><AlertTriangle/></div><div><strong>{target.title}</strong><span>{target.department.name} · Hạn {new Date(target.dueDate).toLocaleDateString('vi-VN')}</span></div><ChevronRight/></Link>):<p>Không có chỉ tiêu cần cảnh báo.</p>}</div>
+        <div className="panel-head">
+          <div><h3>Cần chú ý</h3><p>Ưu tiên xử lý sớm</p></div>
+          <span className="alert-count" aria-label={`${data.alerts.length} chỉ tiêu cần chú ý`}>{data.alerts.length}</span>
+        </div>
+        {data.alerts.length
+          ? <div className="alerts">{data.alerts.map(target=><Link className={`alert-item${target.status==='OVERDUE'?' urgent':''}`} to={`/admin/targets?year=${data.year}&search=${encodeURIComponent(target.code)}`} key={target.id}>
+              <span className={`alert-dot ${target.status==='OVERDUE'?'danger':''}`} aria-hidden="true"><AlertTriangle/></span>
+              <span className="alert-body">
+                <strong>{target.title}</strong>
+                <span className="alert-meta"><span className="code">{target.code}</span><span>{target.department.name}</span></span>
+              </span>
+              <span className="alert-side">
+                <span className={`status ${statusMeta[target.status]?.color||'warn'}`}>{statusMeta[target.status]?.label||target.status}</span>
+                <time dateTime={target.dueDate}>Hạn {new Date(target.dueDate).toLocaleDateString('vi-VN')}</time>
+              </span>
+              <ChevronRight aria-hidden="true"/>
+            </Link>)}</div>
+          : <Empty showIcon={false} title="Không có chỉ tiêu cần cảnh báo" description="Mọi chỉ tiêu trong phạm vi này đều chưa chạm ngưỡng rủi ro."/>}
       </section>
+      </Reveal>
 
-      <section className="panel span-2">
+      <Reveal asChild index={2}>
+      <section className="panel span-2 dash-timeline">
         <div className="panel-head"><div><h3>Cập nhật gần đây</h3><p>Dữ liệu mới nhất trong phạm vi {scopeName}</p></div></div>
-        <div className="timeline">{data.recent.length?data.recent.map(update=><div className="timeline-row" key={update.id}><div className="timeline-mark"/><div><strong>{update.target.code} · {update.target.title}</strong><span>{update.user.fullName} cập nhật <b>{update.value.toLocaleString('vi-VN')} {update.target.unit}</b></span></div><time>{new Date(update.createdAt).toLocaleDateString('vi-VN')}</time></div>):<p>Chưa có cập nhật mới.</p>}</div>
+        {data.recent.length
+          ? <div className="timeline">{data.recent.map(update=><div className="timeline-row" key={update.id}>
+              <span className="timeline-mark" aria-hidden="true"/>
+              <div className="timeline-body">
+                <strong><span className="code">{update.target.code}</span><span>{update.target.title}</span></strong>
+                <span>{update.user.fullName} cập nhật <b>{update.value.toLocaleString('vi-VN')} {update.target.unit}</b></span>
+              </div>
+              <time dateTime={update.createdAt}>{new Date(update.createdAt).toLocaleDateString('vi-VN')}</time>
+            </div>)}</div>
+          : <Empty showIcon={false} title="Chưa có cập nhật mới" description={`Các lần báo cáo số liệu của ${scopeName} sẽ hiện tại đây.`}/>}
       </section>
+      </Reveal>
 
-      <section className="panel">
+      <Reveal asChild index={3}>
+      <section className="panel dash-stack">
         <div className="panel-head"><div><h3>Cơ cấu trạng thái</h3><p>{data.total} chỉ tiêu đang theo dõi</p></div></div>
-        <div className="status-stack"><div className="stack-bar">{Object.entries(data.counts).map(([key,count])=><i key={key} className={statusMeta[key]?.color} style={{width:`${data.total?count/data.total*100:0}%`}} title={statusMeta[key]?.label}/>)}</div>{Object.entries(data.counts).map(([key,count])=><div className="stack-label" key={key}><span><i className={statusMeta[key]?.color}/>{statusMeta[key]?.label||key}</span><b>{count}</b></div>)}</div>
+        {data.total
+          ? <div className="status-stack">
+              <div className="stack-bar" role="img" aria-label="Tỷ trọng chỉ tiêu theo trạng thái">
+                {statusEntries.map(([key,count])=><i key={key} className={statusMeta[key]?.color||'neutral'} style={{width:`${data.total?count/data.total*100:0}%`}} title={statusMeta[key]?.label}/>)}
+              </div>
+              <ul className="stack-legend">
+                {statusEntries.map(([key,count])=><li className="stack-label" key={key}>
+                  <span><i className={statusMeta[key]?.color||'neutral'} aria-hidden="true"/>{statusMeta[key]?.label||key}</span>
+                  <b>{count}</b>
+                </li>)}
+              </ul>
+            </div>
+          : <Empty showIcon={false} title="Chưa có chỉ tiêu để phân loại" description="Cơ cấu trạng thái sẽ hiện khi năm kế hoạch đã có chỉ tiêu."/>}
       </section>
+      </Reveal>
     </div>
   </>;
 }

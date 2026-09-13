@@ -26,7 +26,7 @@ import type {
   SourceDocumentDetail,
 } from '../types';
 import { documentTypeLabels } from '../types';
-import '../documents.css';
+import '../styles/documents.css';
 
 type CandidateForm = {
   name: string;

@@ -1,0 +1,464 @@
+/* ============================================================================
+   IOC Lái Thiêu — Hồ sơ cá nhân và bảo mật
+   Hai cột: thẻ nhận dạng (ai đang đăng nhập, phạm vi tới đâu) và thẻ đổi mật khẩu.
+   ========================================================================== */
+
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+/* ============================================================================
+   1. THẺ NHẬN DẠNG
+   ========================================================================== */
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.profile-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(140deg, var(--brand-500), var(--brand-800));
+  color: #fff;
+  flex: none;
+}
+
+.profile-avatar svg {
+  width: 27px;
+  height: 27px;
+}
+
+.profile-identity > div:not(.profile-avatar) {
+  min-width: 0;
+}
+
+.profile-identity span {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-subtle);
+}
+
+.profile-identity h3 {
+  margin: var(--sp-1) 0 2px;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+}
+
+.profile-identity p {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+/* Nhãn trạng thái tài khoản — dùng cả chữ, không chỉ dựa vào màu. */
+.profile-identity > i {
+  grid-column: 1 / -1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-pill);
+  background: var(--bg-inset);
+  font-size: var(--fs-micro);
+  font-style: normal;
+  font-weight: 700;
+  color: var(--tx-muted);
+}
+
+.profile-identity > i::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.profile-identity > i.active {
+  border-color: var(--bd-ok);
+  background: var(--bg-ok-soft);
+  color: var(--tx-ok);
+}
+
+.profile-identity > i.inactive {
+  border-color: var(--bd-bad);
+  background: var(--bg-bad-soft);
+  color: var(--tx-bad);
+}
+
+/* ---- Danh sách thuộc tính ---- */
+.profile-details {
+  display: grid;
+  gap: var(--sp-4);
+  margin: 0;
+}
+
+.profile-details > div {
+  display: grid;
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-4);
+}
+
+.profile-details dt {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+}
+
+.profile-details dt svg {
+  width: 16px;
+  height: 16px;
+  color: var(--tx-subtle);
+}
+
+.profile-details dd {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--tx-strong);
+  overflow-wrap: anywhere;
+}
+
+.profile-details dd small {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--tx-muted);
+}
+
+.profile-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.profile-note svg {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: var(--tx-subtle);
+  flex: none;
+}
+
+.profile-note p {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   2. THẺ BẢO MẬT
+   ========================================================================== */
+.security-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.security-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.security-heading > div:first-child {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+  flex: none;
+}
+
+.security-heading > div:first-child svg {
+  width: 21px;
+  height: 21px;
+}
+
+.security-heading h3 {
+  font-size: var(--fs-lg);
+}
+
+.security-heading p {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Thông báo trong thẻ bảo mật dùng chung dáng với `.notice` toàn cục. */
+.notice.error {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+  border-left-color: var(--bg-bad);
+  color: var(--tx-bad);
+  font-weight: 500;
+}
+
+.notice.success {
+  background: var(--bg-ok-soft);
+  border-color: var(--bd-ok);
+  border-left-color: var(--bg-ok);
+  color: var(--tx-ok);
+  font-weight: 500;
+}
+
+/* ---- Biểu mẫu đổi mật khẩu ---- */
+.profile-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.profile-password-form > label {
+  margin-top: var(--sp-3);
+}
+
+.profile-password-form > label:first-child {
+  margin-top: 0;
+}
+
+.profile-password-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.profile-password-input > svg {
+  position: absolute;
+  left: var(--sp-3);
+  width: 17px;
+  height: 17px;
+  color: var(--tx-subtle);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.profile-password-input input {
+  padding-left: var(--sp-9);
+  padding-right: var(--sp-9);
+}
+
+.profile-password-input button {
+  position: absolute;
+  right: var(--sp-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-xs);
+  color: var(--tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.profile-password-input button:hover {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.profile-password-input button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.profile-password-input.valid input {
+  border-color: var(--bg-ok);
+}
+
+.profile-password-input.invalid input {
+  border-color: var(--bg-bad);
+}
+
+/* ---- Danh sách yêu cầu mật khẩu ----
+   Cập nhật ngay khi gõ. Mỗi mục dùng cả biểu tượng lẫn màu, để người không phân
+   biệt được màu vẫn biết mục nào đã đạt. */
+.password-requirements {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-2) var(--sp-4);
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+  list-style: none;
+}
+
+.password-requirements li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--tx-muted);
+  transition: color var(--t-base) var(--ease-out);
+}
+
+.password-requirements li svg {
+  width: 15px;
+  height: 15px;
+  padding: 2px;
+  border: 1px solid var(--bd-normal);
+  border-radius: 50%;
+  color: transparent;
+  flex: none;
+  transition: background-color var(--t-base) var(--ease-out), border-color var(--t-base) var(--ease-out),
+    color var(--t-base) var(--ease-out);
+}
+
+.password-requirements li.met {
+  color: var(--tx-ok);
+  font-weight: 600;
+}
+
+.password-requirements li.met svg {
+  border-color: var(--bg-ok);
+  background: var(--bg-ok);
+  color: #fff;
+}
+
+.match-message {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.match-message.valid {
+  color: var(--tx-ok);
+}
+
+.match-message.invalid {
+  color: var(--tx-bad);
+}
+
+.profile-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+}
+
+.profile-form-actions > span {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.profile-form-actions > span svg {
+  width: 15px;
+  height: 15px;
+  color: var(--tx-subtle);
+}
+
+.profile-form-actions .btn {
+  min-width: 170px;
+}
+
+/* ============================================================================
+   3. TRẠNG THÁI KHÔNG ĐỌC ĐƯỢC HỒ SƠ
+   ========================================================================== */
+.profile-unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-2);
+  padding: var(--sp-10) var(--sp-5);
+}
+
+.profile-unavailable > svg {
+  width: 48px;
+  height: 48px;
+  padding: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border-radius: 50%;
+  background: var(--bg-warn-soft);
+  color: var(--tx-warn);
+}
+
+.profile-unavailable h3 {
+  font-size: var(--fs-lg);
+}
+
+.profile-unavailable p {
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   4. MÀN HÌNH HẸP
+   ========================================================================== */
+@media (max-width: 1080px) {
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .profile-details > div {
+    grid-template-columns: 1fr;
+    gap: var(--sp-1);
+  }
+
+  .profile-form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-form-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .password-requirements li,
+  .password-requirements li svg {
+    transition: none;
+  }
+}
+
+/* Khung bao của cả màn hình hồ sơ. */
+.profile-page {
+  display: flex;
+  flex-direction: column;
+}

@@ -1,8 +1,11 @@
 import {
+  AlertTriangle,
   Download,
   Eye,
   FileText,
+  RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
   UploadCloud,
   X,
@@ -11,10 +14,11 @@ import { useEffect, useRef, useState, type DragEvent, type FormEvent, type Keybo
 import { Link } from 'react-router-dom';
 import { api, auth, downloadApi } from '../api';
 import { ADMIN_ROLES, DOCUMENT_ROLES, hasAnyRole } from '../authz';
-import { Empty, Modal, PageHead, Spinner } from '../components/UI';
+import { Empty, Modal, PageHead, SkeletonTable } from '../components/UI';
+import { toast } from '../components/Toast';
 import type { Department, DocumentStatus, DocumentType, SourceDocument } from '../types';
 import { documentTypeLabels } from '../types';
-import '../documents.css';
+import '../styles/documents.css';
 
 type UploadForm = {
   title: string;
@@ -56,11 +60,13 @@ function saveBlob(blob: Blob, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Tông màu lấy từ hệ thống thiết kế: chờ xử lý = trung tính, đang chạy = thông tin,
+ *  xong = tốt, lỗi = xấu. Không dùng màu thương hiệu để nói về trạng thái dữ liệu. */
 function statusMeta(status: DocumentStatus) {
-  if (status === 'UPLOADED') return { label: 'Chờ xử lý', tone: 'slate' };
-  if (status === 'PROCESSING') return { label: 'Đang xử lý', tone: 'blue' };
-  if (status === 'PROCESSED') return { label: 'Đã xử lý', tone: 'green' };
-  return { label: 'Lỗi', tone: 'red' };
+  if (status === 'UPLOADED') return { label: 'Chờ xử lý', tone: 'neutral' };
+  if (status === 'PROCESSING') return { label: 'Đang xử lý', tone: 'info' };
+  if (status === 'PROCESSED') return { label: 'Đã xử lý', tone: 'ok' };
+  return { label: 'Lỗi', tone: 'bad' };
 }
 
 export default function Documents() {
@@ -71,7 +77,6 @@ export default function Documents() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -122,6 +127,7 @@ export default function Documents() {
   }, []);
 
   const hasActiveDocuments = documents.some(item => item.status === 'UPLOADED' || item.status === 'PROCESSING');
+  const hasFilters = Boolean(search.trim() || status || departmentId);
 
   useEffect(() => {
     if (!hasActiveDocuments) return;
@@ -143,6 +149,12 @@ export default function Documents() {
     setModal('upload');
   }
 
+  function clearFilters() {
+    setSearch('');
+    setStatus('');
+    setDepartmentId('');
+  }
+
   function pick(files: FileList | null) {
     const selected = files?.[0];
     setError('');
@@ -162,6 +174,7 @@ export default function Documents() {
   }
 
   function openFilePicker() {
+    if (submitting) return;
     if (!input.current) return;
     input.current.value = '';
     input.current.click();
@@ -196,10 +209,14 @@ export default function Documents() {
       setModal(null);
       setFile(null);
       setUploadForm(emptyUploadForm);
-      setNotice(`Đã tải lên văn bản ${created.code}. Hệ thống đang xử lý và sẽ đề xuất chỉ tiêu sau khi đọc xong tài liệu.`);
+      toast.ok(
+        `Đã tải lên văn bản ${created.code}`,
+        'Hệ thống đang xử lý và sẽ đề xuất chỉ tiêu sau khi đọc xong tài liệu.',
+      );
       await load();
     } catch (reason) {
       setError(messageOf(reason));
+      toast.error('Không thể tải văn bản lên', messageOf(reason));
     } finally {
       setSubmitting(false);
     }
@@ -211,8 +228,10 @@ export default function Documents() {
     try {
       const blob = await downloadApi(`/documents/${item.id}/download`);
       saveBlob(blob, item.originalName);
+      toast.ok(`Đã tải xuống tệp gốc của văn bản ${item.code}`);
     } catch (reason) {
       setLoadError(messageOf(reason));
+      toast.error('Không thể tải xuống tệp gốc', messageOf(reason));
     } finally {
       setActionId('');
     }
@@ -231,11 +250,12 @@ export default function Documents() {
     try {
       await api(`/documents/${deleteTarget.id}`, { method: 'DELETE' });
       setModal(null);
-      setNotice(`Đã xóa văn bản ${deleteTarget.code} khỏi kho lưu trữ.`);
+      toast.ok(`Đã xóa văn bản ${deleteTarget.code} khỏi kho lưu trữ`);
       setDeleteTarget(null);
       await load();
     } catch (reason) {
       setError(messageOf(reason));
+      toast.error('Không thể xóa văn bản', messageOf(reason));
     } finally {
       setSubmitting(false);
     }
@@ -249,80 +269,127 @@ export default function Documents() {
       actions={canUpload && <button className="btn primary document-upload-action" onClick={openUpload}><UploadCloud />Tải văn bản</button>}
     />
 
-    {notice && <div className="notice success" role="status">{notice}<button aria-label="Đóng thông báo" onClick={() => setNotice('')}><X /></button></div>}
-    {loadError && <div className="notice error" role="alert">{loadError}<button onClick={() => void load()}>Thử lại</button></div>}
+    {loadError && <div className="alert bad doc-alert" role="alert">
+      <AlertTriangle aria-hidden="true" />
+      <p>{loadError}</p>
+      <button type="button" className="doc-alert-action" onClick={() => void load()}><RotateCcw />Thử lại</button>
+    </div>}
 
-    <div className="toolbar">
-      <div className="search"><Search /><input aria-label="Tìm văn bản theo mã, tiêu đề hoặc số hiệu" value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm theo mã, tiêu đề hoặc số văn bản..." />{search && <button onClick={() => setSearch('')} aria-label="Xóa tìm kiếm"><X /></button>}</div>
-      <select value={status} onChange={event => setStatus(event.target.value)} aria-label="Trạng thái xử lý">
-        <option value="">Tất cả trạng thái</option>
-        <option value="UPLOADED">Chờ xử lý</option>
-        <option value="PROCESSING">Đang xử lý</option>
-        <option value="PROCESSED">Đã xử lý</option>
-        <option value="FAILED">Lỗi</option>
-      </select>
-      <select value={departmentId} onChange={event => setDepartmentId(event.target.value)} aria-label="Phòng ban">
-        <option value="">Tất cả phòng ban</option>
-        {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
-      </select>
-    </div>
-
-    <div className="table-card">
-      <div className="table-summary">
-        <span>Hiển thị <b>{documents.length}</b> văn bản trong kho</span>
-        {hasActiveDocuments && <span className="muted">Đang tự động cập nhật trạng thái xử lý...</span>}
+    <section className="panel doc-filters" aria-label="Bộ lọc kho văn bản">
+      <div className="search">
+        <Search aria-hidden="true" />
+        <input
+          aria-label="Tìm văn bản theo mã, tiêu đề hoặc số hiệu"
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+          placeholder="Tìm theo mã, tiêu đề hoặc số văn bản..."
+        />
+        {search && <button type="button" onClick={() => setSearch('')} aria-label="Xóa tìm kiếm"><X /></button>}
       </div>
-      {loading ? <Spinner /> : documents.length ? <div className="table-wrap"><table className="action-table">
-        <thead><tr><th>Mã</th><th>Tiêu đề</th><th>Loại</th><th>Trạng thái</th><th>Trang</th><th>AI đề xuất</th><th>Người tải</th><th>Thời điểm</th><th>Thao tác</th></tr></thead>
-        <tbody>{documents.map(item => {
-          const meta = statusMeta(item.status);
-          return <tr key={item.id}>
-            <td><span className="code">{item.code}</span></td>
-            <td className="doc-title-cell">
-              <strong>{item.title}</strong>
-              {item.docNumber && <small className="doc-subline">Số {item.docNumber}{item.issuedBy ? ` · ${item.issuedBy}` : ''}</small>}
-              {item.status === 'FAILED' && item.processingError && <small className="doc-error-line">{item.processingError}</small>}
-            </td>
-            <td>{documentTypeLabels[item.docType]}</td>
-            <td><span className={`status ${meta.tone}`}><i />{meta.label}</span></td>
-            <td className="number">{item.pageCount ?? '—'}</td>
-            <td>{item.candidateCount > 0
-              ? <Link className="doc-count-link" to={`/admin/documents/${item.id}`}><FileText />{item.candidateCount} đề xuất</Link>
-              : <span className="doc-count-muted">Chưa có</span>}</td>
-            <td>{item.uploadedBy.fullName}</td>
-            <td>{new Date(item.createdAt).toLocaleString('vi-VN')}</td>
-            <td><div className="doc-actions">
-              <Link className="btn secondary compact" to={`/admin/documents/${item.id}`}><Eye />Xem</Link>
-              <button type="button" className="btn secondary compact" disabled={actionId === `download:${item.id}`} onClick={() => void download(item)}><Download />{actionId === `download:${item.id}` ? 'Đang tải...' : 'Tải xuống'}</button>
-              {isAdmin && <button type="button" className="btn secondary compact" disabled={Boolean(actionId)} onClick={() => openDelete(item)}><Trash2 />Xóa</button>}
-            </div></td>
-          </tr>;
-        })}</tbody>
-      </table></div> : <Empty title="Chưa có văn bản nào" description="Tải lên kế hoạch, quyết định hoặc báo cáo để hệ thống tự động đề xuất chỉ tiêu." />}
-    </div>
+      <label className="doc-filter">
+        <span>Trạng thái xử lý</span>
+        <select value={status} onChange={event => setStatus(event.target.value)}>
+          <option value="">Tất cả trạng thái</option>
+          <option value="UPLOADED">Chờ xử lý</option>
+          <option value="PROCESSING">Đang xử lý</option>
+          <option value="PROCESSED">Đã xử lý</option>
+          <option value="FAILED">Lỗi</option>
+        </select>
+      </label>
+      <label className="doc-filter">
+        <span>Phòng ban</span>
+        <select value={departmentId} onChange={event => setDepartmentId(event.target.value)}>
+          <option value="">Tất cả phòng ban</option>
+          {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
+        </select>
+      </label>
+      {hasFilters && <button type="button" className="btn ghost compact doc-filter-clear" onClick={clearFilters}><X />Bỏ lọc</button>}
+    </section>
+
+    {loading ? <SkeletonTable rows={6} /> : <div className="panel flush">
+      {documents.length ? <>
+        <div className="table-wrap">
+          <table className="action-table doc-table">
+            <thead><tr>
+              <th>Văn bản</th>
+              <th>Loại</th>
+              <th>Trạng thái</th>
+              <th>AI đề xuất</th>
+              <th>Tải lên</th>
+              <th>Thao tác</th>
+            </tr></thead>
+            <tbody>{documents.map(item => {
+              const meta = statusMeta(item.status);
+              return <tr key={item.id}>
+                <td className="doc-cell-title" data-label="Văn bản">
+                  <span className="code">{item.code}</span>
+                  <strong>{item.title}</strong>
+                  {item.docNumber && <small className="doc-subline">Số {item.docNumber}{item.issuedBy ? ` · ${item.issuedBy}` : ''}</small>}
+                  {item.status === 'FAILED' && item.processingError && <small className="doc-error-line">{item.processingError}</small>}
+                </td>
+                <td data-label="Loại">{documentTypeLabels[item.docType]}</td>
+                <td className="doc-cell-state" data-label="Trạng thái">
+                  <span className={`status ${meta.tone}`}>{meta.label}</span>
+                  <small className="doc-subline doc-num">{item.pageCount != null ? `${item.pageCount} trang` : '—'}</small>
+                </td>
+                <td data-label="AI đề xuất">{item.candidateCount > 0
+                  ? <Link className="doc-count-link" to={`/admin/documents/${item.id}`}><FileText />{item.candidateCount} đề xuất</Link>
+                  : <span className="doc-count-muted">Chưa có</span>}</td>
+                <td className="doc-cell-upload" data-label="Tải lên">
+                  <strong>{item.uploadedBy.fullName}</strong>
+                  <small className="doc-subline">{new Date(item.createdAt).toLocaleString('vi-VN')}</small>
+                </td>
+                <td className="doc-cell-actions" data-label="Thao tác">
+                  <div className="doc-actions">
+                    <Link className="row-action" to={`/admin/documents/${item.id}`} aria-label={`Xem văn bản ${item.code}`} data-tooltip="Xem & xác minh"><Eye /></Link>
+                    <button type="button" className="row-action" disabled={actionId === `download:${item.id}`} onClick={() => void download(item)} aria-label={`Tải xuống văn bản ${item.code}`} data-tooltip={actionId === `download:${item.id}` ? 'Đang tải…' : 'Tải xuống'}><Download /></button>
+                    {isAdmin && <button type="button" className="row-action danger" disabled={Boolean(actionId)} onClick={() => openDelete(item)} aria-label={`Xóa văn bản ${item.code}`} data-tooltip="Xóa văn bản"><Trash2 /></button>}
+                  </div>
+                </td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>
+        <div className="table-summary">
+          <span>Hiển thị <b>{documents.length}</b> văn bản trong kho</span>
+          {hasActiveDocuments && <span className="doc-live"><i aria-hidden="true" />Đang tự động cập nhật trạng thái xử lý...</span>}
+        </div>
+      </> : <Empty
+        title={hasFilters ? 'Không có văn bản nào khớp bộ lọc' : 'Chưa có văn bản nào'}
+        description={hasFilters
+          ? 'Thử nới rộng từ khóa tìm kiếm, hoặc bỏ bớt điều kiện trạng thái và phòng ban.'
+          : 'Tải lên kế hoạch, quyết định hoặc báo cáo để hệ thống tự động đề xuất chỉ tiêu.'}
+        action={hasFilters
+          ? <button type="button" className="btn secondary" onClick={clearFilters}><X />Bỏ lọc</button>
+          : canUpload ? <button type="button" className="btn primary" onClick={openUpload}><UploadCloud />Tải văn bản</button> : undefined}
+      />}
+    </div>}
 
     {modal === 'upload' && canUpload && <Modal title="Tải văn bản vào kho" onClose={closeModal} wide>
-      <form className="form-grid" onSubmit={submitUpload}>
+      <form className="form-grid two" onSubmit={submitUpload}>
         {error && <div className="form-error full" role="alert">{error}</div>}
         <div className="full">
           <div
-            className={`dropzone ${drag ? 'drag' : ''}`}
+            className={`dropzone${drag ? ' drag' : ''}${submitting ? ' disabled' : ''}`}
             role="button"
             tabIndex={0}
+            aria-disabled={submitting || undefined}
             aria-label={file ? `Đã chọn ${file.name}. Nhấn Enter để chọn tệp khác.` : 'Chọn tệp văn bản để tải lên'}
-            onDragOver={(event: DragEvent) => { event.preventDefault(); setDrag(true); }}
+            onDragOver={(event: DragEvent) => { event.preventDefault(); if (!submitting) setDrag(true); }}
             onDragLeave={() => setDrag(false)}
-            onDrop={(event: DragEvent) => { event.preventDefault(); setDrag(false); pick(event.dataTransfer.files); }}
+            onDrop={(event: DragEvent) => { event.preventDefault(); setDrag(false); if (!submitting) pick(event.dataTransfer.files); }}
             onClick={openFilePicker}
             onKeyDown={handleDropzoneKey}
           >
             <input ref={input} type="file" accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" hidden onChange={event => pick(event.target.files)} />
-            <div className="upload-icon"><UploadCloud /></div>
+            <div className="upload-icon" aria-hidden="true"><UploadCloud /></div>
             {file
               ? <><strong>{file.name}</strong><span>{(file.size / 1024).toFixed(1)} KB · Nhấn để chọn tệp khác</span></>
               : <><strong>Kéo thả văn bản vào đây</strong><span>hoặc <b>chọn tệp từ máy tính</b> · PDF, DOCX, XLSX, PNG, JPG, WEBP · Tối đa 25MB</span></>}
           </div>
         </div>
+
+        <h4 className="full">Thông tin văn bản</h4>
         <label className="full">Tiêu đề<input maxLength={300} value={uploadForm.title} onChange={event => setUploadForm({ ...uploadForm, title: event.target.value })} placeholder="Để trống để hệ thống tự đặt theo tên tệp" /></label>
         <label>Loại văn bản<select value={uploadForm.docType} onChange={event => setUploadForm({ ...uploadForm, docType: event.target.value as UploadForm['docType'] })}>
           <option value="">— Tự nhận diện —</option>
@@ -331,13 +398,16 @@ export default function Documents() {
         <label>Số văn bản<input maxLength={100} value={uploadForm.docNumber} onChange={event => setUploadForm({ ...uploadForm, docNumber: event.target.value })} placeholder="VD: 15/KH-UBND" /></label>
         <label>Cơ quan ban hành<input maxLength={200} value={uploadForm.issuedBy} onChange={event => setUploadForm({ ...uploadForm, issuedBy: event.target.value })} /></label>
         <label>Ngày ban hành<input type="date" value={uploadForm.issuedDate} onChange={event => setUploadForm({ ...uploadForm, issuedDate: event.target.value })} /></label>
+
+        <h4 className="full">Phạm vi áp dụng</h4>
         <label>Năm kế hoạch<input type="number" min="2000" max="2100" value={uploadForm.year} onChange={event => setUploadForm({ ...uploadForm, year: event.target.value })} /></label>
         <label>Phòng ban<select value={uploadForm.departmentId} onChange={event => setUploadForm({ ...uploadForm, departmentId: event.target.value })}>
           <option value="">— Không gắn phòng ban —</option>
           {departments.filter(department => department.isActive).map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
         </select></label>
         <label className="full">Mô tả<textarea maxLength={2000} value={uploadForm.description} onChange={event => setUploadForm({ ...uploadForm, description: event.target.value })} placeholder="Bối cảnh hoặc phạm vi áp dụng của văn bản..." /></label>
-        <div className="permission-note full"><FileText /><div><strong>Hệ thống chỉ đề xuất, con người quyết định</strong><p>Sau khi tải lên, hệ thống tự động đọc văn bản và trích xuất các chỉ tiêu ứng viên. Không có dữ liệu chính thức nào được tạo ra cho đến khi cán bộ có thẩm quyền xác minh và duyệt từng đề xuất.</p></div></div>
+
+        <div className="info-box full"><ShieldCheck aria-hidden="true" /><div><strong>Hệ thống chỉ đề xuất, con người quyết định</strong><p>Sau khi tải lên, hệ thống tự động đọc văn bản và trích xuất các chỉ tiêu ứng viên. Không có dữ liệu chính thức nào được tạo ra cho đến khi cán bộ có thẩm quyền xác minh và duyệt từng đề xuất.</p></div></div>
         <div className="modal-actions full">
           <button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button>
           <button className="btn primary" disabled={submitting || !file}>{submitting ? 'Đang tải lên...' : 'Tải lên và xử lý'}</button>
@@ -346,10 +416,14 @@ export default function Documents() {
     </Modal>}
 
     {modal === 'delete' && deleteTarget && <Modal title={`Xóa văn bản ${deleteTarget.code}`} onClose={closeModal}>
-      <div className="form-grid single">
+      <div className="form-grid">
         {error && <div className="form-error full" role="alert">{error}</div>}
-        <div className="target-preview"><span>{deleteTarget.code}</span><strong>{deleteTarget.title}</strong><p>{documentTypeLabels[deleteTarget.docType]} · Tải lên {new Date(deleteTarget.createdAt).toLocaleString('vi-VN')} bởi {deleteTarget.uploadedBy.fullName}</p></div>
-        <div className="permission-note warning"><Trash2 /><div><strong>Thao tác không thể hoàn tác</strong><p>Văn bản, nội dung đã số hóa và các đề xuất chưa duyệt sẽ bị xóa vĩnh viễn. Văn bản đã có đề xuất được duyệt không thể xóa để bảo toàn căn cứ của chỉ tiêu.</p></div></div>
+        <div className="doc-preview">
+          <span className="code">{deleteTarget.code}</span>
+          <strong>{deleteTarget.title}</strong>
+          <p>{documentTypeLabels[deleteTarget.docType]} · Tải lên {new Date(deleteTarget.createdAt).toLocaleString('vi-VN')} bởi {deleteTarget.uploadedBy.fullName}</p>
+        </div>
+        <div className="notice warn"><Trash2 aria-hidden="true" /><div><strong>Thao tác không thể hoàn tác</strong><p>Văn bản, nội dung đã số hóa và các đề xuất chưa duyệt sẽ bị xóa vĩnh viễn. Văn bản đã có đề xuất được duyệt không thể xóa để bảo toàn căn cứ của chỉ tiêu.</p></div></div>
         <div className="modal-actions full">
           <button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button>
           <button type="button" className="btn danger" disabled={submitting} onClick={() => void confirmDelete()}>{submitting ? 'Đang xóa...' : 'Xóa văn bản'}</button>

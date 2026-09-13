@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, auth } from '../api';
 import { currentVietnamYear } from '../date';
 import type { User } from '../types';
+import '../styles/auth.css';
 
 type LoginResponse={accessToken:string;user:User};
 

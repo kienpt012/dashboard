@@ -1,8 +1,9 @@
 import { BellRing, CalendarDays, CheckCircle2, Clock3, Gauge, MessageSquareText, Save } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, auth } from '../api';
-import { Empty, PageHead, Spinner } from '../components/UI';
+import { Empty, PageHead } from '../components/UI';
 import { currentVietnamYear } from '../date';
+import '../styles/org.css';
 
 type SystemSettings={
   id:string;
@@ -61,7 +62,7 @@ export default function Settings(){
 
   return <>
     <PageHead eyebrow="CẤU HÌNH" title="Thiết lập hệ thống" description="Các thông số dưới đây được dùng trực tiếp khi tổng hợp tiến độ và phát sinh cảnh báo."/>
-    {loading?<Spinner/>:!settings?<section className="panel settings-load-error" role="alert">
+    {loading?<div className="settings-grid" role="status" aria-label="Đang tải thiết lập">{Array.from({length:6},(_,index)=><div key={index} className="skeleton" style={{height:190,borderRadius:'var(--r-lg)'}}/>)}</div>:!settings?<section className="panel settings-load-error" role="alert">
       <div className="form-error">{error||'Không thể tải thiết lập hệ thống.'}</div>
       <p className="muted">Hệ thống đã khóa biểu mẫu để tránh ghi đè bằng giá trị mặc định khi dữ liệu chưa tải đủ.</p>
       <button type="button" className="btn secondary" onClick={()=>void load()}>Thử tải lại</button>

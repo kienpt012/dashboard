@@ -64,7 +64,16 @@ export type User={
 export type DataScope={kind:ScopeKind;departmentId?:string;departmentName?:string};
 export type ScopedResponse<T>={data:T;scope:DataScope};
 export type AuthMeResponse=User|{user:User;scope?:DataScope};
-export const statusMeta:Record<string,{label:string;color:string}>={NOT_STARTED:{label:'Chưa bắt đầu',color:'slate'},ON_TRACK:{label:'Đúng tiến độ',color:'green'},AT_RISK:{label:'Có rủi ro',color:'amber'},OVERDUE:{label:'Quá hạn',color:'red'},COMPLETED:{label:'Hoàn thành',color:'blue'}};
+/** Nhãn và tông màu của trạng thái chỉ tiêu.
+ *  `color` là tên tông trong hệ thống thiết kế (xem styles/README.md), dùng trực tiếp
+ *  làm lớp cho `.badge` / `.status`: neutral | ok | warn | bad | info. */
+export const statusMeta:Record<string,{label:string;color:string}>={
+  NOT_STARTED:{label:'Chưa bắt đầu',color:'neutral'},
+  ON_TRACK:{label:'Đúng tiến độ',color:'ok'},
+  AT_RISK:{label:'Có rủi ro',color:'warn'},
+  OVERDUE:{label:'Quá hạn',color:'bad'},
+  COMPLETED:{label:'Hoàn thành',color:'info'},
+};
 
 export type FeedbackCategory=
   |'INFRASTRUCTURE'

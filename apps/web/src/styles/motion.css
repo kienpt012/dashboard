@@ -1,0 +1,249 @@
+/* ============================================================================
+   IOC Lái Thiêu — Lớp chuyển động
+   Nội dung hiện dần theo thao tác cuộn, số liệu đếm lên, thanh và vòng tiến độ
+   chạy tới giá trị của nó.
+
+   Ba nguyên tắc, vì đây là màn hình làm việc chứ không phải trang quảng cáo:
+   1. Mỗi phần tử chỉ hoạt hoạ MỘT LẦN. Cuộn lên cuộn xuống mà chữ cứ nhấp nháy
+      thì rất mệt mắt khi dùng cả ngày.
+   2. Chuyển động ngắn (400–600ms) và nhẹ (dịch 14px, không nảy, không xoay).
+   3. Người bật "giảm chuyển động" thì thấy ngay trạng thái cuối, không chờ gì cả.
+
+   DÙNG Ở ĐÂU — và cố ý KHÔNG dùng ở đâu:
+
+   ✔ Hiện dần theo cuộn: các mục nội dung và lưới thẻ của TRANG CÔNG KHAI, dải thẻ
+     số liệu và các bảng điều khiển ở màn hình tổng quan. Đây là chỗ người xem lướt
+     để lấy ấn tượng chung.
+   ✔ Số đếm lên: chỉ những con số TIÊU ĐIỂM đọc một lần — tiến độ chung, bốn thẻ
+     số liệu ở tổng quan, số liệu hero của trang công khai.
+   ✔ Thanh và vòng tiến độ chạy tới giá trị: đây là chuyển động MANG NGHĨA — bản
+     thân quãng chạy chính là con số, nên nó giúp hiểu chứ không chỉ để đẹp.
+   ✔ Tương tác nhỏ: nâng thẻ khi rê chuột, thông báo trượt vào, bảng trợ lý bật ra,
+     khung xương tải, chuyển cảnh giữa các màn hình.
+
+   ✘ KHÔNG đếm số trong ô bảng dữ liệu. Số trong bảng được đọc để đối chiếu chính
+     xác giữa các dòng; cho nó chạy làm chậm việc đọc, cản việc bôi đen sao chép, và
+     hai mươi dòng cùng chạy thì giật hình.
+   ✘ KHÔNG hiện dần từng dòng của bảng quản trị (chỉ tiêu, nhật ký, phản ánh). Cán
+     bộ cuộn nhanh qua vài trăm dòng để tìm một mục; dòng mờ dần làm giao diện có
+     cảm giác chậm và che mất nội dung. Lớp .scroll-rows chỉ dành cho danh sách
+     chỉ-để-đọc bên trang công khai.
+   ✘ KHÔNG parallax, không cuộn "bắt cóc", không hoạt hoạ lặp vô hạn ngoài chỉ báo
+     đang xử lý. Đây là cổng thông tin của cơ quan nhà nước.
+   ✘ KHÔNG cho số chạy lại sau khi người dùng vừa lưu một thay đổi — lúc đó cần thấy
+     giá trị mới ngay lập tức, kèm một nhịp nháy nền (.flash) để biết chỗ vừa đổi.
+   ========================================================================== */
+
+:root {
+  --reveal-shift: 14px;
+  --reveal-duration: 520ms;
+  --reveal-stagger: 55ms;
+}
+
+/* ============================================================================
+   1. HIỆN DẦN THEO CUỘN
+   Thành phần <Reveal> gắn lớp .reveal, và gắn thêm .in khi phần tử lọt vào tầm
+   nhìn. Trạng thái ẩn ban đầu chỉ được áp dụng khi JS đã chạy (thẻ <html> mang
+   lớp .has-motion) — nếu kịch bản hỏng, nội dung vẫn hiện bình thường.
+   ========================================================================== */
+.has-motion .reveal {
+  opacity: 0;
+  transform: translateY(var(--reveal-shift));
+  transition: opacity var(--reveal-duration) var(--ease-out),
+    transform var(--reveal-duration) var(--ease-out);
+  transition-delay: calc(var(--reveal-index, 0) * var(--reveal-stagger));
+  will-change: opacity, transform;
+}
+
+.has-motion .reveal.in {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+/* Biến thể hướng vào. */
+.has-motion .reveal.from-left {
+  transform: translateX(calc(var(--reveal-shift) * -1));
+}
+
+.has-motion .reveal.from-right {
+  transform: translateX(var(--reveal-shift));
+}
+
+.has-motion .reveal.zoom {
+  transform: scale(0.97);
+}
+
+.has-motion .reveal.fade {
+  transform: none;
+}
+
+.has-motion .reveal.in.from-left,
+.has-motion .reveal.in.from-right,
+.has-motion .reveal.in.zoom {
+  transform: none;
+}
+
+/* ============================================================================
+   2. HIỆN DẦN THEO CUỘN — BẢN GỐC CỦA TRÌNH DUYỆT
+   Trình duyệt hỗ trợ `animation-timeline: view()` sẽ neo tiến trình hoạt hoạ vào
+   vị trí cuộn thay vì đồng hồ: hàng bảng và ô lưới hiện đúng theo tốc độ cuộn
+   của người dùng. Trình duyệt chưa hỗ trợ thì bỏ qua, nội dung hiện ngay.
+   ========================================================================== */
+@supports (animation-timeline: view()) {
+  .has-motion .scroll-rows > tbody > tr,
+  .has-motion .scroll-grid > * {
+    animation: ioc-reveal-scroll linear both;
+    animation-timeline: view();
+    /* Bắt đầu khi phần tử còn cách mép dưới 12%, kết thúc khi đã vào hẳn 22%. */
+    animation-range: entry 0% cover 22%;
+  }
+
+  @keyframes ioc-reveal-scroll {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ============================================================================
+   3. SỐ LIỆU ĐẾM LÊN
+   Thành phần <CountUp> tự lo phần chạy số. Ở đây chỉ khoá chiều rộng chữ số để
+   con số không làm giật bố cục khi đang đếm.
+   ========================================================================== */
+.count-up {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ============================================================================
+   4. THANH VÀ VÒNG TIẾN ĐỘ CHẠY TỚI GIÁ TRỊ
+   Thanh dùng scaleX nên chiều rộng nội tuyến do React đặt vẫn giữ nguyên, và
+   hoạt hoạ chạy trên trình tổng hợp (không gây bố cục lại).
+   ========================================================================== */
+.has-motion .reveal.in .progress > i,
+.has-motion .progress.grow > i {
+  transform-origin: 0 50%;
+  animation: ioc-grow-x 760ms var(--ease-out) backwards;
+}
+
+/* Dải cơ cấu trạng thái gồm nhiều đoạn nối nhau: cả dải cùng trải ra từ mép trái,
+   giữ đúng tỷ lệ giữa các đoạn trong suốt quá trình chạy. */
+.has-motion .reveal.in .stack-bar {
+  transform-origin: 0 50%;
+  animation: ioc-grow-x 820ms var(--ease-out) backwards;
+}
+
+@keyframes ioc-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Vòng tiến độ vẽ bằng conic-gradient. Khai báo kiểu cho --p để trình duyệt biết
+   đây là một góc và nội suy được; thiếu khai báo này thì biến chỉ là chuỗi và
+   hoạt hoạ sẽ nhảy cóc. */
+@property --p {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.has-motion .ring.grow {
+  animation: ioc-sweep 1000ms var(--ease-out) backwards;
+}
+
+@keyframes ioc-sweep {
+  from {
+    --p: 0deg;
+  }
+}
+
+/* ============================================================================
+   5. CHUYỂN ĐỘNG NHỎ
+   ========================================================================== */
+
+/* Thẻ nâng nhẹ khi rê chuột — chỉ trên thiết bị thật sự có con trỏ. */
+@media (hover: hover) and (pointer: fine) {
+  .has-motion .lift {
+    transition: transform var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+  }
+
+  .has-motion .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sh-md);
+  }
+}
+
+/* Đổi giao diện sáng/tối: bật trong ~0.4 giây quanh thời điểm chuyển, rồi tắt.
+   Không để transition này thường trú vì nó phủ lên mọi phần tử và sẽ làm các thao
+   tác khác (rê chuột lên hàng bảng, mở hộp thoại) có cảm giác trễ. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: background-color 320ms var(--ease-out), border-color 320ms var(--ease-out),
+    color 320ms var(--ease-out), fill 320ms var(--ease-out), box-shadow 320ms var(--ease-out) !important;
+}
+
+/* Bong bóng hội thoại của trợ lý: mỗi lượt trả lời trượt lên một nhịp ngắn để mắt
+   bắt được là có nội dung mới, thay vì đột ngột xuất hiện. */
+.has-motion .cop-row {
+  animation: ioc-bubble-in 320ms var(--ease-out) both;
+}
+
+@keyframes ioc-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Con số vừa đổi giá trị — nháy nền một nhịp để mắt bắt được chỗ vừa thay đổi. */
+.has-motion .flash {
+  animation: ioc-flash 900ms var(--ease-out);
+}
+
+@keyframes ioc-flash {
+  0% {
+    background-color: var(--bg-accent-soft);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* ============================================================================
+   6. TÔN TRỌNG THIẾT LẬP GIẢM CHUYỂN ĐỘNG
+   Quy tắc toàn cục trong base.css đã rút mọi thời lượng về gần 0; ở đây bảo đảm
+   thêm rằng trạng thái CUỐI luôn được áp dụng, không để phần tử kẹt ở trạng thái
+   ẩn ban đầu.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .has-motion .reveal,
+  .has-motion .reveal.in {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .has-motion .scroll-rows > tbody > tr,
+  .has-motion .scroll-grid > *,
+  .has-motion .reveal.in .progress > i,
+  .has-motion .progress.grow > i,
+  .has-motion .ring.grow,
+  .has-motion .flash {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .has-motion .lift:hover {
+    transform: none;
+  }
+}

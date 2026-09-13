@@ -14,6 +14,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
 import { currentVietnamYear } from '../date';
+import '../styles/auth.css';
 
 type Stage='request'|'verify'|'password'|'done';
 type RequestResponse={message:string;expiresInMinutes:number};

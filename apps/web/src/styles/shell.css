@@ -1,0 +1,1325 @@
+/* ============================================================================
+   IOC Lái Thiêu — Vỏ ứng dụng quản trị
+   Thanh bên, thanh trên, thanh tiến độ cuộn, bảng lệnh, thông báo nổi, khung trang.
+   ========================================================================== */
+
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ============================================================================
+   1. THANH TIẾN ĐỘ CUỘN
+   Dải mảnh trên cùng cho biết đã đọc tới đâu. Chiều rộng do JS ghi vào biến
+   --scroll-progress (0→1) qua requestAnimationFrame, không gây vẽ lại React.
+   ========================================================================== */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: var(--z-progress);
+  pointer-events: none;
+  background: transparent;
+}
+
+.scroll-progress > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform: scaleX(var(--scroll-progress, 0));
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--brand-500) 0%, var(--accent-400) 60%, var(--ai-400) 100%);
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent-400) 60%, transparent);
+  transition: transform 80ms linear;
+}
+
+/* Trong khu quản trị, thanh tiến độ bắt đầu sau thanh bên để không đè lên nó. */
+.app-shell .scroll-progress {
+  left: var(--shell-sidebar);
+}
+
+.app-shell[data-rail='true'] .scroll-progress {
+  left: var(--shell-sidebar-rail);
+}
+
+@media (max-width: 1080px) {
+  .app-shell .scroll-progress {
+    left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-progress > i {
+    transition: none;
+    box-shadow: none;
+  }
+}
+
+/* ============================================================================
+   2. THANH BÊN
+   ========================================================================== */
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: var(--z-nav);
+  display: flex;
+  flex-direction: column;
+  width: var(--shell-sidebar);
+  padding: var(--sp-4) var(--sp-3) var(--sp-3);
+  background: var(--nav-bg);
+  color: var(--nav-tx);
+  border-right: 1px solid var(--nav-bd);
+  transition: width var(--t-slow) var(--ease-out), transform var(--t-slow) var(--ease-out);
+}
+
+/* ---- Nhận diện ---- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--nav-bd);
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: linear-gradient(140deg, var(--accent-300), var(--accent-500));
+  color: var(--accent-950);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-wide);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  flex: none;
+}
+
+.brand > div {
+  min-width: 0;
+}
+
+.brand strong {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-wide);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-micro);
+  color: var(--nav-tx-muted);
+  letter-spacing: var(--ls-wide);
+  white-space: nowrap;
+}
+
+/* Nút thu gọn thanh bên thành dải biểu tượng. */
+.rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border-radius: var(--r-sm);
+  color: var(--nav-tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+  flex: none;
+}
+
+.rail-toggle:hover {
+  background: var(--nav-hover-bg);
+  color: #fff;
+}
+
+.rail-toggle svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---- Trạng thái phiên ---- */
+.system-state {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-4) var(--sp-2) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--nav-bd);
+  border-radius: var(--r-sm);
+  background: rgba(45, 188, 201, 0.1);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: #b7dde2;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.system-state i,
+.clock-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok-400);
+  box-shadow: 0 0 0 4px rgba(52, 184, 120, 0.16);
+  flex: none;
+  animation: ioc-pulse 2.8s var(--ease-in-out) infinite;
+}
+
+@keyframes ioc-pulse {
+  50% {
+    box-shadow: 0 0 0 7px rgba(52, 184, 120, 0.06);
+  }
+}
+
+/* ---- Điều hướng ---- */
+.sidebar nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-2);
+  padding-right: 2px;
+  overflow-y: auto;
+  /* Bắt buộc: không có dòng này, trục ngang tự thành `auto` và sinh ra một thanh
+     cuộn ngang thừa ở đáy thanh bên khi thu gọn. */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.sidebar nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  background-clip: padding-box;
+}
+
+.nav-label {
+  margin: var(--sp-4) 0 var(--sp-2);
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  color: var(--nav-tx-faint);
+  text-transform: uppercase;
+}
+
+.sidebar nav > a:first-of-type,
+.nav-group:first-child .nav-label {
+  margin-top: var(--sp-1);
+}
+
+.sidebar nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 42px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--nav-tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.sidebar nav a svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.sidebar nav a > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar nav a:hover {
+  background: var(--nav-hover-bg);
+  color: var(--nav-tx);
+}
+
+.sidebar nav a.active {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-tx);
+  font-weight: 600;
+}
+
+.sidebar nav a.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: var(--accent-300);
+}
+
+/* Huy hiệu đếm việc chờ xử lý trong điều hướng. */
+.nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--bad-500);
+  color: #fff;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* ---- Chân thanh bên ---- */
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-2) var(--sp-1);
+  border-top: 1px solid var(--nav-bd);
+}
+
+.sidebar-footer > div:not(.avatar) {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-footer strong {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-footer span {
+  display: block;
+  font-size: var(--fs-micro);
+  color: var(--nav-tx-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  color: var(--nav-tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+  flex: none;
+}
+
+.sidebar-footer button:hover {
+  background: rgba(226, 59, 86, 0.18);
+  color: #ffb3bd;
+}
+
+/* ---- Dải biểu tượng (thanh bên thu gọn) ---- */
+@media (min-width: 1081px) {
+  .app-shell[data-rail='true'] .sidebar {
+    width: var(--shell-sidebar-rail);
+    padding-left: var(--sp-2);
+    padding-right: var(--sp-2);
+  }
+
+  .app-shell[data-rail='true'] .brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-shell[data-rail='true'] .brand > div:not(.brand-mark),
+  .app-shell[data-rail='true'] .nav-label,
+  .app-shell[data-rail='true'] .system-state,
+  .app-shell[data-rail='true'] .sidebar nav a > span,
+  .app-shell[data-rail='true'] .sidebar-footer > div:not(.avatar) {
+    display: none;
+  }
+
+  .app-shell[data-rail='true'] .rail-toggle {
+    position: absolute;
+    top: var(--sp-4);
+    right: -14px;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--nav-bd);
+    border-radius: 50%;
+    background: var(--nav-solid);
+    color: var(--nav-tx);
+    box-shadow: var(--sh-sm);
+  }
+
+  .app-shell[data-rail='true'] .sidebar nav a {
+    justify-content: center;
+  }
+
+  /* Avatar và nút đăng xuất xếp dọc, cùng căn giữa trục dải biểu tượng.
+     Xếp ngang thì tổng bề rộng 86px không lọt khe 60px của dải. */
+  .app-shell[data-rail='true'] .sidebar-footer {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding-inline: 0;
+    padding-bottom: var(--sp-2);
+  }
+
+  .app-shell[data-rail='true'] .sidebar nav a {
+    padding: 0;
+  }
+
+  .app-shell[data-rail='true'] .nav-count {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 9px;
+  }
+
+  .app-shell[data-rail='true'] .main-area {
+    margin-left: var(--shell-sidebar-rail);
+  }
+
+}
+
+/* ---- Ngăn kéo trên màn hình hẹp ---- */
+.mobile-close {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: none;
+    width: min(300px, 86vw);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: var(--sh-xl);
+  }
+
+  .rail-toggle {
+    display: none;
+  }
+
+  .mobile-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+    border-radius: var(--r-sm);
+    color: var(--nav-tx-muted);
+    flex: none;
+  }
+
+  .mobile-close:hover {
+    background: var(--nav-hover-bg);
+    color: #fff;
+  }
+
+  .mobile-close svg {
+    width: 19px;
+    height: 19px;
+  }
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-backdrop);
+  background: var(--bg-overlay);
+  backdrop-filter: blur(2px);
+  animation: ioc-fade var(--t-base) var(--ease-out);
+}
+
+/* ============================================================================
+   3. VÙNG CHÍNH & THANH TRÊN
+   ========================================================================== */
+.main-area {
+  margin-left: var(--shell-sidebar);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  transition: margin var(--t-slow) var(--ease-out);
+}
+
+@media (max-width: 1080px) {
+  .main-area {
+    margin-left: 0;
+  }
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  height: var(--shell-topbar);
+  padding: 0 var(--sp-7);
+  border-bottom: 1px solid var(--bd-subtle);
+  background: color-mix(in oklab, var(--bg-canvas) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+}
+
+.topbar > div:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--ls-wide);
+  color: var(--tx-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumb svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.6;
+}
+
+.topbar h1 {
+  margin: 2px 0 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--tx-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  color: var(--tx-normal);
+  flex: none;
+}
+
+.menu-btn:hover {
+  background: var(--bg-inset);
+}
+
+.menu-btn svg {
+  width: 21px;
+  height: 21px;
+}
+
+@media (max-width: 1080px) {
+  .menu-btn {
+    display: inline-flex;
+  }
+
+  .topbar {
+    padding: 0 var(--sp-4);
+    gap: var(--sp-3);
+  }
+}
+
+/* Trên điện thoại, thanh trên chỉ còn chỗ cho tiêu đề màn hình — đường dẫn phân cấp
+   bị cắt ngang trông tệ hơn là không có. */
+@media (max-width: 700px) {
+  .breadcrumb {
+    display: none;
+  }
+
+  .topbar h1 {
+    margin-top: 0;
+    font-size: var(--fs-md);
+  }
+
+  .topbar {
+    gap: var(--sp-2);
+    padding: 0 var(--sp-3);
+  }
+}
+
+/* Nút biểu tượng trên thanh trên (đổi giao diện, tìm kiếm, thông báo). */
+.top-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+.top-icon-btn:hover {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+  border-color: var(--bd-subtle);
+}
+
+.top-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Nút mở bảng lệnh — hiện phím tắt để người dùng học được. */
+.cmdk-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 38px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--tx-muted);
+  font-size: var(--fs-sm);
+  transition: border-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.cmdk-trigger:hover {
+  border-color: var(--bd-strong);
+  color: var(--tx-normal);
+}
+
+.cmdk-trigger svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cmdk-trigger > span {
+  min-width: 92px;
+  text-align: left;
+}
+
+@media (max-width: 1240px) {
+  .cmdk-trigger > span,
+  .cmdk-trigger .kbd {
+    display: none;
+  }
+
+  .cmdk-trigger {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+.clock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-pill);
+  background: var(--bg-surface);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clock-chip svg {
+  width: 14px;
+  height: 14px;
+  color: var(--tx-accent);
+}
+
+@media (max-width: 1240px) {
+  .clock-chip {
+    display: none;
+  }
+}
+
+/* Chip hồ sơ ở góc phải. */
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 38px;
+  padding: 0 var(--sp-3) 0 var(--sp-1);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-pill);
+  background: var(--bg-surface);
+  color: var(--tx-normal);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  max-width: 190px;
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+
+.profile-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-chip:hover {
+  border-color: var(--bd-strong);
+  color: var(--tx-strong);
+}
+
+.profile-chip.active {
+  border-color: var(--bd-brand);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+@media (max-width: 760px) {
+  .profile-chip > span {
+    display: none;
+  }
+
+  .profile-chip {
+    padding: 0 var(--sp-1);
+  }
+}
+
+/* ============================================================================
+   4. KHUNG TRANG
+   ========================================================================== */
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: var(--shell-page-max);
+  margin: 0 auto;
+  /* Chừa chỗ dưới cùng cho nút nổi Copilot không che nội dung. */
+  padding: var(--sp-6) var(--sp-7) var(--sp-12);
+}
+
+@media (max-width: 1080px) {
+  .page {
+    padding: var(--sp-5) var(--sp-4) var(--sp-11);
+  }
+}
+
+/* Màn hình đủ rộng thì bảng trợ lý không nên che nội dung: trang co lại nhường chỗ
+   thay vì bị phủ lên trên. Dưới ngưỡng này, bảng vẫn nổi đè như cũ vì co thêm nữa
+   sẽ làm bảng dữ liệu quá chật. */
+@media (min-width: 1500px) {
+  .app-shell[data-copilot='open'] .page {
+    padding-right: calc(var(--dock-live-width, var(--shell-dock)) + var(--sp-8));
+    transition: padding-right var(--t-slow) var(--ease-out);
+  }
+}
+
+.page-head,
+.command-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-6);
+}
+
+.page-head > div:first-child,
+.command-head > div:first-child {
+  min-width: 0;
+}
+
+.page-head h2,
+.command-head h2 {
+  margin: var(--sp-2) 0 var(--sp-2);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: var(--ls-tight);
+  color: var(--tx-strong);
+}
+
+.page-head p,
+.command-head p {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--fs-base);
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  flex: none;
+}
+
+@media (max-width: 900px) {
+  .page-head,
+  .command-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-4);
+  }
+
+  .page-head h2,
+  .command-head h2 {
+    font-size: var(--fs-xl);
+  }
+
+  .page-actions > * {
+    flex: 1;
+  }
+}
+
+/* ============================================================================
+   5. BẢNG LỆNH (Ctrl/⌘ + K)
+   ========================================================================== */
+.cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  justify-content: center;
+  padding: 12vh var(--sp-4) var(--sp-4);
+  background: var(--bg-overlay);
+  backdrop-filter: blur(6px);
+  animation: ioc-fade var(--t-fast) var(--ease-out);
+}
+
+.cmdk {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: 62vh;
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-xl);
+  overflow: hidden;
+  animation: ioc-rise var(--t-base) var(--ease-out);
+}
+
+.cmdk-input {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+  flex: none;
+}
+
+.cmdk-input > svg {
+  width: 19px;
+  height: 19px;
+  color: var(--tx-subtle);
+  flex: none;
+}
+
+.cmdk-input input {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-md);
+  color: var(--tx-strong);
+}
+
+.cmdk-input input:focus-visible {
+  box-shadow: none;
+  outline: none;
+}
+
+.cmdk-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2);
+  overscroll-behavior: contain;
+}
+
+.cmdk-group {
+  margin: var(--sp-2) 0 var(--sp-1);
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-subtle);
+}
+
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  text-align: left;
+  color: var(--tx-normal);
+  font-size: var(--fs-base);
+  transition: background-color var(--t-fast) var(--ease-out);
+}
+
+.cmdk-item > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--tx-muted);
+  flex: none;
+}
+
+.cmdk-item > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmdk-item strong {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmdk-item small {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmdk-item[data-active='true'] {
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.cmdk-item[data-active='true'] > svg {
+  color: var(--tx-brand);
+}
+
+.cmdk-item mark {
+  background: transparent;
+  color: var(--tx-brand);
+  font-weight: 800;
+}
+
+.cmdk-empty {
+  padding: var(--sp-8) var(--sp-5);
+  text-align: center;
+  color: var(--tx-muted);
+  font-size: var(--fs-sm);
+}
+
+.cmdk-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-5);
+  border-top: 1px solid var(--bd-subtle);
+  background: var(--bg-surface-2);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  flex: none;
+}
+
+.cmdk-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+@media (max-width: 640px) {
+  .cmdk-backdrop {
+    padding: var(--sp-4) var(--sp-2);
+  }
+
+  .cmdk {
+    max-height: 80vh;
+  }
+
+  .cmdk-foot {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   6. THÔNG BÁO NỔI
+   ========================================================================== */
+.toast-stack {
+  position: fixed;
+  right: var(--sp-5);
+  bottom: var(--sp-5);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(380px, calc(100vw - var(--sp-8)));
+  pointer-events: none;
+}
+
+/* Nút nổi Copilot ngồi ở góc dưới-phải, nên xếp thông báo lên phía trên nó. */
+.toast-stack[data-shifted='true'] {
+  bottom: calc(var(--sp-5) + 72px);
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-left: 3px solid var(--bd-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-lg);
+  font-size: var(--fs-sm);
+  color: var(--tx-normal);
+  pointer-events: auto;
+  animation: ioc-toast-in var(--t-slow) var(--ease-spring);
+}
+
+.toast > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 1px;
+}
+
+.toast > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast strong {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.toast p {
+  margin: 2px 0 0;
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.toast button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--tx-subtle);
+  flex: none;
+}
+
+.toast button:hover {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.toast button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.toast.ok {
+  border-left-color: var(--bg-ok);
+}
+.toast.ok > svg {
+  color: var(--tx-ok);
+}
+
+.toast.bad {
+  border-left-color: var(--bg-bad);
+}
+.toast.bad > svg {
+  color: var(--tx-bad);
+}
+
+.toast.warn {
+  border-left-color: var(--bg-warn);
+}
+.toast.warn > svg {
+  color: var(--tx-warn);
+}
+
+.toast.info {
+  border-left-color: var(--bg-brand);
+}
+.toast.info > svg {
+  color: var(--tx-brand);
+}
+
+.toast.leaving {
+  animation: ioc-toast-out var(--t-base) var(--ease-out) forwards;
+}
+
+@keyframes ioc-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes ioc-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@media (max-width: 640px) {
+  .toast-stack {
+    top: calc(var(--shell-topbar) + var(--sp-2));
+    bottom: auto;
+    left: var(--sp-3);
+    right: var(--sp-3);
+    width: auto;
+  }
+
+  .toast-stack[data-shifted='true'] {
+    bottom: auto;
+  }
+}
+
+/* ============================================================================
+   7. NÚT VỀ ĐẦU TRANG
+   ========================================================================== */
+.back-to-top {
+  position: fixed;
+  right: var(--sp-5);
+  bottom: var(--sp-5);
+  z-index: var(--z-sticky);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--bd-subtle);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--tx-normal);
+  box-shadow: var(--sh-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-out),
+    visibility var(--t-base);
+}
+
+.back-to-top.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.back-to-top:hover {
+  border-color: var(--bd-brand);
+  color: var(--tx-brand);
+}
+
+.back-to-top svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ============================================================================
+   8. TRANG KHÔNG CÓ QUYỀN / LỖI
+   ========================================================================== */
+.state-page {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: var(--sp-6);
+}
+
+.state-card {
+  max-width: 460px;
+  text-align: center;
+  padding: var(--sp-8);
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-sm);
+}
+
+.state-card > div {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--sp-4);
+  border-radius: 50%;
+  background: var(--bg-warn-soft);
+  color: var(--tx-warn);
+}
+
+.state-card > div svg {
+  width: 28px;
+  height: 28px;
+}
+
+.state-card h3 {
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-xl);
+}
+
+.state-card p {
+  margin-bottom: var(--sp-5);
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+}
+
+/* Bản đầy đủ dùng cho lỗi ở ngoài vỏ quản trị: tự lo nền cả trang. */
+.state-page-full {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-canvas);
+}
+
+.state-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.state-detail {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+  text-align: left;
+}
+
+.state-detail summary {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+  cursor: pointer;
+}
+
+.state-detail code {
+  display: block;
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--tx-bad);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .state-actions .btn {
+    width: 100%;
+  }
+}
+
+/* ============================================================================
+   9. CHUYỂN CẢNH GIỮA CÁC MÀN HÌNH
+   Một chuyển động rất nhẹ khi đổi trang: đủ để mắt bắt được là nội dung đã thay,
+   không đủ lâu để làm chậm thao tác.
+   ========================================================================== */
+.page > * {
+  animation: ioc-page-in var(--t-slow) var(--ease-out) both;
+}
+
+/* Khối nào tự lo phần hiện dần theo cuộn thì không chồng thêm chuyển cảnh trang —
+   hai hiệu ứng cùng chạy làm nội dung trôi hai nhịp, trông lỏng lẻo. */
+.page > .reveal {
+  animation: none;
+}
+
+@keyframes ioc-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page > * {
+    animation: none;
+  }
+}
+
+/* ============================================================================
+   10. DẢI BÁO KẾT NỐI
+   Nằm ngay dưới thanh trên, đẩy nội dung xuống thay vì phủ lên — người dùng cần
+   đọc được nó mà không mất chỗ đang làm.
+   ========================================================================== */
+.connection-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-7);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  border-bottom: 1px solid var(--bd-subtle);
+  animation: ioc-page-in var(--t-base) var(--ease-out);
+}
+
+.connection-bar svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.connection-bar.offline {
+  background: var(--bg-warn-soft);
+  border-bottom-color: var(--bd-warn);
+  color: var(--tx-warn);
+}
+
+.connection-bar.online {
+  background: var(--bg-ok-soft);
+  border-bottom-color: var(--bd-ok);
+  color: var(--tx-ok);
+}
+
+@media (max-width: 1080px) {
+  .connection-bar {
+    padding: var(--sp-3) var(--sp-4);
+  }
+}

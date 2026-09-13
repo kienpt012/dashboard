@@ -18,6 +18,7 @@ import { api, auth } from '../api';
 import { roleLabels } from '../authz';
 import { PageHead } from '../components/UI';
 import type { User } from '../types';
+import '../styles/profile.css';
 
 type ChangePasswordResponse={accessToken:string;user:User};
 type PasswordField='currentPassword'|'newPassword'|'confirmPassword';

@@ -10,10 +10,11 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
-import { Empty, PageHead, Spinner } from '../components/UI';
+import { Empty, PageHead, SkeletonTable, StateCard } from '../components/UI';
 import type { Department, Role } from '../types';
-import '../audit.css';
+import '../styles/audit.css';
 
 type SafeMetadata = Record<string, string | number | boolean | string[]>;
 
@@ -283,10 +284,12 @@ export default function AuditLogs() {
     void load(applied, nextPage, pageSize);
   }
 
-  if (!isAdmin) return <>
-    <PageHead eyebrow="AN TOÀN HỆ THỐNG" title="Không có quyền truy cập" description="Nhật ký hệ thống chỉ dành cho quản trị viên được ủy quyền." />
-    <Empty title="Quyền truy cập bị giới hạn" description="Vui lòng quay lại trang tổng quan." />
-  </>;
+  if (!isAdmin) return <StateCard
+    icon={<ShieldCheck />}
+    title="Nhật ký hệ thống chỉ dành cho quản trị viên"
+    description="Tài khoản của bạn không được ủy quyền xem dấu vết thao tác toàn hệ thống. Vui lòng quay lại trang tổng quan điều hành."
+    action={<Link className="btn primary" to="/admin">Về tổng quan điều hành</Link>}
+  />;
 
   return <>
     <PageHead
@@ -312,7 +315,7 @@ export default function AuditLogs() {
 
     <section className="audit-results" aria-busy={loading}>
       <div className="audit-results-head"><div><History /><span>Kết quả nhật ký</span></div><strong>{visibleRange}</strong></div>
-      {loading ? <Spinner /> : rows.length ? <>
+      {loading ? <SkeletonTable rows={8} /> : rows.length ? <>
         <div className="table-wrap audit-table"><table><thead><tr><th>Thời gian</th><th>Người thao tác</th><th>Hành động</th><th>Đối tượng</th><th>Phòng ban</th><th>Chi tiết</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}>
           <td><time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('vi-VN')}</time></td>
           <td><div className="audit-actor"><UserRound /><span><strong>@{row.actorUsername}</strong><small>{roleNames[row.actorRole]}</small></span></div></td>

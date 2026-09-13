@@ -12,8 +12,9 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError, api, auth } from '../api';
 import { getInitials } from '../authz';
-import { Empty, Modal, PageHead, Spinner } from '../components/UI';
+import { Empty, Modal, PageHead, SkeletonTable } from '../components/UI';
 import type { Department, Role, User } from '../types';
+import '../styles/org.css';
 
 const roleNames: Record<Role, string> = {
   ADMIN: 'Quản trị hệ thống',
@@ -282,7 +283,7 @@ export default function Users() {
           {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
         </select>
       </div>
-      {loading ? <Spinner /> : <div className="table-wrap"><table className="action-table">
+      {loading ? <SkeletonTable rows={6} /> : <div className="table-wrap"><table className="action-table">
         <thead><tr><th>Người dùng</th><th>Phòng ban</th><th>Vai trò</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th><th>Thao tác</th></tr></thead>
         <tbody>{visible.length ? visible.map(user => <tr key={user.id}>
           <td><div className="user-cell"><div className="avatar color">{getInitials(user.fullName)}</div><div><strong>{user.fullName}</strong><span>@{user.username}{user.email && <> · {user.email}</>}</span></div></div></td>

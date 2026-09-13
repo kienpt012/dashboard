@@ -1,0 +1,1990 @@
+/* ============================================================================
+   IOC Lái Thiêu — Nguyên thể giao diện
+   Các khối dùng lại ở mọi trang: nút, trường nhập, thẻ, bảng, huy hiệu, hộp thoại,
+   khung xương tải, tiến độ, ảnh đại diện, chú giải.
+   Chỉ dùng token ngữ nghĩa — không mã màu, không cỡ chữ px trực tiếp.
+   ========================================================================== */
+
+/* ============================================================================
+   1. NÚT
+   ========================================================================== */
+.btn {
+  --btn-h: 40px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--btn-h);
+  padding: 0 var(--sp-4);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--tx-normal);
+  background: transparent;
+  transition: background-color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out), opacity var(--t-fast) var(--ease-out);
+}
+
+.btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn.primary {
+  background: var(--bg-brand);
+  border-color: var(--bg-brand);
+  color: var(--tx-onbrand);
+  box-shadow: var(--sh-sm);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--bg-brand-hover);
+  border-color: var(--bg-brand-hover);
+  box-shadow: var(--sh-md);
+}
+
+.btn.secondary {
+  background: var(--bg-surface);
+  border-color: var(--bd-normal);
+  color: var(--tx-strong);
+  box-shadow: var(--sh-xs);
+}
+
+.btn.secondary:hover:not(:disabled) {
+  border-color: var(--bd-strong);
+  background: var(--bg-surface-2);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--tx-normal);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.btn.danger {
+  background: var(--bg-bad);
+  border-color: var(--bg-bad);
+  color: #fff;
+  box-shadow: var(--sh-sm);
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: var(--bad-700);
+  border-color: var(--bad-700);
+}
+
+.btn.danger-soft {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+  color: var(--tx-bad);
+}
+
+.btn.danger-soft:hover:not(:disabled) {
+  background: var(--bad-100);
+}
+
+.btn.accent {
+  background: var(--bg-accent);
+  border-color: var(--bg-accent);
+  color: #fff;
+  box-shadow: var(--sh-sm);
+}
+
+.btn.accent:hover:not(:disabled) {
+  background: var(--accent-700);
+  border-color: var(--accent-700);
+}
+
+.btn.ai {
+  background: linear-gradient(135deg, var(--ai-500), var(--ai-700));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-sm);
+}
+
+.btn.ai:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--ai-400), var(--ai-600));
+  box-shadow: var(--sh-md);
+}
+
+.btn.sm,
+.btn.compact {
+  --btn-h: 32px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  gap: var(--sp-1);
+}
+
+.btn.sm svg,
+.btn.compact svg {
+  width: 15px;
+  height: 15px;
+}
+
+.btn.lg {
+  --btn-h: 48px;
+  padding: 0 var(--sp-6);
+  font-size: var(--fs-md);
+}
+
+.btn.icon {
+  padding: 0;
+  width: var(--btn-h);
+  min-width: var(--btn-h);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+/* Nút đang chạy tác vụ: khoá kích thước, thay nội dung bằng vòng quay. */
+.btn.loading {
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentcolor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  color: var(--tx-onbrand);
+  animation: ioc-spin 0.7s linear infinite;
+}
+
+.btn.secondary.loading::after,
+.btn.ghost.loading::after {
+  color: var(--tx-normal);
+}
+
+/* Nút thao tác trên hàng bảng — hình vuông, mờ, rõ khi rê chuột lên hàng. */
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  color: var(--tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.row-action svg {
+  width: 17px;
+  height: 17px;
+}
+
+.row-action:hover:not(:disabled) {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.row-action.danger:hover:not(:disabled) {
+  background: var(--bg-bad-soft);
+  color: var(--tx-bad);
+}
+
+.row-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Nhóm nút chọn một trong nhiều (bộ lọc, chế độ xem). */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.segmented button {
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.segmented button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.segmented button:hover:not(:disabled):not(.active) {
+  color: var(--tx-strong);
+}
+
+.segmented button.active {
+  background: var(--bg-surface);
+  color: var(--tx-strong);
+  box-shadow: var(--sh-xs);
+}
+
+/* ============================================================================
+   2. TRƯỜNG NHẬP
+   ========================================================================== */
+input[type='text'],
+input[type='search'],
+input[type='number'],
+input[type='password'],
+input[type='email'],
+input[type='tel'],
+input[type='url'],
+input[type='date'],
+input[type='datetime-local'],
+input[type='month'],
+input[type='time'],
+input:not([type]),
+select,
+textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--tx-strong);
+  font-size: var(--fs-base);
+  line-height: var(--lh-snug);
+  transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out),
+    background-color var(--t-fast) var(--ease-out);
+}
+
+textarea {
+  min-height: 96px;
+  padding: var(--sp-3);
+  resize: vertical;
+  line-height: var(--lh-normal);
+}
+
+input:hover:not(:disabled):not(:focus),
+select:hover:not(:disabled):not(:focus),
+textarea:hover:not(:disabled):not(:focus) {
+  border-color: var(--bd-strong);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--bd-brand);
+  box-shadow: var(--sh-focus);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+  cursor: not-allowed;
+}
+
+input[readonly],
+textarea[readonly] {
+  background: var(--bg-inset);
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--bg-bad);
+}
+
+input[aria-invalid='true']:focus-visible,
+select[aria-invalid='true']:focus-visible,
+textarea[aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 3px var(--bd-bad);
+}
+
+/* Mũi tên của select do ta tự vẽ để đồng nhất giữa các trình duyệt và hai chế độ màu. */
+select {
+  appearance: none;
+  padding-right: var(--sp-8);
+  background-image: linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% + 1px), calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+select option {
+  background: var(--bg-surface);
+  color: var(--tx-strong);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  accent-color: var(--bg-brand);
+  cursor: pointer;
+  flex: none;
+}
+
+input[type='range'] {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--bg-brand);
+  cursor: pointer;
+}
+
+input[type='color'] {
+  min-height: 36px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+input[type='file'] {
+  border: 1px dashed var(--bd-normal);
+  background: var(--bg-inset);
+  cursor: pointer;
+  padding: var(--sp-3);
+}
+
+/* Nhãn bao quanh trường — dạng dùng nhiều nhất trong hệ thống. */
+label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+}
+
+label > input,
+label > select,
+label > textarea,
+label > .input-icon {
+  margin-top: var(--sp-2);
+  font-weight: 400;
+}
+
+.field-hint,
+.form-grid small,
+.field-note {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.field-error {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-bad);
+}
+
+.form-grid {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.form-grid.two {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+/* Trường có biểu tượng ở đầu (và nút hiện/ẩn mật khẩu ở cuối). */
+.input-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon > svg {
+  position: absolute;
+  left: var(--sp-3);
+  width: 17px;
+  height: 17px;
+  color: var(--tx-subtle);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.input-icon input {
+  padding-left: var(--sp-9);
+}
+
+.input-icon button {
+  position: absolute;
+  right: var(--sp-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-xs);
+  color: var(--tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.input-icon button:hover {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.input-icon button svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Ô tìm kiếm dùng chung cho các thanh công cụ. */
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 360px;
+}
+
+.search svg {
+  position: absolute;
+  left: var(--sp-3);
+  width: 16px;
+  height: 16px;
+  color: var(--tx-subtle);
+  pointer-events: none;
+}
+
+.search input {
+  padding-left: var(--sp-9);
+  padding-right: var(--sp-8);
+}
+
+.search button {
+  position: absolute;
+  right: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  color: var(--tx-muted);
+  background: var(--bg-inset);
+}
+
+.search button:hover {
+  color: var(--tx-strong);
+}
+
+.search button svg {
+  position: static;
+  width: 13px;
+  height: 13px;
+}
+
+/* Thanh công cụ lọc / tìm kiếm phía trên bảng. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.toolbar select,
+.toolbar input {
+  width: auto;
+  min-width: 150px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* Công tắc bật/tắt. */
+.switch,
+.visibility-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-normal);
+  cursor: pointer;
+}
+
+.switch > span,
+.visibility-switch > span {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--bd-strong);
+  transition: background-color var(--t-base) var(--ease-out);
+  flex: none;
+}
+
+.switch > span > i,
+.visibility-switch > span > i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--sh-xs);
+  transition: transform var(--t-base) var(--ease-spring);
+}
+
+.switch.on > span,
+.visibility-switch.on > span {
+  background: var(--bg-ok);
+}
+
+.switch.on > span > i,
+.visibility-switch.on > span > i {
+  transform: translateX(16px);
+}
+
+.switch:disabled,
+.visibility-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   3. THÔNG BÁO TRONG LUỒNG
+   ========================================================================== */
+.notice,
+.form-error,
+.form-success,
+.info-box,
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-left: 3px solid var(--bd-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-normal);
+}
+
+.notice svg,
+.form-error svg,
+.form-success svg,
+.info-box svg,
+.alert svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 1px;
+}
+
+.form-error,
+.alert.bad {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+  border-left-color: var(--bg-bad);
+  color: var(--tx-bad);
+  font-weight: 500;
+}
+
+.form-success,
+.alert.ok {
+  background: var(--bg-ok-soft);
+  border-color: var(--bd-ok);
+  border-left-color: var(--bg-ok);
+  color: var(--tx-ok);
+  font-weight: 500;
+}
+
+.alert.warn,
+.notice.warn {
+  background: var(--bg-warn-soft);
+  border-color: var(--bd-warn);
+  border-left-color: var(--bg-warn);
+  color: var(--tx-warn);
+}
+
+.info-box,
+.alert.info {
+  background: var(--bg-brand-soft);
+  border-color: var(--brand-100);
+  border-left-color: var(--bg-brand);
+  color: var(--tx-brand);
+}
+
+.info-box p,
+.notice p,
+.alert p {
+  margin: 0;
+}
+
+/* ============================================================================
+   4. THẺ / BẢNG ĐIỀU KHIỂN
+   ========================================================================== */
+.panel,
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-xs);
+  padding: var(--sp-5);
+}
+
+.panel.flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel.accent {
+  border-top: 3px solid var(--bg-accent);
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.panel.flush > .panel-head {
+  padding: var(--sp-5) var(--sp-5) 0;
+}
+
+.panel-head h3 {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--tx-strong);
+  margin: 0;
+}
+
+.panel-head p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.panel-head > a,
+.panel-head > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-brand);
+  white-space: nowrap;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-xs);
+  transition: background-color var(--t-fast) var(--ease-out);
+}
+
+.panel-head > a:hover,
+.panel-head > button:hover {
+  background: var(--bg-brand-soft);
+}
+
+.panel-head > a svg,
+.panel-head > button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+.divider {
+  height: 1px;
+  background: var(--bd-subtle);
+  border: 0;
+  margin: var(--sp-5) 0;
+}
+
+/* ============================================================================
+   5. HUY HIỆU & CHIP
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 22px;
+  padding: 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+}
+
+.badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.badge.dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+  flex: none;
+}
+
+.badge.ok,
+.badge.good,
+.badge.done {
+  background: var(--bg-ok-soft);
+  border-color: var(--bd-ok);
+  color: var(--tx-ok);
+}
+
+.badge.warn,
+.badge.watch {
+  background: var(--bg-warn-soft);
+  border-color: var(--bd-warn);
+  color: var(--tx-warn);
+}
+
+.badge.bad,
+.badge.overdue {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+  color: var(--tx-bad);
+}
+
+.badge.info,
+.badge.brand {
+  background: var(--bg-brand-soft);
+  border-color: var(--brand-100);
+  color: var(--tx-brand);
+}
+
+.badge.accent {
+  background: var(--bg-accent-soft);
+  border-color: var(--accent-100);
+  color: var(--tx-accent);
+}
+
+.badge.ai {
+  background: var(--bg-ai-soft);
+  border-color: var(--bd-ai);
+  color: var(--tx-ai);
+}
+
+.badge.neutral {
+  background: var(--bg-inset);
+  border-color: var(--bd-subtle);
+  color: var(--tx-muted);
+}
+
+.badge.lg {
+  min-height: 26px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-xs);
+}
+
+/* `.status` là bí danh của `.badge`, dùng cho trạng thái bản ghi trong bảng.
+   Tông lấy từ `statusMeta` (types.ts): neutral | ok | warn | bad | info.
+   Các tên tông cũ (slate/green/amber/red/blue) vẫn được nhận để không vỡ màn hình nào. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-pill);
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  white-space: nowrap;
+}
+
+.status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+  flex: none;
+}
+
+.status.ok,
+.status.green {
+  background: var(--bg-ok-soft);
+  border-color: var(--bd-ok);
+  color: var(--tx-ok);
+}
+
+.status.warn,
+.status.amber {
+  background: var(--bg-warn-soft);
+  border-color: var(--bd-warn);
+  color: var(--tx-warn);
+}
+
+.status.bad,
+.status.red {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+  color: var(--tx-bad);
+}
+
+.status.info,
+.status.blue {
+  background: var(--bg-brand-soft);
+  border-color: var(--brand-100);
+  color: var(--tx-brand);
+}
+
+.status.neutral,
+.status.slate {
+  background: var(--bg-inset);
+  border-color: var(--bd-subtle);
+  color: var(--tx-muted);
+}
+
+/* Tiện ích dùng chung ---------------------------------------------------- */
+
+/* Chiếm trọn một hàng trong lưới biểu mẫu. */
+.full {
+  grid-column: 1 / -1;
+}
+
+.danger-text {
+  color: var(--tx-bad) !important;
+}
+
+/* Biểu tượng đang quay (gắn trực tiếp lên icon lucide khi đang tải lại dữ liệu). */
+.spin {
+  animation: ioc-spin 0.9s linear infinite;
+}
+
+/* Chip lọc bấm được. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-pill);
+  background: var(--bg-surface);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-normal);
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--bd-brand);
+  color: var(--tx-brand);
+}
+
+.chip.active,
+.chip[aria-pressed='true'] {
+  background: var(--bg-brand-soft);
+  border-color: var(--bd-brand);
+  color: var(--tx-brand);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chip b {
+  font-size: var(--fs-micro);
+  color: var(--tx-muted);
+}
+
+/* Mã ngắn (mã chỉ tiêu, mã phản ánh, số văn bản). */
+.code {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  border: 1px solid var(--bd-subtle);
+  color: var(--tx-normal);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Mã kèm nút chép. Nút chỉ hiện rõ khi rê chuột vào vùng chứa hoặc khi được chọn
+   bằng bàn phím, để bảng không bị rối bởi một rừng biểu tượng. */
+.copy-code {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.copy-code-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  color: var(--tx-subtle);
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.copy-code-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.copy-code:hover .copy-code-btn,
+.copy-code-btn:focus-visible,
+tr:hover .copy-code-btn {
+  opacity: 1;
+}
+
+.copy-code-btn:hover {
+  background: var(--bg-inset);
+  color: var(--tx-brand);
+}
+
+/* Thiết bị cảm ứng không có trạng thái rê chuột, nên nút phải hiện sẵn. */
+@media (hover: none) {
+  .copy-code-btn {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
+  }
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--bd-normal);
+  border-bottom-width: 2px;
+  border-radius: var(--r-xs);
+  background: var(--bg-surface);
+  color: var(--tx-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+}
+
+/* ============================================================================
+   6. BẢNG
+   ========================================================================== */
+.table-wrap {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Bảng dài (nhật ký, danh mục chỉ tiêu): giới hạn chiều cao để phần đầu bảng thật sự
+   dính lại khi cuộn, và để thanh công cụ cùng phân trang luôn nằm trong tầm mắt.
+   Chỉ áp dụng từ màn hình vừa trở lên — trên điện thoại, cuộn cả trang tự nhiên hơn. */
+@media (min-width: 901px) {
+  .table-wrap.tall {
+    max-height: min(68vh, 760px);
+    overflow-y: auto;
+  }
+}
+
+/* ---- Gợi ý còn nội dung khi cuộn ngang -------------------------------------
+   Bảng rộng hơn khung thì người dùng thường không biết là cuộn ngang được — cột
+   thao tác nằm ngoài mép phải cứ thế bị bỏ quên. Một dải bóng mảnh ở mép có nội
+   dung khuất phía sau nói điều đó rõ hơn bất kỳ dòng chú thích nào.
+   Thuộc tính data-edge do `src/scroll-hint.ts` đặt; không có JS thì không có bóng,
+   bảng vẫn dùng được bình thường. */
+.table-wrap::before,
+.table-wrap::after,
+.scroll-x::before,
+.scroll-x::after {
+  content: '';
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: block;
+  width: 18px;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-base) var(--ease-out);
+}
+
+.table-wrap::before,
+.scroll-x::before {
+  left: 0;
+  float: left;
+  margin-right: -18px;
+  background: linear-gradient(to right, var(--sh-edge), transparent);
+}
+
+.table-wrap::after,
+.scroll-x::after {
+  right: 0;
+  float: right;
+  margin-left: -18px;
+  background: linear-gradient(to left, var(--sh-edge), transparent);
+}
+
+.table-wrap[data-edge~='left']::before,
+.scroll-x[data-edge~='left']::before,
+.table-wrap[data-edge~='right']::after,
+.scroll-x[data-edge~='right']::after {
+  opacity: 1;
+}
+
+/* Đầu bảng dính đổ bóng khi thân bảng đã cuộn xuống — tách lớp cho mắt biết đâu là
+   tiêu đề, đâu là dữ liệu. */
+.table-wrap[data-edge~='top'] th {
+  box-shadow: 0 1px 0 var(--bd-normal), 0 6px 12px -8px var(--sh-edge);
+}
+
+.panel.flush .table-wrap {
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
+table {
+  width: 100%;
+  font-size: var(--fs-base);
+}
+
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-surface-3);
+  color: var(--tx-muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+td {
+  padding: var(--sp-3) var(--sp-4);
+  min-height: 48px;
+  border-bottom: 1px solid var(--bd-subtle);
+  color: var(--tx-normal);
+  vertical-align: middle;
+  line-height: var(--lh-snug);
+}
+
+tbody tr {
+  transition: background-color var(--t-fast) var(--ease-out);
+}
+
+tbody tr:hover {
+  background: var(--bg-surface-2);
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+td strong {
+  font-weight: 600;
+}
+
+/* Cột hành động cuối bảng: gom nút, chỉ hiện rõ khi rê chuột lên hàng. */
+.action-table th:last-child,
+.action-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.action-table tbody tr:hover td:last-child .row-action {
+  color: var(--tx-normal);
+}
+
+.table-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.table-summary b {
+  color: var(--tx-strong);
+}
+
+/* Phân trang. */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ============================================================================
+   7. TIẾN ĐỘ
+   ========================================================================== */
+.progress {
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.progress i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--bg-brand);
+  transition: width var(--t-slow) var(--ease-out);
+}
+
+.progress.sm {
+  height: 6px;
+}
+
+.progress i.ok,
+.progress i.green {
+  background: var(--bg-ok);
+}
+
+.progress i.warn,
+.progress i.amber {
+  background: var(--bg-warn);
+}
+
+.progress i.bad,
+.progress i.red {
+  background: var(--bg-bad);
+}
+
+/* Vòng tiến độ — dùng ở tổng quan và trang công khai. */
+.ring {
+  --p: 0deg;
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--bg-accent) var(--p), var(--bg-inset) 0);
+  flex: none;
+}
+
+.ring::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+}
+
+.ring span {
+  position: relative;
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  color: var(--tx-strong);
+}
+
+/* ============================================================================
+   8. ẢNH ĐẠI DIỆN
+   ========================================================================== */
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  flex: none;
+  user-select: none;
+}
+
+.avatar.small,
+.avatar.sm {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-micro);
+}
+
+.avatar.lg {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-lg);
+  font-size: var(--fs-md);
+}
+
+/* ============================================================================
+   9. TRẠNG THÁI RỖNG / ĐANG TẢI
+   ========================================================================== */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-2);
+  padding: var(--sp-10) var(--sp-5);
+  color: var(--tx-muted);
+}
+
+.empty > div {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--sp-2);
+  border-radius: 50%;
+  background: var(--bg-inset);
+  color: var(--tx-subtle);
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
+.empty > div svg {
+  width: 24px;
+  height: 24px;
+}
+
+.empty strong {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.empty p {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.spinner-wrap {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: var(--sp-6);
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--bd-subtle);
+  border-top-color: var(--bg-brand);
+  border-radius: 50%;
+  animation: ioc-spin 0.8s linear infinite;
+}
+
+@keyframes ioc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Khung xương — thay cho vòng quay ở những nơi đã biết trước bố cục. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--bg-surface) 70%, transparent),
+    transparent
+  );
+  animation: ioc-shimmer 1.4s infinite;
+}
+
+@keyframes ioc-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-text {
+  height: 12px;
+  margin-bottom: var(--sp-2);
+}
+
+.skeleton-text:last-child {
+  width: 60%;
+  margin-bottom: 0;
+}
+
+.skeleton-title {
+  height: 20px;
+  width: 40%;
+  margin-bottom: var(--sp-3);
+}
+
+.skeleton-block {
+  height: 100px;
+}
+
+.skeleton-stack {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.skeleton-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    display: none;
+  }
+
+  .spinner {
+    animation-duration: 1.6s !important;
+  }
+}
+
+/* ============================================================================
+   10. HỘP THOẠI
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5);
+  background: var(--bg-overlay);
+  backdrop-filter: blur(4px);
+  animation: ioc-fade var(--t-base) var(--ease-out);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(92vh, 900px);
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-xl);
+  overflow: hidden;
+  animation: ioc-rise var(--t-slow) var(--ease-out);
+}
+
+.modal.wide {
+  width: min(780px, 100%);
+}
+
+.modal.full {
+  width: min(1100px, 100%);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+  flex: none;
+}
+
+.modal-head h3 {
+  font-size: var(--fs-lg);
+  margin: 0;
+}
+
+.modal-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  color: var(--tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.modal-head button:hover {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.modal-head button svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Nội dung hộp thoại nằm trong form hoặc div ngay sau phần đầu. */
+.modal > form,
+.modal > .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
+  margin-top: auto;
+  border-top: 1px solid var(--bd-subtle);
+  flex-wrap: wrap;
+}
+
+.modal-actions .btn {
+  min-width: 110px;
+}
+
+@keyframes ioc-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ioc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+
+/* ============================================================================
+   11. CHÚ GIẢI (thuần CSS, không cần thư viện)
+   ========================================================================== */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: var(--z-tooltip);
+  transform: translateX(-50%) translateY(4px);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-xs);
+  background: var(--n-900);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+  box-shadow: var(--sh-md);
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+[data-tooltip-side='right']::after {
+  left: calc(100% + 10px);
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+}
+
+[data-tooltip-side='right']:hover::after,
+[data-tooltip-side='right']:focus-visible::after {
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ============================================================================
+   12. THẺ SỐ LIỆU (dùng chung ở tổng quan, phòng ban, tài khoản, phản ánh)
+   ========================================================================== */
+/* Dải bốn thẻ số liệu.
+   Dùng số cột cố định theo bề rộng chứ KHÔNG dùng `auto-fit`: với bốn thẻ, auto-fit
+   hay rơi vào 3 + 1, để lại một thẻ mồ côi ở hàng dưới trông như lỗi bố cục. Bốn
+   thẻ này luôn phải chia đều — bốn hàng ngang, hoặc hai hàng hai, hoặc dọc. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+
+@media (max-width: 1400px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.stat-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-xs);
+  overflow: hidden;
+  transition: border-color var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+}
+
+.stat-card:hover {
+  border-color: var(--bd-normal);
+  box-shadow: var(--sh-sm);
+}
+
+.stat-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+}
+
+.stat-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.stat-icon.teal,
+.stat-icon.accent {
+  background: var(--bg-accent-soft);
+  color: var(--tx-accent);
+}
+
+.stat-icon.blue,
+.stat-icon.brand {
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.stat-icon.green,
+.stat-icon.ok {
+  background: var(--bg-ok-soft);
+  color: var(--tx-ok);
+}
+
+.stat-icon.orange,
+.stat-icon.warn {
+  background: var(--bg-warn-soft);
+  color: var(--tx-warn);
+}
+
+.stat-icon.red,
+.stat-icon.bad {
+  background: var(--bg-bad-soft);
+  color: var(--tx-bad);
+}
+
+.stat-icon.ai {
+  background: var(--bg-ai-soft);
+  color: var(--tx-ai);
+}
+
+.stat-card > span {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+  letter-spacing: var(--ls-wide);
+}
+
+.stat-card > strong {
+  font-size: var(--fs-3xl);
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--tx-strong);
+  letter-spacing: var(--ls-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card > p {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Dải số liệu nhỏ gọn (trang phòng ban, tài khoản). */
+/* Dải số liệu gọn — cùng lý do như trên: chia chẵn, không để thẻ mồ côi. */
+.mini-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+@media (max-width: 1200px) {
+  .mini-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .mini-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mini-stat-grid > div {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+}
+
+/* Biểu tượng dẫn (nếu có) nằm trong một ô vuông nền nhạt bên trái. */
+.mini-stat-grid > div > span:has(svg) {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+  flex: none;
+}
+
+.mini-stat-grid > div > span svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Con số luôn chiếm một dòng riêng và là thứ đọc được đầu tiên. */
+.mini-stat-grid b,
+.mini-stat-grid strong {
+  display: block;
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-stat-grid p,
+.mini-stat-grid > div > span:not(:has(svg)) {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* ============================================================================
+   13. BỘ CHỌN NĂM
+   ========================================================================== */
+.year-picker {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.year-picker button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 100%;
+  color: var(--tx-muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.year-picker button:hover:not(:disabled) {
+  background: var(--bg-inset);
+  color: var(--tx-strong);
+}
+
+.year-picker button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.year-picker button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.year-picker input {
+  width: 68px;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--bd-subtle);
+  border-right: 1px solid var(--bd-subtle);
+  border-radius: 0;
+  background: transparent;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.year-picker input::-webkit-inner-spin-button,
+.year-picker input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.year-picker input:focus-visible {
+  box-shadow: none;
+  background: var(--bg-brand-soft);
+}
+
+/* ============================================================================
+   14. ĐIỀU CHỈNH CHO MÀN HÌNH HẸP
+   ========================================================================== */
+@media (max-width: 900px) {
+  .span-2 {
+    grid-column: span 1;
+  }
+
+  .panel,
+  .card {
+    padding: var(--sp-4);
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    gap: var(--sp-2);
+  }
+
+  .toolbar select,
+  .toolbar input,
+  .search {
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 100%;
+  }
+
+  th,
+  td {
+    padding: var(--sp-3);
+  }
+
+  .modal-backdrop {
+    padding: 0;
+    place-items: end stretch;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    animation: ioc-slide-up var(--t-slow) var(--ease-out);
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+  }
+
+  /* Vùng chạm tối thiểu trên thiết bị cảm ứng. */
+  .btn.sm,
+  .btn.compact {
+    --btn-h: 38px;
+  }
+
+  .row-action {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@keyframes ioc-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* Thiết bị cảm ứng: bỏ hiệu ứng rê chuột vì nó "dính" sau khi chạm. */
+@media (hover: none) {
+  tbody tr:hover {
+    background: transparent;
+  }
+}
+
+/* ============================================================================
+   15. VÙNG CHẠM TRÊN THIẾT BỊ CẢM ỨNG
+   Ô đánh dấu vẽ ra chỉ 18px, nhỏ hơn mức 44px mà ngón tay cần.
+
+   Không thể nới vùng bấm bằng `::before`/`::after` trên chính ô đánh dấu: đó là
+   phần tử thay thế, trình duyệt không vẽ phần tử giả cho nó. Cách chắc chắn là
+   để ô nằm trong `<label>` — khi đó cả dòng nhãn trở thành vùng bấm — nên ở đây
+   chỉ phóng to ô một chút và bảo đảm nhãn bao quanh đủ cao.
+   ========================================================================== */
+@media (pointer: coarse) {
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Nhãn bọc ô đánh dấu chính là vùng bấm thật sự. */
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .row-action {
+    width: 44px;
+    height: 44px;
+  }
+
+  .segmented button,
+  .chip {
+    min-height: 40px;
+  }
+
+  .year-picker button {
+    width: 44px;
+  }
+}
+
+/* ============================================================================
+   16. THẺ CÓ PHẦN TỬ ĐANG ĐƯỢC CHỌN
+   Khi người dùng đi bằng bàn phím vào một trường bên trong thẻ, cả thẻ nhấn lên
+   một nấc để thấy rõ mình đang ở khối nào — dễ lạc nhất là ở các trang nhiều thẻ
+   biểu mẫu như Thiết lập hệ thống.
+   ========================================================================== */
+.panel:focus-within,
+.card:focus-within,
+.stat-card:focus-within {
+  border-color: var(--bd-normal);
+}
+
+/* Nút chép cỡ lớn dùng cạnh mã tra cứu — người dân cần chép mã này để theo dõi
+   hồ sơ, nên nút phải thấy sẵn và đủ to cho ngón tay. */
+.copy-code-btn.big {
+  width: 36px;
+  height: 36px;
+  margin-left: var(--sp-2);
+  border: 1px solid var(--bd-normal);
+  background: var(--bg-surface);
+  color: var(--tx-muted);
+  opacity: 1;
+  vertical-align: middle;
+}
+
+.copy-code-btn.big svg {
+  width: 16px;
+  height: 16px;
+}
+
+.copy-code-btn.big:hover {
+  border-color: var(--bd-brand);
+  color: var(--tx-brand);
+}

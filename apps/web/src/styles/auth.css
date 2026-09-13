@@ -1,0 +1,441 @@
+/* ============================================================================
+   IOC Lái Thiêu — Cửa vào hệ thống
+   Đăng nhập, khôi phục mật khẩu, và trang báo thiếu quyền.
+
+   Bố cục hai nửa: nửa trái là mảng nhận diện (nền tối, hoạ tiết lưới mảnh), nửa
+   phải là biểu mẫu trên nền sáng. Trên màn hình hẹp chỉ còn biểu mẫu, kèm một dải
+   nhận diện gọn phía trên.
+   ========================================================================== */
+
+.login-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-canvas);
+}
+
+/* ============================================================================
+   1. NỬA NHẬN DIỆN
+   ========================================================================== */
+.login-visual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--sp-11) var(--sp-10);
+  background: var(--hero-bg);
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Lưới mảnh gợi liên tưởng bản đồ / bảng điều khiển, giữ ở mức rất nhạt để không
+   tranh chấp với chữ. */
+.visual-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(120% 90% at 30% 20%, #000 25%, transparent 78%);
+}
+
+.visual-content {
+  position: relative;
+  max-width: 34rem;
+}
+
+.gov-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-7);
+  padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-wide);
+  backdrop-filter: blur(8px);
+}
+
+.gov-badge span {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.login-visual h1 {
+  margin: var(--sp-3) 0 var(--sp-5);
+  font-size: var(--fs-4xl);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: #fff;
+}
+
+.login-visual h1 em {
+  font-style: normal;
+  background: linear-gradient(120deg, var(--accent-200), var(--accent-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.login-visual .lead {
+  max-width: 46ch;
+  font-size: var(--fs-md);
+  line-height: var(--lh-relaxed);
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.visual-points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-8);
+}
+
+.visual-points span {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.visual-points svg {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--accent-300);
+}
+
+.visual-footer {
+  position: absolute;
+  left: var(--sp-10);
+  right: var(--sp-10);
+  bottom: var(--sp-7);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--ls-caps);
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* ============================================================================
+   2. NỬA BIỂU MẪU
+   ========================================================================== */
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  padding: var(--sp-9) var(--sp-7);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  width: min(420px, 100%);
+}
+
+.login-card > .eyebrow {
+  margin-bottom: calc(var(--sp-2) * -1);
+}
+
+.login-card h2 {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: var(--ls-tight);
+}
+
+.login-card > p {
+  margin-top: calc(var(--sp-2) * -1);
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+}
+
+/* Dải nhận diện rút gọn, chỉ hiện khi nửa nhận diện bị ẩn. */
+.mobile-brand {
+  display: none;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-base);
+  font-weight: 800;
+  letter-spacing: var(--ls-wide);
+  color: var(--tx-strong);
+}
+
+.mobile-brand .brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  background: linear-gradient(140deg, var(--brand-500), var(--brand-800));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+
+.login-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: calc(var(--sp-1) * -1);
+}
+
+.login-row a {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.login-btn {
+  --btn-h: 48px;
+  width: 100%;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-md);
+}
+
+.support {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+
+.support:hover {
+  color: var(--tx-brand);
+  background: var(--bg-brand-soft);
+}
+
+/* ============================================================================
+   3. KHÔI PHỤC MẬT KHẨU
+   ========================================================================== */
+.reset-card {
+  gap: var(--sp-4);
+}
+
+.reset-card form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.reset-card form > p {
+  margin-top: calc(var(--sp-2) * -1);
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+}
+
+/* Chỉ báo ba bước: người dùng luôn biết đang ở đâu và còn mấy bước. */
+.reset-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.reset-steps i {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--bd-normal);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--tx-muted);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-style: normal;
+  flex: none;
+  transition: background-color var(--t-base) var(--ease-out), border-color var(--t-base) var(--ease-out),
+    color var(--t-base) var(--ease-out);
+}
+
+.reset-steps i.active {
+  border-color: var(--bd-brand);
+  background: var(--bg-brand);
+  color: var(--tx-onbrand);
+  box-shadow: var(--sh-focus);
+}
+
+.reset-steps i.done {
+  border-color: var(--bd-ok);
+  background: var(--bg-ok-soft);
+  color: var(--tx-ok);
+}
+
+.reset-steps span {
+  flex: 1;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--bd-subtle);
+}
+
+.reset-submit {
+  margin-top: var(--sp-1);
+}
+
+.reset-secondary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.reset-secondary-actions button {
+  min-height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-brand);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.reset-secondary-actions button:hover:not(:disabled) {
+  background: var(--bg-brand-soft);
+}
+
+.reset-secondary-actions button:disabled {
+  color: var(--tx-subtle);
+  cursor: not-allowed;
+}
+
+.reset-password-help {
+  margin-top: calc(var(--sp-3) * -1);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Ô nhập mã một lần: to, giãn chữ rộng, dễ gõ trên điện thoại. */
+.otp-input input {
+  min-height: 56px;
+  padding-left: var(--sp-9);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+.otp-input input::placeholder {
+  letter-spacing: 0.4em;
+  color: var(--tx-subtle);
+}
+
+.reset-complete {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.reset-complete > svg {
+  width: 48px;
+  height: 48px;
+  padding: var(--sp-2);
+  border-radius: 50%;
+  background: var(--bg-ok-soft);
+  color: var(--tx-ok);
+}
+
+.reset-complete h2 {
+  font-size: var(--fs-xl);
+}
+
+.reset-complete > p {
+  color: var(--tx-muted);
+  line-height: var(--lh-normal);
+}
+
+.reset-complete .login-btn {
+  margin-top: var(--sp-2);
+}
+
+.reset-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  margin-top: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+  transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+
+.reset-back:hover {
+  color: var(--tx-brand);
+  background: var(--bg-brand-soft);
+}
+
+.reset-back svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   4. MÀN HÌNH HẸP
+   ========================================================================== */
+@media (max-width: 1080px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-visual {
+    display: none;
+  }
+
+  .mobile-brand {
+    display: flex;
+  }
+
+  .login-panel {
+    justify-content: flex-start;
+    padding: var(--sp-8) var(--sp-5) var(--sp-9);
+  }
+}
+
+@media (max-width: 640px) {
+  .login-panel {
+    padding: var(--sp-6) var(--sp-4) var(--sp-8);
+  }
+
+  .login-card h2 {
+    font-size: var(--fs-xl);
+  }
+
+  .otp-input input {
+    font-size: var(--fs-lg);
+    letter-spacing: 0.3em;
+  }
+}
+
+/* Màn hình rất rộng: giữ mảng nhận diện không bị kéo quá dài. */
+@media (min-width: 1600px) {
+  .login-visual {
+    padding: var(--sp-12);
+  }
+
+  .visual-footer {
+    left: var(--sp-12);
+    right: var(--sp-12);
+  }
+}

@@ -14,9 +14,10 @@ import {
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { downloadApiResponse, resolveApiUrl } from '../api';
+import { CountUp, Reveal } from '../components/Motion';
 import type { PublishedFeedback, PublicTarget } from '../types';
 import { PUBLIC_DASHBOARD_COLS, normalizePublicDashboardConfig } from './defaults';
-import './studio.css';
+import '../styles/studio.css';
 import type {
   CustomHtmlBinding,
   PublicDashboardBreakpoint,
@@ -36,11 +37,12 @@ type RendererProps = {
   onSelectWidget?: (id: string) => void;
 };
 
+/* Giá trị tách làm hai phần: con số để đếm lên và đơn vị ghép phía sau. */
 const metricDefinitions = {
-  departments: { label: 'Đơn vị có chỉ tiêu', icon: Landmark, value: (data: PublicDashboardData) => data.overview.departments.length },
-  total: { label: 'Tổng chỉ tiêu', icon: Target, value: (data: PublicDashboardData) => data.overview.total },
-  completed: { label: 'Đã hoàn thành', icon: CheckCircle2, value: (data: PublicDashboardData) => data.overview.completed },
-  overallProgress: { label: 'Tiến độ chung', icon: BarChart3, value: (data: PublicDashboardData) => `${data.overview.overallProgress}%` },
+  departments: { label: 'Đơn vị có chỉ tiêu', icon: Landmark, suffix: '', value: (data: PublicDashboardData) => data.overview.departments.length },
+  total: { label: 'Tổng chỉ tiêu', icon: Target, suffix: '', value: (data: PublicDashboardData) => data.overview.total },
+  completed: { label: 'Đã hoàn thành', icon: CheckCircle2, suffix: '', value: (data: PublicDashboardData) => data.overview.completed },
+  overallProgress: { label: 'Tiến độ chung', icon: BarChart3, suffix: '%', value: (data: PublicDashboardData) => data.overview.overallProgress },
 } as const;
 
 function useBreakpoint(forced?: PublicDashboardBreakpoint) {
@@ -101,24 +103,26 @@ function OverviewMetrics({ widget, data }: { widget: PublicDashboardWidget; data
   const keys = requested.filter((key): key is keyof typeof metricDefinitions => key in metricDefinitions);
   return <div className="public-widget-content public-overview-widget">
     <div className="public-widget-heading"><div><span>SỐ LIỆU ĐÃ CÔNG BỐ</span><h2>{widget.title}</h2></div>{data.overview.updatedAt && <time dateTime={data.overview.updatedAt}>Cập nhật {new Date(data.overview.updatedAt).toLocaleDateString('vi-VN')}</time>}</div>
-    <div className="public-metric-grid">{keys.map(key => {
+    <div className="public-metric-grid">{keys.map((key, index) => {
       const definition = metricDefinitions[key];
       const Icon = definition.icon;
-      return <article key={key}><Icon /><div><strong>{definition.value(data)}</strong><span>{definition.label}</span></div></article>;
+      return <Reveal key={key} asChild index={index}>
+        <article><Icon /><div><strong><CountUp value={definition.value(data)} suffix={definition.suffix}/></strong><span>{definition.label}</span></div></article>
+      </Reveal>;
     })}</div>
   </div>;
 }
 
-function TargetCard({ item }: { item: PublicTarget }) {
+function TargetCard({ item, index = 0 }: { item: PublicTarget; index?: number }) {
   const progress = Math.max(0, Math.min(100, item.progress));
-  return <article className="public-studio-target-card">
+  return <Reveal asChild index={index}><article className="public-studio-target-card">
     <div><span>{item.code}</span><i className={item.status.toLowerCase()}>{statusLabel(item.status)}</i></div>
     <h3>{item.title}</h3>
     <p><Building2 />{item.department}</p>
     <strong>{formatTargetValue(item.currentValue, item.unit)} <small>/ {formatTargetValue(item.targetValue, item.unit)}</small></strong>
     <div className="public-studio-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
     <footer><span>Tiến độ thực hiện</span><b>{progress}%</b></footer>
-  </article>;
+  </article></Reveal>;
 }
 
 function TargetList({ widget, data }: { widget: PublicDashboardWidget; data: PublicDashboardData }) {
@@ -130,7 +134,7 @@ function TargetList({ widget, data }: { widget: PublicDashboardWidget; data: Pub
   items = items.slice(0, maxItems);
   return <div className="public-widget-content">
     <div className="public-widget-heading"><div><span>CHỈ TIÊU CÔNG KHAI</span><h2>{widget.title}</h2></div><b>{items.length} chỉ tiêu</b></div>
-    {items.length ? <div className="public-studio-target-grid">{items.map(item => <TargetCard key={item.key} item={item} />)}</div> : <EmptyWidget icon={<Target />} text="Chưa có chỉ tiêu phù hợp với cấu hình hiển thị." />}
+    {items.length ? <div className="public-studio-target-grid">{items.map((item, index) => <TargetCard key={item.key} item={item} index={index} />)}</div> : <EmptyWidget icon={<Target />} text="Chưa có chỉ tiêu phù hợp với cấu hình hiển thị." />}
   </div>;
 }
 
@@ -139,9 +143,9 @@ function DepartmentProgress({ widget, data }: { widget: PublicDashboardWidget; d
   const items = data.overview.departments.slice(0, maxItems);
   return <div className="public-widget-content">
     <div className="public-widget-heading"><div><span>KẾT QUẢ THEO ĐƠN VỊ</span><h2>{widget.title}</h2></div></div>
-    {items.length ? <div className="public-studio-departments">{items.map((department, index) => <article key={department.key}>
+    {items.length ? <div className="public-studio-departments">{items.map((department, index) => <Reveal key={department.key} asChild index={index}><article>
       <b>{String(index + 1).padStart(2, '0')}</b><div><strong>{department.name}</strong><span>{department.completed}/{department.total} chỉ tiêu hoàn thành</span><div className="public-studio-progress"><i style={{ width: `${Math.max(0, Math.min(100, department.progress))}%`, background: department.color }} /></div></div><em>{department.progress}%</em>
-    </article>)}</div> : <EmptyWidget icon={<Building2 />} text="Chưa có dữ liệu đơn vị được công bố." />}
+    </article></Reveal>)}</div> : <EmptyWidget icon={<Building2 />} text="Chưa có dữ liệu đơn vị được công bố." />}
   </div>;
 }
 

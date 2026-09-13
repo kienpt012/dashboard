@@ -1,0 +1,456 @@
+/* ============================================================================
+   IOC Lái Thiêu — Token thiết kế
+   Tầng nền của toàn bộ hệ thống giao diện. Mọi file CSS khác chỉ được dùng các
+   token NGỮ NGHĨA khai báo ở đây (--bg-*, --tx-*, --bd-*, --sh-*, --fs-*, --sp-*).
+   Không file nào khác được phép viết mã màu trực tiếp.
+
+   Nguyên tắc màu: màu thương hiệu (lam công vụ) tách bạch hoàn toàn khỏi màu
+   trạng thái (lục / hổ phách / hồng đỏ). Nhờ vậy "đúng tiến độ" không bao giờ bị
+   nhầm với "phần tử giao diện" — điều mà bản cũ mắc phải vì cùng dùng màu xanh lá.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  /* ---------- Họ chữ ---------------------------------------------------- */
+  --font-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* ---------- Thang cỡ chữ ---------------------------------------------- */
+  --fs-micro: 0.6875rem;  /* 11px — nhãn viết hoa, huy hiệu */
+  --fs-xs: 0.75rem;       /* 12px — chú thích, siêu dữ liệu */
+  --fs-sm: 0.8125rem;     /* 13px — nhãn phụ, chip */
+  --fs-base: 0.875rem;    /* 14px — chữ nền của hệ thống */
+  --fs-md: 1rem;          /* 16px — chữ dẫn nhập */
+  --fs-lg: 1.125rem;      /* 18px — tiêu đề thẻ */
+  --fs-xl: 1.375rem;      /* 22px — tiêu đề mục */
+  --fs-2xl: 1.75rem;      /* 28px — tiêu đề trang */
+  --fs-3xl: 2.25rem;      /* 36px — số liệu lớn */
+  --fs-4xl: 3rem;         /* 48px — hero */
+  --fs-5xl: 3.75rem;      /* 60px — hero màn rộng */
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.6;
+  --lh-relaxed: 1.75;
+
+  --ls-caps: 0.08em;
+  --ls-wide: 0.02em;
+  --ls-tight: -0.02em;
+
+  /* ---------- Nhịp 4px --------------------------------------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+  --sp-11: 80px;
+  --sp-12: 96px;
+
+  /* ---------- Bo góc ----------------------------------------------------- */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-2xl: 24px;
+  --r-pill: 999px;
+
+  /* ---------- Thang màu gốc --------------------------------------------- */
+  /* Lam công vụ — nhận diện, điều hướng, hành động chính */
+  --brand-50: #eef4ff;
+  --brand-100: #dbe6ff;
+  --brand-200: #bdd0ff;
+  --brand-300: #94b2ff;
+  --brand-400: #6a8dfb;
+  --brand-500: #4569ef;
+  --brand-600: #2f4bdc;
+  --brand-700: #2639b8;
+  --brand-800: #223292;
+  --brand-900: #1d2b72;
+  --brand-950: #111838;
+
+  /* Ngọc — dữ liệu, điểm nhấn, biểu đồ */
+  --accent-50: #e9fbfb;
+  --accent-100: #ccf5f6;
+  --accent-200: #9deaee;
+  --accent-300: #63d7df;
+  --accent-400: #2dbcc9;
+  --accent-500: #159bab;
+  --accent-600: #0f7c8b;
+  --accent-700: #116371;
+  --accent-800: #14515d;
+  --accent-900: #14444e;
+  --accent-950: #062c34;
+
+  /* Trí tuệ nhân tạo — Copilot, đề xuất AI, độ tin cậy */
+  --ai-50: #f4f1ff;
+  --ai-100: #ebe5ff;
+  --ai-200: #d9cfff;
+  --ai-300: #bda8ff;
+  --ai-400: #9e7cff;
+  --ai-500: #8352fa;
+  --ai-600: #7430ef;
+  --ai-700: #6420d3;
+  --ai-800: #531cad;
+  --ai-900: #45198c;
+  --ai-950: #2a0d5e;
+
+  /* Lục — hoàn thành, đúng tiến độ, thành công */
+  --ok-50: #e8f8ef;
+  --ok-100: #cdefdb;
+  --ok-200: #a3e2c0;
+  --ok-300: #6bcf9e;
+  --ok-400: #34b878;
+  --ok-500: #17a44f;
+  --ok-600: #128a41;
+  --ok-700: #0f6e35;
+  --ok-800: #0d5a2c;
+  --ok-900: #0a3f20;
+
+  /* Hổ phách — cần theo dõi, cảnh báo */
+  --warn-50: #fff6e6;
+  --warn-100: #ffe9bf;
+  --warn-200: #ffd68a;
+  --warn-300: #f8bb4e;
+  --warn-400: #ea9b23;
+  --warn-500: #d98014;
+  --warn-600: #b8660c;
+  --warn-700: #94510b;
+  --warn-800: #75400a;
+  --warn-900: #4d2a05;
+
+  /* Hồng đỏ — quá hạn, lỗi, huỷ */
+  --bad-50: #ffeef0;
+  --bad-100: #ffd7dc;
+  --bad-200: #ffb3bd;
+  --bad-300: #fb8497;
+  --bad-400: #f15872;
+  --bad-500: #e23b56;
+  --bad-600: #c72743;
+  --bad-700: #a51d36;
+  --bad-800: #85182d;
+  --bad-900: #59101f;
+
+  /* Trung tính — ngả lam nhẹ để hoà với màu thương hiệu */
+  --n-0: #ffffff;
+  --n-25: #fbfcfe;
+  --n-50: #f5f7fb;
+  --n-100: #eef1f7;
+  --n-150: #e5e9f2;
+  --n-200: #d9dfec;
+  --n-300: #c0c9dc;
+  --n-400: #97a3bd;
+  --n-500: #6f7c99;
+  --n-600: #556180;
+  --n-700: #414c68;
+  --n-800: #2d3650;
+  --n-850: #222a40;
+  --n-900: #171d2e;
+  --n-950: #0d1220;
+
+  /* ---------- Chuyển động ------------------------------------------------ */
+  --ease-out: cubic-bezier(0.22, 0.8, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.5, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --t-fast: 120ms;
+  --t-base: 180ms;
+  --t-slow: 260ms;
+  --t-slower: 400ms;
+
+  /* ---------- Tầng z ----------------------------------------------------- */
+  --z-base: 0;
+  --z-sticky: 20;
+  --z-nav: 40;
+  --z-backdrop: 60;
+  --z-drawer: 70;
+  --z-modal: 80;
+  --z-copilot: 90;
+  --z-toast: 100;
+  --z-progress: 110;
+  --z-tooltip: 120;
+
+  /* ---------- Kích thước vỏ --------------------------------------------- */
+  --shell-sidebar: 268px;
+  --shell-sidebar-rail: 76px;
+  --shell-topbar: 64px;
+  --shell-page-max: 1560px;
+  --shell-dock: 420px;
+}
+
+/* ============================================================================
+   CHẾ ĐỘ SÁNG (mặc định)
+   ========================================================================== */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Nền */
+  --bg-canvas: var(--n-50);
+  --bg-surface: var(--n-0);
+  --bg-surface-2: var(--n-25);
+  --bg-surface-3: var(--n-100);
+  --bg-inset: var(--n-100);
+  --bg-overlay: rgba(13, 18, 32, 0.5);
+  --bg-scrim: rgba(255, 255, 255, 0.72);
+
+  --bg-brand: var(--brand-600);
+  --bg-brand-hover: var(--brand-700);
+  --bg-brand-soft: var(--brand-50);
+  --bg-accent: var(--accent-600);
+  --bg-accent-soft: var(--accent-50);
+  --bg-ai: var(--ai-600);
+  --bg-ai-soft: var(--ai-50);
+  --bg-ok: var(--ok-600);
+  --bg-ok-soft: var(--ok-50);
+  --bg-warn: var(--warn-500);
+  --bg-warn-soft: var(--warn-50);
+  --bg-bad: var(--bad-600);
+  --bg-bad-soft: var(--bad-50);
+
+  /* Chữ */
+  --tx-strong: var(--n-900);
+  --tx-normal: var(--n-700);
+  --tx-muted: var(--n-500);
+  --tx-subtle: var(--n-400);
+  --tx-onbrand: #ffffff;
+  --tx-brand: var(--brand-700);
+  --tx-accent: var(--accent-700);
+  --tx-ai: var(--ai-700);
+  --tx-ok: var(--ok-700);
+  --tx-warn: var(--warn-700);
+  --tx-bad: var(--bad-700);
+
+  /* Viền */
+  --bd-subtle: var(--n-150);
+  --bd-normal: var(--n-200);
+  --bd-strong: var(--n-300);
+  --bd-brand: var(--brand-500);
+  --bd-focus: rgba(69, 105, 239, 0.32);
+  --bd-ok: var(--ok-200);
+  --bd-warn: var(--warn-200);
+  --bd-bad: var(--bad-200);
+  --bd-ai: var(--ai-200);
+
+  /* Đổ bóng */
+  --sh-xs: 0 1px 2px rgba(17, 24, 56, 0.05);
+  --sh-sm: 0 2px 6px rgba(17, 24, 56, 0.06), 0 1px 2px rgba(17, 24, 56, 0.04);
+  --sh-md: 0 6px 18px rgba(17, 24, 56, 0.08), 0 2px 5px rgba(17, 24, 56, 0.04);
+  --sh-lg: 0 16px 38px rgba(17, 24, 56, 0.1), 0 4px 10px rgba(17, 24, 56, 0.05);
+  --sh-xl: 0 28px 64px rgba(17, 24, 56, 0.16), 0 8px 20px rgba(17, 24, 56, 0.07);
+  --sh-focus: 0 0 0 3px var(--bd-focus);
+  --sh-inset: inset 0 1px 2px rgba(17, 24, 56, 0.05);
+  /* Bóng ở mép vùng cuộn ngang, báo còn nội dung phía đó. */
+  --sh-edge: rgba(17, 24, 56, 0.16);
+
+  /* Vỏ điều hướng — luôn tối để giữ khí chất trung tâm điều hành */
+  --nav-bg: linear-gradient(180deg, #131c40 0%, #0d1430 60%, #0b1129 100%);
+  --nav-solid: #101838;
+  --nav-tx: #dbe4ff;
+  --nav-tx-muted: #8e9cc9;
+  --nav-tx-faint: #6b78a3;
+  --nav-active-bg: rgba(106, 141, 251, 0.16);
+  --nav-active-tx: #ffffff;
+  --nav-hover-bg: rgba(255, 255, 255, 0.06);
+  --nav-bd: rgba(255, 255, 255, 0.08);
+
+  /* Thanh cuộn */
+  --scrollbar-thumb: var(--n-300);
+  --scrollbar-thumb-hover: var(--n-400);
+  --scrollbar-track: transparent;
+
+  /* Chọn văn bản */
+  --selection-bg: var(--brand-100);
+  --selection-tx: var(--brand-900);
+
+  /* Lớp phủ hoạ tiết hero */
+  --hero-bg: radial-gradient(120% 100% at 82% 12%, rgba(45, 188, 201, 0.28) 0%, transparent 52%),
+    radial-gradient(90% 80% at 8% 88%, rgba(116, 48, 239, 0.22) 0%, transparent 55%),
+    linear-gradient(145deg, #0f1738 0%, #15204d 45%, #0b2b36 100%);
+}
+
+/* ============================================================================
+   CHẾ ĐỘ TỐI
+   Áp dụng khi người dùng chọn "tối", hoặc khi để "theo hệ thống" và hệ điều hành
+   đang ở chế độ tối.
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg-canvas: #080b14;
+    --bg-surface: #11172a;
+    --bg-surface-2: #161d33;
+    --bg-surface-3: #1d2540;
+    --bg-inset: #0e1424;
+    --bg-overlay: rgba(4, 6, 12, 0.68);
+    --bg-scrim: rgba(8, 11, 20, 0.72);
+
+    --bg-brand: var(--brand-500);
+    --bg-brand-hover: var(--brand-400);
+    --bg-brand-soft: rgba(69, 105, 239, 0.16);
+    --bg-accent: var(--accent-500);
+    --bg-accent-soft: rgba(45, 188, 201, 0.14);
+    --bg-ai: var(--ai-500);
+    --bg-ai-soft: rgba(131, 82, 250, 0.16);
+    --bg-ok: var(--ok-500);
+    --bg-ok-soft: rgba(23, 164, 79, 0.16);
+    --bg-warn: var(--warn-400);
+    --bg-warn-soft: rgba(234, 155, 35, 0.16);
+    --bg-bad: var(--bad-500);
+    --bg-bad-soft: rgba(226, 59, 86, 0.16);
+
+    --tx-strong: #eaeffb;
+    --tx-normal: #c2cbdf;
+    --tx-muted: #8d98b3;
+    --tx-subtle: #6d7899;
+    --tx-onbrand: #ffffff;
+    --tx-brand: var(--brand-300);
+    --tx-accent: var(--accent-300);
+    --tx-ai: var(--ai-300);
+    --tx-ok: var(--ok-300);
+    --tx-warn: var(--warn-300);
+    --tx-bad: var(--bad-300);
+
+    --bd-subtle: #202942;
+    --bd-normal: #2a3450;
+    --bd-strong: #3a4666;
+    --bd-brand: var(--brand-500);
+    --bd-focus: rgba(106, 141, 251, 0.42);
+    --bd-ok: rgba(52, 184, 120, 0.32);
+    --bd-warn: rgba(234, 155, 35, 0.32);
+    --bd-bad: rgba(241, 88, 114, 0.32);
+    --bd-ai: rgba(158, 124, 255, 0.32);
+
+    --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --sh-sm: 0 2px 6px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --sh-md: 0 6px 18px rgba(0, 0, 0, 0.48), 0 2px 5px rgba(0, 0, 0, 0.32);
+    --sh-lg: 0 16px 38px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.34);
+    --sh-xl: 0 28px 64px rgba(0, 0, 0, 0.62), 0 8px 20px rgba(0, 0, 0, 0.4);
+    --sh-focus: 0 0 0 3px var(--bd-focus);
+    --sh-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    --sh-edge: rgba(0, 0, 0, 0.55);
+
+    --nav-bg: linear-gradient(180deg, #0d1322 0%, #0a0f1c 100%);
+    --nav-solid: #0b1120;
+    --nav-tx: #d5ddf0;
+    --nav-tx-muted: #808ca9;
+    --nav-tx-faint: #66708c;
+    --nav-active-bg: rgba(106, 141, 251, 0.18);
+    --nav-active-tx: #ffffff;
+    --nav-hover-bg: rgba(255, 255, 255, 0.05);
+    --nav-bd: rgba(255, 255, 255, 0.07);
+
+    --scrollbar-thumb: #303a58;
+    --scrollbar-thumb-hover: #414d72;
+
+    --selection-bg: rgba(69, 105, 239, 0.4);
+    --selection-tx: #ffffff;
+
+    --hero-bg: radial-gradient(120% 100% at 82% 12%, rgba(45, 188, 201, 0.2) 0%, transparent 52%),
+      radial-gradient(90% 80% at 8% 88%, rgba(116, 48, 239, 0.18) 0%, transparent 55%),
+      linear-gradient(145deg, #080d1e 0%, #0c1430 45%, #061a22 100%);
+  }
+}
+
+/* Người dùng chọn "tối" một cách tường minh — thắng cả thiết lập hệ điều hành. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-canvas: #080b14;
+  --bg-surface: #11172a;
+  --bg-surface-2: #161d33;
+  --bg-surface-3: #1d2540;
+  --bg-inset: #0e1424;
+  --bg-overlay: rgba(4, 6, 12, 0.68);
+  --bg-scrim: rgba(8, 11, 20, 0.72);
+
+  --bg-brand: var(--brand-500);
+  --bg-brand-hover: var(--brand-400);
+  --bg-brand-soft: rgba(69, 105, 239, 0.16);
+  --bg-accent: var(--accent-500);
+  --bg-accent-soft: rgba(45, 188, 201, 0.14);
+  --bg-ai: var(--ai-500);
+  --bg-ai-soft: rgba(131, 82, 250, 0.16);
+  --bg-ok: var(--ok-500);
+  --bg-ok-soft: rgba(23, 164, 79, 0.16);
+  --bg-warn: var(--warn-400);
+  --bg-warn-soft: rgba(234, 155, 35, 0.16);
+  --bg-bad: var(--bad-500);
+  --bg-bad-soft: rgba(226, 59, 86, 0.16);
+
+  --tx-strong: #eaeffb;
+  --tx-normal: #c2cbdf;
+  --tx-muted: #8d98b3;
+  --tx-subtle: #6d7899;
+  --tx-onbrand: #ffffff;
+  --tx-brand: var(--brand-300);
+  --tx-accent: var(--accent-300);
+  --tx-ai: var(--ai-300);
+  --tx-ok: var(--ok-300);
+  --tx-warn: var(--warn-300);
+  --tx-bad: var(--bad-300);
+
+  --bd-subtle: #202942;
+  --bd-normal: #2a3450;
+  --bd-strong: #3a4666;
+  --bd-brand: var(--brand-500);
+  --bd-focus: rgba(106, 141, 251, 0.42);
+  --bd-ok: rgba(52, 184, 120, 0.32);
+  --bd-warn: rgba(234, 155, 35, 0.32);
+  --bd-bad: rgba(241, 88, 114, 0.32);
+  --bd-ai: rgba(158, 124, 255, 0.32);
+
+  --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-sm: 0 2px 6px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-md: 0 6px 18px rgba(0, 0, 0, 0.48), 0 2px 5px rgba(0, 0, 0, 0.32);
+  --sh-lg: 0 16px 38px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.34);
+  --sh-xl: 0 28px 64px rgba(0, 0, 0, 0.62), 0 8px 20px rgba(0, 0, 0, 0.4);
+  --sh-focus: 0 0 0 3px var(--bd-focus);
+  --sh-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-edge: rgba(0, 0, 0, 0.55);
+
+  --nav-bg: linear-gradient(180deg, #0d1322 0%, #0a0f1c 100%);
+  --nav-solid: #0b1120;
+  --nav-tx: #d5ddf0;
+  --nav-tx-muted: #808ca9;
+  --nav-tx-faint: #66708c;
+  --nav-active-bg: rgba(106, 141, 251, 0.18);
+  --nav-active-tx: #ffffff;
+  --nav-hover-bg: rgba(255, 255, 255, 0.05);
+  --nav-bd: rgba(255, 255, 255, 0.07);
+
+  --scrollbar-thumb: #303a58;
+  --scrollbar-thumb-hover: #414d72;
+
+  --selection-bg: rgba(69, 105, 239, 0.4);
+  --selection-tx: #ffffff;
+
+  --hero-bg: radial-gradient(120% 100% at 82% 12%, rgba(45, 188, 201, 0.2) 0%, transparent 52%),
+    radial-gradient(90% 80% at 8% 88%, rgba(116, 48, 239, 0.18) 0%, transparent 55%),
+    linear-gradient(145deg, #080d1e 0%, #0c1430 45%, #061a22 100%);
+}
+
+/* Người dùng đặt hệ điều hành ở chế độ tương phản cao. */
+@media (prefers-contrast: more) {
+  :root {
+    --bd-subtle: var(--n-300);
+    --bd-normal: var(--n-400);
+    --bd-strong: var(--n-600);
+    --tx-muted: var(--n-600);
+    --tx-subtle: var(--n-500);
+  }
+
+  :root[data-theme='dark'] {
+    --bd-subtle: #3a4666;
+    --bd-normal: #4a5880;
+    --bd-strong: #6b7aa3;
+    --tx-muted: #a8b3cc;
+    --tx-subtle: #8d98b3;
+  }
+}

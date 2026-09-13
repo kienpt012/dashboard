@@ -1,0 +1,841 @@
+/* ============================================================================
+   IOC Lái Thiêu — Danh mục chỉ tiêu
+   Màn hình xương sống: danh mục chỉ tiêu, tạo/sửa, giao đơn vị, cập nhật số liệu,
+   công khai hay không.
+
+   Nguyên tắc của file này:
+   - Chỉ dùng token ngữ nghĩa (--bg-*, --tx-*, --bd-*, --sh-*, --fs-*, --sp-*).
+   - Ưu tiên nguyên thể toàn cục (.panel .table-wrap .status .progress .row-action
+     .btn .code .toolbar .search .form-grid .info-box .empty). Ở đây chỉ mô tả
+     những gì thật sự riêng của màn hình chỉ tiêu, dùng tiền tố `tg-`.
+   - Bảng là khối thông tin có thứ bậc: mã → tên → đơn vị/hạn; dưới 900px mỗi hàng
+     trở thành một thẻ đọc được bằng một cột.
+   ========================================================================== */
+
+/* ============================================================================
+   1. BỐ CỤC TRANG
+   ========================================================================== */
+
+/* Các khối lớn của trang xếp dọc với một nhịp duy nhất. */
+.tg-stack {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+/* Thông báo tại chỗ (giữ lại vì mang thông tin chi tiết, ngoài toast). */
+.tg-alert {
+  align-items: center;
+}
+
+.tg-alert > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.tg-alert > button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: 32px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-xs);
+  color: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  transition: background-color var(--t-fast) var(--ease-out), opacity var(--t-fast) var(--ease-out);
+}
+
+.tg-alert > button:hover {
+  background: var(--bg-surface);
+}
+
+.tg-alert > button:active {
+  opacity: 0.8;
+}
+
+.tg-alert > button svg {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/* Bảng nằm trong panel không đệm; phần đầu có đường kẻ tách khỏi bảng. */
+.tg-panel > .panel-head {
+  align-items: center;
+  margin-bottom: 0;
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.tg-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.tg-panel-title svg {
+  width: 18px;
+  height: 18px;
+  color: var(--tx-brand);
+}
+
+/* ============================================================================
+   2. THANH CÔNG CỤ & BỘ LỌC
+   Tìm kiếm chiếm phần lớn, các bộ lọc đi thành một nhóm, nút kho lưu trữ tách
+   sang phải để không lẫn với bộ lọc.
+   ========================================================================== */
+.tg-toolbar {
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.tg-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.tg-toolbar .tg-toggle {
+  margin-left: auto;
+}
+
+/* Nút chuyển giữa "đang hoạt động" và "kho lưu trữ" — trạng thái bật rõ ràng. */
+.btn.tg-toggle.active {
+  background: var(--bg-brand-soft);
+  border-color: var(--bd-brand);
+  color: var(--tx-brand);
+}
+
+.btn.tg-toggle.active:hover:not(:disabled) {
+  background: var(--bg-brand-soft);
+  border-color: var(--bd-brand);
+}
+
+/* ============================================================================
+   3. BẢNG CHỈ TIÊU — Ô NHẬN DẠNG
+   Mã chỉ tiêu là nhãn kỹ thuật, tên chỉ tiêu là dòng chính, đơn vị phụ trách và
+   hạn hoàn thành là dòng phụ mờ hơn.
+   ========================================================================== */
+.tg-table {
+  min-width: 920px;
+}
+
+.tg-sort-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+}
+
+.tg-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--sp-7);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--tx-muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+.tg-sort-button svg {
+  width: var(--sp-4);
+  height: var(--sp-4);
+  flex: none;
+}
+
+.tg-sort-button.active {
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+  border-color: var(--bd-brand);
+}
+
+.tg-sort-button:hover:not(:disabled) {
+  background: var(--bg-surface);
+  color: var(--tx-strong);
+  border-color: var(--bd-strong);
+}
+
+.tg-sort-button:focus-visible {
+  outline: 2px solid var(--bd-brand);
+  outline-offset: 2px;
+  box-shadow: var(--sh-focus);
+}
+
+.tg-sort-button:active:not(:disabled) {
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.tg-sort-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tg-ident {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.tg-ident-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: var(--r-md);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.tg-ident-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tg-ident-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.tg-title {
+  display: block;
+  max-width: 46ch;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--tx-strong);
+  line-height: var(--lh-snug);
+}
+
+/* Dòng phụ: đơn vị phụ trách · hạn · chiều đánh giá. */
+.tg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.tg-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.tg-meta-item svg {
+  width: 13px;
+  height: 13px;
+  color: var(--tx-subtle);
+}
+
+/* Chấm màu của phòng ban lấy trực tiếp từ dữ liệu (thuộc tính style nội tuyến). */
+.tg-dept {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-weight: 600;
+  color: var(--tx-normal);
+}
+
+.tg-dept > i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: var(--sh-inset);
+}
+
+/* ============================================================================
+   4. CỘT TIẾN ĐỘ
+   ========================================================================== */
+.tg-progress {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 180px;
+  max-width: 260px;
+}
+
+/* Hiệu ứng được chạy một lần từ useInView trong Targets.tsx. Tắt hiệu ứng tự động
+   của .reveal và chuyển tiếp width để lọc, sắp xếp, cập nhật không chạy lại thanh. */
+.tg-panel .tg-progress .progress > i {
+  transform-origin: 0 50%;
+  transition: none;
+}
+
+.has-motion .tg-panel .tg-progress .progress > i {
+  animation: none;
+}
+
+.tg-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-progress-head > b {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  color: var(--tx-strong);
+}
+
+.tg-pending {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--tx-warn);
+}
+
+/* ============================================================================
+   5. CỘT TRANG NGƯỜI DÂN (công khai / nội bộ)
+   ========================================================================== */
+.tg-visibility {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-width: 168px;
+}
+
+.tg-visibility .visibility-switch > b {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.tg-visibility .visibility-switch:hover:not(:disabled) {
+  color: var(--tx-strong);
+}
+
+.tg-visibility .visibility-switch.on {
+  color: var(--tx-ok);
+}
+
+.tg-visibility .visibility-switch:active:not(:disabled) > span {
+  box-shadow: var(--sh-inset);
+}
+
+/* Nhắc đồng bộ lại bản đã công bố khi số liệu nội bộ đã đổi. */
+.tg-pub-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--bd-warn);
+  border-radius: var(--r-xs);
+  background: var(--bg-warn-soft);
+  color: var(--tx-warn);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-align: left;
+  transition: background-color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out),
+    opacity var(--t-fast) var(--ease-out);
+}
+
+.tg-pub-refresh svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tg-pub-refresh:hover:not(:disabled) {
+  border-color: var(--bg-warn);
+}
+
+.tg-pub-refresh:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.tg-pub-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tg-vis-hint {
+  display: block;
+  font-size: var(--fs-micro);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* ============================================================================
+   6. CỘT THAO TÁC
+   Thao tác chính ("Báo cáo số liệu") giữ nhãn chữ vì nó còn mang trạng thái;
+   thao tác phụ dùng nguyên thể `.row-action` với nhãn cho trình đọc màn hình.
+   ========================================================================== */
+.tg-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.tg-quiet {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   7. BẢNG "BÁO CÁO CỦA TÔI"
+   ========================================================================== */
+.tg-sub-table {
+  min-width: 860px;
+}
+
+.tg-when {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tg-sub-target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.tg-sub-value {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-sub-note {
+  display: block;
+  margin-top: var(--sp-1);
+  max-width: 42ch;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+.tg-review {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  max-width: 42ch;
+}
+
+.tg-review-reason {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-bad);
+  line-height: var(--lh-snug);
+}
+
+/* ============================================================================
+   8. KHUNG XƯƠNG TẢI
+   Dùng thay vòng quay vì bố cục hai bảng đã biết trước.
+   ========================================================================== */
+.tg-skeleton {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.tg-skeleton-row {
+  height: 56px;
+}
+
+/* ============================================================================
+   9. HỘP THOẠI TẠO / SỬA / BÁO CÁO
+   Các trường được gom theo ý nghĩa: nhận dạng → mục tiêu → phân công → công khai.
+   ========================================================================== */
+.tg-form {
+  gap: var(--sp-5);
+}
+
+.tg-group {
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--bd-subtle);
+}
+
+.tg-group:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.tg-group-title {
+  display: block;
+  margin-bottom: var(--sp-3);
+  padding: 0;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-muted);
+}
+
+/* Mã chỉ tiêu do hệ thống cấp — chỉ đọc, nên trình bày như một thẻ thông tin. */
+.tg-code-field {
+  display: grid;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.tg-code-field > span {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+}
+
+.tg-code-field > strong {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  color: var(--tx-brand);
+  overflow-wrap: anywhere;
+}
+
+.tg-code-field > small {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Ô đánh dấu "chỉ tiêu nổi bật" — vùng chạm rộng, bấm cả hàng. */
+.tg-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+
+.tg-check:hover {
+  border-color: var(--bd-strong);
+}
+
+.tg-check:focus-within {
+  border-color: var(--bd-brand);
+  box-shadow: var(--sh-focus);
+}
+
+.tg-check > input {
+  margin-top: 0;
+}
+
+.tg-check > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-strong);
+  line-height: var(--lh-snug);
+}
+
+.tg-check svg {
+  width: 16px;
+  height: 16px;
+  color: var(--tx-warn);
+}
+
+/* Ghi chú quyền hạn / quy trình duyệt — dùng lại `.info-box`. */
+.tg-note strong {
+  display: block;
+  font-size: var(--fs-sm);
+  color: inherit;
+}
+
+.tg-note p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: inherit;
+}
+
+/* Tóm tắt chỉ tiêu đang báo cáo, đặt trên đầu hộp thoại báo cáo số liệu. */
+.tg-preview {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.tg-preview > .code {
+  justify-self: start;
+}
+
+.tg-preview > strong {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--tx-strong);
+  line-height: var(--lh-snug);
+}
+
+.tg-preview > p {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  line-height: var(--lh-snug);
+}
+
+/* ============================================================================
+   10. MÀN HÌNH HẸP
+   1280 → thu gọn cột nhận dạng; 900 → mỗi hàng bảng thành một thẻ;
+   640 → nhãn và giá trị xếp chồng.
+   ========================================================================== */
+@media (max-width: 1280px) {
+  .tg-table {
+    min-width: 860px;
+  }
+
+  .tg-title {
+    max-width: 34ch;
+  }
+
+  .tg-progress {
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 900px) {
+  .tg-panel > .panel-head {
+    align-items: flex-start;
+    padding: var(--sp-4);
+  }
+
+  /* Bảng → danh sách thẻ: không còn cuộn ngang, đọc được bằng một cột. */
+  .tg-table,
+  .tg-sub-table {
+    min-width: 0;
+  }
+
+  .tg-panel .table-wrap {
+    padding: var(--sp-4);
+    overflow-x: visible;
+  }
+
+  .tg-table thead {
+    display: none;
+  }
+
+  .tg-table,
+  .tg-table tbody,
+  .tg-table tr,
+  .tg-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .tg-table tr {
+    margin-bottom: var(--sp-3);
+    border: 1px solid var(--bd-subtle);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+    box-shadow: var(--sh-xs);
+    overflow: hidden;
+  }
+
+  .tg-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Giữ các nút sắp xếp ở đầu danh sách khi bảng chuyển thành thẻ. */
+  .tg-table .tg-sort-head {
+    display: block;
+    margin-bottom: var(--sp-3);
+  }
+
+  .tg-table .tg-sort-head tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    background: var(--bg-surface-3);
+    overflow: visible;
+  }
+
+  .tg-sort-head th {
+    position: static;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    white-space: normal;
+  }
+
+  .tg-sort-head th:not([aria-sort]) {
+    display: none;
+  }
+
+  .tg-table tbody tr:hover {
+    background: var(--bg-surface);
+    border-color: var(--bd-normal);
+  }
+
+  .tg-table td {
+    display: grid;
+    grid-template-columns: minmax(92px, 32%) 1fr;
+    align-items: start;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--bd-subtle);
+    text-align: left;
+  }
+
+  /* Nhãn cột chuyển thành nhãn của từng dòng trong thẻ. */
+  .tg-table td::before {
+    content: attr(data-label);
+    font-size: var(--fs-micro);
+    font-weight: 800;
+    letter-spacing: var(--ls-caps);
+    text-transform: uppercase;
+    color: var(--tx-muted);
+    line-height: var(--lh-normal);
+  }
+
+  .tg-table td:last-child,
+  .tg-table tbody tr:last-child td:last-child {
+    border-bottom: 0;
+  }
+
+  /* Ô nhận dạng là đầu thẻ: chiếm trọn chiều ngang, không cần nhãn lặp lại. */
+  .tg-table td.tg-card-head {
+    display: block;
+    background: var(--bg-surface-2);
+  }
+
+  .tg-table td.tg-card-head::before {
+    content: none;
+  }
+
+  /* Cột thao tác của `.action-table` không còn căn phải trong thẻ. */
+  .tg-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .tg-progress,
+  .tg-visibility {
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .tg-title,
+  .tg-sub-note,
+  .tg-review {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .tg-stack {
+    gap: var(--sp-4);
+  }
+
+  .tg-toolbar .tg-filter-group {
+    flex: 1 1 100%;
+    gap: var(--sp-2);
+  }
+
+  .tg-toolbar .tg-filter-group > select {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .tg-toolbar .tg-toggle {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .tg-panel .table-wrap {
+    padding: var(--sp-3);
+  }
+
+  /* Nhãn nằm trên, giá trị nằm dưới — tránh cột nhãn ăn hết bề ngang. */
+  .tg-table td {
+    grid-template-columns: 1fr;
+    gap: var(--sp-1);
+    padding: var(--sp-3);
+  }
+
+  .tg-table td.tg-card-head {
+    padding: var(--sp-3);
+  }
+
+  .tg-actions > .btn {
+    flex: 1 1 100%;
+  }
+
+  .tg-skeleton {
+    padding: var(--sp-3);
+  }
+}
+
+/* Thiết bị cảm ứng: mọi thứ bấm được đều đạt vùng chạm tối thiểu 44px. */
+@media (pointer: coarse) {
+  .tg-visibility .visibility-switch,
+  .tg-pub-refresh,
+  .tg-alert > button {
+    min-height: 44px;
+  }
+
+  .tg-sort-button {
+    min-height: var(--sp-9);
+  }
+}
+
+/* ============================================================================
+   11. GIẢM CHUYỂN ĐỘNG
+   base.css đã tắt hoạt ảnh toàn cục; ở đây tắt thêm các biến đổi vị trí riêng.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .tg-sort-button {
+    transition: none;
+  }
+
+  .tg-panel .tg-progress .progress > i {
+    transform: none !important;
+  }
+
+  .tg-pub-refresh:active:not(:disabled) {
+    transform: none;
+  }
+}
