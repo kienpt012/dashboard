@@ -7,10 +7,14 @@ import {
   Clock3,
   Download,
   Eye,
+  FileText,
   Filter,
+  History,
   Inbox,
   LockKeyhole,
   MessageCircleMore,
+  MessagesSquare,
+  Paperclip,
   RefreshCw,
   RotateCcw,
   Search,
@@ -23,7 +27,8 @@ import {
 } from 'lucide-react';
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api, auth, downloadApi } from '../api';
-import { Empty, PageHead, Spinner } from '../components/UI';
+import { toast } from '../components/Toast';
+import { Empty, PageHead, Skeleton, SkeletonCards } from '../components/UI';
 import type {
   Department,
   Feedback,
@@ -36,7 +41,7 @@ import type {
   FeedbackStatus,
   User,
 } from '../types';
-import '../feedback.css';
+import '../styles/feedback-admin.css';
 
 const statuses:Array<{value:FeedbackStatus;label:string}>=[
   {value:'RECEIVED',label:'Đã tiếp nhận'},{value:'ASSIGNED',label:'Đã phân công'},
@@ -86,6 +91,8 @@ const actionTitles:Record<ActionKind,string>={
   reject:'Không tiếp nhận phản ánh',reopen:'Chấp nhận và mở lại hồ sơ',rejectReopen:'Từ chối đề nghị xem xét lại',publish:'Công khai kết quả đã ẩn danh',unpublish:'Gỡ khỏi trang công khai',
 };
 
+const emptyFilters={status:'',priority:'',category:'',departmentId:'',assignedToMe:false,reopenRequested:false,waitingCitizenExpired:false,search:''};
+
 const emptyAction={departmentId:'',assignedToId:'',category:'OTHER' as FeedbackCategory,priority:'NORMAL' as FeedbackPriority,dueAt:'',note:'',message:'',visibility:'PUBLIC' as FeedbackMessageVisibility,summary:'',reason:'',confirmAnonymized:false,contactChannel:'PHONE' as 'PHONE'|'EMAIL',contactOutcome:'REACHED' as 'REACHED'|'NO_ANSWER'|'MESSAGE_SENT'|'INVALID_CONTACT'};
 
 function formatDate(value?:string|null){
@@ -112,6 +119,7 @@ function formatFileSize(value?:number){
 
 function activeDeadline(item:Feedback){return item.status==='WAITING_CITIZEN'?(item.citizenResponseDueAt||item.dueAt):(item.firstResponseAt?item.dueAt:(item.firstResponseDueAt||item.dueAt))}
 function isOverdue(item:Feedback){const deadline=activeDeadline(item);return Boolean(deadline&&new Date(deadline)<new Date()&&!['RESOLVED','CLOSED','REJECTED'].includes(item.status))}
+function deadlineLabel(item:Feedback){return item.status==='WAITING_CITIZEN'?'Hạn bổ sung':item.firstResponseAt?'Hạn xử lý':'Hạn phản hồi'}
 
 export default function FeedbackAdmin(){
   const user=auth.user!;
@@ -123,11 +131,10 @@ export default function FeedbackAdmin(){
   const [assignees,setAssignees]=useState<Assignee[]>([]);
   const [loading,setLoading]=useState(true);
   const [pageError,setPageError]=useState('');
-  const [notice,setNotice]=useState('');
   const [page,setPage]=useState(1);
   const [total,setTotal]=useState(0);
   const pageSize=20;
-  const [filters,setFilters]=useState({status:'',priority:'',category:'',departmentId:'',assignedToMe:false,reopenRequested:false,waitingCitizenExpired:false,search:''});
+  const [filters,setFilters]=useState(emptyFilters);
   const [appliedSearch,setAppliedSearch]=useState('');
   const [detail,setDetail]=useState<Feedback|null>(null);
   const [detailLoading,setDetailLoading]=useState(false);
@@ -323,13 +330,23 @@ export default function FeedbackAdmin(){
     }
     try{
       await api(`/feedbacks/${detail.id}/${path}`,{method:'POST',body:JSON.stringify(body)});
-      setNotice(`${actionTitles[actionKind]} thành công.`);closeAction();
+      toast.ok(`${actionTitles[actionKind]} thành công.`);closeAction();
       await Promise.all([openDetail(detail.id),load()]);
-    }catch(reason){setActionError(getError(reason,'Không thể cập nhật hồ sơ'))}
+    }catch(reason){
+      const message=getError(reason,'Không thể cập nhật hồ sơ');
+      setActionError(message);
+      toast.error(`${actionTitles[actionKind]} không thành công.`,message);
+    }
     finally{setSaving(false)}
   }
 
   function applySearch(event:FormEvent){event.preventDefault();setPage(1);setAppliedSearch(filters.search.trim())}
+
+  function clearFilters(){
+    setPage(1);
+    setFilters(emptyFilters);
+    setAppliedSearch('');
+  }
 
   async function downloadAttachment(attachment:FeedbackAttachment){
     if(!detail)return;
@@ -344,7 +361,12 @@ export default function FeedbackAdmin(){
       link.click();
       link.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),60_000);
-    }catch(reason){setAttachmentError(getError(reason,'Không thể tải file minh chứng'))}
+      toast.ok('Đã tải file minh chứng.',attachment.originalName||undefined);
+    }catch(reason){
+      const message=getError(reason,'Không thể tải file minh chứng');
+      setAttachmentError(message);
+      toast.error('Không tải được file minh chứng.',message);
+    }
     finally{setDownloadingAttachmentId('')}
   }
 
@@ -352,82 +374,235 @@ export default function FeedbackAdmin(){
   const detailAttachments=detail?.attachments||[];
 
   const pages=Math.max(1,Math.ceil(total/pageSize));
+  const hasFilters=Boolean(filters.status||filters.priority||filters.category||filters.departmentId||filters.assignedToMe||filters.reopenRequested||filters.waitingCitizenExpired||filters.search||appliedSearch);
 
   return <>
-    <PageHead eyebrow="QUẢN LÝ PHẢN ÁNH" title="Tiếp nhận & xử lý phản ánh" description={isAdmin?'Theo dõi toàn bộ vòng đời phản ánh, phân công đúng đơn vị và kiểm soát thời hạn xử lý.':`Dữ liệu được giới hạn trong ${user.department?.name||'đơn vị của bạn'} theo quyền được giao.`} actions={<button className="btn secondary" disabled={loading} onClick={()=>void load()}><RefreshCw/>Làm mới</button>}/>
-    {notice&&<div className="notice success"><CheckCircle2/>{notice}<button aria-label="Đóng thông báo" onClick={()=>setNotice('')}><X/></button></div>}
-    {pageError&&<div className="notice error" role="alert"><AlertCircle/>{pageError}<button onClick={()=>void load()}>Thử lại</button></div>}
+    <PageHead eyebrow="QUẢN LÝ PHẢN ÁNH" title="Tiếp nhận & xử lý phản ánh" description={isAdmin?'Theo dõi toàn bộ vòng đời phản ánh, phân công đúng đơn vị và kiểm soát thời hạn xử lý.':`Dữ liệu được giới hạn trong ${user.department?.name||'đơn vị của bạn'} theo quyền được giao.`} actions={<button type="button" className="btn secondary" disabled={loading} onClick={()=>void load()}><RefreshCw className={loading?'spin':undefined}/>Làm mới</button>}/>
 
-    <div className="feedback-stat-grid">
-      <article><span><Inbox/>Tổng hồ sơ</span><strong>{stats?.total??'—'}</strong><small>{stats?.received??0} mới tiếp nhận</small></article>
-      <article><span><Clock3/>Đang xử lý</span><strong>{stats?.inProgress??'—'}</strong><small>{stats?.dueSoon??0} sắp đến hạn · {stats?.awaitingCitizen??0} chờ dân</small></article>
-      <article><span><ShieldCheck/>Chờ duyệt</span><strong>{stats?.pendingReview??'—'}</strong><small>Cần kiểm tra kết quả</small></article>
-      <article className={stats?.reopenRequested?'danger':''}><span><RotateCcw/>Xem xét lại</span><strong>{stats?.reopenRequested??'—'}</strong><small>Đề nghị của người dân</small></article>
-      <article className={stats?.overdue?'danger':''}><span><AlertCircle/>Quá hạn xử lý</span><strong>{stats?.overdue??'—'}</strong><small>{stats?.waitingCitizenExpired??0} hồ sơ quá hạn bổ sung được theo dõi riêng</small></article>
-      <article><span><Star/>Hài lòng</span><strong>{stats?.averageRating?`${stats.averageRating.toFixed(1)}/5`:'—'}</strong><small>{stats?.ratingCount??0} lượt đánh giá</small></article>
-    </div>
+    {pageError&&<div className="form-error fb-page-error" role="alert"><AlertCircle/><span>{pageError}</span><button type="button" className="btn secondary sm" onClick={()=>void load()}>Thử lại</button></div>}
 
-    <section className="feedback-admin-card">
-      <div className="feedback-admin-filters">
-        <form className="feedback-search" onSubmit={applySearch}><Search/><input value={filters.search} onChange={event=>setFilters({...filters,search:event.target.value})} placeholder={user.role==='VIEWER'?'Tìm theo mã phản ánh':'Tìm theo mã, tiêu đề, nội dung'}/><button type="submit">Tìm</button></form>
-        <div className="feedback-filter-row"><Filter/>
+    {/* ---- Dải thống kê: sáu chỉ số điều hành, hai chỉ số cần hành động được nhấn mạnh ---- */}
+    {loading&&!stats
+      ?<div className="fb-stats" style={{marginBottom:'var(--sp-5)'}}><SkeletonCards count={6}/></div>
+      :<div className="stat-grid fb-stats">
+        <article className="stat-card"><div className="stat-icon brand" aria-hidden="true"><Inbox/></div><span>Tổng hồ sơ</span><strong>{stats?.total??'—'}</strong><p>{stats?.received??0} mới tiếp nhận</p></article>
+        <article className="stat-card"><div className="stat-icon accent" aria-hidden="true"><Clock3/></div><span>Đang xử lý</span><strong>{stats?.inProgress??'—'}</strong><p>{stats?.dueSoon??0} sắp đến hạn · {stats?.awaitingCitizen??0} chờ dân</p></article>
+        <article className="stat-card"><div className="stat-icon ai" aria-hidden="true"><ShieldCheck/></div><span>Chờ duyệt</span><strong>{stats?.pendingReview??'—'}</strong><p>Cần kiểm tra kết quả</p></article>
+        <article className={`stat-card${stats?.reopenRequested?' is-alert':''}`}><div className="stat-icon warn" aria-hidden="true"><RotateCcw/></div><span>Xem xét lại</span><strong>{stats?.reopenRequested??'—'}</strong><p>Đề nghị của người dân</p></article>
+        <article className={`stat-card${stats?.overdue?' is-alert':''}`}><div className="stat-icon bad" aria-hidden="true"><AlertCircle/></div><span>Quá hạn xử lý</span><strong>{stats?.overdue??'—'}</strong><p>{stats?.waitingCitizenExpired??0} hồ sơ quá hạn bổ sung được theo dõi riêng</p></article>
+        <article className="stat-card"><div className="stat-icon ok" aria-hidden="true"><Star/></div><span>Hài lòng</span><strong>{stats?.averageRating?`${stats.averageRating.toFixed(1)}/5`:'—'}</strong><p>{stats?.ratingCount??0} lượt đánh giá</p></article>
+      </div>}
+
+    {/* ---- Bộ lọc: tìm kiếm · thu hẹp theo thuộc tính · phạm vi công việc ---- */}
+    <section className="panel fb-filters" aria-label="Bộ lọc danh sách phản ánh">
+      <div className="toolbar">
+        <form className="fb-search" onSubmit={applySearch}>
+          <div className="search"><Search/><input aria-label="Tìm phản ánh" value={filters.search} onChange={event=>setFilters({...filters,search:event.target.value})} placeholder={user.role==='VIEWER'?'Tìm theo mã phản ánh':'Tìm theo mã, tiêu đề, nội dung'}/></div>
+          <button type="submit" className="btn secondary">Tìm</button>
+        </form>
+        <div className="spacer"/>
+        {hasFilters&&<button type="button" className="btn ghost sm" onClick={clearFilters}><X/>Xóa bộ lọc</button>}
+      </div>
+
+      <div className="fb-filter-block">
+        <span className="fb-filter-label"><Filter/>Thu hẹp danh sách</span>
+        <div className="toolbar">
           <select aria-label="Lọc theo trạng thái" value={filters.status} onChange={event=>{setPage(1);setFilters({...filters,status:event.target.value})}}><option value="">Tất cả trạng thái</option>{statuses.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select>
           <select aria-label="Lọc theo mức ưu tiên" value={filters.priority} onChange={event=>{setPage(1);setFilters({...filters,priority:event.target.value})}}><option value="">Mọi mức ưu tiên</option>{priorities.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select>
           <select aria-label="Lọc theo nhóm phản ánh" value={filters.category} onChange={event=>{setPage(1);setFilters({...filters,category:event.target.value})}}><option value="">Mọi nhóm vấn đề</option>{categories.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select>
           {isAdmin&&<select aria-label="Lọc theo đơn vị" value={filters.departmentId} onChange={event=>{setPage(1);setFilters({...filters,departmentId:event.target.value})}}><option value="">Tất cả đơn vị</option>{departments.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>}
-          {user.role!=='VIEWER'&&<label className="feedback-my-work"><input type="checkbox" checked={filters.assignedToMe} onChange={event=>{setPage(1);setFilters({...filters,assignedToMe:event.target.checked})}}/>Việc giao cho tôi</label>}
-          {canReview&&<label className="feedback-my-work"><input type="checkbox" checked={filters.reopenRequested} onChange={event=>{setPage(1);setFilters({...filters,reopenRequested:event.target.checked})}}/>Chờ xem xét lại</label>}
-          {canReview&&<label className="feedback-my-work"><input type="checkbox" checked={filters.waitingCitizenExpired} onChange={event=>{setPage(1);setFilters({...filters,waitingCitizenExpired:event.target.checked})}}/>Quá hạn bổ sung</label>}
         </div>
       </div>
 
-      <div className="feedback-list-summary"><span><b>{total}</b> hồ sơ phù hợp</span><small>Chọn một hồ sơ để xem chi tiết và xử lý</small></div>
-      {loading?<Spinner/>:rows.length?<div className="feedback-admin-list">{rows.map(item=><button className="feedback-admin-row" key={item.id} onClick={()=>void openDetail(item.id)}>
-        <div className="feedback-row-main"><div><span className="feedback-code">{item.code}</span><span className={`feedback-priority ${item.priority.toLowerCase()}`}>{priorityLabel[item.priority]}</span>{isOverdue(item)&&<span className="feedback-overdue">{item.status==='WAITING_CITIZEN'?'Quá hạn bổ sung':'Quá hạn xử lý'}</span>}{item.reopenRequestedAt&&<span className="feedback-priority high">Chờ duyệt xem xét lại</span>}</div><strong>{item.title}</strong><small>{categoryLabel[item.category]} · Tiếp nhận {formatDate(item.createdAt)}</small></div>
-        <div className="feedback-row-unit"><small>Đơn vị xử lý</small><b>{item.department?.name||'Chưa phân công'}</b><span>{item.assignedTo?.fullName||'Chưa giao cán bộ'}</span></div>
-        <div className="feedback-row-status"><span className={`feedback-status ${item.status.toLowerCase()}`}>{statusLabel[item.status]}</span><small>{item.status==='WAITING_CITIZEN'?'Hạn bổ sung':item.firstResponseAt?'Hạn xử lý':'Hạn phản hồi'}: {formatDate(activeDeadline(item))}</small></div><ArrowRight/>
-      </button>)}</div>:<Empty title="Không có phản ánh phù hợp" description="Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm."/>}
-      {pages>1&&<div className="feedback-pagination"><button disabled={page===1} onClick={()=>setPage(value=>value-1)}><ArrowLeft/>Trang trước</button><span>Trang {page}/{pages}</span><button disabled={page===pages} onClick={()=>setPage(value=>value+1)}>Trang sau<ArrowRight/></button></div>}
+      {(user.role!=='VIEWER'||canReview)&&<div className="fb-filter-block">
+        <span className="fb-filter-label"><UserCheck/>Phạm vi công việc</span>
+        <div className="fb-toggles">
+          {user.role!=='VIEWER'&&<label className="fb-toggle"><input type="checkbox" checked={filters.assignedToMe} onChange={event=>{setPage(1);setFilters({...filters,assignedToMe:event.target.checked})}}/>Việc giao cho tôi</label>}
+          {canReview&&<label className="fb-toggle"><input type="checkbox" checked={filters.reopenRequested} onChange={event=>{setPage(1);setFilters({...filters,reopenRequested:event.target.checked})}}/>Chờ xem xét lại</label>}
+          {canReview&&<label className="fb-toggle"><input type="checkbox" checked={filters.waitingCitizenExpired} onChange={event=>{setPage(1);setFilters({...filters,waitingCitizenExpired:event.target.checked})}}/>Quá hạn bổ sung</label>}
+        </div>
+      </div>}
     </section>
 
-    {(detail||detailLoading)&&<div className="feedback-detail-backdrop" onMouseDown={closeDetail}>
-      <aside ref={detailPanelRef} className="feedback-detail-panel" role="dialog" aria-modal="true" aria-labelledby={detail?'feedback-detail-heading':undefined} aria-label={detail?undefined:'Đang tải hồ sơ phản ánh'} tabIndex={-1} onKeyDown={keepDetailFocus} onMouseDown={event=>event.stopPropagation()}>
-        {detailLoading&&!detail?<Spinner/>:detail&&<>
-          <header><div><span>{detail.code}</span><h2 id="feedback-detail-heading">{detail.title}</h2></div><button disabled={saving} aria-label="Đóng hồ sơ" onClick={closeDetail}><X/></button></header>
-          <div className="feedback-detail-scroll">
-            <div className="feedback-detail-badges"><span className={`feedback-status ${detail.status.toLowerCase()}`}>{statusLabel[detail.status]}</span><span className={`feedback-priority ${detail.priority.toLowerCase()}`}>{priorityLabel[detail.priority]}</span>{detail.isPublic&&<span className="feedback-published"><Eye/>Đang công khai</span>}</div>
-            <div className="feedback-detail-facts"><div><small>Người gửi</small>{user.role==='VIEWER'?<><b>Thông tin đã ẩn</b><span>Chỉ cán bộ xử lý được xem dữ liệu liên hệ</span></>:<><b>{detail.submitterName}</b><span>{detail.submitterPhone}</span>{detail.submitterEmail&&<span>{detail.submitterEmail}</span>}<span>Ưu tiên liên hệ thủ công: {detail.preferredContact==='EMAIL'?'Email':'Điện thoại'}</span></>}</div><div><small>Đơn vị xử lý</small><b>{detail.department?.name||'Chưa phân công'}</b><span>{detail.assignedTo?.fullName||'Chưa giao cán bộ'}</span></div><div><small>{detail.status==='WAITING_CITIZEN'?'Hạn người dân bổ sung':detail.firstResponseAt?'Hạn xử lý':'Hạn phản hồi đầu tiên'}</small><b className={isOverdue(detail)?'danger-text':''}>{formatDate(activeDeadline(detail))}</b><span>Tiếp nhận {formatDate(detail.createdAt)}</span></div></div>
-            <section className="feedback-detail-section"><h3>Nội dung phản ánh</h3><p>{detail.content}</p>{detail.address&&<p className="feedback-location"><b>Địa điểm:</b> {detail.address}</p>}</section>
-            <section className="feedback-detail-section"><h3>File ảnh & minh chứng</h3>{attachmentError&&<div className="feedback-alert error" role="alert"><AlertCircle/>{attachmentError}</div>}{detailAttachments.length?<div className="feedback-internal-messages">{detailAttachments.map(attachment=><article key={attachment.id}><div><b>{attachment.originalName||'File minh chứng'}</b><span>{[attachment.mimeType,formatFileSize(attachment.size)].filter(Boolean).join(' · ')}</span>{attachment.createdAt&&<time>{formatDate(attachment.createdAt)}</time>}<button className="feedback-btn secondary" type="button" disabled={downloadingAttachmentId===attachment.id} onClick={()=>void downloadAttachment(attachment)}>{downloadingAttachmentId===attachment.id?<RefreshCw className="spin"/>:<Download/>}{downloadingAttachmentId===attachment.id?'Đang tải':'Tải file'}</button></div></article>)}</div>:<p className="feedback-muted">Phản ánh này không có file đính kèm.</p>}</section>
-            {detail.resolutionSummary&&<section className="feedback-resolution"><CheckCircle2/><div><h3>Kết quả đề xuất</h3><p>{detail.resolutionSummary}</p></div></section>}
-            {detail.rejectionReason&&<section className="feedback-rejection"><XCircle/><div><h3>Lý do không tiếp nhận</h3><p>{detail.rejectionReason}</p></div></section>}
-            {detail.reopenRequestedAt&&<section className="feedback-appeal"><RotateCcw/><div><h3>Người dân đề nghị xem xét lại</h3><p>{detail.reopenRequestReason}</p><small>Gửi lúc {formatDate(detail.reopenRequestedAt)} · Lần {detail.reopenRequestCount}/3</small></div></section>}
-            <section className="feedback-detail-section"><h3>Trao đổi & ghi chú</h3>{detail.messages?.length?<div className="feedback-internal-messages">{detail.messages.map(message=><article key={message.id} className={message.visibility==='INTERNAL'?'internal':''}><div><b>{message.authorName}</b><span>{message.visibility==='INTERNAL'?<><LockKeyhole/>Nội bộ</>:<><Eye/>Người dân thấy</>}</span><time>{formatDate(message.createdAt)}</time></div><p>{message.body}</p></article>)}</div>:<p className="feedback-muted">Chưa có trao đổi nào.</p>}</section>
-            <section className="feedback-detail-section"><h3>Lịch sử xử lý</h3><div className="feedback-event-list">{detail.events?.map(event=><div key={event.id}><i/><div><b>{eventLabels[event.action]||event.action}</b><span>{event.actorName||'Hệ thống'} · {formatDate(event.createdAt)}</span>{event.note&&<p>{event.note}</p>}</div></div>)}</div></section>
-            {detail.rating&&<div className="feedback-rating-result"><Star/><span><b>{detail.rating}/5 điểm</b>{detail.ratingComment&&<small>{detail.ratingComment}</small>}</span></div>}
+    {/* ---- Danh sách phản ánh ---- */}
+    <section className="panel flush fb-panel">
+      <div className="panel-head">
+        <div><h3>Danh sách phản ánh</h3><p>Chọn một hồ sơ để xem chi tiết và xử lý</p></div>
+        <span className="fb-panel-count"><b>{total}</b> hồ sơ phù hợp</span>
+      </div>
+
+      {loading
+        ?<div className="fb-list" role="status" aria-label="Đang tải danh sách phản ánh">{Array.from({length:6},(_,index)=><Skeleton key={index} className="fb-row-skeleton"/>)}</div>
+        :rows.length
+          ?<div className="fb-list">{rows.map(item=>{
+            const overdue=isOverdue(item);
+            const reopen=Boolean(item.reopenRequestedAt);
+            return <button type="button" key={item.id} className={`fb-row${overdue?' is-overdue':''}${reopen?' is-reopen':''}`} onClick={()=>void openDetail(item.id)}>
+              <div className="fb-row-main">
+                <div className="fb-row-flags">
+                  <span className="code">{item.code}</span>
+                  <span className={`feedback-priority ${item.priority.toLowerCase()}`} title={`Mức ưu tiên: ${priorityLabel[item.priority]}`}>{priorityLabel[item.priority]}</span>
+                  {overdue&&<span className="badge fb-overdue"><AlertCircle/>{item.status==='WAITING_CITIZEN'?'Quá hạn bổ sung':'Quá hạn xử lý'}</span>}
+                  {reopen&&<span className="badge warn"><RotateCcw/>Chờ duyệt xem xét lại</span>}
+                </div>
+                <strong className="fb-row-title">{item.title}</strong>
+                <small className="fb-row-meta">{categoryLabel[item.category]} · Tiếp nhận {formatDate(item.createdAt)}</small>
+              </div>
+              <div className="fb-row-cell fb-row-unit">
+                <small>Đơn vị xử lý</small>
+                <b>{item.department?.name||'Chưa phân công'}</b>
+                <span>{item.assignedTo?.fullName||'Chưa giao cán bộ'}</span>
+              </div>
+              <div className="fb-row-cell fb-row-status">
+                <span className={`feedback-status ${item.status.toLowerCase()}`}>{statusLabel[item.status]}</span>
+                <small className={`fb-row-deadline${overdue?' is-late':''}`}>{deadlineLabel(item)}: {formatDate(activeDeadline(item))}</small>
+              </div>
+              <ArrowRight className="fb-row-go" aria-hidden="true"/>
+            </button>;
+          })}</div>
+          :<Empty title="Không có phản ánh phù hợp" description="Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." action={hasFilters?<button type="button" className="btn secondary" onClick={clearFilters}><X/>Xóa bộ lọc</button>:undefined}/>}
+
+      {pages>1&&<div className="pagination">
+        <span>Trang {page}/{pages}</span>
+        <div className="pagination-controls">
+          <button type="button" className="btn secondary sm" disabled={page===1} onClick={()=>setPage(value=>value-1)}><ArrowLeft/>Trang trước</button>
+          <button type="button" className="btn secondary sm" disabled={page===pages} onClick={()=>setPage(value=>value+1)}>Trang sau<ArrowRight/></button>
+        </div>
+      </div>}
+    </section>
+
+    {/* ---- Ngăn kéo chi tiết hồ sơ ---- */}
+    {(detail||detailLoading)&&<div className="fb-drawer-backdrop" onMouseDown={closeDetail}>
+      <aside ref={detailPanelRef} className="fb-drawer" role="dialog" aria-modal="true" aria-labelledby={detail?'feedback-detail-heading':undefined} aria-label={detail?undefined:'Đang tải hồ sơ phản ánh'} tabIndex={-1} onKeyDown={keepDetailFocus} onMouseDown={event=>event.stopPropagation()}>
+        {detailLoading&&!detail
+          ?<div className="fb-drawer-loading" role="status" aria-label="Đang tải hồ sơ phản ánh">
+            <Skeleton className="skeleton-title"/>
+            <Skeleton style={{height:96}}/>
+            <Skeleton style={{height:180}}/>
+            <Skeleton style={{height:180}}/>
+          </div>
+          :detail&&<>
+          <header>
+            <div>
+              <div className="fb-drawer-eyebrow">
+                <span className="code">{detail.code}</span>
+                <span className={`feedback-status ${detail.status.toLowerCase()}`}>{statusLabel[detail.status]}</span>
+              </div>
+              <h2 id="feedback-detail-heading">{detail.title}</h2>
+            </div>
+            <button type="button" className="btn secondary icon" disabled={saving} aria-label="Đóng hồ sơ" onClick={closeDetail}><X/></button>
+          </header>
+
+          <div className="fb-drawer-body">
+            <div className="fb-badges">
+              <span className={`feedback-priority ${detail.priority.toLowerCase()}`} title={`Mức ưu tiên: ${priorityLabel[detail.priority]}`}>{priorityLabel[detail.priority]}</span>
+              <span className="badge neutral">{categoryLabel[detail.category]}</span>
+              {isOverdue(detail)&&<span className="badge fb-overdue"><AlertCircle/>{detail.status==='WAITING_CITIZEN'?'Quá hạn bổ sung':'Quá hạn xử lý'}</span>}
+              {detail.isPublic&&<span className="badge accent"><Eye/>Đang công khai</span>}
+            </div>
+
+            <div className="fb-facts">
+              <div className="fb-fact">
+                <small>Người gửi</small>
+                {user.role==='VIEWER'
+                  ?<><b>Thông tin đã ẩn</b><span>Chỉ cán bộ xử lý được xem dữ liệu liên hệ</span></>
+                  :<><b>{detail.submitterName}</b><span>{detail.submitterPhone}</span>{detail.submitterEmail&&<span>{detail.submitterEmail}</span>}<span>Ưu tiên liên hệ thủ công: {detail.preferredContact==='EMAIL'?'Email':'Điện thoại'}</span></>}
+              </div>
+              <div className="fb-fact">
+                <small>Đơn vị xử lý</small>
+                <b>{detail.department?.name||'Chưa phân công'}</b>
+                <span>{detail.assignedTo?.fullName||'Chưa giao cán bộ'}</span>
+              </div>
+              <div className={`fb-fact${isOverdue(detail)?' is-late':''}`}>
+                <small>{detail.status==='WAITING_CITIZEN'?'Hạn người dân bổ sung':detail.firstResponseAt?'Hạn xử lý':'Hạn phản hồi đầu tiên'}</small>
+                <b className={isOverdue(detail)?'danger-text':''}>{formatDate(activeDeadline(detail))}</b>
+                <span>Tiếp nhận {formatDate(detail.createdAt)}</span>
+              </div>
+            </div>
+
+            <section className="panel fb-section">
+              <h3><FileText aria-hidden="true"/>Nội dung phản ánh</h3>
+              <p className="fb-text">{detail.content}</p>
+              {detail.address&&<p className="fb-address"><b>Địa điểm:</b> {detail.address}</p>}
+            </section>
+
+            {detail.resolutionSummary&&<section className="alert ok fb-callout"><CheckCircle2 aria-hidden="true"/><div><h3>Kết quả đề xuất</h3><p>{detail.resolutionSummary}</p></div></section>}
+            {detail.rejectionReason&&<section className="alert bad fb-callout"><XCircle aria-hidden="true"/><div><h3>Lý do không tiếp nhận</h3><p>{detail.rejectionReason}</p></div></section>}
+            {detail.reopenRequestedAt&&<section className="alert warn fb-callout"><RotateCcw aria-hidden="true"/><div><h3>Người dân đề nghị xem xét lại</h3><p>{detail.reopenRequestReason}</p><small>Gửi lúc {formatDate(detail.reopenRequestedAt)} · Lần {detail.reopenRequestCount}/3</small></div></section>}
+
+            <section className="panel fb-section">
+              <h3><MessagesSquare aria-hidden="true"/>Trao đổi & ghi chú</h3>
+              {detail.messages?.length
+                ?<div className="fb-msg-list">{detail.messages.map(message=>{
+                  const internal=message.visibility==='INTERNAL';
+                  return <article key={message.id} className={`fb-msg ${internal?'is-internal':'is-public'}`}>
+                    <div className="fb-msg-head">
+                      <b>{message.authorName}</b>
+                      <span className={`fb-msg-scope ${internal?'internal':'public'}`}>{internal?<><LockKeyhole aria-hidden="true"/>Nội bộ</>:<><Eye aria-hidden="true"/>Người dân thấy</>}</span>
+                      <time>{formatDate(message.createdAt)}</time>
+                    </div>
+                    <p>{message.body}</p>
+                  </article>;
+                })}</div>
+                :<p className="fb-muted">Chưa có trao đổi nào.</p>}
+            </section>
+
+            <section className="panel fb-section">
+              <h3><Paperclip aria-hidden="true"/>File ảnh &amp; minh chứng</h3>
+              {attachmentError&&<div className="form-error" role="alert"><AlertCircle/>{attachmentError}</div>}
+              {detailAttachments.length
+                ?<div className="fb-files">{detailAttachments.map(attachment=><div key={attachment.id} className="fb-file">
+                  <div>
+                    <b>{attachment.originalName||'File minh chứng'}</b>
+                    <span>{[attachment.mimeType,formatFileSize(attachment.size)].filter(Boolean).join(' · ')}</span>
+                    {attachment.createdAt&&<time>{formatDate(attachment.createdAt)}</time>}
+                  </div>
+                  <button className="btn secondary sm" type="button" disabled={downloadingAttachmentId===attachment.id} onClick={()=>void downloadAttachment(attachment)}>{downloadingAttachmentId===attachment.id?<RefreshCw className="spin"/>:<Download/>}{downloadingAttachmentId===attachment.id?'Đang tải':'Tải file'}</button>
+                </div>)}</div>
+                :<p className="fb-muted">Phản ánh này không có file đính kèm.</p>}
+            </section>
+
+            <section className="panel fb-section">
+              <h3><History aria-hidden="true"/>Lịch sử xử lý</h3>
+              {detail.events?.length
+                ?<ol className="fb-timeline">{detail.events.map(event=><li key={event.id}>
+                  <i aria-hidden="true"/>
+                  <div className="fb-timeline-body">
+                    <b>{eventLabels[event.action]||event.action}</b>
+                    <span>{event.actorName||'Hệ thống'} · {formatDate(event.createdAt)}</span>
+                    {event.note&&<p>{event.note}</p>}
+                  </div>
+                </li>)}</ol>
+                :<p className="fb-muted">Chưa ghi nhận bước xử lý nào.</p>}
+            </section>
+
+            {detail.rating&&<div className="fb-rating"><Star aria-hidden="true"/><span><b>{detail.rating}/5 điểm</b>{detail.ratingComment&&<small>{detail.ratingComment}</small>}</span></div>}
           </div>
 
-          <footer className="feedback-detail-actions">
-            {canReview&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button onClick={()=>startAction('triage')}><Filter/>Phân loại</button>}
-            {canReview&&['RECEIVED','ASSIGNED','REOPENED','IN_PROGRESS','WAITING_CITIZEN'].includes(detail.status)&&<button onClick={()=>startAction('assign')}><UserCheck/>Phân công</button>}
-            {canHandle(detail)&&['ASSIGNED','REOPENED'].includes(detail.status)&&<button onClick={()=>startAction('start')}><Clock3/>Bắt đầu xử lý</button>}
-            {canHandle(detail)&&['IN_PROGRESS','REOPENED'].includes(detail.status)&&<button onClick={()=>startAction('request')}><MessageCircleMore/>Yêu cầu bổ sung</button>}
-            {canHandle(detail)&&!['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&<button onClick={()=>startAction('contact')}><MessageCircleMore/>Ghi nhận liên hệ</button>}
-            {canHandle(detail)&&!['CLOSED','REJECTED'].includes(detail.status)&&<button onClick={()=>startAction('message')}><Send/>Thêm trao đổi</button>}
-            {canHandle(detail)&&['IN_PROGRESS','REOPENED'].includes(detail.status)&&<button className="primary" onClick={()=>startAction('submit')}><ShieldCheck/>Trình duyệt</button>}
-            {canReview&&detail.status==='PENDING_REVIEW'&&detail.submittedForReviewBy!==user.id&&<><button className="danger" onClick={()=>startAction('return')}><RotateCcw/>Trả lại</button><button className="primary" onClick={()=>startAction('approve')}><Check/>Duyệt kết quả</button></>}
-            {canReview&&detail.status==='PENDING_REVIEW'&&detail.submittedForReviewBy===user.id&&<span className="feedback-readonly"><LockKeyhole/>Bạn đã trình hồ sơ này; cần người khác duyệt kết quả.</span>}
-            {canReview&&detail.status==='RESOLVED'&&<button onClick={()=>startAction('close')}><CheckCircle2/>Đóng hồ sơ</button>}
-            {canReview&&detail.status==='WAITING_CITIZEN'&&detail.citizenResponseDueAt&&new Date(detail.citizenResponseDueAt)<=new Date()&&<button className="danger" onClick={()=>startAction('closeNoResponse')}><XCircle/>Kết thúc do quá hạn bổ sung</button>}
-            {isAdmin&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button className="danger" onClick={()=>startAction('reject')}><XCircle/>Không tiếp nhận</button>}
-            {canReview&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&detail.reopenRequestedAt&&<><button className="danger" onClick={()=>startAction('rejectReopen')}><XCircle/>Từ chối đề nghị</button><button className="primary" onClick={()=>startAction('reopen')}><RotateCcw/>Chấp nhận mở lại</button></>}
-            {canReview&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&!detail.reopenRequestedAt&&<button onClick={()=>startAction('reopen')}><RotateCcw/>{detail.status==='REJECTED'?'Khôi phục hồ sơ':'Mở lại nội bộ'}</button>}
-            {isAdmin&&['RESOLVED','CLOSED'].includes(detail.status)&&(detail.isPublic||!detail.reopenRequestedAt)&&<button onClick={()=>startAction(detail.isPublic?'unpublish':'publish')}><Eye/>{detail.isPublic?'Gỡ công khai':'Công khai'}</button>}
-            {!canHandle(detail)&&!canReview&&<span className="feedback-readonly"><Eye/>Bạn đang xem hồ sơ ở chế độ chỉ đọc.</span>}
+          <footer className="fb-drawer-foot">
+            {canReview&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('triage')}><Filter/>Phân loại</button>}
+            {canReview&&['RECEIVED','ASSIGNED','REOPENED','IN_PROGRESS','WAITING_CITIZEN'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('assign')}><UserCheck/>Phân công</button>}
+            {canHandle(detail)&&['ASSIGNED','REOPENED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('start')}><Clock3/>Bắt đầu xử lý</button>}
+            {canHandle(detail)&&['IN_PROGRESS','REOPENED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('request')}><MessageCircleMore/>Yêu cầu bổ sung</button>}
+            {canHandle(detail)&&!['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('contact')}><MessageCircleMore/>Ghi nhận liên hệ</button>}
+            {canHandle(detail)&&!['CLOSED','REJECTED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('message')}><Send/>Thêm trao đổi</button>}
+            {canHandle(detail)&&['IN_PROGRESS','REOPENED'].includes(detail.status)&&<button type="button" className="btn primary sm" onClick={()=>startAction('submit')}><ShieldCheck/>Trình duyệt</button>}
+            {canReview&&detail.status==='PENDING_REVIEW'&&detail.submittedForReviewBy!==user.id&&<><button type="button" className="btn danger-soft sm" onClick={()=>startAction('return')}><RotateCcw/>Trả lại</button><button type="button" className="btn primary sm" onClick={()=>startAction('approve')}><Check/>Duyệt kết quả</button></>}
+            {canReview&&detail.status==='PENDING_REVIEW'&&detail.submittedForReviewBy===user.id&&<span className="fb-readonly"><LockKeyhole/>Bạn đã trình hồ sơ này; cần người khác duyệt kết quả.</span>}
+            {canReview&&detail.status==='RESOLVED'&&<button type="button" className="btn secondary sm" onClick={()=>startAction('close')}><CheckCircle2/>Đóng hồ sơ</button>}
+            {canReview&&detail.status==='WAITING_CITIZEN'&&detail.citizenResponseDueAt&&new Date(detail.citizenResponseDueAt)<=new Date()&&<button type="button" className="btn danger-soft sm" onClick={()=>startAction('closeNoResponse')}><XCircle/>Kết thúc do quá hạn bổ sung</button>}
+            {isAdmin&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button type="button" className="btn danger-soft sm" onClick={()=>startAction('reject')}><XCircle/>Không tiếp nhận</button>}
+            {canReview&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&detail.reopenRequestedAt&&<><button type="button" className="btn danger-soft sm" onClick={()=>startAction('rejectReopen')}><XCircle/>Từ chối đề nghị</button><button type="button" className="btn primary sm" onClick={()=>startAction('reopen')}><RotateCcw/>Chấp nhận mở lại</button></>}
+            {canReview&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&!detail.reopenRequestedAt&&<button type="button" className="btn secondary sm" onClick={()=>startAction('reopen')}><RotateCcw/>{detail.status==='REJECTED'?'Khôi phục hồ sơ':'Mở lại nội bộ'}</button>}
+            {isAdmin&&['RESOLVED','CLOSED'].includes(detail.status)&&(detail.isPublic||!detail.reopenRequestedAt)&&<button type="button" className="btn secondary sm" onClick={()=>startAction(detail.isPublic?'unpublish':'publish')}><Eye/>{detail.isPublic?'Gỡ công khai':'Công khai'}</button>}
+            {!canHandle(detail)&&!canReview&&<span className="fb-readonly"><Eye/>Bạn đang xem hồ sơ ở chế độ chỉ đọc.</span>}
           </footer>
 
-          {actionKind&&<form className="feedback-action-sheet" onSubmit={submitAction}>
-            <div className="feedback-action-head"><div><span>THAO TÁC HỒ SƠ</span><h3>{actionTitles[actionKind]}</h3></div><button type="button" disabled={saving} aria-label="Đóng thao tác" onClick={closeAction}><X/></button></div>
+          {actionKind&&<form className="fb-sheet" onSubmit={submitAction}>
+            <div className="fb-sheet-head">
+              <div><span className="eyebrow">THAO TÁC HỒ SƠ</span><h3>{actionTitles[actionKind]}</h3></div>
+              <button type="button" className="btn secondary icon" disabled={saving} aria-label="Đóng thao tác" onClick={closeAction}><X/></button>
+            </div>
             {actionKind==='triage'&&<><label>Nhóm vấn đề<select value={actionForm.category} onChange={event=>setActionForm({...actionForm,category:event.target.value as FeedbackCategory})}>{categories.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label>Mức ưu tiên<select value={actionForm.priority} onChange={event=>setActionForm({...actionForm,priority:event.target.value as FeedbackPriority})}>{priorities.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="full">Căn cứ phân loại<textarea required minLength={3} maxLength={1000} rows={3} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label></>}
             {actionKind==='assign'&&<>
               <label>Đơn vị xử lý<select required value={actionForm.departmentId} disabled={!isAdmin} onChange={event=>setActionForm({...actionForm,departmentId:event.target.value,assignedToId:''})}><option value="">Chọn đơn vị</option>{departments.filter(item=>item.isActive).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -438,28 +613,31 @@ export default function FeedbackAdmin(){
             </>}
             {actionKind==='request'&&<label className="full">Nội dung cần bổ sung<textarea required minLength={5} maxLength={3000} rows={4} value={actionForm.message} onChange={event=>setActionForm({...actionForm,message:event.target.value})}/><small>Nội dung này sẽ hiển thị khi người dân tra cứu.</small></label>}
             {actionKind==='contact'&&<><label>Kênh liên hệ<select value={actionForm.contactChannel} onChange={event=>setActionForm({...actionForm,contactChannel:event.target.value as 'PHONE'|'EMAIL'})}><option value="PHONE">Điện thoại</option><option value="EMAIL">Email</option></select></label><label>Kết quả<select value={actionForm.contactOutcome} onChange={event=>setActionForm({...actionForm,contactOutcome:event.target.value as typeof actionForm.contactOutcome})}><option value="REACHED">Đã liên hệ được</option><option value="MESSAGE_SENT">Đã gửi tin/ thư</option><option value="NO_ANSWER">Không nghe máy/ chưa phản hồi</option><option value="INVALID_CONTACT">Thông tin liên hệ không hợp lệ</option></select></label><label className="full">Ghi chú liên hệ<textarea required minLength={3} maxLength={1000} rows={3} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label></>}
-            {actionKind==='message'&&<><label>Phạm vi hiển thị<select value={actionForm.visibility} onChange={event=>setActionForm({...actionForm,visibility:event.target.value as FeedbackMessageVisibility})}>{['IN_PROGRESS','WAITING_CITIZEN','REOPENED'].includes(detail.status)&&<option value="PUBLIC">Phản hồi cho người dân</option>}<option value="INTERNAL">Ghi chú nội bộ</option></select></label><label className="full">Nội dung<textarea required minLength={2} maxLength={3000} rows={4} value={actionForm.message} onChange={event=>setActionForm({...actionForm,message:event.target.value})}/></label></>}
+            {actionKind==='message'&&<><label>Phạm vi hiển thị<select value={actionForm.visibility} onChange={event=>setActionForm({...actionForm,visibility:event.target.value as FeedbackMessageVisibility})}>{['IN_PROGRESS','WAITING_CITIZEN','REOPENED'].includes(detail.status)&&<option value="PUBLIC">Phản hồi cho người dân</option>}<option value="INTERNAL">Ghi chú nội bộ</option></select><small>{actionForm.visibility==='INTERNAL'?'Chỉ cán bộ trong hệ thống đọc được nội dung này.':'Người dân sẽ đọc được nội dung này khi tra cứu hồ sơ.'}</small></label><label className="full">Nội dung<textarea required minLength={2} maxLength={3000} rows={4} value={actionForm.message} onChange={event=>setActionForm({...actionForm,message:event.target.value})}/></label></>}
             {actionKind==='submit'&&<label className="full">Kết quả xử lý đề xuất<textarea required minLength={10} maxLength={5000} rows={6} value={actionForm.summary} onChange={event=>setActionForm({...actionForm,summary:event.target.value})}/><small>Sau khi duyệt, nội dung này sẽ được gửi cho người dân.</small></label>}
             {['approve','close','closeNoResponse'].includes(actionKind)&&<label className="full">Ghi chú (không bắt buộc)<textarea maxLength={actionKind==='approve'?2000:1000} rows={3} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label>}
             {actionKind==='return'&&<label className="full">Lý do trả lại<textarea required minLength={3} maxLength={2000} rows={4} value={actionForm.note} onChange={event=>setActionForm({...actionForm,note:event.target.value})}/></label>}
             {['reject','reopen','rejectReopen'].includes(actionKind)&&<label className="full">{actionKind==='reject'?'Lý do không tiếp nhận':actionKind==='rejectReopen'?'Lý do chưa chấp nhận đề nghị':'Căn cứ mở lại hồ sơ'}<textarea required minLength={10} maxLength={2000} rows={4} value={actionForm.reason} onChange={event=>setActionForm({...actionForm,reason:event.target.value})}/></label>}
             {actionKind==='publish'&&<>
-              <div className="feedback-sheet-note full"><ShieldCheck/>Đây là chính xác nội dung đã được hệ thống tự động ẩn danh và sẽ hiển thị cho người dân. Bạn không cần nhập lại tiêu đề hoặc nội dung.</div>
-              {publicationPreviewLoading&&<div className="feedback-sheet-note full" role="status"><RefreshCw className="spin"/>Đang tạo bản xem trước đã ẩn danh...</div>}
-              {publicationPreviewError&&<div className="feedback-alert error full" role="alert"><AlertCircle/><span>{publicationPreviewError}</span><button className="feedback-btn secondary" type="button" onClick={()=>void loadPublicationPreview(detail.id)}>Tải lại</button></div>}
-              {publicationPreview&&<section className="feedback-detail-section full" aria-label="Xem trước nội dung công khai">
+              <div className="notice full"><ShieldCheck/>Đây là chính xác nội dung đã được hệ thống tự động ẩn danh và sẽ hiển thị cho người dân. Bạn không cần nhập lại tiêu đề hoặc nội dung.</div>
+              {publicationPreviewLoading&&<div className="notice full" role="status"><RefreshCw className="spin"/>Đang tạo bản xem trước đã ẩn danh...</div>}
+              {publicationPreviewError&&<div className="form-error full" role="alert"><AlertCircle/><span>{publicationPreviewError}</span><button className="btn secondary sm" type="button" onClick={()=>void loadPublicationPreview(detail.id)}>Tải lại</button></div>}
+              {publicationPreview&&<section className="fb-preview full" aria-label="Xem trước nội dung công khai">
                 <h3>Bản xem trước sẽ công khai</h3>
                 <small>Tiêu đề phản ánh</small><p><b>{publicationPreview.title}</b></p>
                 <small>Nội dung phản ánh</small><p>{publicationPreview.content}</p>
                 <small>Kết quả xử lý</small><p>{publicationPreview.resolutionSummary||'Không có nội dung kết quả xử lý.'}</p>
                 <small>Trao đổi đã đánh dấu người dân thấy</small>
-                {publicationPreview.messages.length?<div className="feedback-internal-messages">{publicationPreview.messages.map((message,index)=><article key={`${message.createdAt}:${index}`}><div><b>{message.authorName}</b><time>{formatDate(message.createdAt)}</time></div><p>{message.body}</p></article>)}</div>:<p className="feedback-muted">Không có trao đổi công khai bổ sung.</p>}
+                {publicationPreview.messages.length?<div className="fb-msg-list">{publicationPreview.messages.map((message,index)=><article key={`${message.createdAt}:${index}`} className="fb-msg is-public"><div className="fb-msg-head"><b>{message.authorName}</b><time>{formatDate(message.createdAt)}</time></div><p>{message.body}</p></article>)}</div>:<p className="fb-muted">Không có trao đổi công khai bổ sung.</p>}
               </section>}
-              <label className="feedback-my-work full"><input required disabled={!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)} type="checkbox" checked={actionForm.confirmAnonymized} onChange={event=>setActionForm({...actionForm,confirmAnonymized:event.target.checked})}/>Tôi đã kiểm tra bản xem trước đã ẩn danh và đồng ý công khai</label>
+              <label className="fb-confirm full"><input required disabled={!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)} type="checkbox" checked={actionForm.confirmAnonymized} onChange={event=>setActionForm({...actionForm,confirmAnonymized:event.target.checked})}/>Tôi đã kiểm tra bản xem trước đã ẩn danh và đồng ý công khai</label>
             </>}
-            {['start','approve','close','closeNoResponse','unpublish'].includes(actionKind)&&<div className="feedback-sheet-note full"><AlertCircle/>Hệ thống sẽ ghi nhận người thực hiện và thời điểm cập nhật trong nhật ký hồ sơ.</div>}
-            {actionError&&<div className="feedback-alert error full" role="alert"><AlertCircle/>{actionError}</div>}
-            <div className="feedback-sheet-actions full"><button type="button" onClick={closeAction}>Hủy</button><button className={['return','reject','rejectReopen'].includes(actionKind)?'danger':'primary'} disabled={saving||(actionKind==='publish'&&(!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)))}>{saving?<><RefreshCw className="spin"/>Đang xử lý...</>:actionTitles[actionKind]}</button></div>
+            {['start','approve','close','closeNoResponse','unpublish'].includes(actionKind)&&<div className="notice full"><AlertCircle/>Hệ thống sẽ ghi nhận người thực hiện và thời điểm cập nhật trong nhật ký hồ sơ.</div>}
+            {actionError&&<div className="form-error full" role="alert"><AlertCircle/>{actionError}</div>}
+            <div className="fb-sheet-actions full">
+              <button type="button" className="btn secondary" onClick={closeAction}>Hủy</button>
+              <button className={`btn ${['return','reject','rejectReopen'].includes(actionKind)?'danger':'primary'}`} disabled={saving||(actionKind==='publish'&&(!publicationPreview||publicationPreviewLoading||Boolean(publicationPreviewError)))}>{saving?<><RefreshCw className="spin"/>Đang xử lý...</>:actionTitles[actionKind]}</button>
+            </div>
           </form>}
         </>}
       </aside>

@@ -1,8 +1,9 @@
 import { AlertTriangle, Building2, CheckCircle2, MessageSquareText, Pencil, Plus, Target, Users } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, auth } from '../api';
-import { Empty, Modal, PageHead, Spinner } from '../components/UI';
+import { Empty, Modal, PageHead } from '../components/UI';
 import type { Department } from '../types';
+import '../styles/org.css';
 
 type DepartmentForm = {
   code: string;
@@ -140,7 +141,7 @@ export default function Departments() {
     {pageError && <div className="form-error" role="alert">{pageError} <button className="btn secondary" onClick={() => void load()}>Thử lại</button></div>}
     {success && <div className="import-result" role="status"><CheckCircle2 /><div><strong>Thao tác thành công</strong><p>{success}</p></div></div>}
 
-    {loading ? <Spinner /> : departments.length ? <div className="department-grid">{departments.map(department => <article className="department-card" key={department.id}>
+    {loading ? <div className="department-grid" role="status" aria-label="Đang tải danh sách phòng ban">{Array.from({ length: 6 }, (_, index) => <div key={index} className="skeleton" style={{ height: 220, borderRadius: 'var(--r-lg)' }} />)}</div> : departments.length ? <div className="department-grid">{departments.map(department => <article className="department-card" key={department.id}>
       <div className="dep-card-head">
         <div className="dep-large-icon" style={{ background: `${department.color}16`, color: department.color }}><Building2 /></div>
         <span className={`status ${department.isActive ? 'green' : 'slate'}`}><i />{department.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}</span>

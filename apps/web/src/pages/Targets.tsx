@@ -1,28 +1,50 @@
 import {
+  AlertTriangle,
   Archive,
   ArchiveRestore,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Calendar,
   ClipboardCheck,
   Eye,
   FileClock,
   FileSpreadsheet,
+  FilterX,
   Pencil,
   Plus,
   RotateCcw,
   Search,
   Star,
   Target as TargetIcon,
+  TrendingDown,
+  TrendingUp,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, api, auth } from '../api';
-import { Empty, Modal, PageHead, Spinner } from '../components/UI';
+import { Empty, Modal, PageHead, Skeleton } from '../components/UI';
+import { toast } from '../components/Toast';
+import { Reveal } from '../components/Motion';
 import { currentVietnamYear } from '../date';
+import { prefersReducedMotion, useInView } from '../motion';
 import type { Department, Target } from '../types';
 import { statusMeta } from '../types';
+import '../styles/targets.css';
 
 const currentYear = currentVietnamYear();
+
+type TargetSortKey = 'identity' | 'progress' | 'status' | 'dueDate';
+type TargetSort = { key: TargetSortKey; direction: 'ascending' | 'descending' } | null;
+
+const statusOrder: Record<string, number> = {
+  OVERDUE: 0,
+  AT_RISK: 1,
+  NOT_STARTED: 2,
+  ON_TRACK: 3,
+  COMPLETED: 4,
+};
 
 type TargetForm = {
   title: string;
@@ -73,7 +95,7 @@ function newTargetForm(year = currentYear, departmentId = ''): TargetForm {
 function targetCodePattern(year: string, departmentCode?: string) {
   const normalizedDepartment = departmentCode
     ?.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/Đ/g, 'D')
     .replace(/đ/g, 'd')
     .toUpperCase()
@@ -155,8 +177,36 @@ export default function Targets() {
   const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState('');
+
+  /* Phân biệt "chưa có dữ liệu" với "bộ lọc không khớp gì": hai tình huống này cần
+     hai câu trả lời khác nhau, và tình huống thứ hai cần một lối thoát. */
+  const hasFilters = Boolean(search.trim() || status || departmentId);
+
+  function clearFilters() {
+    setSearch('');
+    setStatus('');
+    setDepartmentId('');
+  }
+  const [visibilityPendingIds, setVisibilityPendingIds] = useState<Set<string>>(() => new Set());
+  const [sort, setSort] = useState<TargetSort>(null);
+  const { ref: targetPanelRef, inView: targetPanelInView } = useInView<HTMLElement>({ amount: 0 });
+  const progressAnimated = useRef(false);
   const loadRequestId = useRef(0);
   const submissionsRequestId = useRef(0);
+
+  useEffect(() => {
+    if (!targetPanelInView || loading || progressAnimated.current) return;
+    progressAnimated.current = true;
+    const panel = targetPanelRef.current;
+    if (!panel || prefersReducedMotion()) return;
+
+    // Chỉ chạy các thanh đang có khi bảng hiện lần đầu; lọc, sắp xếp và tải lại không chạy lại.
+    const easing = getComputedStyle(panel).getPropertyValue('--ease-out').trim();
+    const animations = Array.from(panel.querySelectorAll<HTMLElement>('.progress > i'), bar =>
+      bar.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 520, easing }),
+    );
+    return () => animations.forEach(animation => animation.cancel());
+  }, [targetPanelInView, loading]);
 
   async function load() {
     const requestId = ++loadRequestId.current;
@@ -223,6 +273,48 @@ export default function Targets() {
     const matchesSearch = !search || `${target.code} ${target.title}`.toLocaleLowerCase('vi-VN').includes(search.toLocaleLowerCase('vi-VN'));
     return matchesSearch && (!status || target.status === status);
   }), [targets, search, status]);
+
+  const sortedVisible = useMemo(() => {
+    if (!sort || showArchived) return visible;
+    const direction = sort.direction === 'ascending' ? 1 : -1;
+    return [...visible].sort((left, right) => {
+      let comparison = 0;
+      switch (sort.key) {
+        case 'identity':
+          comparison = left.code.localeCompare(right.code, 'vi') || left.title.localeCompare(right.title, 'vi');
+          break;
+        case 'progress':
+          comparison = (left.progress ?? fallbackProgress(left)) - (right.progress ?? fallbackProgress(right));
+          break;
+        case 'status':
+          comparison = (statusOrder[left.status] ?? 5) - (statusOrder[right.status] ?? 5);
+          break;
+        case 'dueDate':
+          comparison = new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime();
+          break;
+      }
+      return comparison * direction;
+    });
+  }, [visible, sort, showArchived]);
+
+  function cycleSort(key: TargetSortKey) {
+    setSort(previous => previous?.key !== key
+      ? { key, direction: 'ascending' }
+      : previous.direction === 'ascending' ? { key, direction: 'descending' } : null);
+  }
+
+  function sortButton(key: TargetSortKey, label: string) {
+    const direction = sort?.key === key ? sort.direction : 'none';
+    const Icon = direction === 'ascending' ? ArrowUp : direction === 'descending' ? ArrowDown : ArrowUpDown;
+    const nextAction = direction === 'none' ? 'Sắp xếp tăng dần'
+      : direction === 'ascending' ? 'Sắp xếp giảm dần' : 'Trở về thứ tự mặc định';
+    return <button
+      type="button"
+      className={`tg-sort-button ${direction !== 'none' ? 'active' : ''}`}
+      aria-label={`${label}: ${nextAction}`}
+      onClick={() => cycleSort(key)}
+    >{label}<Icon aria-hidden="true" /></button>;
+  }
 
   const pendingSubmissionTargetIds = useMemo(() => new Set(
     mySubmissions
@@ -325,12 +417,14 @@ export default function Targets() {
           }),
         });
         setNotice(`Đã cập nhật chỉ tiêu ${selected.code}.${selected.isPublic ? ' Dùng “Cập nhật bản công khai” để đồng bộ thay đổi ra trang người dân.' : ''}`);
+        toast.ok(`Đã cập nhật chỉ tiêu ${selected.code}`);
       } else {
         const created = await api<Target>('/targets', {
           method: 'POST',
           body: JSON.stringify(payload),
         });
         setNotice(`Đã tạo và giao chỉ tiêu ${created.code}. Hệ thống đã tự động cấp mã để sử dụng thống nhất khi báo cáo và đối soát.`);
+        toast.ok(`Đã tạo và giao chỉ tiêu ${created.code}`);
       }
       setModal(null);
       setSelected(null);
@@ -338,6 +432,7 @@ export default function Targets() {
       else await load();
     } catch (reason) {
       const message = mutationMessage(reason, editing ? 'Không thể cập nhật chỉ tiêu' : 'Không thể tạo chỉ tiêu');
+      toast.error(editing ? 'Không thể cập nhật chỉ tiêu' : 'Không thể tạo chỉ tiêu', message);
       if (reason instanceof ApiError && reason.status === 409) {
         setModal(null);
         setSelected(null);
@@ -375,9 +470,13 @@ export default function Targets() {
       setNotice(result.reviewStatus === 'PENDING'
         ? 'Báo cáo đã được gửi và đang chờ lãnh đạo đơn vị duyệt.'
         : 'Số liệu đã được cập nhật và ghi vào lịch sử chỉ tiêu.');
+      toast.ok(result.reviewStatus === 'PENDING'
+        ? 'Đã gửi báo cáo chờ duyệt'
+        : 'Đã cập nhật số liệu chỉ tiêu');
       await Promise.all([load(), loadMySubmissions()]);
     } catch (reason) {
       const message = mutationMessage(reason, 'Không thể gửi báo cáo số liệu');
+      toast.error('Không thể gửi báo cáo số liệu', message);
       if (reason instanceof ApiError && reason.status === 409) {
         setModal(null);
         setSelected(null);
@@ -392,11 +491,10 @@ export default function Targets() {
   }
 
   async function setTargetVisibility(target: Target, isPublic: boolean) {
-    setActionId(`visibility:${target.id}`);
+    setVisibilityPendingIds(previous => new Set(previous).add(target.id));
     setLoadError('');
-    setNotice('');
     try {
-      await api(`/targets/${target.id}/visibility`, {
+      const updated = await api<Target>(`/targets/${target.id}/visibility`, {
         method: 'PATCH',
         body: JSON.stringify({
           isPublic,
@@ -404,16 +502,26 @@ export default function Targets() {
           expectedPublicationVersion: target.publicationVersion,
         }),
       });
-      setNotice(isPublic
-        ? `Đã hiển thị ${target.code} trên trang người dân bằng số liệu chính thức mới nhất.`
-        : `Đã ẩn ${target.code} khỏi trang người dân; dữ liệu và lịch sử công bố vẫn được bảo toàn.`);
-      await load();
+      setTargets(previous => previous.map(row => {
+        if (row.id !== updated.id || row.version > updated.version || row.publicationVersion > updated.publicationVersion) return row;
+        // PATCH trả bản ghi cùng department và toàn bộ published*; status của GET đã được đánh giá lại.
+        // Giữ status đó và các trường chỉ có ở danh sách (progress, pendingUpdates).
+        return { ...row, ...updated, status: row.status };
+      }));
+      toast.ok(isPublic
+        ? `Đã hiển thị ${target.code} trên trang người dân`
+        : `Đã ẩn ${target.code} khỏi trang người dân`);
     } catch (reason) {
       const message = mutationMessage(reason, isPublic ? 'Không thể hiển thị chỉ tiêu' : 'Không thể ẩn chỉ tiêu');
+      toast.error(isPublic ? 'Không thể hiển thị chỉ tiêu' : 'Không thể ẩn chỉ tiêu', message);
       if (reason instanceof ApiError && reason.status === 409) await load();
       setLoadError(message);
     } finally {
-      setActionId('');
+      setVisibilityPendingIds(previous => {
+        const next = new Set(previous);
+        next.delete(target.id);
+        return next;
+      });
     }
   }
 
@@ -436,10 +544,13 @@ export default function Targets() {
       setNotice(restore
         ? `Đã khôi phục ${target.code} về chế độ nội bộ. Hãy kiểm tra trước khi công bố lại.`
         : `Đã lưu trữ ${target.code}; lịch sử báo cáo vẫn được giữ nguyên.`);
+      toast.ok(restore ? `Đã khôi phục ${target.code}` : `Đã lưu trữ ${target.code}`);
       await load();
     } catch (reasonValue) {
+      const message = mutationMessage(reasonValue, restore ? 'Không thể khôi phục chỉ tiêu' : 'Không thể lưu trữ chỉ tiêu');
+      toast.error(restore ? 'Không thể khôi phục chỉ tiêu' : 'Không thể lưu trữ chỉ tiêu', message);
       if (reasonValue instanceof ApiError && reasonValue.status === 409) await load();
-      setLoadError(mutationMessage(reasonValue, restore ? 'Không thể khôi phục chỉ tiêu' : 'Không thể lưu trữ chỉ tiêu'));
+      setLoadError(message);
     } finally { setActionId(''); }
   }
 
@@ -456,161 +567,307 @@ export default function Targets() {
       </>}
     />
 
-    {notice && <div className="notice success" role="status"><ClipboardCheck />{notice}<button aria-label="Đóng thông báo" onClick={() => setNotice('')}><X /></button></div>}
-    {loadError && <div className="notice error" role="alert">{loadError}<button onClick={() => void load()}>Thử lại</button></div>}
+    <div className="tg-stack">
+      {notice && <div className="alert ok tg-alert" role="status">
+        <ClipboardCheck aria-hidden="true" />
+        <span>{notice}</span>
+        <button type="button" aria-label="Đóng thông báo" onClick={() => setNotice('')}><X /></button>
+      </div>}
+      {loadError && <div className="alert bad tg-alert" role="alert">
+        <AlertTriangle aria-hidden="true" />
+        <span>{loadError}</span>
+        <button type="button" onClick={() => void load()}>Thử lại</button>
+      </div>}
 
-    {canTrackOwnSubmissions && <section className="table-card own-submissions">
-      <div className="table-summary">
-        <span><FileClock /> <b>Báo cáo của tôi</b> · Theo dõi kết quả duyệt và lý do trả lại trong năm {year}</span>
-        <button type="button" onClick={() => void loadMySubmissions()} disabled={submissionsLoading}>Làm mới</button>
-      </div>
-      {submissionsLoading ? <Spinner /> : submissionsError
-        ? <div className="notice error" role="alert">{submissionsError}<button onClick={() => void loadMySubmissions()}>Thử lại</button></div>
-        : mySubmissions.length ? <div className="table-wrap"><table>
-          <thead><tr><th>Thời gian gửi</th><th>Chỉ tiêu</th><th>Số liệu đã nộp</th><th>Trạng thái</th><th>Phản hồi duyệt</th></tr></thead>
-          <tbody>{mySubmissions.map(submission => {
-            const newerSubmissionExists = mySubmissions.some(item =>
-              item.target.id === submission.target.id
-              && new Date(item.createdAt).getTime() > new Date(submission.createdAt).getTime(),
-            );
-            const meta = submission.reviewStatus === 'APPROVED'
-              ? { label: 'Đã duyệt', tone: 'green' }
-              : submission.reviewStatus === 'REJECTED'
-                ? { label: 'Đã trả lại', tone: 'red' }
-                : { label: 'Chờ duyệt', tone: 'amber' };
-            return <tr key={submission.id}>
-              <td>{new Date(submission.createdAt).toLocaleString('vi-VN')}</td>
-              <td><span className="code">{submission.target.code}</span><strong className="block">{submission.target.title}</strong><small className="muted">{submission.target.department.name}</small></td>
-              <td><strong>{submission.value.toLocaleString('vi-VN')} {submission.target.unit}</strong>{submission.note && <small className="block review-note">{submission.note}</small>}{submission.importBatch && <small className="block muted">Excel: {submission.importBatch.fileName}</small>}</td>
-              <td><span className={`status ${meta.tone}`}><i />{meta.label}</span></td>
-              <td>{submission.reviewStatus === 'REJECTED' ? <div>
-                <strong className="block danger-text">{submission.reviewNote || 'Báo cáo cần được điều chỉnh trước khi nộp lại.'}</strong>
-                {submission.reviewer && <small className="block muted">Người duyệt: {submission.reviewer.fullName}</small>}
-                {!newerSubmissionExists
-                  ? <button className="btn secondary compact" type="button" onClick={() => openProgress(submission.target, { value: submission.value, note: submission.note })}><RotateCcw />Sửa và nộp lại</button>
-                  : <small className="block muted">Đã có lần nộp mới hơn cho chỉ tiêu này.</small>}
-              </div> : submission.reviewStatus === 'APPROVED'
-                ? <span>{submission.reviewer ? `Duyệt bởi ${submission.reviewer.fullName}` : 'Đã ghi nhận vào số liệu chính thức'}</span>
-                : <span className="muted">Đang chờ lãnh đạo đơn vị xem xét</span>}</td>
-            </tr>;
-          })}</tbody>
-        </table></div>
-        : <div className="spinner-wrap muted">Bạn chưa gửi báo cáo nào trong năm {year}.</div>}
-    </section>}
+      {canTrackOwnSubmissions && <section className="panel flush tg-panel">
+        <div className="panel-head">
+          <div>
+            <h3 className="tg-panel-title"><FileClock aria-hidden="true" />Báo cáo của tôi</h3>
+            <p>Theo dõi kết quả duyệt và lý do trả lại trong năm {year}</p>
+          </div>
+          <button type="button" onClick={() => void loadMySubmissions()} disabled={submissionsLoading}>
+            <RotateCcw className={submissionsLoading ? 'spin' : ''} aria-hidden="true" />Làm mới
+          </button>
+        </div>
+        {submissionsLoading
+          ? <div className="tg-skeleton" role="status" aria-label="Đang tải dữ liệu">
+            {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="tg-skeleton-row" />)}
+          </div>
+          : submissionsError
+            ? <div className="tg-skeleton"><div className="alert bad tg-alert" role="alert">
+              <AlertTriangle aria-hidden="true" />
+              <span>{submissionsError}</span>
+              <button type="button" onClick={() => void loadMySubmissions()}>Thử lại</button>
+            </div></div>
+            : mySubmissions.length ? <div className="table-wrap"><table className="tg-table tg-sub-table">
+              <thead><tr><th>Chỉ tiêu</th><th>Thời gian gửi</th><th>Số liệu đã nộp</th><th>Trạng thái</th><th>Phản hồi duyệt</th></tr></thead>
+              <tbody>{mySubmissions.map(submission => {
+                const newerSubmissionExists = mySubmissions.some(item =>
+                  item.target.id === submission.target.id
+                  && new Date(item.createdAt).getTime() > new Date(submission.createdAt).getTime(),
+                );
+                const meta = submission.reviewStatus === 'APPROVED'
+                  ? { label: 'Đã duyệt', tone: 'ok' }
+                  : submission.reviewStatus === 'REJECTED'
+                    ? { label: 'Đã trả lại', tone: 'bad' }
+                    : { label: 'Chờ duyệt', tone: 'warn' };
+                return <tr key={submission.id}>
+                  <td className="tg-card-head" data-label="Chỉ tiêu">
+                    <div className="tg-sub-target">
+                      <span className="code">{submission.target.code}</span>
+                      <strong className="tg-title">{submission.target.title}</strong>
+                      <span className="tg-meta">
+                        <span className="tg-meta-item">{submission.target.department.name}</span>
+                        <span className="tg-meta-item"><Calendar aria-hidden="true" />{new Date(submission.createdAt).toLocaleString('vi-VN')}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td data-label="Số liệu đã nộp">
+                    <div>
+                      <strong className="tg-sub-value">{submission.value.toLocaleString('vi-VN')} {submission.target.unit}</strong>
+                      {submission.note && <small className="tg-sub-note">{submission.note}</small>}
+                      {submission.importBatch && <small className="tg-sub-note">Excel: {submission.importBatch.fileName}</small>}
+                    </div>
+                  </td>
+                  <td data-label="Trạng thái"><span className={`status ${meta.tone}`}>{meta.label}</span></td>
+                  <td data-label="Phản hồi duyệt">{submission.reviewStatus === 'REJECTED' ? <div className="tg-review">
+                    <strong className="tg-review-reason">{submission.reviewNote || 'Báo cáo cần được điều chỉnh trước khi nộp lại.'}</strong>
+                    {submission.reviewer && <small className="tg-vis-hint">Người duyệt: {submission.reviewer.fullName}</small>}
+                    {!newerSubmissionExists
+                      ? <button className="btn secondary sm" type="button" onClick={() => openProgress(submission.target, { value: submission.value, note: submission.note })}><RotateCcw />Sửa và nộp lại</button>
+                      : <small className="tg-vis-hint">Đã có lần nộp mới hơn cho chỉ tiêu này.</small>}
+                  </div> : submission.reviewStatus === 'APPROVED'
+                    ? <span className="tg-quiet">{submission.reviewer ? `Duyệt bởi ${submission.reviewer.fullName}` : 'Đã ghi nhận vào số liệu chính thức'}</span>
+                    : <span className="tg-quiet">Đang chờ lãnh đạo đơn vị xem xét</span>}</td>
+                </tr>;
+              })}</tbody>
+            </table></div>
+            : <Empty title="Chưa có báo cáo nào" description={`Bạn chưa gửi báo cáo nào trong năm ${year}.`} />}
+      </section>}
 
-    <div className="toolbar">
-      <div className="search"><Search /><input aria-label="Tìm chỉ tiêu theo mã hoặc tên" value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm theo mã hoặc tên chỉ tiêu..." />{search && <button onClick={() => setSearch('')} aria-label="Xóa tìm kiếm"><X /></button>}</div>
-      <select value={year} onChange={event => setYear(Number(event.target.value))} aria-label="Năm kế hoạch">
-        {Array.from({ length: 101 }, (_, index) => 2100 - index).map(value => <option key={value} value={value}>Năm {value}</option>)}
-      </select>
-      {isAdmin && <select value={departmentId} onChange={event => setDepartmentId(event.target.value)} aria-label="Phòng ban">
-        <option value="">Tất cả phòng ban</option>
-        {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
-      </select>}
-      {isAdmin && <button type="button" className={`btn secondary ${showArchived ? 'active' : ''}`} onClick={() => setShowArchived(value => !value)}>{showArchived ? <TargetIcon /> : <Archive />}{showArchived ? 'Xem chỉ tiêu đang hoạt động' : 'Kho lưu trữ'}</button>}
-      <select value={status} onChange={event => setStatus(event.target.value)} aria-label="Trạng thái">
-        <option value="">Tất cả trạng thái</option>
-        {Object.entries(statusMeta).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
-      </select>
-    </div>
+      <Reveal asChild><div className="toolbar tg-toolbar">
+        <div className="search"><Search /><input aria-label="Tìm chỉ tiêu theo mã hoặc tên" value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm theo mã hoặc tên chỉ tiêu..." />{search && <button onClick={() => setSearch('')} aria-label="Xóa tìm kiếm"><X /></button>}</div>
+        <div className="tg-filter-group">
+          <select value={year} onChange={event => setYear(Number(event.target.value))} aria-label="Năm kế hoạch">
+            {Array.from({ length: 101 }, (_, index) => 2100 - index).map(value => <option key={value} value={value}>Năm {value}</option>)}
+          </select>
+          {isAdmin && <select value={departmentId} onChange={event => setDepartmentId(event.target.value)} aria-label="Phòng ban">
+            <option value="">Tất cả phòng ban</option>
+            {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
+          </select>}
+          <select value={status} onChange={event => setStatus(event.target.value)} aria-label="Trạng thái">
+            <option value="">Tất cả trạng thái</option>
+            {Object.entries(statusMeta).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+          </select>
+        </div>
+        {isAdmin && <button type="button" aria-pressed={showArchived} className={`btn secondary tg-toggle ${showArchived ? 'active' : ''}`} onClick={() => setShowArchived(value => !value)}>{showArchived ? <TargetIcon /> : <Archive />}{showArchived ? 'Xem chỉ tiêu đang hoạt động' : 'Kho lưu trữ'}</button>}
+      </div></Reveal>
 
-    <div className="table-card">
-      <div className="table-summary"><span>Hiển thị <b>{visible.length}</b> {showArchived ? 'chỉ tiêu đã lưu trữ' : 'chỉ tiêu đang hoạt động'} trong phạm vi được phép</span></div>
-      {loading ? <Spinner /> : visible.length ? <div className="table-wrap"><table className="action-table">
-        <thead><tr><th>Mã / Chỉ tiêu</th><th>Đơn vị phụ trách</th><th>Tiến độ</th><th>Hạn hoàn thành</th><th>Trạng thái</th><th>Trang người dân</th><th>Thao tác</th></tr></thead>
-        <tbody>{visible.map(target => {
-          const percent = target.progress ?? fallbackProgress(target);
-          const publicationCurrent = isPublicationCurrent(target);
-          const visibilityBusy = actionId === `visibility:${target.id}`;
-          const ownSubmissionPending = canTrackOwnSubmissions && pendingSubmissionTargetIds.has(target.id);
-          const checkingOwnSubmissions = canTrackOwnSubmissions && submissionsLoading;
-          return <tr key={target.id}>
-            <td><div className="target-cell"><div className="target-mini"><TargetIcon /></div><div><span>{target.code}</span><strong>{target.title}</strong><small className="direction-label">{target.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'} · {target.isPublic ? 'Đang công khai' : 'Nội bộ'}</small></div></div></td>
-            <td><div className="department-cell"><i style={{ background: target.department.color }} />{target.department.name}</div></td>
-            <td><div className="progress-cell"><div><span>{target.currentValue.toLocaleString('vi-VN')} / {target.targetValue.toLocaleString('vi-VN')} {target.unit}</span><b>{percent}%</b></div><div className="progress" role="progressbar" aria-label={`Tiến độ chỉ tiêu ${target.code}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, percent))}><i className={percent >= 100 ? 'done' : ''} style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} /></div>{target.pendingUpdates ? <small>{target.pendingUpdates} báo cáo chờ duyệt</small> : null}</div></td>
-            <td><div className="date-cell"><Calendar />{new Date(target.dueDate).toLocaleDateString('vi-VN')}</div></td>
-            <td><span className={`status ${statusMeta[target.status]?.color}`}><i />{statusMeta[target.status]?.label}</span></td>
-            <td>{isAdmin && !target.isArchived ? <div className="visibility-control">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={target.isPublic}
-                aria-label={`${target.isPublic ? 'Ẩn' : 'Hiển thị'} chỉ tiêu ${target.code} trên trang người dân`}
-                className={`visibility-switch ${target.isPublic ? 'on' : ''}`}
-                disabled={Boolean(actionId) || (!target.isPublic && !target.lastReportedAt)}
-                title={!target.isPublic && !target.lastReportedAt ? 'Cần có số liệu chính thức trước khi hiển thị' : ''}
-                onClick={() => void setTargetVisibility(target, !target.isPublic)}
-              >
-                <span aria-hidden="true"><i /></span>
-                <b>{visibilityBusy ? 'Đang cập nhật...' : target.isPublic ? 'Đang hiển thị' : 'Đang ẩn'}</b>
-              </button>
-              {target.isPublic && !publicationCurrent && <button
-                type="button"
-                className="publication-refresh"
-                disabled={Boolean(actionId)}
-                onClick={() => void setTargetVisibility(target, true)}
-              ><RotateCcw />Cập nhật bản công khai</button>}
-              {!target.lastReportedAt && !target.isPublic && <small>Chưa có số liệu chính thức</small>}
-            </div> : <span className={`status ${target.isPublic ? 'green' : 'slate'}`}><i />{target.isPublic ? 'Đang hiển thị' : 'Nội bộ'}</span>}</td>
-            <td><div className="approval-actions target-actions">
-              {canReport && !target.isArchived ? <button
-                className="btn secondary compact"
-                disabled={Boolean(actionId) || ownSubmissionPending || checkingOwnSubmissions}
-                title={ownSubmissionPending ? 'Báo cáo gần nhất đang chờ người có thẩm quyền duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra trạng thái báo cáo' : ''}
-                onClick={() => openProgress(target)}
-              >{ownSubmissionPending ? 'Đang chờ duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra...' : 'Báo cáo số liệu'}</button> : <span className="muted">{target.isArchived ? 'Đã lưu trữ' : 'Chỉ xem'}</span>}
-              {isAdmin && !target.isArchived && <button className="btn secondary compact" disabled={Boolean(actionId)} onClick={() => openEdit(target)}><Pencil />Sửa</button>}
-              {isAdmin && <button className="btn secondary compact" disabled={Boolean(actionId)} onClick={() => void changeArchiveState(target, target.isArchived)}>{target.isArchived ? <ArchiveRestore /> : <Archive />}{target.isArchived ? 'Khôi phục' : 'Lưu trữ'}</button>}
-            </div></td>
-          </tr>;
-        })}</tbody>
-      </table></div> : <Empty title="Không tìm thấy chỉ tiêu" description="Hãy thay đổi bộ lọc hoặc năm kế hoạch." />}
+      <section ref={targetPanelRef} className={`panel flush tg-panel reveal ${targetPanelInView ? 'in' : ''}`}>
+        <div className="panel-head">
+          <div>
+            <h3 className="tg-panel-title"><TargetIcon aria-hidden="true" />{showArchived ? 'Kho lưu trữ chỉ tiêu' : 'Chỉ tiêu đang hoạt động'}</h3>
+            <p>Kế hoạch năm {year}{isAdmin ? '' : ` · ${user?.department?.name || 'đơn vị của bạn'}`}</p>
+          </div>
+        </div>
+        {loading
+          ? <div className="tg-skeleton" role="status" aria-label="Đang tải dữ liệu">
+            {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="tg-skeleton-row" />)}
+          </div>
+          : visible.length ? <>
+            <div className="table-wrap"><table className="tg-table action-table">
+              <thead className={showArchived ? '' : 'tg-sort-head'}><tr>
+                {showArchived ? <><th>Mã / Chỉ tiêu</th><th>Tiến độ</th><th>Trạng thái</th></> : <>
+                  <th scope="col" aria-sort={sort?.key === 'identity' || sort?.key === 'dueDate' ? sort.direction : 'none'}>
+                    <div className="tg-sort-group">{sortButton('identity', 'Mã / Chỉ tiêu')}{sortButton('dueDate', 'Hạn hoàn thành')}</div>
+                  </th>
+                  <th scope="col" aria-sort={sort?.key === 'progress' ? sort.direction : 'none'}>{sortButton('progress', 'Tiến độ')}</th>
+                  <th scope="col" aria-sort={sort?.key === 'status' ? sort.direction : 'none'}>{sortButton('status', 'Trạng thái')}</th>
+                </>}
+                <th>Trang người dân</th><th>Thao tác</th>
+              </tr></thead>
+              <tbody>{sortedVisible.map(target => {
+                const percent = target.progress ?? fallbackProgress(target);
+                const clamped = Math.max(0, Math.min(100, percent));
+                const publicationCurrent = isPublicationCurrent(target);
+                const visibilityBusy = visibilityPendingIds.has(target.id);
+                const rowBusy = visibilityBusy || actionId === `archive:${target.id}` || actionId === `unarchive:${target.id}`;
+                const ownSubmissionPending = canTrackOwnSubmissions && pendingSubmissionTargetIds.has(target.id);
+                const checkingOwnSubmissions = canTrackOwnSubmissions && submissionsLoading;
+                return <tr key={target.id}>
+                  <td className="tg-card-head" data-label="Chỉ tiêu">
+                    <div className="tg-ident">
+                      <span className="tg-ident-icon" aria-hidden="true"><TargetIcon /></span>
+                      <div className="tg-ident-body">
+                        <span className="code">{target.code}</span>
+                        <strong className="tg-title">{target.title}</strong>
+                        <span className="tg-meta">
+                          <span className="tg-dept"><i aria-hidden="true" style={{ background: target.department.color }} />{target.department.name}</span>
+                          <span className="tg-meta-item"><Calendar aria-hidden="true" />{new Date(target.dueDate).toLocaleDateString('vi-VN')}</span>
+                          <span className="tg-meta-item">
+                            {target.direction === 'LOWER_IS_BETTER' ? <TrendingDown aria-hidden="true" /> : <TrendingUp aria-hidden="true" />}
+                            {target.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label="Tiến độ">
+                    <div className="tg-progress">
+                      <div className="tg-progress-head">
+                        <span>{target.currentValue.toLocaleString('vi-VN')} / {target.targetValue.toLocaleString('vi-VN')} {target.unit}</span>
+                        <b>{percent}%</b>
+                      </div>
+                      <div className="progress" role="progressbar" aria-label={`Tiến độ chỉ tiêu ${target.code}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clamped}>
+                        <i className={percent >= 100 ? 'ok' : ''} style={{ width: `${clamped}%` }} />
+                      </div>
+                      {target.pendingUpdates ? <small className="tg-pending">{target.pendingUpdates} báo cáo chờ duyệt</small> : null}
+                    </div>
+                  </td>
+                  <td data-label="Trạng thái"><span className={`status ${statusMeta[target.status]?.color}`}>{statusMeta[target.status]?.label}</span></td>
+                  <td data-label="Trang người dân">{isAdmin && !target.isArchived ? <div className="tg-visibility">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={target.isPublic}
+                      aria-busy={visibilityBusy}
+                      aria-label={`${target.isPublic ? 'Ẩn' : 'Hiển thị'} chỉ tiêu ${target.code} trên trang người dân`}
+                      className={`visibility-switch ${target.isPublic ? 'on' : ''}`}
+                      disabled={rowBusy || (!target.isPublic && !target.lastReportedAt)}
+                      title={!target.isPublic && !target.lastReportedAt ? 'Cần có số liệu chính thức trước khi hiển thị' : ''}
+                      onClick={() => void setTargetVisibility(target, !target.isPublic)}
+                    >
+                      <span aria-hidden="true"><i /></span>
+                      <b>{visibilityBusy ? 'Đang cập nhật...' : target.isPublic ? 'Đang hiển thị' : 'Đang ẩn'}</b>
+                    </button>
+                    {target.isPublic && !publicationCurrent && <button
+                      type="button"
+                      className="tg-pub-refresh"
+                      disabled={rowBusy}
+                      onClick={() => void setTargetVisibility(target, true)}
+                    ><RotateCcw />Cập nhật bản công khai</button>}
+                    {!target.lastReportedAt && !target.isPublic && <small className="tg-vis-hint">Chưa có số liệu chính thức</small>}
+                  </div> : <span className={`status ${target.isPublic ? 'ok' : 'neutral'}`}>{target.isPublic ? 'Đang hiển thị' : 'Nội bộ'}</span>}</td>
+                  <td data-label="Thao tác"><div className="tg-actions">
+                    {canReport && !target.isArchived ? <button
+                      className="btn secondary sm"
+                      disabled={Boolean(actionId) || visibilityBusy || ownSubmissionPending || checkingOwnSubmissions}
+                      title={ownSubmissionPending ? 'Báo cáo gần nhất đang chờ người có thẩm quyền duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra trạng thái báo cáo' : ''}
+                      onClick={() => openProgress(target)}
+                    >{ownSubmissionPending ? 'Đang chờ duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra...' : 'Báo cáo số liệu'}</button> : <span className="tg-quiet">{target.isArchived ? 'Đã lưu trữ' : 'Chỉ xem'}</span>}
+                    {isAdmin && !target.isArchived && <button
+                      type="button"
+                      className="row-action"
+                      title="Sửa"
+                      aria-label={`Sửa chỉ tiêu ${target.code}`}
+                      disabled={Boolean(actionId) || visibilityBusy}
+                      onClick={() => openEdit(target)}
+                    ><Pencil /></button>}
+                    {isAdmin && <button
+                      type="button"
+                      className={`row-action ${target.isArchived ? '' : 'danger'}`}
+                      title={target.isArchived ? 'Khôi phục' : 'Lưu trữ'}
+                      aria-label={`${target.isArchived ? 'Khôi phục' : 'Lưu trữ'} chỉ tiêu ${target.code}`}
+                      disabled={Boolean(actionId) || visibilityBusy}
+                      onClick={() => void changeArchiveState(target, target.isArchived)}
+                    >{target.isArchived ? <ArchiveRestore /> : <Archive />}</button>}
+                  </div></td>
+                </tr>;
+              })}</tbody>
+            </table></div>
+            <div className="table-summary"><span>Hiển thị <b>{visible.length}</b> {showArchived ? 'chỉ tiêu đã lưu trữ' : 'chỉ tiêu đang hoạt động'} trong phạm vi được phép</span></div>
+          </> : hasFilters
+            ? <Empty
+                title="Không có chỉ tiêu nào khớp bộ lọc"
+                description={`Danh mục năm ${year} vẫn có dữ liệu, nhưng không mục nào thoả các điều kiện đang chọn.`}
+                action={<button type="button" className="btn secondary" onClick={clearFilters}><FilterX />Xoá bộ lọc</button>}
+              />
+            : <Empty
+                title={showArchived ? 'Kho lưu trữ đang trống' : `Chưa có chỉ tiêu nào cho năm ${year}`}
+                description={showArchived
+                  ? 'Chỉ tiêu đã kết thúc kỳ kế hoạch sẽ được chuyển vào đây.'
+                  : isAdmin
+                    ? 'Hãy đặt chỉ tiêu đầu tiên hoặc chọn năm kế hoạch khác.'
+                    : 'Hãy chọn năm kế hoạch khác, hoặc liên hệ quản trị viên để được giao chỉ tiêu.'}
+              />}
+      </section>
     </div>
 
     {(modal === 'create' || modal === 'edit') && canCreate && <Modal title={modal === 'edit' ? `Chỉnh sửa ${selected?.code}` : 'Đặt chỉ tiêu mới'} onClose={closeModal} wide>
-      <form className="form-grid" onSubmit={submitTarget}>
-        {error && <div className="form-error full" role="alert">{error}</div>}
-        <div className="generated-code-field">
-          <span>Mã chỉ tiêu</span>
-          <strong>{selected?.code || targetCodePattern(form.year, formDepartmentCode)}</strong>
-          <small>{selected
-            ? 'Mã định danh được giữ cố định trong toàn bộ vòng đời chỉ tiêu.'
-            : 'Hệ thống cấp mã tự động khi lưu; người dùng không cần nhập và không thể sửa mã.'}</small>
-        </div>
-        <label>Năm kế hoạch<input type="number" required min="2000" max="2100" disabled={modal === 'edit'} value={form.year} onChange={event => {
-          const nextYear = event.target.value;
-          const dueDate = /^\d{4}$/.test(nextYear) && /^\d{4}-\d{2}-\d{2}$/.test(form.dueDate)
-            ? `${nextYear}${form.dueDate.slice(4)}`
-            : form.dueDate;
-          setForm({ ...form, year: nextYear, dueDate });
-        }} /><small className="muted">{modal === 'edit' ? 'Năm được khóa để mã chỉ tiêu và lịch sử báo cáo luôn nhất quán.' : 'Năm kế hoạch là một phần của mã chỉ tiêu tự động.'}</small></label>
-        <label className="full">Tên chỉ tiêu<input required minLength={3} maxLength={300} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} /></label>
-        <label className="full">Mô tả<textarea maxLength={2000} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} /></label>
-        <label>Phòng ban phụ trách<select required disabled={modal === 'edit'} value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })}>
-          <option value="">Chọn phòng ban</option>
-          {departments.filter(department => department.isActive || department.id === selected?.department.id).map(department => <option key={department.id} value={department.id}>{department.name}{department.isActive ? '' : ' (đã ngừng)'}</option>)}
-        </select><small className="muted">{modal === 'edit' ? 'Đơn vị được khóa để mã chỉ tiêu không thay đổi sau khi giao.' : 'Đơn vị phụ trách được dùng để cấp mã chỉ tiêu.'}</small></label>
-        <label>Tần suất báo cáo dự kiến<select value={form.frequency} onChange={event => setForm({ ...form, frequency: event.target.value as TargetForm['frequency'] })}><option value="YEARLY">Hàng năm</option><option value="QUARTERLY">Hàng quý</option><option value="MONTHLY">Hàng tháng</option></select><small className="muted">Dùng để định hướng nhịp báo cáo; hệ thống luôn lưu giá trị thực hiện hiện hành mới nhất.</small></label>
-        <label>Giá trị mục tiêu<input type="number" step="any" min="0" required value={form.targetValue} onChange={event => setForm({ ...form, targetValue: event.target.value })} /></label>
-        <label>Đơn vị tính<input required minLength={1} maxLength={50} value={form.unit} onChange={event => setForm({ ...form, unit: event.target.value })} /></label>
-        <label>Chiều đánh giá<select value={form.direction} onChange={event => setForm({ ...form, direction: event.target.value as TargetForm['direction'] })}><option value="HIGHER_IS_BETTER">Càng cao càng tốt</option><option value="LOWER_IS_BETTER">Càng thấp càng tốt</option></select></label>
-        <label>Trọng số<input type="number" step="0.1" min="0.1" max="10" required value={form.weight} onChange={event => setForm({ ...form, weight: event.target.value })} /></label>
-        <label>Hạn hoàn thành<input type="date" required min={`${form.year}-01-01`} max={`${form.year}-12-31`} value={form.dueDate} onChange={event => setForm({ ...form, dueDate: event.target.value })} /><small className="muted">Hạn phải nằm trong năm kế hoạch {form.year || 'đã chọn'}.</small></label>
-        <label>Thứ tự trên trang công khai<input type="number" min="0" step="1" required value={form.publicOrder} onChange={event => setForm({ ...form, publicOrder: event.target.value })} /></label>
-        <label className="check-field full"><input type="checkbox" checked={form.isHighlighted} onChange={event => setForm({ ...form, isHighlighted: event.target.checked })} /><span><Star /> Đánh dấu là chỉ tiêu nổi bật khi công bố</span></label>
-        <div className="permission-note full"><Eye /><div><strong>Quản lý hiển thị tại danh sách chỉ tiêu</strong><p>Công tắc “Trang người dân” chỉ khả dụng sau khi có số liệu chính thức. Mỗi lần bật hoặc cập nhật, hệ thống tạo bản chụp đã duyệt để dữ liệu đang công khai không bị thay đổi ngoài ý muốn.</p></div></div>
-        <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || !form.departmentId}>{submitting ? 'Đang lưu...' : modal === 'edit' ? 'Lưu thay đổi' : 'Tạo và giao chỉ tiêu'}</button></div>
+      <form className="tg-form" onSubmit={submitTarget}>
+        {error && <div className="form-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}
+
+        <fieldset className="tg-group">
+          <legend className="tg-group-title">Nhận dạng</legend>
+          <div className="tg-code-field">
+            <span>Mã chỉ tiêu</span>
+            <strong>{selected?.code || targetCodePattern(form.year, formDepartmentCode)}</strong>
+            <small>{selected
+              ? 'Mã định danh được giữ cố định trong toàn bộ vòng đời chỉ tiêu.'
+              : 'Hệ thống cấp mã tự động khi lưu; người dùng không cần nhập và không thể sửa mã.'}</small>
+          </div>
+          <div className="form-grid two">
+            <label>Năm kế hoạch<input type="number" required min="2000" max="2100" disabled={modal === 'edit'} value={form.year} onChange={event => {
+              const nextYear = event.target.value;
+              const dueDate = /^\d{4}$/.test(nextYear) && /^\d{4}-\d{2}-\d{2}$/.test(form.dueDate)
+                ? `${nextYear}${form.dueDate.slice(4)}`
+                : form.dueDate;
+              setForm({ ...form, year: nextYear, dueDate });
+            }} /><small className="field-hint">{modal === 'edit' ? 'Năm được khóa để mã chỉ tiêu và lịch sử báo cáo luôn nhất quán.' : 'Năm kế hoạch là một phần của mã chỉ tiêu tự động.'}</small></label>
+            <label className="full">Tên chỉ tiêu<input required minLength={3} maxLength={300} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} /></label>
+            <label className="full">Mô tả<textarea maxLength={2000} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} /></label>
+          </div>
+        </fieldset>
+
+        <fieldset className="tg-group">
+          <legend className="tg-group-title">Mục tiêu và cách đo</legend>
+          <div className="form-grid two">
+            <label>Giá trị mục tiêu<input type="number" step="any" min="0" required value={form.targetValue} onChange={event => setForm({ ...form, targetValue: event.target.value })} /></label>
+            <label>Đơn vị tính<input required minLength={1} maxLength={50} value={form.unit} onChange={event => setForm({ ...form, unit: event.target.value })} /></label>
+            <label>Chiều đánh giá<select value={form.direction} onChange={event => setForm({ ...form, direction: event.target.value as TargetForm['direction'] })}><option value="HIGHER_IS_BETTER">Càng cao càng tốt</option><option value="LOWER_IS_BETTER">Càng thấp càng tốt</option></select></label>
+            <label>Trọng số<input type="number" step="0.1" min="0.1" max="10" required value={form.weight} onChange={event => setForm({ ...form, weight: event.target.value })} /></label>
+            <label>Tần suất báo cáo dự kiến<select value={form.frequency} onChange={event => setForm({ ...form, frequency: event.target.value as TargetForm['frequency'] })}><option value="YEARLY">Hàng năm</option><option value="QUARTERLY">Hàng quý</option><option value="MONTHLY">Hàng tháng</option></select><small className="field-hint">Dùng để định hướng nhịp báo cáo; hệ thống luôn lưu giá trị thực hiện hiện hành mới nhất.</small></label>
+            <label>Hạn hoàn thành<input type="date" required min={`${form.year}-01-01`} max={`${form.year}-12-31`} value={form.dueDate} onChange={event => setForm({ ...form, dueDate: event.target.value })} /><small className="field-hint">Hạn phải nằm trong năm kế hoạch {form.year || 'đã chọn'}.</small></label>
+          </div>
+        </fieldset>
+
+        <fieldset className="tg-group">
+          <legend className="tg-group-title">Phân công thực hiện</legend>
+          <div className="form-grid two">
+            <label className="full">Phòng ban phụ trách<select required disabled={modal === 'edit'} value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })}>
+              <option value="">Chọn phòng ban</option>
+              {departments.filter(department => department.isActive || department.id === selected?.department.id).map(department => <option key={department.id} value={department.id}>{department.name}{department.isActive ? '' : ' (đã ngừng)'}</option>)}
+            </select><small className="field-hint">{modal === 'edit' ? 'Đơn vị được khóa để mã chỉ tiêu không thay đổi sau khi giao.' : 'Đơn vị phụ trách được dùng để cấp mã chỉ tiêu.'}</small></label>
+          </div>
+        </fieldset>
+
+        <fieldset className="tg-group">
+          <legend className="tg-group-title">Công khai trên trang người dân</legend>
+          <div className="form-grid two">
+            <label>Thứ tự trên trang công khai<input type="number" min="0" step="1" required value={form.publicOrder} onChange={event => setForm({ ...form, publicOrder: event.target.value })} /></label>
+            <label className="tg-check full"><input type="checkbox" checked={form.isHighlighted} onChange={event => setForm({ ...form, isHighlighted: event.target.checked })} /><span><Star aria-hidden="true" /> Đánh dấu là chỉ tiêu nổi bật khi công bố</span></label>
+            <div className="info-box tg-note full"><Eye aria-hidden="true" /><div><strong>Quản lý hiển thị tại danh sách chỉ tiêu</strong><p>Công tắc “Trang người dân” chỉ khả dụng sau khi có số liệu chính thức. Mỗi lần bật hoặc cập nhật, hệ thống tạo bản chụp đã duyệt để dữ liệu đang công khai không bị thay đổi ngoài ý muốn.</p></div></div>
+          </div>
+        </fieldset>
+
+        <div className="modal-actions"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || !form.departmentId}>{submitting ? 'Đang lưu...' : modal === 'edit' ? 'Lưu thay đổi' : 'Tạo và giao chỉ tiêu'}</button></div>
       </form>
     </Modal>}
 
     {modal === 'progress' && selected && <Modal title="Báo cáo kết quả thực hiện" onClose={closeModal}>
-      <form className="form-grid single" onSubmit={submitProgress}>
-        <div className="target-preview"><span>{selected.code}</span><strong>{selected.title}</strong><p>Hiện tại: {selected.currentValue.toLocaleString('vi-VN')} · Mục tiêu: {selected.targetValue.toLocaleString('vi-VN')} {selected.unit} · Phiên bản {selected.version}</p></div>
-        {user?.role !== 'ADMIN' && <div className="permission-note"><ClipboardCheck /><div><strong>Cần người có thẩm quyền duyệt</strong><p>Số liệu chỉ trở thành kết quả chính thức sau khi được phê duyệt; người gửi không thể tự duyệt.</p></div></div>}
-        {error && <div className="form-error full" role="alert">{error}</div>}
-        <label className="full">Giá trị thực hiện mới<input type="number" inputMode="decimal" step="any" min="0" required value={progress.value} onChange={event => setProgress({ ...progress, value: event.target.value })} /><small className="muted">Nhập số không âm theo đơn vị “{selected.unit}”. Ví dụ: chỉ tiêu ngân sách nhập giá trị tiền, chỉ tiêu tỷ lệ nhập phần trăm.</small></label>
-        <label className="full">Nguồn số liệu / ghi chú<textarea required value={progress.note} onChange={event => setProgress({ ...progress, note: event.target.value })} placeholder="Nêu kỳ báo cáo và nguồn đối chiếu..." /></label>
-        <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting}>{submitting ? 'Đang gửi...' : user?.role === 'ADMIN' ? 'Xác nhận cập nhật' : 'Gửi chờ duyệt'}</button></div>
+      <form className="tg-form" onSubmit={submitProgress}>
+        <div className="tg-preview">
+          <span className="code">{selected.code}</span>
+          <strong>{selected.title}</strong>
+          <p>Hiện tại: {selected.currentValue.toLocaleString('vi-VN')} · Mục tiêu: {selected.targetValue.toLocaleString('vi-VN')} {selected.unit} · Phiên bản {selected.version}</p>
+        </div>
+        {user?.role !== 'ADMIN' && <div className="info-box tg-note"><ClipboardCheck aria-hidden="true" /><div><strong>Cần người có thẩm quyền duyệt</strong><p>Số liệu chỉ trở thành kết quả chính thức sau khi được phê duyệt; người gửi không thể tự duyệt.</p></div></div>}
+        {error && <div className="form-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}
+        <div className="form-grid">
+          <label>Giá trị thực hiện mới<input type="number" inputMode="decimal" step="any" min="0" required value={progress.value} onChange={event => setProgress({ ...progress, value: event.target.value })} /><small className="field-hint">Nhập số không âm theo đơn vị “{selected.unit}”. Ví dụ: chỉ tiêu ngân sách nhập giá trị tiền, chỉ tiêu tỷ lệ nhập phần trăm.</small></label>
+          <label>Nguồn số liệu / ghi chú<textarea required value={progress.note} onChange={event => setProgress({ ...progress, note: event.target.value })} placeholder="Nêu kỳ báo cáo và nguồn đối chiếu..." /></label>
+        </div>
+        <div className="modal-actions"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting}>{submitting ? 'Đang gửi...' : user?.role === 'ADMIN' ? 'Xác nhận cập nhật' : 'Gửi chờ duyệt'}</button></div>
       </form>
     </Modal>}
   </>;

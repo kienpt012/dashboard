@@ -1,1 +1,37 @@
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><meta name="theme-color" content="#073f3a"/><meta name="description" content="Hệ thống quản trị và điều hành chỉ tiêu IOC phường Lái Thiêu"/><title>IOC Lái Thiêu · Trung tâm điều hành</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+    <meta name="theme-color" content="#f5f7fb" />
+    <meta name="description" content="Hệ thống quản trị và điều hành chỉ tiêu IOC phường Lái Thiêu" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <title>IOC Lái Thiêu · Trung tâm điều hành</title>
+    <script>
+      // Áp dụng chế độ sáng/tối TRƯỚC khi trang được vẽ để người dùng chế độ tối
+      // không thấy một khung hình trắng loá. Giữ đồng bộ với src/theme.ts.
+      (function () {
+        try {
+          var choice = localStorage.getItem('ioc_theme');
+          if (choice === 'light' || choice === 'dark') {
+            document.documentElement.setAttribute('data-theme', choice);
+          }
+          var dark =
+            choice === 'dark' ||
+            (choice !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#080b14' : '#f5f7fb');
+        } catch (error) {
+          /* Trình duyệt chặn lưu trữ cục bộ — dùng chế độ mặc định. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

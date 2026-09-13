@@ -68,7 +68,7 @@ import type {
   PublicDashboardWidget,
   PublicDashboardWidgetType,
 } from '../public-dashboard/types';
-import '../public-dashboard/studio.css';
+import '../styles/studio.css';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 const widgetTypes = Object.keys(PUBLIC_DASHBOARD_WIDGET_LABELS) as PublicDashboardWidgetType[];

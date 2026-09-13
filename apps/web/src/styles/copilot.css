@@ -1,0 +1,783 @@
+/* ============================================================================
+   IOC Copilot — nút nổi và bảng trợ lý
+   Nằm ở tầng toàn cục vì trợ lý có mặt trên mọi màn hình quản trị.
+   ========================================================================== */
+
+/* ============================================================================
+   1. NÚT NỔI
+   ========================================================================== */
+.cop-fab {
+  position: fixed;
+  right: var(--sp-5);
+  bottom: var(--sp-5);
+  z-index: var(--z-copilot);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 56px;
+  padding: 0 var(--sp-5) 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, var(--ai-500) 0%, var(--ai-700) 55%, var(--brand-700) 100%);
+  color: #fff;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  box-shadow: 0 12px 32px rgba(116, 48, 239, 0.34), var(--sh-md);
+  transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-spring),
+    padding var(--t-base) var(--ease-out), background var(--t-base) var(--ease-out);
+}
+
+.cop-fab-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  flex: none;
+}
+
+.cop-fab-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.cop-fab-label {
+  white-space: nowrap;
+}
+
+.cop-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(116, 48, 239, 0.42), var(--sh-lg);
+}
+
+.cop-fab:active {
+  transform: translateY(0);
+}
+
+.cop-fab.open {
+  padding-right: var(--sp-2);
+  background: var(--n-800);
+  box-shadow: var(--sh-lg);
+}
+
+.cop-fab.open .cop-fab-label {
+  display: none;
+}
+
+/* Chấm báo có câu trả lời chưa xem. */
+.cop-fab-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--bg-canvas);
+  border-radius: 50%;
+  background: var(--accent-300);
+}
+
+.cop-fab.unread::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--r-pill);
+  border: 2px solid var(--ai-400);
+  opacity: 0;
+  animation: cop-ping 2.4s var(--ease-out) infinite;
+}
+
+@keyframes cop-ping {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cop-fab.unread::before {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .cop-fab:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .cop-fab {
+    right: var(--sp-4);
+    bottom: var(--sp-4);
+    height: 52px;
+    padding: 0 var(--sp-2);
+  }
+
+  .cop-fab-label {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   2. BẢNG TRỢ LÝ
+   ========================================================================== */
+.cop-dock {
+  --dock-width: 420px;
+  position: fixed;
+  right: var(--sp-4);
+  bottom: calc(var(--sp-5) + 68px);
+  z-index: var(--z-copilot);
+  display: flex;
+  flex-direction: column;
+  width: var(--dock-width);
+  max-width: calc(100vw - var(--sp-7));
+  height: min(640px, calc(100vh - 160px));
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-xl);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px) scale(0.98);
+  transform-origin: 100% 100%;
+  transition: opacity var(--t-base) var(--ease-out), transform var(--t-slow) var(--ease-spring),
+    visibility var(--t-slow);
+}
+
+.cop-dock.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.cop-dock.expanded {
+  width: min(980px, calc(100vw - var(--sp-8)));
+  height: calc(100vh - 140px);
+}
+
+/* Tay nắm kéo giãn chiều rộng ở mép trái. */
+.cop-dock-resize {
+  position: absolute;
+  left: 0;
+  top: 56px;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+
+.cop-dock-resize:hover {
+  background: var(--bg-brand-soft);
+}
+
+.cop-dock.expanded .cop-dock-resize {
+  display: none;
+}
+
+/* ---- Phần đầu ---- */
+.cop-dock-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--bd-subtle);
+  background: linear-gradient(135deg, var(--ai-700) 0%, var(--brand-800) 100%);
+  color: #fff;
+  flex: none;
+}
+
+.cop-dock-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.16);
+  flex: none;
+}
+
+.cop-dock-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cop-dock-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.cop-dock-title strong {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: #fff;
+}
+
+.cop-dock-title span {
+  display: block;
+  font-size: var(--fs-micro);
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cop-dock-tools {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.cop-dock-tools button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  color: rgba(255, 255, 255, 0.78);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.cop-dock-tools button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.cop-dock-tools button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cop-dock-tools svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Trên điện thoại bảng đã chiếm gần trọn màn hình, nút mở rộng không còn ý nghĩa.
+   Chọn qua thẻ cha để thắng độ ưu tiên của `.cop-dock-tools button`. */
+@media (max-width: 640px) {
+  .cop-dock-tools .cop-dock-expand {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   3. DÒNG HỘI THOẠI
+   ========================================================================== */
+.cop-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-surface-2);
+}
+
+.cop-welcome {
+  margin: auto;
+  max-width: 40ch;
+  padding: var(--sp-5) var(--sp-3);
+  text-align: center;
+  color: var(--tx-muted);
+}
+
+.cop-welcome-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--sp-3);
+  border-radius: 50%;
+  background: var(--bg-ai-soft);
+  color: var(--tx-ai);
+}
+
+.cop-welcome-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.cop-welcome strong {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.cop-welcome p {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.cop-row {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.cop-row.user {
+  justify-content: flex-end;
+}
+
+.cop-row.assistant {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.cop-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--ai-500), var(--ai-700));
+  color: #fff;
+  flex: none;
+}
+
+.cop-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cop-bubble {
+  max-width: 84%;
+  min-width: 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+
+.cop-bubble.user {
+  background: var(--bg-brand);
+  color: #fff;
+  border-bottom-right-radius: var(--r-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cop-bubble.assistant {
+  background: var(--bg-surface);
+  border: 1px solid var(--bd-subtle);
+  color: var(--tx-normal);
+  border-bottom-left-radius: var(--r-xs);
+  box-shadow: var(--sh-xs);
+}
+
+.cop-reply {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cop-source {
+  display: block;
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--bd-subtle);
+  color: var(--tx-subtle);
+  font-size: var(--fs-xs);
+}
+
+/* Đang soạn trả lời — ba chấm nhấp nháy thay vòng quay, đỡ gây chú ý quá mức. */
+.cop-pending {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--tx-muted);
+  font-size: var(--fs-sm);
+}
+
+.cop-typing {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+
+.cop-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tx-ai);
+  animation: cop-typing 1.2s var(--ease-in-out) infinite;
+}
+
+.cop-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.cop-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes cop-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cop-typing i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.cop-bubble.cop-error {
+  background: var(--bg-bad-soft);
+  border-color: var(--bd-bad);
+  color: var(--tx-bad);
+}
+
+.cop-error strong {
+  display: block;
+  font-size: var(--fs-base);
+  color: var(--tx-bad);
+}
+
+.cop-error p {
+  margin: var(--sp-1) 0 0;
+}
+
+.cop-error-hint {
+  font-size: var(--fs-sm);
+  opacity: 0.8;
+}
+
+/* ============================================================================
+   4. BẢNG KẾT QUẢ TRONG BONG BÓNG
+   ========================================================================== */
+.cop-table-wrap {
+  margin-top: var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cop-table {
+  width: 100%;
+  min-width: 440px;
+  font-size: var(--fs-xs);
+}
+
+.cop-table th {
+  position: static;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-inset);
+  font-size: var(--fs-micro);
+}
+
+.cop-table td {
+  padding: var(--sp-2) var(--sp-3);
+  vertical-align: top;
+  font-size: var(--fs-xs);
+}
+
+.cop-cell-title {
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.cop-muted {
+  color: var(--tx-subtle);
+}
+
+.cop-link {
+  color: var(--tx-brand);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cop-link:hover {
+  text-decoration: underline;
+}
+
+.cop-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 110px;
+}
+
+.cop-progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.cop-progress-bar i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--bg-brand);
+}
+
+.cop-progress-bar i.green {
+  background: var(--bg-ok);
+}
+
+.cop-progress-bar i.amber {
+  background: var(--bg-warn);
+}
+
+.cop-progress-bar i.red {
+  background: var(--bg-bad);
+}
+
+.cop-progress b {
+  min-width: 34px;
+  text-align: right;
+  font-size: var(--fs-micro);
+  color: var(--tx-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+.cop-method {
+  display: inline-flex;
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.cop-method.ai {
+  background: var(--bg-ai-soft);
+  color: var(--tx-ai);
+}
+
+.cop-method.rule {
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+}
+
+.cop-result {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.cop-result.ok {
+  background: var(--bg-ok-soft);
+  color: var(--tx-ok);
+}
+
+.cop-result.fail {
+  background: var(--bg-bad-soft);
+  color: var(--tx-bad);
+}
+
+/* ============================================================================
+   5. THANH XÁC NHẬN HÀNH ĐỘNG GHI
+   ========================================================================== */
+.cop-confirm-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--bd-warn);
+  border-radius: var(--r-md);
+  background: var(--bg-warn-soft);
+}
+
+.cop-confirm-bar.done {
+  display: block;
+  border-color: var(--bd-subtle);
+  background: var(--bg-inset);
+}
+
+.cop-confirm-text {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--tx-warn);
+}
+
+.cop-confirm-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.cop-confirm-btn {
+  min-height: 36px;
+}
+
+.cop-confirm-busy {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-warn);
+}
+
+.cop-confirm-busy .spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  border-top-color: var(--bg-warn);
+}
+
+.cop-confirm-done {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--tx-muted);
+}
+
+/* ============================================================================
+   6. Ô SOẠN CÂU HỎI
+   ========================================================================== */
+.cop-composer {
+  flex: none;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+  background: var(--bg-surface);
+}
+
+.cop-chips {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+
+.cop-chip {
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-pill);
+  background: var(--bg-surface);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+  transition: border-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out),
+    background-color var(--t-fast) var(--ease-out);
+}
+
+.cop-chip:hover:not(:disabled) {
+  border-color: var(--bd-ai);
+  background: var(--bg-ai-soft);
+  color: var(--tx-ai);
+}
+
+.cop-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cop-input-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+}
+
+.cop-input-row textarea {
+  flex: 1;
+  min-height: 42px;
+  max-height: 120px;
+  resize: none;
+  overflow-y: auto;
+  border-radius: var(--r-md);
+}
+
+.cop-send {
+  flex: none;
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+}
+
+.cop-send svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cop-hint {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--tx-subtle);
+}
+
+/* ============================================================================
+   7. MÀN HÌNH HẸP — bảng chiếm trọn màn hình
+   ========================================================================== */
+@media (max-width: 640px) {
+  .cop-dock,
+  .cop-dock.expanded {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    height: 88dvh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    transform: translateY(100%);
+  }
+
+  .cop-dock.open {
+    transform: translateY(0);
+  }
+
+  .cop-dock-resize {
+    display: none;
+  }
+
+  .cop-bubble {
+    max-width: 100%;
+  }
+
+  .cop-row.assistant .cop-bubble {
+    max-width: calc(100% - 38px);
+  }
+
+  .cop-hint {
+    display: none;
+  }
+
+  .cop-table {
+    min-width: 400px;
+  }
+}
+
+/* Trên màn hình rất rộng, bảng trợ lý không che nội dung nên có thể ở gần mép hơn. */
+@media (min-width: 1600px) {
+  .cop-dock {
+    right: var(--sp-6);
+  }
+
+  .cop-fab {
+    right: var(--sp-6);
+  }
+}

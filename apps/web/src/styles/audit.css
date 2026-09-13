@@ -1,0 +1,477 @@
+/* ============================================================================
+   IOC Lái Thiêu — Nhật ký hệ thống
+   Danh sách dài, chỉ đọc, dùng để truy vết trách nhiệm. Ưu tiên: quét nhanh bằng
+   mắt, lọc nhanh bằng tay, và xem chi tiết khi cần mà không rời trang.
+   ========================================================================== */
+
+/* ============================================================================
+   1. LỜI BẢO ĐẢM VỀ DỮ LIỆU
+   ========================================================================== */
+.audit-assurance {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-left: 3px solid var(--bg-accent);
+  border-radius: var(--r-md);
+  background: var(--bg-accent-soft);
+}
+
+.audit-assurance > svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--tx-accent);
+  flex: none;
+}
+
+.audit-assurance strong {
+  display: block;
+  font-size: var(--fs-base);
+  color: var(--tx-accent);
+}
+
+.audit-assurance p {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-normal);
+}
+
+/* ============================================================================
+   2. BỘ LỌC
+   ========================================================================== */
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-3) var(--sp-4);
+  align-items: end;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-xs);
+}
+
+.audit-filters label > span {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-wide);
+  color: var(--tx-muted);
+}
+
+/* Ô tìm kiếm rộng gấp đôi các ô lọc còn lại. */
+.audit-search {
+  grid-column: span 2;
+}
+
+.audit-search .search {
+  max-width: none;
+}
+
+/* Ô ngày có biểu tượng lịch ở đầu. */
+.audit-date {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.audit-date svg {
+  position: absolute;
+  left: var(--sp-3);
+  width: 16px;
+  height: 16px;
+  color: var(--tx-subtle);
+  pointer-events: none;
+}
+
+.audit-date input {
+  padding-left: var(--sp-9);
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-filter-actions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: end;
+}
+
+.audit-filter-actions .btn {
+  flex: 1;
+}
+
+/* ============================================================================
+   3. KHUNG KẾT QUẢ
+   ========================================================================== */
+.audit-results {
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-xs);
+  overflow: hidden;
+}
+
+.audit-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.audit-results-head > div {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.audit-results-head > div svg {
+  width: 19px;
+  height: 19px;
+  color: var(--tx-muted);
+}
+
+.audit-results-head > strong {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   4. BẢNG NHẬT KÝ
+   ========================================================================== */
+.audit-table {
+  max-height: min(66vh, 760px);
+  overflow-y: auto;
+}
+
+.audit-table td {
+  vertical-align: top;
+}
+
+.audit-table time {
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-normal);
+  white-space: nowrap;
+}
+
+.audit-actor {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.audit-actor svg {
+  width: 16px;
+  height: 16px;
+  color: var(--tx-subtle);
+  flex: none;
+}
+
+.audit-actor strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.audit-actor small {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+/* Tên hành động: huy hiệu nhỏ để mắt bắt được loại thao tác khi lướt nhanh. */
+.audit-action {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--tx-normal);
+  white-space: nowrap;
+}
+
+.audit-code {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--tx-subtle);
+  overflow-wrap: anywhere;
+}
+
+.audit-muted {
+  color: var(--tx-subtle);
+  font-size: var(--fs-sm);
+}
+
+/* ---- Chi tiết mở rộng ---- */
+.audit-details summary,
+.audit-card summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-brand);
+  cursor: pointer;
+  list-style: none;
+  transition: background-color var(--t-fast) var(--ease-out);
+}
+
+.audit-details summary::-webkit-details-marker,
+.audit-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.audit-details summary::before,
+.audit-card summary::before {
+  content: '▸';
+  font-size: var(--fs-xs);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.audit-details[open] summary::before,
+.audit-card details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.audit-details summary:hover,
+.audit-card summary:hover {
+  background: var(--bg-brand-soft);
+}
+
+.audit-metadata {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  min-width: 220px;
+}
+
+.audit-metadata > div {
+  display: grid;
+  grid-template-columns: minmax(0, 130px) minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: baseline;
+}
+
+.audit-metadata dt {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+}
+
+.audit-metadata dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--tx-strong);
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================================
+   5. DẠNG THẺ CHO MÀN HÌNH HẸP
+   Bảng sáu cột không đọc được trên điện thoại; mỗi bản ghi thành một thẻ.
+   ========================================================================== */
+.audit-cards {
+  display: none;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.audit-card {
+  padding: var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+
+.audit-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.audit-card-head time {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.audit-card-grid {
+  display: grid;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.audit-card-grid > div span {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-subtle);
+}
+
+.audit-card-grid > div strong {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-base);
+}
+
+.audit-card-grid > div small {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================================
+   6. PHÂN TRANG
+   ========================================================================== */
+.audit-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-5);
+  border-top: 1px solid var(--bd-subtle);
+  background: var(--bg-surface-2);
+}
+
+.audit-pagination label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+}
+
+.audit-pagination label select {
+  width: auto;
+  min-height: 34px;
+  margin-top: 0;
+}
+
+.audit-pagination > span {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-pagination > div {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.audit-pagination > div button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--tx-normal);
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.audit-pagination > div button:hover:not(:disabled) {
+  border-color: var(--bd-brand);
+  color: var(--tx-brand);
+}
+
+.audit-pagination > div button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.audit-pagination > div button svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ============================================================================
+   7. ĐIỂM NGẮT
+   ========================================================================== */
+@media (max-width: 1080px) {
+  .audit-search {
+    grid-column: span 1;
+  }
+
+  .audit-filter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .audit-table {
+    display: none;
+  }
+
+  .audit-cards {
+    display: flex;
+  }
+
+  .audit-results-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+  }
+
+  .audit-pagination {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .audit-filters {
+    padding: var(--sp-4);
+  }
+
+  .audit-metadata > div {
+    grid-template-columns: 1fr;
+    gap: var(--sp-1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audit-details summary::before,
+  .audit-card summary::before {
+    transition: none;
+  }
+}

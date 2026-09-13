@@ -23,6 +23,9 @@ import {
 import { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, downloadApi } from '../api';
+import ScrollProgress from '../components/ScrollProgress';
+import { toast } from '../components/Toast';
+import { CopyButton, Empty, Skeleton, SkeletonText } from '../components/UI';
 import { currentVietnamYear } from '../date';
 import type {
   FeedbackCategory,
@@ -31,7 +34,7 @@ import type {
   PublicFeedbackCreated,
   PublicFeedbackDetail,
 } from '../types';
-import '../feedback.css';
+import '../styles/feedback-public.css';
 
 const categories:Array<{value:FeedbackCategory;label:string}>=[
   {value:'INFRASTRUCTURE',label:'Hạ tầng, giao thông'},
@@ -267,9 +270,12 @@ export default function FeedbackPublic(){
       const result=await api<AttachmentUploadResponse>(`/public/feedbacks/${encodeURIComponent(receipt.code)}/attachments`,{method:'POST',body});
       setUploadedAttachments(result.attachments);setUploadState('done');setEvidenceFiles([]);
       setCreated(value=>value?{...value,version:result.version}:value);
+      toast.ok('Đã tải tệp minh chứng',`Hồ sơ có ${result.attachments.length} tệp đính kèm.`);
     }catch(reason){
       setUploadState('failed');
-      setEvidenceError(getError(reason,'Phản ánh đã được tiếp nhận nhưng chưa thể tải tệp minh chứng.'));
+      const detailMessage=getError(reason,'Phản ánh đã được tiếp nhận nhưng chưa thể tải tệp minh chứng.');
+      setEvidenceError(detailMessage);
+      toast.error('Chưa tải được tệp minh chứng',detailMessage);
     }
   }
 
@@ -290,8 +296,13 @@ export default function FeedbackPublic(){
       });
       setCreated(result);setCopied(false);setCreateForm(emptyCreate);setPendingSubmission(null);clearPendingSubmission();
       setUploadedAttachments([]);
+      toast.ok('Đã tiếp nhận phản ánh',`Mã phản ánh ${result.code}. Hãy lưu lại mã phản ánh và mã bảo mật.`);
       if(evidenceFiles.length)await uploadEvidence(result,evidenceFiles);
-    }catch(reason){setCreateError(getError(reason,'Không thể gửi phản ánh. Vui lòng thử lại.'))}
+    }catch(reason){
+      const detailMessage=getError(reason,'Không thể gửi phản ánh. Vui lòng thử lại.');
+      setCreateError(detailMessage);
+      toast.error('Chưa gửi được phản ánh',detailMessage);
+    }
     finally{setCreating(false)}
   }
 
@@ -302,9 +313,11 @@ export default function FeedbackPublic(){
     try{
       if(!navigator.clipboard)throw new Error('Clipboard API is unavailable');
       await navigator.clipboard.writeText(receipt);setCopied(true);
+      toast.ok('Đã sao chép hai mã','Hãy dán và lưu lại ở nơi an toàn.');
     }catch{
       setCopied(false);
       setCopyError('Không thể sao chép tự động. Vui lòng chọn và sao chép từng mã trước khi rời trang này.');
+      toast.error('Không sao chép được','Vui lòng chọn và chép tay hai mã trước khi rời trang.');
     }
   }
 
@@ -404,6 +417,7 @@ export default function FeedbackPublic(){
       });
       setDetail({...refreshed,attachments:refreshed.attachments||[]});
       setSupplementalFiles([]);
+      toast.ok('Đã bổ sung tệp minh chứng','Đơn vị xử lý sẽ thấy tệp ngay trong hồ sơ.');
     }catch(reason){
       if(reason instanceof ApiError&&reason.status===409){
         try{
@@ -413,10 +427,16 @@ export default function FeedbackPublic(){
           });
           setDetail({...refreshed,attachments:refreshed.attachments||[]});
           setSupplementalError('Hồ sơ vừa được cập nhật. Dữ liệu đã được làm mới; vui lòng kiểm tra và nhấn “Tải minh chứng” lại.');
+          toast.error('Hồ sơ vừa được cập nhật','Dữ liệu đã được làm mới, vui lòng tải tệp lại.');
         }catch{
           setSupplementalError('Hồ sơ vừa được cập nhật. Vui lòng tra cứu lại rồi tải tệp.');
+          toast.error('Hồ sơ vừa được cập nhật','Vui lòng tra cứu lại rồi tải tệp.');
         }
-      }else setSupplementalError(getError(reason,'Không thể tải tệp minh chứng. Vui lòng thử lại.'));
+      }else{
+        const detailMessage=getError(reason,'Không thể tải tệp minh chứng. Vui lòng thử lại.');
+        setSupplementalError(detailMessage);
+        toast.error('Chưa tải được tệp minh chứng',detailMessage);
+      }
     }finally{setSupplementalUploading(false)}
   }
 
@@ -433,7 +453,14 @@ export default function FeedbackPublic(){
     try{
       const result=await api<PublicFeedbackDetail>(config.path,{method:'POST',body:JSON.stringify(config.body)});
       setDetail(result);setAction(null);setMessage('');setRatingComment('');setReopenReason('');
-    }catch(reason){setActionError(getError(reason,'Không thể cập nhật hồ sơ.'))}
+      if(kind==='message')toast.ok('Đã gửi thông tin bổ sung','Đơn vị xử lý sẽ xem trong phần trao đổi của hồ sơ.');
+      else if(kind==='rating')toast.ok('Đã ghi nhận đánh giá','Cảm ơn quý vị đã phản hồi về kết quả xử lý.');
+      else toast.ok('Đã gửi đề nghị xem xét lại','Đề nghị sẽ được người có thẩm quyền xem xét.');
+    }catch(reason){
+      const detailMessage=getError(reason,'Không thể cập nhật hồ sơ.');
+      setActionError(detailMessage);
+      toast.error('Chưa cập nhật được hồ sơ',detailMessage);
+    }
     finally{setActionLoading(false)}
   }
 
@@ -452,6 +479,7 @@ export default function FeedbackPublic(){
     && appealWindowOpen;
 
   return <div className="feedback-public">
+    <ScrollProgress/>
     <header className="feedback-public-header">
       <Link to="/" className="feedback-public-brand"><span>LT</span><div><strong>PHƯỜNG LÁI THIÊU</strong><small>Kênh phản ánh hiện trường</small></div></Link>
       <Link to="/" className="feedback-back" aria-label="Về trang thông tin"><ArrowLeft/><span>Về trang thông tin</span></Link>
@@ -474,7 +502,7 @@ export default function FeedbackPublic(){
             <div className="feedback-success-icon"><CheckCircle2/></div>
             <span>ĐÃ TIẾP NHẬN PHẢN ÁNH</span><h2>Hãy lưu lại hai mã dưới đây</h2>
             <p>Mã bảo mật chỉ hiển thị một lần. Không gửi mã này cho người không có trách nhiệm xử lý.</p>
-            <div className="feedback-receipt-grid"><div><small>Mã phản ánh</small><strong>{created.code}</strong></div><div><small>Mã bảo mật</small><strong>{created.lookupSecret}</strong></div></div>
+            <div className="feedback-receipt-grid"><div><small>Mã phản ánh</small><strong>{created.code}<CopyButton value={created.code} label="mã phản ánh" big/></strong></div><div><small>Mã bảo mật</small><strong>{created.lookupSecret}<CopyButton value={created.lookupSecret} label="mã bảo mật" big/></strong></div></div>
             <div className="feedback-warning"><LockKeyhole/><span><b>Quan trọng:</b> nếu làm mất mã bảo mật, bạn sẽ không thể tự tra cứu hồ sơ trên cổng thông tin.</span></div>
             {uploadState==='uploading'&&<div className="feedback-upload-status" role="status"><RefreshCw className="spin"/><span><b>Đã tạo hồ sơ.</b> Đang tải {evidenceFiles.length} tệp minh chứng...</span></div>}
             {uploadState==='done'&&<div className="feedback-upload-status success"><CheckCircle2/><span><b>Đã lưu {uploadedAttachments.length} tệp minh chứng.</b> Tệp chỉ được mở qua mã bảo mật của hồ sơ.</span></div>}
@@ -488,14 +516,13 @@ export default function FeedbackPublic(){
             </>}
           </div>:<>
             <div className="feedback-card-heading"><span>01</span><div><h2>Nội dung phản ánh</h2><p>Cung cấp thông tin cụ thể để đơn vị chuyên môn xác minh nhanh hơn.</p></div></div>
-            {createError&&<div ref={createErrorRef} className="feedback-alert error" role="alert" tabIndex={-1}><AlertCircle/>{createError}</div>}
             <form className="feedback-public-form" onSubmit={submitFeedback} aria-busy={creating}>
-              <label className="full">Nhóm vấn đề<select required value={createForm.category} onChange={event=>setCreateForm({...createForm,category:event.target.value as FeedbackCategory})}>{categories.map(category=><option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
-              <label className="full">Tiêu đề ngắn gọn<input required minLength={8} maxLength={200} value={createForm.title} onChange={event=>setCreateForm({...createForm,title:event.target.value})} placeholder="Ví dụ: Đèn chiếu sáng hỏng tại đường..."/></label>
-              <label className="full">Mô tả chi tiết<textarea required minLength={20} maxLength={5000} rows={6} value={createForm.content} onChange={event=>setCreateForm({...createForm,content:event.target.value})} placeholder="Nêu rõ vị trí, thời điểm và tình trạng cần xử lý..."/></label>
-              <label className="full">Địa điểm xảy ra<input maxLength={500} value={createForm.address} onChange={event=>setCreateForm({...createForm,address:event.target.value})} placeholder="Số nhà, tên đường hoặc khu phố (nếu có)"/></label>
+              <label className="full">Nhóm vấn đề<select required value={createForm.category} onChange={event=>setCreateForm({...createForm,category:event.target.value as FeedbackCategory})}>{categories.map(category=><option key={category.value} value={category.value}>{category.label}</option>)}</select><small>Chọn nhóm gần đúng nhất; cán bộ tiếp nhận sẽ phân loại lại nếu cần.</small></label>
+              <label className="full">Tiêu đề ngắn gọn<input required minLength={8} maxLength={200} value={createForm.title} onChange={event=>setCreateForm({...createForm,title:event.target.value})} placeholder="Ví dụ: Đèn chiếu sáng hỏng tại đường..."/><small>Một câu ngắn cho biết việc gì đang xảy ra, từ 8 ký tự trở lên.</small></label>
+              <label className="full">Mô tả chi tiết<textarea required minLength={20} maxLength={5000} rows={6} value={createForm.content} onChange={event=>setCreateForm({...createForm,content:event.target.value})} placeholder="Nêu rõ vị trí, thời điểm và tình trạng cần xử lý..."/><small>Càng cụ thể thì việc xác minh càng nhanh. Cần ít nhất 20 ký tự.</small></label>
+              <label className="full">Địa điểm xảy ra<input maxLength={500} value={createForm.address} onChange={event=>setCreateForm({...createForm,address:event.target.value})} placeholder="Số nhà, tên đường hoặc khu phố (nếu có)"/><small>Không bắt buộc, nhưng giúp đơn vị xử lý tìm đúng nơi cần kiểm tra.</small></label>
               <div className="feedback-evidence full">
-                <div className="feedback-evidence-heading"><div><b>Tệp ảnh, tài liệu minh chứng</b><small>Không bắt buộc · tối đa 5 tệp · JPG, PNG, WEBP hoặc PDF · không quá 10 MB/tệp</small></div><span>{evidenceFiles.length}/{MAX_EVIDENCE_FILES}</span></div>
+                <div className="feedback-evidence-heading"><i>02</i><div><b>Tệp ảnh, tài liệu minh chứng</b><small>Không bắt buộc · tối đa 5 tệp · JPG, PNG, WEBP hoặc PDF · không quá 10 MB/tệp</small></div><span>{evidenceFiles.length}/{MAX_EVIDENCE_FILES}</span></div>
                 <label className="feedback-visually-hidden" htmlFor="feedback-evidence-files">Chọn ảnh hoặc tài liệu minh chứng</label>
                 <input id="feedback-evidence-files" ref={evidenceInputRef} className="feedback-file-input" type="file" multiple aria-describedby="feedback-evidence-help" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf" onChange={chooseEvidence}/>
                 <div
@@ -515,14 +542,17 @@ export default function FeedbackPublic(){
                 </li>)}</ul>}
                 <p id="feedback-evidence-help" className="feedback-evidence-privacy"><ShieldCheck/>Không gửi giấy tờ tùy thân hoặc hình ảnh chứa dữ liệu riêng tư không cần thiết.</p>
               </div>
-              <div className="feedback-form-divider full"><span>Thông tin để liên hệ xác minh</span></div>
-              <label>Họ và tên<input required minLength={2} maxLength={160} autoComplete="name" value={createForm.submitterName} onChange={event=>setCreateForm({...createForm,submitterName:event.target.value})}/></label>
-              <label>Số điện thoại<input required inputMode="tel" autoComplete="tel" pattern="[0-9+().\-\s]{9,24}" value={createForm.submitterPhone} onChange={event=>setCreateForm({...createForm,submitterPhone:event.target.value})}/></label>
-              <label>Email<input type="email" required={createForm.preferredContact==='EMAIL'} autoComplete="email" maxLength={180} value={createForm.submitterEmail} onChange={event=>setCreateForm({...createForm,submitterEmail:event.target.value})}/></label>
+              <div className="feedback-form-divider full"><i>03</i><span>Thông tin để liên hệ xác minh</span></div>
+              <label>Họ và tên<input required minLength={2} maxLength={160} autoComplete="name" value={createForm.submitterName} onChange={event=>setCreateForm({...createForm,submitterName:event.target.value})}/><small>Cán bộ tiếp nhận dùng tên này khi liên hệ với quý vị.</small></label>
+              <label>Số điện thoại<input required inputMode="tel" autoComplete="tel" pattern="[0-9+().\-\s]{9,24}" value={createForm.submitterPhone} onChange={event=>setCreateForm({...createForm,submitterPhone:event.target.value})}/><small>Số máy có thể liên lạc trong giờ hành chính.</small></label>
+              <label>Email<input type="email" required={createForm.preferredContact==='EMAIL'} autoComplete="email" maxLength={180} value={createForm.submitterEmail} onChange={event=>setCreateForm({...createForm,submitterEmail:event.target.value})}/><small>Bắt buộc nếu quý vị chọn nhận thông báo qua email.</small></label>
               <label>Kênh cán bộ ưu tiên liên hệ<select value={createForm.preferredContact} onChange={event=>setCreateForm({...createForm,preferredContact:event.target.value as 'PHONE'|'EMAIL'})}><option value="PHONE">Điện thoại</option><option value="EMAIL">Email và thông báo tiến độ</option></select><small>Nếu chọn Email, hệ thống sẽ gửi thông báo khi tiếp nhận và khi hồ sơ có cập nhật xử lý.</small></label>
+              <div className="feedback-form-divider full"><i>04</i><span>Xác nhận và gửi</span></div>
               <label className="feedback-check full"><input required type="checkbox" checked={createForm.scopeConfirmed} onChange={event=>setCreateForm({...createForm,scopeConfirmed:event.target.checked})}/><span>Tôi xác nhận đây là phản ánh dân sinh; không phải hồ sơ khiếu nại, tố cáo hoặc nội dung khẩn cấp cần gọi cơ quan chức năng.</span></label>
               <label className="feedback-check full"><input required type="checkbox" checked={createForm.consent} onChange={event=>setCreateForm({...createForm,consent:event.target.checked})}/><span>Tôi đồng ý để cơ quan tiếp nhận xử lý thông tin cá nhân cho mục đích xác minh và phản hồi nội dung này.</span></label>
               <div className="feedback-scope-note full"><ShieldCheck/><span>Nếu có nguy hiểm tức thời, hãy liên hệ trực tiếp cơ quan chức năng. Kênh này không thay thế dịch vụ khẩn cấp.</span></div>
+              <p className="feedback-next-step full"><FileSearch/><span>Sau khi gửi, hệ thống hiển thị mã phản ánh và mã bảo mật. Hãy lưu lại hai mã đó để tra cứu tiến độ về sau.</span></p>
+              {createError&&<div ref={createErrorRef} className="feedback-alert error full" role="alert" tabIndex={-1}><AlertCircle/>{createError}</div>}
               <div className="feedback-form-actions full"><button className="feedback-btn primary" disabled={creating}>{creating?<><RefreshCw className="spin"/>Đang gửi...</>:<><Send/>Gửi phản ánh</>}</button></div>
             </form>
           </>}
@@ -539,6 +569,17 @@ export default function FeedbackPublic(){
             </form>
             <div className="feedback-privacy-note"><LockKeyhole/><span>Hệ thống không xác nhận mã phản ánh nếu mã bảo mật không đúng, nhằm tránh dò tìm thông tin.</span></div>
           </div>
+
+          {tracking&&<div className="feedback-detail-skeleton" role="status" aria-label="Đang tra cứu hồ sơ">
+            <Skeleton className="skeleton-title"/>
+            <Skeleton style={{height:88}}/>
+            <SkeletonText lines={4}/>
+            <Skeleton style={{height:160}}/>
+          </div>}
+
+          {!tracking&&!detail&&!trackError&&<div className="feedback-track-empty">
+            <Empty title="Chưa mở hồ sơ nào" description="Nhập mã phản ánh và mã bảo mật ở khung bên để xem tiến trình xử lý, kết quả và các tệp minh chứng của hồ sơ."/>
+          </div>}
 
           {detail&&<article className="feedback-public-detail" aria-live="polite" aria-busy={actionLoading||supplementalUploading}>
             <div className="feedback-detail-title"><div><span>{detail.code}</span><h2>{detail.title}</h2></div><span className={`feedback-status ${detail.status.toLowerCase()}`}>{statusLabels[detail.status]}</span></div>
@@ -571,7 +612,7 @@ export default function FeedbackPublic(){
             {detail.reopenRequestedAt&&<section className="feedback-result-box pending"><Clock3/><div><h3>Đề nghị xem xét lại đang chờ duyệt</h3><p>Đã gửi lúc {formatDate(detail.reopenRequestedAt)}. Kết quả hiện tại vẫn có hiệu lực cho đến khi người có thẩm quyền chấp nhận mở lại hồ sơ.</p></div></section>}
             {!detail.reopenRequestedAt&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&detail.reopenRequestDecision==='REJECTED'&&<section className="feedback-result-box rejected"><AlertCircle/><div><h3>Đề nghị xem xét lại chưa được chấp nhận</h3><p>{detail.reopenRequestDecisionNote||'Vui lòng liên hệ cơ quan tiếp nhận nếu cần được hướng dẫn thêm.'}</p></div></section>}
             {!detail.reopenRequestedAt&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&(detail.reopenRequestCount??0)<3&&!appealWindowOpen&&<section className="feedback-result-box pending"><Clock3/><div><h3>Đã hết thời hạn đề nghị xem xét lại</h3><p>Thời hạn gửi đề nghị là 30 ngày kể từ kết quả hoặc quyết định gần nhất.</p></div></section>}
-            <section><h3>Tiến trình hồ sơ</h3><div className="feedback-public-timeline">{detail.events.map((event,index)=><div key={`${event.createdAt}:${event.action}:${index}`}><i/><span><b>{eventLabels[event.action]||'Hồ sơ được cập nhật'}</b><small>{formatDate(event.createdAt)}</small></span></div>)}</div></section>
+            <section><h3>Tiến trình hồ sơ</h3><p className="feedback-timeline-note"><Clock3/>Các mốc dưới đây được ghi tự động, xếp theo thứ tự thời gian từ lúc tiếp nhận đến hiện nay.</p><div className="feedback-public-timeline">{detail.events.map((event,index)=><div key={`${event.createdAt}:${event.action}:${index}`}><i/><span><b>{eventLabels[event.action]||'Hồ sơ được cập nhật'}</b><small>{formatDate(event.createdAt)}</small>{index===detail.events.length-1&&<em>Mốc mới nhất</em>}</span></div>)}</div></section>
             {detail.messages.length>0&&<section><h3>Trao đổi công khai</h3><div className="feedback-message-list">{detail.messages.map((item,index)=><div key={`${item.createdAt}:${item.authorName}:${index}`}><div><b>{item.authorName}</b><time>{formatDate(item.createdAt)}</time></div><p>{item.body}</p></div>)}</div></section>}
             {detail.rating&&<div className="feedback-rating-result"><Star/><span><b>{detail.rating}/5 điểm</b>{detail.ratingComment&&<small>{detail.ratingComment}</small>}</span></div>}
             {actionError&&<div ref={actionErrorRef} className="feedback-alert error" role="alert" tabIndex={-1}><AlertCircle/>{actionError}</div>}
