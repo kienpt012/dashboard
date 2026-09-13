@@ -776,14 +776,14 @@ function Find-FreePort([int]$After, [int[]]$Avoid, [int[]]$Listening, $Ranges) {
 
 function Write-PortOwner([int]$Port, [string]$Key, $Owner) {
   if ($Owner.ProcessId -eq 4) {
-    Write-Problem "Cổng $Port ($Key) đang bị dịch vụ HTTP của Windows (http.sys, PID 4) giữ."
+    Write-Caution "Cổng $Port ($Key) đang bị dịch vụ HTTP của Windows (http.sys, PID 4) giữ."
     Write-Note 'Thường là IIS, Hyper-V hoặc một ứng dụng dùng HttpListener. Không nên tắt; chuyển IOC sang cổng khác an toàn hơn.'
   } elseif (Test-IocDockerPortProcess $Owner.ProcessName) {
     $names = @(Get-DockerLines @('ps', '--filter', "publish=$Port", '--format', '{{.Names}}'))
     $who = if ($names.Count -gt 0) { "container '$($names -join ', ')'" } else { 'một container Docker khác' }
-    Write-Problem "Cổng $Port ($Key) đang bị $who chiếm."
+    Write-Caution "Cổng $Port ($Key) đang bị $who chiếm."
   } else {
-    Write-Problem "Cổng $Port ($Key) đang bị chương trình '$($Owner.ProcessName)' (PID $($Owner.ProcessId)) chiếm."
+    Write-Caution "Cổng $Port ($Key) đang bị chương trình '$($Owner.ProcessName)' (PID $($Owner.ProcessId)) chiếm."
   }
 }
 
@@ -810,7 +810,7 @@ function Test-RequiredPorts {
       Write-PortOwner $port $key $owner
     } elseif (Test-PortReserved $port $ranges) {
       # Không ai lắng nghe nên trông như trống, nhưng Docker sẽ báo "access permissions".
-      Write-Problem "Cổng $port ($key) nằm trong dải Windows giữ chỗ cho Hyper-V/WSL — trông như trống nhưng Docker không mở được."
+      Write-Caution "Cổng $port ($key) nằm trong dải Windows giữ chỗ cho Hyper-V/WSL — trông như trống nhưng Docker không mở được."
       Write-Note 'Dải này đổi sau mỗi lần khởi động máy. Có thể giải phóng bằng quyền quản trị: net stop winnat, rồi net start winnat.'
     } else {
       Write-Ok "Cổng $port ($key) đang trống"
