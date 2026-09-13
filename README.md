@@ -38,10 +38,10 @@ Trình khởi động tự làm theo thứ tự, và dừng lại hỏi khi cầ
 
 | Bước | Việc làm |
 |---|---|
-| Kiểm tra máy | Phiên bản Windows, RAM, dung lượng đĩa, ảo hoá phần cứng |
-| Cấu hình | Tạo `.env` từ `.env.example` với mật khẩu cơ sở dữ liệu, khoá JWT và mật khẩu đăng nhập **ngẫu nhiên** |
+| Kiểm tra máy | Phiên bản Windows, RAM, dung lượng đĩa, ảo hoá phần cứng, bản clone có đủ file |
 | Docker | Chưa có thì hỏi để cài Docker Desktop bằng `winget`; đã có thì tự bật và chờ sẵn sàng |
-| Cổng mạng | Báo rõ chương trình nào đang chiếm cổng 8080, 3000 hoặc 5432 và cách đổi |
+| Cấu hình | Tạo `.env` với mật khẩu cơ sở dữ liệu, khoá JWT và mật khẩu đăng nhập **ngẫu nhiên**. Máy còn dữ liệu của lần cài trước thì **lấy lại cấu hình cũ** thay vì tạo mật khẩu mới |
+| Xung đột | Một bản IOC khác trên máy dùng cùng tên thư mục/tên container thì tự đặt tên riêng; cổng 8080, 3000, 5432 bị chiếm thì chỉ ra chương trình đang giữ và đề nghị chuyển sang cổng trống |
 | AI (tuỳ chọn) | Hỏi để cài Ollama và tải model (~3,7 GB). Từ chối vẫn chạy được, trích xuất dùng bộ luật |
 | Hệ thống | Build và chạy PostgreSQL, API, web; **migration chạy tự động** khi API khởi động |
 | Dữ liệu | Cơ sở dữ liệu còn trống thì tạo phòng ban, chỉ tiêu mẫu, tài khoản quản trị và tài khoản dùng thử |
@@ -66,23 +66,29 @@ Chạy trong PowerShell hoặc cmd tại thư mục dự án, ví dụ `.\start-
 | `-SkipModelPull` | Không tải model AI còn thiếu |
 | `-Yes` | Tự đồng ý mọi câu hỏi — điều khoản của Docker và Ollama vẫn do bạn đồng ý khi được hỏi |
 | `-NoBrowser` | Không tự mở trình duyệt |
+| `-ResetData` | **Xoá toàn bộ dữ liệu** của bản IOC này rồi khởi tạo lại. Phải gõ tên dự án để xác nhận; không đụng dự án Docker khác |
 
 ### Dừng hệ thống
 
 Nhấp đúp **`stop-ioc.cmd`**: dừng container IOC, gỡ model AI khỏi bộ nhớ, rồi tắt Docker Desktop để
 giải phóng RAM và GPU. Nếu Docker đang chạy container của dự án khác, script hỏi trước khi tắt.
 Thêm `-KeepDocker` để giữ Docker Desktop, `-KeepAI` để giữ Ollama. Chỉ dừng ba container của dự án:
-`docker compose stop`. Mọi cách dừng đều giữ nguyên dữ liệu PostgreSQL.
+`docker compose stop`. Mọi cách dừng đều giữ nguyên dữ liệu PostgreSQL. Tránh `docker compose down`
+nếu có thể: container bị xoá thì script không còn chỗ lấy lại mật khẩu khi `.env` bị mất.
 
 ### Sự cố thường gặp
 
 | Hiện tượng | Cách xử lý |
 |---|---|
 | Git báo `Filename too long` khi clone | Clone vào thư mục ngắn như `C:\ioc`, hoặc `git config --global core.longpaths true` rồi clone lại |
-| Cổng 5432 / 8080 / 3000 đã bị chiếm | Mở `.env`, đổi `POSTGRES_PORT` / `WEB_PORT` / `API_PORT`, chạy lại |
+| Cổng 5432 / 8080 / 3000 đã bị chiếm | Chạy lại và đồng ý chuyển cổng, hoặc tự đổi `POSTGRES_PORT` / `WEB_PORT` / `API_PORT` trong `.env` |
+| Cổng trông như trống nhưng Docker báo `access permissions` | Cổng nằm trong dải Windows giữ chỗ cho Hyper-V; script tự nhận ra và chuyển cổng, hoặc chạy `net stop winnat` rồi `net start winnat` bằng quyền quản trị |
+| Xoá thư mục rồi clone lại | Script lấy lại mật khẩu từ container cũ nên dữ liệu vẫn dùng được. Nếu container cũ cũng đã bị xoá: chép lại `.env` cũ, hoặc chạy `start-ioc.cmd -ResetData` để bắt đầu lại |
+| API báo sai mật khẩu PostgreSQL | `POSTGRES_PASSWORD` trong `.env` khác lúc tạo dữ liệu: đặt lại giá trị cũ, hoặc `-ResetData` nếu không cần dữ liệu |
+| Máy khác trong mạng không đăng nhập được | Mở bằng địa chỉ LAN in ở cuối lần chạy; địa chỉ đó đã được thêm vào `CORS_ORIGINS`. Không muốn mở ra mạng: đặt `WEB_BIND_ADDRESS=127.0.0.1` |
 | Docker Desktop không lên sau khi cài | Khởi động lại Windows; nếu vẫn lỗi, chạy `wsl --install --no-distribution` bằng quyền quản trị |
 | `Access is denied` khi gọi Docker | Thêm tài khoản Windows vào nhóm `docker-users`, đăng xuất rồi đăng nhập lại |
-| Muốn chạy song song hai bản IOC | Đặt `COMPOSE_PROJECT_NAME`, `IOC_INSTANCE` và ba cổng khác nhau trong `.env` của bản thứ hai |
+| Muốn chạy song song hai bản IOC | Clone vào thư mục khác và chạy `start-ioc.cmd`: script tự đặt tên dự án, tên container và cổng riêng |
 
 ## Địa chỉ mặc định
 

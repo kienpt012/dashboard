@@ -293,8 +293,9 @@ function Start-DockerEngine {
     return
   }
 
+  # Khi Engine đang tắt, lệnh này in phiên bản rồi thêm một dòng lỗi kết nối; chỉ lấy dòng đầu.
   $version = Invoke-IocNative 'docker' @('version', '--format', '{{.Client.Version}}')
-  Write-Ok "Đã cài Docker $($version.Text)"
+  Write-Ok "Đã cài Docker $((($version.Text -split "`n")[0]).Trim())"
 
   if (-not (Get-DockerEngineError)) {
     Write-Ok 'Docker Engine đang chạy'
@@ -1296,7 +1297,9 @@ function Show-Summary {
   $ports = Get-IocPorts $settings
   $web = "http://localhost:$($ports.Web)"
   $openToLan = (Get-IocSetting $settings 'WEB_BIND_ADDRESS' '0.0.0.0') -eq '0.0.0.0'
-  $lan = if ($openToLan) { @(Get-IocLanAddresses) } else { @() }
+  # @(if ...) chứ không phải if { @(...) }: gán kết quả của if sẽ "mở" mảng một phần tử
+  # thành chuỗi, và .Count trên chuỗi báo lỗi dưới Set-StrictMode.
+  $lan = @(if ($openToLan) { Get-IocLanAddresses })
 
   Write-Host ''
   Write-Host '============================================================' -ForegroundColor Green
