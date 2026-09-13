@@ -7,3 +7,13 @@
 *.jpeg binary
 *.webp binary
 *.gguf binary
+
+# Trình khởi động Windows: cmd.exe hiểu sai nhãn và lệnh goto khi file dùng LF, và
+# PowerShell 5.1 cần BOM để đọc đúng tiếng Việt. Cố định CRLF bất kể cấu hình Git
+# của người clone (core.autocrlf).
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Script chạy bên trong container Linux phải luôn là LF.
+*.sh text eol=lf
