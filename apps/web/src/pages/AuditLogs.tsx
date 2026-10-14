@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
 import { Empty, PageHead, SkeletonTable, StateCard } from '../components/UI';
+import { roleLabels } from '../authz';
 import type { Department, Role } from '../types';
 import '../styles/audit.css';
 
@@ -103,12 +104,7 @@ const entityNames: Record<string, string> = {
   User: 'Tài khoản',
 };
 
-const roleNames: Record<Role, string> = {
-  ADMIN: 'Quản trị',
-  MANAGER: 'Lãnh đạo đơn vị',
-  STAFF: 'Cán bộ cập nhật',
-  VIEWER: 'Chỉ xem',
-};
+const roleNames: Record<Role, string> = roleLabels;
 
 const metadataNames: Record<string, string> = {
   baseVersion: 'Phiên bản gốc',

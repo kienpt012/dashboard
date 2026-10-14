@@ -18,8 +18,13 @@ import {
 } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { api, auth } from '../api';
-import { APPROVAL_ROLES, getInitials, hasAnyRole, roleLabels } from '../authz';
+import { APPROVAL_ROLES, getInitials, hasAnyRole, isGlobal, roleLabels } from '../authz';
+import { localityInitials, useLocality } from '../locality';
 import { groupFor, navGroups, titleFor } from '../nav';
+import BugReportButton from './BugReportButton';
+import NotificationBell from './NotificationBell';
+import ScreenFooter from './ScreenFooter';
+import '../styles/ioc.css';
 import CommandPalette from './CommandPalette';
 import ConnectionBar from './ConnectionBar';
 import ErrorBoundary from './ErrorBoundary';
@@ -60,11 +65,12 @@ export default function Layout() {
   const navigate = useNavigate();
 
   const user = auth.user;
-  const isAdmin = user?.role === 'ADMIN';
-  const scoped = !isAdmin;
+  const locality = useLocality();
+  const globalScope = isGlobal(user);
+  const scoped = !globalScope;
   const initials = getInitials(user?.fullName);
-  const roleLabel = user ? roleLabels[user.role] : 'Người dùng';
-  const scopeLabel = isAdmin ? 'Toàn hệ thống' : user?.department?.name || 'Chưa gán phòng ban';
+  const roleLabel = user ? (user.position || roleLabels[user.role]) : 'Người dùng';
+  const scopeLabel = globalScope ? (locality.configured ? locality.name : 'Toàn địa phương') : user?.department?.name || 'Chưa gán phòng ban';
   const title = titleFor(location.pathname, scoped);
   const group = groupFor(location.pathname);
 
@@ -203,11 +209,11 @@ export default function Layout() {
       >
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
-            LT
+            {localityInitials(locality)}
           </div>
           <div>
-            <strong>IOC LÁI THIÊU</strong>
-            <span>Trung tâm điều hành</span>
+            <strong>{locality.brandName.toUpperCase()}</strong>
+            <span>{locality.configured ? locality.agencyName : 'Trung tâm điều hành'}</span>
           </div>
           <button
             type="button"
@@ -313,6 +319,7 @@ export default function Layout() {
               <span>Tìm nhanh…</span>
               <kbd className="kbd">Ctrl K</kbd>
             </button>
+            <NotificationBell />
             <ThemeToggle />
             <NavLink
               to="/admin/profile"
@@ -334,11 +341,13 @@ export default function Layout() {
           <ErrorBoundary inline resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>
+          <ScreenFooter />
         </div>
       </main>
 
       <CommandPalette open={palette} onClose={() => setPalette(false)} onOpenCopilot={() => setCopilotOpen(true)} />
       <CopilotDock open={copilot} onOpenChange={setCopilotOpen} />
+      <BugReportButton />
       <ToastHost shifted />
     </div>
   );

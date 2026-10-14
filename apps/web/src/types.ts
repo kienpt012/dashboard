@@ -1,7 +1,7 @@
-export type Role='ADMIN'|'MANAGER'|'STAFF'|'VIEWER';
+export type Role='ADMIN'|'LEADER'|'CLERK'|'MANAGER'|'STAFF'|'VIEWER';
 export type ScopeKind='GLOBAL'|'DEPARTMENT';
 
-export type Department={id:string;code:string;name:string;color:string;description?:string;isActive:boolean;version:number;_count?:{users:number;targets:number;feedbacks?:number}};
+export type Department={id:string;code:string;name:string;color:string;description?:string;shortName?:string|null;kind?:string;responsibilities?:string|null;sortOrder?:number;isActive:boolean;version:number;_count?:{users:number;targets:number;feedbacks?:number}};
 export type Target={
   id:string;
   code:string;
@@ -12,7 +12,7 @@ export type Target={
   currentValue:number;
   weight:number;
   year:number;
-  frequency:'MONTHLY'|'QUARTERLY'|'YEARLY';
+  frequency:'MONTHLY'|'QUARTERLY'|'SEMIANNUAL'|'YEARLY';
   direction:'HIGHER_IS_BETTER'|'LOWER_IS_BETTER';
   status:string;
   dueDate:string;
@@ -47,6 +47,18 @@ export type Target={
   progress?:number;
   pendingUpdates?:number;
   department:Department;
+  frameworkId?:string|null;
+  framework?:{id:string;code:string;name:string;kind:string}|null;
+  kind?:'PLAN'|'SCORE'|'TASK'|'STAT';
+  ordinal?:string|null;
+  standardCode?:string|null;
+  groupName?:string|null;
+  parentId?:string|null;
+  maxScore?:number|null;
+  valueSource?:'MANUAL'|'COMPUTED'|'CHILDREN';
+  assigneeId?:string|null;
+  assignee?:{id:string;fullName:string;position?:string|null}|null;
+  assignedAt?:string|null;
 };
 export type User={
   id:string;
@@ -57,6 +69,7 @@ export type User={
   isActive:boolean;
   departmentId?:string|null;
   department?:Department|null;
+  position?:string|null;
   lastLoginAt?:string|null;
   version:number;
 };

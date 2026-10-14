@@ -1,10 +1,21 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, hasAnyRole, IMPORT_ROLES } from './authz';
+import { ADMIN_ROLES, ALL_ROLES, APPROVAL_ROLES, hasAnyRole, IMPORT_ROLES, SUPERVISOR_ROLES } from './authz';
 import { api, ApiError, auth } from './api';
 import Layout from './components/Layout';
 import { Spinner } from './components/UI';
-import Dashboard from './pages/Dashboard';
+import { useLocality } from './locality';
+import { titleFor } from './nav';
+import Accountability from './pages/Accountability';
+import BugReports from './pages/BugReports';
+import Datasets from './pages/Datasets';
+import Frameworks from './pages/Frameworks';
+import MyWork from './pages/MyWork';
+import OpsCenter from './pages/OpsCenter';
+import Proposals from './pages/Proposals';
+import SetupWizard from './pages/SetupWizard';
+import TargetDossier from './pages/TargetDossier';
+import Wallboard from './pages/Wallboard';
 import Departments from './pages/Departments';
 import DocumentReview from './pages/DocumentReview';
 import Documents from './pages/Documents';
@@ -27,7 +38,8 @@ import type { AuthMeResponse, Role, User } from './types';
 
 const PublicDashboardStudio = lazy(() => import('./pages/PublicDashboardStudio'));
 
-function Protected(){
+/** Bắt buộc đăng nhập; mặc định hiển thị trong khung quản trị, hoặc toàn màn hình khi truyền `children`. */
+function Protected({children}:{children?:ReactNode}){
   const token=auth.token;
   const [loading,setLoading]=useState(Boolean(token));
   const [error,setError]=useState('');
@@ -54,7 +66,7 @@ function Protected(){
   if(!token)return <Navigate to="/admin/login" replace/>;
   if(loading)return <Spinner/>;
   if(error)return <div className="spinner-wrap"><div className="panel"><h3>Không thể xác thực phiên làm việc</h3><p>{error}</p><button className="btn primary" onClick={()=>setAttempt(value=>value+1)}>Thử lại</button></div></div>;
-  return <Layout/>;
+  return children?<>{children}</>:<Layout/>;
 }
 
 function RoleRoute({allowed,children}:{allowed:readonly Role[];children:ReactNode}){
@@ -67,35 +79,25 @@ function LoginRoute(){
   return auth.token?<Navigate to="/admin" replace/>:<Login/>;
 }
 
-const pageTitles: Record<string, string> = {
-  '/': 'IOC Lái Thiêu · Cổng thông tin điều hành',
-  '/phan-anh': 'Gửi và tra cứu phản ánh · Phường Lái Thiêu',
-  '/admin/login': 'Đăng nhập nội bộ · IOC Lái Thiêu',
-  '/admin/forgot-password': 'Khôi phục mật khẩu · IOC Lái Thiêu',
-  '/admin': 'Tổng quan điều hành · IOC Lái Thiêu',
-  '/admin/targets': 'Quản lý chỉ tiêu · IOC Lái Thiêu',
-  '/admin/reports': 'Báo cáo chỉ tiêu · IOC Lái Thiêu',
-  '/admin/imports': 'Nhập dữ liệu báo cáo · IOC Lái Thiêu',
-  '/admin/documents': 'Kho văn bản · IOC Lái Thiêu',
-  '/admin/approvals': 'Duyệt báo cáo · IOC Lái Thiêu',
-  '/admin/feedback': 'Tiếp nhận phản ánh · IOC Lái Thiêu',
-  '/admin/departments': 'Cơ cấu phòng ban · IOC Lái Thiêu',
-  '/admin/users': 'Quản lý tài khoản · IOC Lái Thiêu',
-  '/admin/settings': 'Thiết lập hệ thống · IOC Lái Thiêu',
-  '/admin/audit-logs': 'Nhật ký hệ thống · IOC Lái Thiêu',
-  '/admin/profile': 'Hồ sơ và bảo mật · IOC Lái Thiêu',
-  '/admin/public-dashboard': 'Thiết kế trang công khai · IOC Lái Thiêu',
-};
-
+/** Tiêu đề thẻ trình duyệt — đọc tên ứng dụng từ hồ sơ địa phương, không viết cứng tên đơn vị nào. */
 function DocumentTitle(){
   const location=useLocation();
+  const locality=useLocality();
   useEffect(()=>{
-    document.title=location.pathname.startsWith('/phan-anh/cong-khai/')
-      ?'Chi tiết phản ánh công khai · Phường Lái Thiêu'
-      :location.pathname.startsWith('/admin/documents/')
-        ?'Xác minh trích xuất AI · IOC Lái Thiêu'
-        :(pageTitles[location.pathname]||'IOC Lái Thiêu');
-  },[location.pathname]);
+    const brand=locality.brandName;
+    const unit=locality.configured?locality.name:brand;
+    const path=location.pathname;
+    let title:string;
+    if(path==='/')title=`${brand} · Cổng thông tin điều hành`;
+    else if(path==='/phan-anh')title=`Gửi và tra cứu phản ánh · ${unit}`;
+    else if(path.startsWith('/phan-anh/cong-khai/'))title=`Chi tiết phản ánh công khai · ${unit}`;
+    else if(path==='/admin/login')title=`Đăng nhập nội bộ · ${brand}`;
+    else if(path==='/admin/forgot-password')title=`Khôi phục mật khẩu · ${brand}`;
+    else if(path==='/trinh-chieu')title=`Trình chiếu phòng họp · ${brand}`;
+    else if(path.startsWith('/admin'))title=`${titleFor(path,false)} · ${brand}`;
+    else title=brand;
+    document.title=title;
+  },[location.pathname,locality]);
   return null;
 }
 
@@ -106,8 +108,17 @@ export default function App(){
     <Route path="/phan-anh/cong-khai/:code" element={<PublishedFeedbackDetail/>}/>
     <Route path="/admin/login" element={<LoginRoute/>}/>
     <Route path="/admin/forgot-password" element={auth.token?<Navigate to="/admin" replace/>:<ForgotPassword/>}/>
+    <Route path="/trinh-chieu" element={<Protected><Wallboard/></Protected>}/>
     <Route path="/admin" element={<Protected/>}>
-      <Route index element={<RoleRoute allowed={ALL_ROLES}><Dashboard/></RoleRoute>}/>
+      <Route index element={<RoleRoute allowed={ALL_ROLES}><OpsCenter/></RoleRoute>}/>
+      <Route path="viec-cua-toi" element={<RoleRoute allowed={ALL_ROLES}><MyWork/></RoleRoute>}/>
+      <Route path="trach-nhiem" element={<RoleRoute allowed={SUPERVISOR_ROLES}><Accountability/></RoleRoute>}/>
+      <Route path="bo-chi-tieu" element={<RoleRoute allowed={ALL_ROLES}><Frameworks/></RoleRoute>}/>
+      <Route path="targets/:id" element={<RoleRoute allowed={ALL_ROLES}><TargetDossier/></RoleRoute>}/>
+      <Route path="proposals" element={<RoleRoute allowed={ALL_ROLES}><Proposals/></RoleRoute>}/>
+      <Route path="kho-du-lieu" element={<RoleRoute allowed={ALL_ROLES}><Datasets/></RoleRoute>}/>
+      <Route path="thiet-lap" element={<RoleRoute allowed={ADMIN_ROLES}><SetupWizard/></RoleRoute>}/>
+      <Route path="bao-loi" element={<RoleRoute allowed={ADMIN_ROLES}><BugReports/></RoleRoute>}/>
       {/* Copilot không còn là một màn hình riêng — nay là bảng nổi trong Layout.
           Giữ lại đường dẫn cũ để liên kết đã lưu vẫn dùng được: Layout sẽ đưa về
           tổng quan và tự mở bảng trợ lý. */}
