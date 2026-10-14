@@ -1,0 +1,301 @@
+.figures .ant-card-body {
+  padding: 0;
+}
+
+.figure-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 16px 20px;
+  border-inline-end: 1px solid var(--ioc-color-border-secondary);
+  min-width: 0;
+}
+
+.figure:last-child {
+  border-inline-end: 0;
+}
+
+.figure-label {
+  font-size: 12.5px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.figure-value {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.figure-value small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.figure-foot {
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.figure .ant-progress {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 767px) {
+  .figure-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .figure {
+    border-bottom: 1px solid var(--ioc-color-border-secondary);
+  }
+}
+
+.dossier-tabs .ant-tabs-content-holder {
+  padding: 0;
+}
+
+.tab-body {
+  padding: 16px 20px 20px;
+}
+
+.tab-section-head {
+  margin-bottom: 10px;
+}
+
+/* Dải kỳ báo cáo */
+.period-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  background: var(--ioc-color-fill-quaternary);
+  border: 1px solid var(--ioc-color-border-secondary);
+}
+
+.period {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ioc-color-border);
+  background: var(--ioc-color-bg-container);
+  color: var(--ioc-color-text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.period:disabled {
+  cursor: default;
+}
+
+.period:not(:disabled):hover {
+  border-color: var(--ioc-color-primary);
+  color: var(--ioc-color-primary);
+}
+
+.period.reported {
+  background: var(--ioc-color-success-bg);
+  border-color: color-mix(in srgb, var(--ioc-color-success) 40%, transparent);
+  color: var(--ioc-color-success);
+}
+
+.period.overdue {
+  background: var(--ioc-color-error-bg);
+  border-color: color-mix(in srgb, var(--ioc-color-error) 40%, transparent);
+  color: var(--ioc-color-error);
+}
+
+.period.current {
+  border-color: var(--ioc-color-primary);
+  color: var(--ioc-color-primary);
+}
+
+/* Mục trong hồ sơ: báo cáo, văn bản, đánh giá */
+.entry {
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ioc-color-bg-container);
+}
+
+.entry.report-pending {
+  border-inline-start: 3px solid var(--ioc-color-warning);
+}
+
+.entry.report-rejected {
+  border-inline-start: 3px solid var(--ioc-color-error);
+}
+
+.entry.report-approved {
+  border-inline-start: 3px solid var(--ioc-color-success);
+}
+
+.entry-value {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-title {
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.entry-line {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.entry-label {
+  flex: 0 0 92px;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 12.5px;
+  padding-top: 1px;
+}
+
+.entry-meta {
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+@media (max-width: 575px) {
+  .entry-line {
+    flex-direction: column;
+    gap: 0;
+  }
+  .entry-label {
+    flex: none;
+  }
+}
+
+/* Minh chứng */
+.evidence-list {
+  margin-top: 8px;
+}
+
+.evidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  background: var(--ioc-color-fill-quaternary);
+  color: var(--ioc-color-text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.evidence:hover {
+  border-color: var(--ioc-color-primary-border);
+  color: var(--ioc-color-primary);
+}
+
+.evidence > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.evidence small {
+  color: var(--ioc-color-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* Công thức tự tính */
+.formula {
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.formula-text {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--ioc-color-bg-container);
+  border: 1px solid var(--ioc-color-border-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.formula-traces {
+  margin: 10px 0 0;
+  padding-inline-start: 18px;
+  font-size: 13px;
+  color: var(--ioc-color-text-secondary);
+}
+
+/* Cột phải */
+.side-card .ant-card-head-title {
+  font-size: 14px;
+}
+
+.side-card-warn {
+  border-color: color-mix(in srgb, var(--ioc-color-warning) 55%, transparent);
+}
+
+.side-desc .ant-descriptions-item-label {
+  width: 116px;
+  color: var(--ioc-color-text-tertiary) !important;
+}
+
+.side-desc .ant-descriptions-item {
+  padding-bottom: 6px !important;
+}
+
+.person {
+  margin-bottom: 12px;
+}
+
+.explain-text {
+  margin: 6px 0 2px;
+  font-size: 13.5px;
+}
+
+.quote {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--ioc-color-fill-quaternary);
+  border-inline-start: 3px solid var(--ioc-color-border);
+  font-size: 13.5px;
+  white-space: pre-line;
+}
+
+.timeline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
+.dossier-refreshing {
+  position: fixed;
+  right: 20px;
+  bottom: 44px;
+  color: var(--ioc-color-primary);
+}

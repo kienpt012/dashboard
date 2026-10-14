@@ -1,0 +1,463 @@
+/* Khung quản trị: thanh bên, thanh trên, vùng nội dung, dải định danh. */
+
+.shell {
+  min-height: 100vh;
+}
+
+.shell-sider {
+  border-inline-end: 1px solid var(--ioc-color-border-secondary);
+  z-index: 20;
+}
+
+.shell-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sider-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 16px;
+  scrollbar-width: thin;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 16px;
+  flex-shrink: 0;
+  color: var(--ioc-color-text);
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+}
+
+.brand:hover {
+  color: var(--ioc-color-text);
+}
+
+.brand.collapsed {
+  justify-content: center;
+  padding: 0;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--ioc-color-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.brand-text strong {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.brand-text span {
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side-menu.ant-menu {
+  border-inline-end: 0 !important;
+  padding-top: 4px;
+}
+
+.side-menu .ant-menu-item-group-title {
+  padding: 12px 20px 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.side-menu.ant-menu-inline-collapsed .ant-menu-item-group-title {
+  padding: 8px 0 4px;
+  text-align: center;
+  font-size: 0;
+}
+
+.side-menu.ant-menu-inline-collapsed .ant-menu-item-group-title::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin: 0 18px;
+  background: var(--ioc-color-border-secondary);
+}
+
+.menu-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-label > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-drawer .brand {
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+}
+
+.shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+  line-height: normal;
+}
+
+.head-btn.ant-btn {
+  width: 36px;
+  height: 36px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.head-btn.on {
+  color: var(--ioc-color-primary) !important;
+  background: var(--ioc-color-primary-bg) !important;
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(360px, 40vw);
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ioc-color-fill-quaternary);
+  color: var(--ioc-color-text-tertiary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.search-trigger:hover {
+  border-color: var(--ioc-color-border);
+}
+
+.search-label {
+  flex: 1;
+  text-align: left;
+}
+
+.search-trigger kbd {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  background: var(--ioc-color-bg-container);
+}
+
+.head-actions {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: 6px;
+  padding: 3px 8px 3px 3px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.user-chip:hover {
+  background: var(--ioc-color-fill-tertiary);
+}
+
+.user-avatar.ant-avatar {
+  background: var(--ioc-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.user-chip-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  max-width: 180px;
+}
+
+.user-chip-text strong {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.user-chip-text span {
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.user-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  min-width: 200px;
+}
+
+.user-card strong {
+  color: var(--ioc-color-text);
+  font-size: 14px;
+}
+
+.user-card span {
+  font-size: 12px;
+}
+
+.shell-content {
+  min-width: 0;
+}
+
+.screen-strip {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+  padding: 10px 24px 14px;
+  font-size: 11px;
+  color: var(--ioc-color-text-quaternary);
+  font-variant-numeric: tabular-nums;
+}
+
+.screen-strip .code {
+  font-weight: 600;
+  color: var(--ioc-color-text-tertiary);
+}
+
+/* Thông báo */
+.notif-panel {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.notif-head {
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+}
+
+.notif-list {
+  max-height: min(460px, 70vh);
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--ioc-color-text-secondary);
+  cursor: pointer;
+}
+
+.notif-item:hover {
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.notif-item.unread {
+  color: var(--ioc-color-text);
+  background: var(--ioc-color-primary-bg);
+}
+
+.notif-item.unread .notif-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  background: var(--ioc-color-primary);
+  vertical-align: middle;
+}
+
+.notif-title {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.notif-body {
+  font-size: 12px;
+  color: var(--ioc-color-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notif-time {
+  font-size: 11px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+/* Tìm nhanh */
+.palette .ant-modal-content {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.palette-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 6px;
+  border-top: 1px solid var(--ioc-color-border-secondary);
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: var(--ioc-color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.palette-item.active {
+  background: var(--ioc-color-primary-bg);
+}
+
+.palette-icon {
+  color: var(--ioc-color-text-tertiary);
+  display: flex;
+}
+
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-hint {
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.palette-enter {
+  color: var(--ioc-color-text-tertiary);
+}
+
+/* Trợ lý */
+.copilot-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.bubble.user {
+  align-self: flex-end;
+  max-width: 85%;
+  background: var(--ioc-color-primary);
+  color: #fff;
+}
+
+.bubble.assistant {
+  align-self: stretch;
+  background: var(--ioc-color-fill-quaternary);
+  border: 1px solid var(--ioc-color-border-secondary);
+}
+
+.bubble.typing {
+  align-self: flex-start;
+  color: var(--ioc-color-text-tertiary);
+}
+
+@media (max-width: 991px) {
+  .search-trigger {
+    width: auto;
+    flex: 1;
+    max-width: 320px;
+  }
+  .search-trigger kbd {
+    display: none;
+  }
+  .screen-strip {
+    padding: 8px 16px 12px;
+  }
+}
+
+@media (max-width: 575px) {
+  .search-label {
+    display: none;
+  }
+  .search-trigger {
+    flex: 0 0 36px;
+    width: 36px;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .shell-header {
+    padding: 0 8px !important;
+    gap: 4px;
+  }
+}

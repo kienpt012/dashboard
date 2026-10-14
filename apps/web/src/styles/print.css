@@ -1,25 +1,22 @@
-/* ============================================================================
-   IOC — Bản in theo thể thức văn bản hành chính (Nghị định 30/2020/NĐ-CP).
-   Trên màn hình: .print-only ẩn. Khi in: chỉ còn văn bản .print-doc, giao diện .screen-only ẩn.
-   Bản in luôn đen trên trắng, chữ Times New Roman, không phụ thuộc chế độ sáng/tối.
-   ========================================================================== */
-.print-only {
+/* Bản in theo thể thức văn bản hành chính (Nghị định 30/2020/NĐ-CP).
+   Văn bản in nằm ngoài #root (cổng React); khi in chỉ còn văn bản, giao diện ẩn hết.
+   Luôn đen trên trắng, Times New Roman, không phụ thuộc chế độ sáng/tối. */
+
+.print-root {
   display: none;
 }
 
 @page {
   size: A4 portrait;
-  margin: 20mm 15mm 20mm 25mm;
+  margin: 20mm 15mm 20mm 30mm;
 }
 
-/* Trang khổ ngang cho bảng rộng (Chrome/Edge hỗ trợ trang có tên). */
 @page landscape {
   size: A4 landscape;
-  margin: 12mm 15mm 10mm 20mm;
+  margin: 15mm 15mm 12mm 20mm;
 }
 
 @media print {
-  /* Hiệu ứng xuất hiện không có thời gian chạy khi in — khối đứng yên ở trạng thái đầu (trong suốt). */
   *,
   *::before,
   *::after {
@@ -27,12 +24,17 @@
     transition: none !important;
   }
 
-  .print-only {
-    display: block !important;
+  html,
+  body {
+    background: #fff !important;
   }
 
-  .screen-only {
+  body.has-print-doc > *:not(.print-root) {
     display: none !important;
+  }
+
+  body.has-print-doc > .print-root {
+    display: block !important;
   }
 
   .print-doc {
@@ -47,8 +49,7 @@
     page: landscape;
   }
 
-  .print-doc strong,
-  .print-doc em {
+  .print-doc * {
     color: #000;
   }
 
@@ -56,7 +57,7 @@
     display: grid;
     grid-template-columns: 2fr 3fr;
     gap: 8mm;
-    margin-bottom: 3mm;
+    margin-bottom: 4mm;
   }
 
   .print-doc-agency,
@@ -67,21 +68,21 @@
     text-align: center;
   }
 
-  .print-doc-agency strong {
+  .print-doc-agency span {
     font-size: 13pt;
     font-weight: 700;
   }
 
-  .print-doc-agency strong:first-child:not(:last-child) {
+  .print-doc-agency span:first-child:not(:last-child) {
     font-weight: 400;
   }
 
-  .print-doc-nation strong:first-child {
+  .print-doc-nation span:first-child {
     font-size: 12pt;
     font-weight: 700;
   }
 
-  .print-doc-nation strong + strong {
+  .print-doc-nation span + span {
     font-size: 13pt;
     font-weight: 700;
   }
@@ -98,19 +99,23 @@
     font-style: italic;
   }
 
+  .print-doc-number {
+    margin-top: 1mm;
+    font-size: 13pt;
+  }
+
   .print-doc-title {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1mm;
-    margin: 2mm 0 4mm;
+    margin: 3mm 0 5mm;
     text-align: center;
   }
 
   .print-doc-title strong {
     font-size: 14pt;
     font-weight: 700;
-    text-transform: uppercase;
   }
 
   .print-doc-title em {
@@ -118,7 +123,6 @@
     font-style: italic;
   }
 
-  /* Bảng phụ lục: kẻ khung đen, đầu bảng lặp mỗi trang, dòng không bị cắt đôi. */
   .print-doc table {
     width: 100%;
     border-collapse: collapse;
@@ -137,53 +141,37 @@
     break-inside: avoid;
   }
 
-  .print-doc tbody tr:last-child td {
-    border-bottom: 0.75pt solid #000 !important;
-  }
-
   .print-doc th,
   .print-doc td {
     padding: 2pt 4pt;
     border: 0.75pt solid #000;
-    color: #000;
-    background: #fff;
     vertical-align: middle;
+    background: #fff;
   }
 
   .print-doc th {
-    position: static;
     font-weight: 700;
-    font-size: inherit;
-    text-align: center;
-    text-transform: none;
-    letter-spacing: 0;
-    white-space: normal;
-  }
-
-  /* Độ rộng cột chữ để tên đơn vị, họ tên không bị ngắt nhiều dòng. */
-  .print-doc .w-stt {
-    width: 9mm;
-  }
-
-  .print-doc .w-name {
-    width: 58mm;
-  }
-
-  .print-doc .w-person {
-    width: 34mm;
-  }
-
-  .print-doc td.num,
-  .print-doc th.num {
     text-align: center;
   }
 
-  .print-doc td.text {
-    text-align: left;
+  .print-doc td.c {
+    text-align: center;
+  }
+
+  .print-doc td.r {
+    text-align: right;
   }
 
   .print-doc tr.group td {
     font-weight: 700;
+  }
+
+  .print-doc tr.total td {
+    font-weight: 700;
+  }
+
+  .print-doc .w-stt {
+    width: 9mm;
   }
 
   .print-doc .print-note {
@@ -200,7 +188,7 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10mm;
-    margin-top: 5mm;
+    margin-top: 6mm;
     break-inside: avoid;
     text-align: center;
   }
@@ -223,6 +211,17 @@
 
   .print-doc-sign-space {
     display: block;
-    height: 16mm;
+    height: 18mm;
+  }
+
+  .print-doc p {
+    margin: 0 0 2mm;
+    text-align: justify;
+  }
+
+  .print-doc h3 {
+    font-size: 13pt;
+    font-weight: 700;
+    margin: 3mm 0 2mm;
   }
 }
