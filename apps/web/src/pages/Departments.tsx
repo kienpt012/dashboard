@@ -1,13 +1,27 @@
 import { AlertTriangle, Building2, CheckCircle2, MessageSquareText, Pencil, Plus, Target, Users } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, auth } from '../api';
+import { isGlobal } from '../authz';
 import { Empty, Modal, PageHead } from '../components/UI';
 import type { Department } from '../types';
 import '../styles/org.css';
 
+type DepartmentKind = 'LEADERSHIP' | 'OFFICE' | 'SPECIALIZED' | 'CENTER' | 'OTHER';
+const kindLabels: Record<DepartmentKind, string> = {
+  LEADERSHIP: 'Lãnh đạo UBND',
+  OFFICE: 'Văn phòng',
+  SPECIALIZED: 'Phòng chuyên môn',
+  CENTER: 'Trung tâm, đơn vị sự nghiệp',
+  OTHER: 'Cơ quan, tổ chức phối hợp',
+};
+
 type DepartmentForm = {
   code: string;
   name: string;
+  shortName: string;
+  kind: DepartmentKind;
+  responsibilities: string;
+  sortOrder: string;
   description: string;
   color: string;
   isActive: boolean;
@@ -16,6 +30,10 @@ type DepartmentForm = {
 const emptyForm: DepartmentForm = {
   code: '',
   name: '',
+  shortName: '',
+  kind: 'SPECIALIZED',
+  responsibilities: '',
+  sortOrder: '',
   description: '',
   color: '#0f766e',
   isActive: true,
@@ -31,6 +49,8 @@ function mutationMessage(reason: unknown, fallback: string) {
 export default function Departments() {
   const user = auth.user;
   const isAdmin = user?.role === 'ADMIN';
+  // Lãnh đạo UBND, văn thư xem mọi phòng; chỉ quản trị được sửa cơ cấu.
+  const seesAll = isGlobal(user);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -46,7 +66,7 @@ export default function Departments() {
     setPageError('');
     try {
       const result = await api<Department[]>('/departments');
-      setDepartments(isAdmin ? result : result.filter(department => department.id === user?.departmentId));
+      setDepartments(seesAll ? result : result.filter(department => department.id === user?.departmentId));
     } catch (reason) {
       setPageError(reason instanceof Error ? reason.message : 'Không thể tải thông tin phòng ban');
     } finally {
@@ -77,6 +97,10 @@ export default function Departments() {
     setForm({
       code: department.code,
       name: department.name,
+      shortName: department.shortName || '',
+      kind: (department.kind as DepartmentKind) || 'OTHER',
+      responsibilities: department.responsibilities || '',
+      sortOrder: department.sortOrder === undefined || department.sortOrder === null ? '' : String(department.sortOrder),
       description: department.description || '',
       color: department.color,
       isActive: department.isActive,
@@ -107,6 +131,10 @@ export default function Departments() {
         ...(editing ? { expectedVersion: editing.version } : {}),
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
+        shortName: form.shortName.trim() || undefined,
+        kind: form.kind,
+        responsibilities: form.responsibilities.trim() || undefined,
+        ...(form.sortOrder.trim() ? { sortOrder: Number(form.sortOrder) } : {}),
         description: form.description.trim(),
         color: form.color,
         ...(editing ? { isActive: form.isActive } : {}),
@@ -146,8 +174,9 @@ export default function Departments() {
         <div className="dep-large-icon" style={{ background: `${department.color}16`, color: department.color }}><Building2 /></div>
         <span className={`status ${department.isActive ? 'green' : 'slate'}`}><i />{department.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}</span>
       </div>
-      <span>{department.code}</span>
+      <span>{department.code}{department.kind ? ` · ${kindLabels[department.kind as DepartmentKind] ?? department.kind}` : ''}</span>
       <h3>{department.name}</h3>
+      {department.responsibilities?.trim() ? <p><b>Lĩnh vực:</b> {department.responsibilities}</p> : null}
       {department.description?.trim() ? <p>{department.description}</p> : null}
       <div className="dep-card-stats">
         <div><Users /><span>Nhân sự<b>{department._count?.users ?? 0}</b></span></div>
@@ -166,6 +195,10 @@ export default function Departments() {
         {formError && <div className="form-error full">{formError}</div>}
         <label className="full">Mã phòng ban<input required minLength={2} maxLength={30} pattern="[A-Za-z0-9_-]+" value={form.code} onChange={event => setForm({ ...form, code: event.target.value.toUpperCase() })} placeholder="VD: TCKH" /></label>
         <label className="full">Tên phòng ban<input required minLength={2} maxLength={160} value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /></label>
+        <label>Tên ngắn<input maxLength={80} value={form.shortName} onChange={event => setForm({ ...form, shortName: event.target.value })} placeholder="Hiện trên màn hình trình chiếu" /></label>
+        <label>Loại đơn vị<select value={form.kind} onChange={event => setForm({ ...form, kind: event.target.value as DepartmentKind })}>{(Object.keys(kindLabels) as DepartmentKind[]).map(kind => <option key={kind} value={kind}>{kindLabels[kind]}</option>)}</select></label>
+        <label className="full">Lĩnh vực phụ trách<textarea maxLength={1000} value={form.responsibilities} onChange={event => setForm({ ...form, responsibilities: event.target.value })} placeholder="Dùng để gán phòng chủ trì khi nạp bộ chỉ tiêu mẫu" /></label>
+        <label>Thứ tự hiển thị<input type="number" min={0} value={form.sortOrder} onChange={event => setForm({ ...form, sortOrder: event.target.value })} /></label>
         <label className="full">Mô tả<textarea maxLength={1000} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} /></label>
         <label className="full">Màu nhận diện<div className="color-input"><input type="color" value={form.color} onChange={event => setForm({ ...form, color: event.target.value })} /><input required pattern="^#[0-9A-Fa-f]{6}$" value={form.color} onChange={event => setForm({ ...form, color: event.target.value })} /></div></label>
         {editing && <label className="check-field full"><input type="checkbox" checked={form.isActive} onChange={event => setForm({ ...form, isActive: event.target.checked })} /><span>{form.isActive ? 'Phòng ban đang hoạt động' : 'Ngừng hoạt động phòng ban'}</span></label>}

@@ -1,6 +1,9 @@
-import { AlertTriangle, ArrowRight, Check, ClipboardCheck, Filter, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, ClipboardCheck, Clock3, Filter, Paperclip, RefreshCw, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
+import { isGlobal } from '../authz';
+import { untilText } from '../ioc-format';
 import { Empty, Modal, PageHead, SkeletonTable } from '../components/UI';
 import { toast } from '../components/Toast';
 import type { Department, Target } from '../types';
@@ -10,6 +13,13 @@ type PendingUpdate = {
   id: string;
   value: number;
   note?: string | null;
+  valueText?: string | null;
+  periodKey?: string | null;
+  periodLabel?: string | null;
+  dataSource?: string | null;
+  explanation?: string | null;
+  evidenceCount?: number;
+  autoApproveAt?: string | null;
   baseVersion: number;
   createdAt: string;
   target: Target;
@@ -18,7 +28,8 @@ type PendingUpdate = {
 };
 
 export default function Approvals() {
-  const isAdmin = auth.user?.role === 'ADMIN';
+  // Lãnh đạo UBND và quản trị duyệt mọi phòng; trưởng phòng chỉ phòng mình (API tự giới hạn).
+  const isAdmin = isGlobal(auth.user);
   const [updates, setUpdates] = useState<PendingUpdate[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentId, setDepartmentId] = useState('');
@@ -88,7 +99,7 @@ export default function Approvals() {
       eyebrow="KIỂM SOÁT SỐ LIỆU"
       title="Báo cáo chờ duyệt"
       description={isAdmin
-        ? 'Đối chiếu nguồn số liệu trước khi ghi nhận vào kết quả chính thức của hệ thống.'
+        ? 'Đối chiếu nguồn số liệu, minh chứng trước khi ghi nhận. Báo cáo để quá thời hạn sẽ được hệ thống tự thông qua và ghi trách nhiệm người duyệt.'
         : `Chỉ hiển thị báo cáo thuộc ${auth.user?.department?.name || 'đơn vị của bạn'}.`}
       actions={<button className="btn secondary" disabled={loading} onClick={() => void load()}><RefreshCw className={loading ? 'spin' : undefined} />Làm mới</button>}
     />
@@ -120,8 +131,8 @@ export default function Approvals() {
             <td data-label="Chỉ tiêu">
               <div className="cell-target">
                 <span className="code">{update.target.code}</span>
-                <strong>{update.target.title}</strong>
-                <span>{update.target.department.name}</span>
+                <strong><Link to={`/admin/targets/${update.target.id}#thuc-hien`}>{update.target.title}</Link></strong>
+                <span>{update.target.department.name}{update.periodLabel ? ` · ${update.periodLabel}` : ''}</span>
               </div>
             </td>
             <td data-label="Người báo cáo">
@@ -134,16 +145,22 @@ export default function Approvals() {
               <div className="value-delta">
                 <div className="from"><span>Hiện tại</span><b>{update.target.currentValue.toLocaleString('vi-VN')} {update.target.unit}</b></div>
                 <ArrowRight aria-hidden="true" />
-                <div className="to"><span>Đề xuất</span><b>{update.value.toLocaleString('vi-VN')} {update.target.unit}</b></div>
+                <div className="to"><span>Đề xuất</span><b>{update.valueText || `${update.value.toLocaleString('vi-VN')} ${update.target.unit}`}</b></div>
               </div>
+              {update.dataSource && <small className="review-note">Nguồn: {update.dataSource}</small>}
+              {update.explanation && <small className="review-note">Giải trình: {update.explanation}</small>}
               {update.note && <small className="review-note">{update.note}</small>}
+              {Boolean(update.evidenceCount) && <small className="review-note"><Paperclip aria-hidden="true" /> {update.evidenceCount} minh chứng — xem trong hồ sơ</small>}
             </td>
-            <td data-label="Thời gian gửi"><time dateTime={update.createdAt}>{new Date(update.createdAt).toLocaleString('vi-VN')}</time></td>
+            <td data-label="Thời gian gửi">
+              <time dateTime={update.createdAt}>{new Date(update.createdAt).toLocaleString('vi-VN')}</time>
+              {update.autoApproveAt && <small className={`review-note ${new Date(update.autoApproveAt).getTime() - Date.now() < 86_400_000 ? 'ioc-bad' : 'ioc-warn'}`}><Clock3 aria-hidden="true" /> Tự thông qua {untilText(update.autoApproveAt)}</small>}
+            </td>
             <td data-label="Kiểm tra phiên bản">{stale
               ? <span className="status bad">Dữ liệu đã thay đổi</span>
               : <span className="status ok">Phiên bản {update.baseVersion}</span>}</td>
             <td data-label="Quyết định">{update.canReview === false
-              ? <span className="status warn">Chờ quản trị viên</span>
+              ? <span className="status warn">Báo cáo của bạn — chờ cấp trên duyệt</span>
               : <div className="approval-actions">
                   <button type="button" className="btn secondary sm danger-text" onClick={() => openReview(update, 'REJECT')}><X />Từ chối</button>
                   <button type="button" className="btn primary sm" disabled={stale} title={stale ? 'Dữ liệu đã thay đổi' : undefined} onClick={() => openReview(update, 'APPROVE')}><Check />Duyệt</button>

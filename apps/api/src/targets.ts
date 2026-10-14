@@ -414,15 +414,27 @@ export class TargetsController {
   async pendingUpdates(@Req() req: any, @Query('departmentId') requestedDepartmentId?: string) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
-    const updates = await this.prisma.progressUpdate.findMany({
-      where: { reviewStatus: ProgressReviewStatus.PENDING, target: { departmentId, isArchived: false } },
-      include: {
-        target: { include: { department: true } },
-        user: { select: { id: true, username: true, fullName: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-    return updates.map(update => ({ ...update, canReview: update.userId !== actor.id }));
+    const [updates, setting] = await Promise.all([
+      this.prisma.progressUpdate.findMany({
+        where: { reviewStatus: ProgressReviewStatus.PENDING, target: { departmentId, isArchived: false } },
+        include: {
+          target: { include: { department: true } },
+          user: { select: { id: true, username: true, fullName: true } },
+          _count: { select: { evidences: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { reportAutoApproveDays: true } }),
+    ]);
+    // Hạn tự thông qua (D-013): người duyệt thấy còn bao lâu trước khi hệ thống tự ghi nhận và ghi trách nhiệm.
+    const autoDays = setting?.reportAutoApproveDays ?? 7;
+    return updates.map(({ _count, ...update }) => ({
+      ...update,
+      periodLabel: update.periodKey ? periodLabel(update.periodKey) : null,
+      evidenceCount: _count.evidences,
+      autoApproveAt: autoDays > 0 ? new Date(update.createdAt.getTime() + autoDays * 86_400_000) : null,
+      canReview: update.userId !== actor.id,
+    }));
   }
 
   @Get('my-submissions')

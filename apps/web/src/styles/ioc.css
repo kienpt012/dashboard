@@ -1931,3 +1931,27 @@ a.title:hover {
   height: 14px;
   color: var(--tx-bad);
 }
+
+/* Nhãn vai trò mới (bổ sung cho .role-* trong org.css). */
+.role-leader {
+  border-color: var(--bd-brand);
+  background: var(--bg-brand);
+  color: var(--tx-onbrand);
+}
+
+.role-clerk {
+  border-color: var(--bd-warn);
+  background: var(--bg-warn-soft);
+  color: var(--tx-warn);
+}
+
+/* Trang cấu hình: nhóm "Thời hạn trách nhiệm". */
+.settings-group-title {
+  margin: var(--sp-6) 0 var(--sp-1);
+  font-size: var(--fs-lg);
+  color: var(--tx-strong);
+}
+
+.settings-group-note {
+  margin: 0 0 var(--sp-4);
+}

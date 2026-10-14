@@ -1,6 +1,7 @@
-import { BellRing, CalendarDays, CheckCircle2, Clock3, Gauge, MessageSquareText, Save } from 'lucide-react';
+import { BellRing, CalendarDays, CheckCircle2, Clock3, FileQuestion, Gauge, MessageSquareText, MonitorPlay, Repeat, Save, ShieldCheck, UserPlus } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, auth } from '../api';
+import { hasAnyRole, ADMIN_ROLES } from '../authz';
 import { Empty, PageHead } from '../components/UI';
 import { currentVietnamYear } from '../date';
 import '../styles/org.css';
@@ -14,14 +15,35 @@ type SystemSettings={
   feedbackFirstResponseDays:number;
   feedbackResolutionDays:number;
   feedbackCitizenResponseDays:number;
+  reportAutoApproveDays:number;
+  proposalAutoApproveDays:number;
+  explanationDueDays:number;
+  assignmentStallDays:number;
+  maxTransfers:number;
+  wallboardRotateSeconds:number;
   updatedBy?:string|null;
   updatedAt?:string|null;
 };
 
+type FormState=Omit<SystemSettings,'id'|'version'|'updatedBy'|'updatedAt'>;
+const FORM_KEYS:(keyof FormState)[]=['defaultYear','warningDays','riskThreshold','feedbackFirstResponseDays','feedbackResolutionDays','feedbackCitizenResponseDays','reportAutoApproveDays','proposalAutoApproveDays','explanationDueDays','assignmentStallDays','maxTransfers','wallboardRotateSeconds'];
+const pick=(value:SystemSettings):FormState=>Object.fromEntries(FORM_KEYS.map(key=>[key,value[key]])) as FormState;
+
+/** Thời hạn trách nhiệm (bản 2): mỗi trạng thái chờ đều có hạn, quá hạn hệ thống tự xử lý và ghi trách nhiệm. */
+const ACCOUNTABILITY_FIELDS:{key:keyof FormState;title:string;hint:string;label:string;min:number;max:number;icon:typeof Clock3}[]=[
+  {key:'reportAutoApproveDays',title:'Tự thông qua báo cáo số liệu',hint:'Cán bộ gửi số liệu mà trưởng phòng không duyệt trong số ngày này thì hệ thống tự thông qua và ghi trách nhiệm người duyệt. 0 = tắt.',label:'Số ngày',min:0,max:60,icon:ShieldCheck},
+  {key:'proposalAutoApproveDays',title:'Tự thông qua đề xuất chỉ tiêu',hint:'Đề xuất đã trình không ai quyết định trong số ngày này thì tự thành chỉ tiêu. Đề xuất do AI trích xuất không bao giờ tự thông qua khi chưa có người trình. 0 = tắt.',label:'Số ngày',min:0,max:30,icon:CheckCircle2},
+  {key:'explanationDueDays',title:'Thời hạn giải trình',hint:'Lãnh đạo yêu cầu giải trình thì phòng chủ trì phải trả lời trong số ngày này; quá hạn thì báo lãnh đạo.',label:'Số ngày',min:1,max:30,icon:FileQuestion},
+  {key:'assignmentStallDays',title:'Nhắc giao người phụ trách',hint:'Chỉ tiêu chưa giao chuyên viên quá số ngày này thì nhắc trưởng phòng; quá gấp đôi thì báo lãnh đạo. 0 = tắt.',label:'Số ngày',min:0,max:30,icon:UserPlus},
+  {key:'maxTransfers',title:'Số lần chuyển việc tối đa',hint:'Chuyên viên được chuyển chỉ tiêu cho đồng nghiệp bấy nhiêu lần; hết lượt chỉ được trả về trưởng phòng — chống "đá việc".',label:'Số lần',min:0,max:5,icon:Repeat},
+  {key:'wallboardRotateSeconds',title:'Chuyển trang trình chiếu',hint:'Màn hình phòng họp tự chuyển sang bộ chỉ tiêu hoặc phòng tiếp theo sau số giây này.',label:'Số giây',min:5,max:300,icon:MonitorPlay},
+];
+
 export default function Settings(){
-  const isAdmin=auth.user?.role==='ADMIN';
+  const isAdmin=hasAnyRole(auth.user,ADMIN_ROLES);
   const [settings,setSettings]=useState<SystemSettings|null>(null);
-  const [form,setForm]=useState({defaultYear:currentVietnamYear(),warningDays:14,riskThreshold:70,feedbackFirstResponseDays:2,feedbackResolutionDays:10,feedbackCitizenResponseDays:7});
+  const [form,setForm]=useState<FormState>({defaultYear:currentVietnamYear(),warningDays:14,riskThreshold:70,feedbackFirstResponseDays:2,feedbackResolutionDays:10,feedbackCitizenResponseDays:7,
+    reportAutoApproveDays:7,proposalAutoApproveDays:3,explanationDueDays:3,assignmentStallDays:3,maxTransfers:1,wallboardRotateSeconds:20});
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
@@ -33,7 +55,7 @@ export default function Settings(){
     try{
       const result=await api<SystemSettings>('/settings');
       setSettings(result);
-      setForm({defaultYear:result.defaultYear,warningDays:result.warningDays,riskThreshold:result.riskThreshold,feedbackFirstResponseDays:result.feedbackFirstResponseDays,feedbackResolutionDays:result.feedbackResolutionDays,feedbackCitizenResponseDays:result.feedbackCitizenResponseDays});
+      setForm(pick(result));
     }catch(reason){
       setError(reason instanceof Error?reason.message:'Không thể tải thiết lập hệ thống');
     }finally{setLoading(false)}
@@ -51,7 +73,7 @@ export default function Settings(){
     try{
       const result=await api<SystemSettings>('/settings',{method:'PATCH',body:JSON.stringify({...form,expectedVersion:settings.version})});
       setSettings(result);
-      setForm({defaultYear:result.defaultYear,warningDays:result.warningDays,riskThreshold:result.riskThreshold,feedbackFirstResponseDays:result.feedbackFirstResponseDays,feedbackResolutionDays:result.feedbackResolutionDays,feedbackCitizenResponseDays:result.feedbackCitizenResponseDays});
+      setForm(pick(result));
       setSuccess('Các thiết lập đã được áp dụng cho hệ thống.');
     }catch(reason){
       setError(reason instanceof Error?reason.message:'Không thể lưu thiết lập');
@@ -94,6 +116,14 @@ export default function Settings(){
           <div className="setting-title"><MessageSquareText/><div><h3>Thời hạn bổ sung thông tin</h3><p>Thời gian người dân phản hồi yêu cầu bổ sung; SLA xử lý được tạm dừng trong thời gian này</p></div></div>
           <label>Số ngày chờ bổ sung<input type="number" required min={1} max={60} value={form.feedbackCitizenResponseDays} onChange={event=>setForm({...form,feedbackCitizenResponseDays:Number(event.target.value)})}/></label>
         </section>
+      </div>
+      <h3 className="settings-group-title">Thời hạn trách nhiệm</h3>
+      <p className="muted settings-group-note">Mọi việc chờ đều có hạn. Quá hạn, hệ thống tự xử lý và ghi rõ ai đã để chậm — hiện ở màn hình Trách nhiệm người đứng đầu.</p>
+      <div className="settings-grid">
+        {ACCOUNTABILITY_FIELDS.map(item=>{const Icon=item.icon;return <section key={item.key} className="panel setting-card">
+          <div className="setting-title"><Icon/><div><h3>{item.title}</h3><p>{item.hint}</p></div></div>
+          <label>{item.label}<input type="number" required min={item.min} max={item.max} step={1} value={form[item.key]} onChange={event=>setForm({...form,[item.key]:Number(event.target.value)})}/></label>
+        </section>})}
       </div>
       <div className="settings-save">
         {settings?.updatedAt&&<span className="muted">Cập nhật gần nhất {new Date(settings.updatedAt).toLocaleString('vi-VN')}{settings.updatedBy?` bởi ${settings.updatedBy}`:''}</span>}

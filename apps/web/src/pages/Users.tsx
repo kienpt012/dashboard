@@ -11,17 +11,14 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError, api, auth } from '../api';
-import { getInitials } from '../authz';
+import { getInitials, GLOBAL_ROLES, roleDescriptions, roleLabels } from '../authz';
 import { Empty, Modal, PageHead, SkeletonTable } from '../components/UI';
 import type { Department, Role, User } from '../types';
 import '../styles/org.css';
 
-const roleNames: Record<Role, string> = {
-  ADMIN: 'Quản trị hệ thống',
-  MANAGER: 'Lãnh đạo đơn vị',
-  STAFF: 'Cán bộ cập nhật',
-  VIEWER: 'Chỉ xem báo cáo',
-};
+const roleNames: Record<Role, string> = roleLabels;
+/** Quản trị không gắn phòng; lãnh đạo UBND, văn thư gắn phòng tuỳ chọn; vai trò còn lại bắt buộc có phòng. */
+const departmentOptional = (role: Role) => GLOBAL_ROLES.includes(role);
 
 type UserForm = {
   username: string;
@@ -30,6 +27,7 @@ type UserForm = {
   resetPassword: boolean;
   fullName: string;
   email: string;
+  position: string;
   role: Role;
   departmentId: string;
   isActive: boolean;
@@ -42,6 +40,7 @@ const emptyForm: UserForm = {
   resetPassword: false,
   fullName: '',
   email: '',
+  position: '',
   role: 'STAFF',
   departmentId: '',
   isActive: true,
@@ -81,6 +80,7 @@ export default function Users() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState('');
+  const [emailDomain, setEmailDomain] = useState('');
 
   async function load() {
     if (!isAdmin) {
@@ -105,6 +105,7 @@ export default function Users() {
 
   useEffect(() => {
     void load();
+    if (isAdmin) api<{ emailDomain?: string | null }>('/locality').then(value => setEmailDomain(value.emailDomain || '')).catch(() => undefined);
   }, []);
 
   const activeDepartments = departments.filter(department => department.isActive);
@@ -143,6 +144,7 @@ export default function Users() {
       resetPassword: false,
       fullName: user.fullName,
       email: user.email || '',
+      position: user.position || '',
       role: user.role,
       departmentId: user.departmentId || '',
       isActive: user.isActive,
@@ -155,7 +157,7 @@ export default function Users() {
     setForm(current => ({
       ...current,
       role,
-      departmentId: role === 'ADMIN' ? '' : current.departmentId || activeDepartments[0]?.id || '',
+      departmentId: role === 'ADMIN' ? '' : departmentOptional(role) ? current.departmentId : current.departmentId || activeDepartments[0]?.id || '',
     }));
   }
 
@@ -164,7 +166,7 @@ export default function Users() {
     setFormError('');
     setSuccess('');
 
-    if (form.role !== 'ADMIN' && !form.departmentId) {
+    if (!departmentOptional(form.role) && !form.departmentId) {
       setFormError('Vui lòng chọn phòng ban cho tài khoản này.');
       return;
     }
@@ -193,8 +195,9 @@ export default function Users() {
             expectedVersion: editing.version,
             fullName: form.fullName.trim(),
             email: form.email.trim() || null,
+            position: form.position.trim() || null,
             role: form.role,
-            departmentId: form.role === 'ADMIN' ? null : form.departmentId,
+            departmentId: form.role === 'ADMIN' ? null : form.departmentId || null,
             isActive: form.isActive,
             ...(form.resetPassword ? { password: form.password } : {}),
           }),
@@ -209,8 +212,9 @@ export default function Users() {
             password: form.password,
             fullName: form.fullName.trim(),
             email: form.email.trim() || undefined,
+            position: form.position.trim() || undefined,
             role: form.role,
-            departmentId: form.role === 'ADMIN' ? undefined : form.departmentId,
+            departmentId: form.role === 'ADMIN' ? undefined : form.departmentId || undefined,
           }),
         });
         setSuccess(`Đã tạo tài khoản @${form.username.trim().toLowerCase()}.`);
@@ -286,7 +290,7 @@ export default function Users() {
       {loading ? <SkeletonTable rows={6} /> : <div className="table-wrap"><table className="action-table">
         <thead><tr><th>Người dùng</th><th>Phòng ban</th><th>Vai trò</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th><th>Thao tác</th></tr></thead>
         <tbody>{visible.length ? visible.map(user => <tr key={user.id}>
-          <td><div className="user-cell"><div className="avatar color">{getInitials(user.fullName)}</div><div><strong>{user.fullName}</strong><span>@{user.username}{user.email && <> · {user.email}</>}</span></div></div></td>
+          <td><div className="user-cell"><div className="avatar color">{getInitials(user.fullName)}</div><div><strong>{user.fullName}</strong><span>{user.position && <>{user.position} · </>}@{user.username}{user.email && <> · {user.email}</>}</span></div></div></td>
           <td>{user.department?.name || 'Không gắn cố định'}</td>
           <td><span className={`role role-${user.role.toLowerCase()}`}>{roleNames[user.role]}</span></td>
           <td><span className={`status ${user.isActive ? 'green' : 'slate'}`}><i />{user.isActive ? 'Hoạt động' : 'Đã khóa'}</span></td>
@@ -308,11 +312,12 @@ export default function Users() {
       <form className="form-grid" onSubmit={submit}>
         {formError && <div className="form-error full" role="alert">{formError}</div>}
         <label>Họ và tên<input required minLength={2} maxLength={160} value={form.fullName} onChange={event => setForm({ ...form, fullName: event.target.value })} placeholder="Nguyễn Văn A" /></label>
-        <label>Email<input type="email" maxLength={180} value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} placeholder="email@laithieu.gov.vn" /></label>
+        <label>Email<input type="email" maxLength={180} value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} placeholder={emailDomain ? `ten@${emailDomain}` : 'ten@donvi.gov.vn'} /></label>
+        <label>Chức vụ<input maxLength={120} value={form.position} onChange={event => setForm({ ...form, position: event.target.value })} placeholder="Ví dụ: Phó Chủ tịch UBND, Chuyên viên" /></label>
         <label>Tên đăng nhập<input required minLength={3} maxLength={50} pattern="[A-Za-z0-9._-]+" value={form.username} disabled={Boolean(editing)} onChange={event => setForm({ ...form, username: event.target.value })} placeholder="nguyen.van.a" autoComplete="off" /></label>
-        <label>Vai trò<select value={form.role} disabled={editing?.id === actor?.id} onChange={event => changeRole(event.target.value as Role)}>{Object.entries(roleNames).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>
-        <label>Phòng ban<select required={form.role !== 'ADMIN'} disabled={form.role === 'ADMIN'} value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })}>
-          <option value="">{form.role === 'ADMIN' ? 'Quản trị toàn hệ thống' : 'Chọn phòng ban'}</option>
+        <label>Vai trò<select value={form.role} disabled={editing?.id === actor?.id} onChange={event => changeRole(event.target.value as Role)}>{Object.entries(roleNames).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select><small className="field-hint">{roleDescriptions[form.role]}</small></label>
+        <label>Phòng ban<select required={!departmentOptional(form.role)} disabled={form.role === 'ADMIN'} value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })}>
+          <option value="">{form.role === 'ADMIN' ? 'Quản trị toàn hệ thống' : departmentOptional(form.role) ? 'Không gắn phòng (phạm vi toàn địa phương)' : 'Chọn phòng ban'}</option>
           {departments.filter(department => department.isActive || department.id === editing?.departmentId).map(department => <option key={department.id} value={department.id}>{department.name}{department.isActive ? '' : ' (đã ngừng)'}</option>)}
         </select></label>
         {editing ? <label className="check-field">Trạng thái tài khoản<input type="checkbox" checked={form.isActive} disabled={editing.id === actor?.id} onChange={event => setForm({ ...form, isActive: event.target.checked })} /><span>{form.isActive ? 'Đang hoạt động' : 'Khóa tài khoản'}</span></label> : <>
@@ -332,7 +337,7 @@ export default function Users() {
 
         {editing?.id === actor?.id && <div className="permission-note warning full"><AlertTriangle /><div><strong>Đây là tài khoản đang đăng nhập</strong><p>Bạn có thể sửa họ tên và email, nhưng không thể tự khóa hoặc hạ quyền. Để đổi mật khẩu, cấp lại phiên hiện tại và thu hồi các phiên cũ, hãy dùng trang “Hồ sơ & bảo mật”.</p></div></div>}
         <div className="permission-note full"><ShieldCheck /><div><strong>Phân quyền theo đơn vị</strong><p>Tài khoản ngoài vai trò quản trị chỉ xem và xử lý dữ liệu thuộc phòng ban được gán.</p></div></div>
-        <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || (form.role !== 'ADMIN' && !form.departmentId)}>{submitting ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo tài khoản'}</button></div>
+        <div className="modal-actions full"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting || (!departmentOptional(form.role) && !form.departmentId)}>{submitting ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo tài khoản'}</button></div>
       </form>
     </Modal>}
   </>;
