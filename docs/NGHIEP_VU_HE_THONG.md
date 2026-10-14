@@ -300,14 +300,15 @@ npm run build
 
 Các kịch bản `qa:*` cần API và PostgreSQL đang chạy. Chúng dùng dữ liệu có tiền tố kiểm thử, tự xác minh kết quả bằng API và dọn bản ghi do chính kịch bản tạo khi hoàn tất.
 
-Kết quả vòng double-check gần nhất:
+Kết quả vòng kiểm thử gần nhất (15/10/2026, bản 2, CSDL mới seed):
 
 | Nhóm kiểm thử | Kết quả | Phạm vi chính |
 |---|---:|---|
-| Unit (`npm test`) | 18/18 đạt | Tính tiến độ/trạng thái, chỉ tiêu hai chiều, tổng hợp theo trọng số và ranh giới năm theo giờ Việt Nam |
-| Truy cập (`npm run qa:access`) | 33/33 đạt | Đăng nhập, RBAC, cô lập phòng ban, ràng buộc quản trị, chặn tự đặt lại mật khẩu qua API, vòng đời chỉ tiêu và thu hồi token |
-| Phản ánh (`npm run qa:feedback`) | 64/64 đạt | Gửi/tra cứu, idempotency, phân công, SLA, chờ bổ sung, duyệt/đóng/mở lại, đánh giá, ẩn danh, PII và xung đột phiên bản |
-| Import (`npm run qa:import`) | 8/8 đạt | End-to-end tải mẫu Excel hiện hành, xem trước, kiểm tra phạm vi/xung đột, áp dụng và đối soát dữ liệu |
+| Unit (`npm test`) | 230/230 đạt | Tiến độ/trạng thái, công thức tự tính (74), kỳ báo cáo, thư viện bộ chỉ tiêu mẫu (DTI đủ 100 điểm, TT148 đủ 55 mã), quyền sáu vai trò, phê duyệt đề xuất nguyên tử |
+| Truy cập (`npm run qa:access`) | 35/35 đạt | Đăng nhập, RBAC, cô lập phòng ban, ràng buộc quản trị, vòng đời chỉ tiêu và thu hồi token |
+| Phản ánh (`npm run qa:feedback`) | 80/80 đạt | Gửi/tra cứu, idempotency, phân công, SLA, chờ bổ sung, duyệt/đóng/mở lại, ẩn danh, PII và xung đột phiên bản |
+| Import (`npm run qa:import`) | 8/8 đạt | Tải mẫu Excel, xem trước, kiểm tra phạm vi/xung đột, áp dụng và đối soát |
+| Luồng bản 2 (smoke qua API) | Đạt | Trung tâm điều hành, trình chiếu, trách nhiệm, việc của tôi, hồ sơ ba phần, giới hạn chuyển việc, đề xuất trình/duyệt nguyên tử, giải trình, đánh giá bắt buộc nguyên nhân, chỉ tiêu tự tính từ chối nhập tay |
 | Build (`npm run build`) | Đạt | TypeScript và bản dựng production của API + web |
 
 Smoke test giao diện bao phủ trang chính công khai, trang gửi/tra cứu phản ánh và các màn hình quản trị (dashboard, chỉ tiêu, báo cáo, import, phê duyệt, phản ánh, phòng ban, tài khoản, cấu hình, nhật ký, hồ sơ) ở desktop và kích thước di động. Ngoài nội dung/điều hướng, vòng kiểm tra còn xác minh modal, phím `Escape`, khôi phục focus, menu di động, vùng cuộn bảng và không tràn ngang toàn trang.
