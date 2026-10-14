@@ -1,5 +1,5 @@
 /* ============================================================================
-   IOC Lái Thiêu — Token thiết kế
+   IOC — Token thiết kế
    Tầng nền của toàn bộ hệ thống giao diện. Mọi file CSS khác chỉ được dùng các
    token NGỮ NGHĨA khai báo ở đây (--bg-*, --tx-*, --bd-*, --sh-*, --fs-*, --sp-*).
    Không file nào khác được phép viết mã màu trực tiếp.

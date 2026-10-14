@@ -1,4 +1,4 @@
-# Hệ thống thiết kế IOC Lái Thiêu
+# Hệ thống thiết kế IOC
 
 Tầng giao diện toàn cục nằm ở `src/styles/`, được nhập một lần trong `main.tsx` qua `index.css`.
 Mỗi tính năng có một file CSS riêng, do chính trang đó nhập, và luôn xếp sau tầng toàn cục.

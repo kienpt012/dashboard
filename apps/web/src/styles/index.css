@@ -1,5 +1,5 @@
 /* ============================================================================
-   IOC Lái Thiêu — Tầng giao diện toàn cục
+   IOC — Tầng giao diện toàn cục
    Thứ tự nhập có ý nghĩa: token → nền tảng → nguyên thể → vỏ ứng dụng.
    File CSS theo tính năng được từng trang tự nhập, luôn xếp sau tầng này.
    ========================================================================== */

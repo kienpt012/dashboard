@@ -1,5 +1,5 @@
 /* ============================================================================
-   IOC Lái Thiêu — Trình thiết kế trang công khai (Studio) + Trình kết xuất
+   IOC — Trình thiết kế trang công khai (Studio) + Trình kết xuất
    Hai màn hình dùng chung file này:
    1. `pages/PublicDashboardStudio.tsx` — công cụ ba vùng: thư viện khối (trái),
       khung vẽ (giữa), bảng thuộc tính (phải).

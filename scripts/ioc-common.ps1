@@ -1,5 +1,5 @@
 ﻿# =============================================================================
-#  IOC Lái Thiêu — thư viện dùng chung cho trình khởi động và trình dừng
+#  IOC — thư viện dùng chung cho trình khởi động và trình dừng
 #
 #  Được nạp bằng dot-source từ start-ioc.ps1 và stop-ioc.ps1. Không chạy độc lập.
 #

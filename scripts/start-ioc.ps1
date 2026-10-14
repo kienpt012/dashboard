@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  Khởi động toàn bộ hệ thống IOC Lái Thiêu trên Windows, kể cả trên máy chưa cài gì.
+  Khởi động toàn bộ hệ thống IOC trên Windows, kể cả trên máy chưa cài gì.
 
 .DESCRIPTION
   Chạy qua start-ioc.cmd ở thư mục gốc. Script tự làm theo thứ tự:
@@ -1346,7 +1346,7 @@ function Show-Summary {
 
   Write-Host ''
   Write-Host '============================================================' -ForegroundColor Green
-  Write-Host '  IOC Lái Thiêu đã sẵn sàng' -ForegroundColor Green
+  Write-Host '  IOC đã sẵn sàng' -ForegroundColor Green
   Write-Host '============================================================' -ForegroundColor Green
   Write-Host "  Cổng thông tin      $web"
   Write-Host "  Đăng nhập quản trị  $web/admin/login"
@@ -1405,7 +1405,7 @@ $pauseAtEnd = (-not $NoPause) -and (Test-LaunchedFromExplorer)
 
 try {
   Write-Host ''
-  Write-Host 'IOC Lái Thiêu — trình khởi động' -ForegroundColor White
+  Write-Host 'IOC — trình khởi động' -ForegroundColor White
   if ($CheckOnly) { Write-Host 'Chế độ chỉ kiểm tra: không cài đặt và không thay đổi gì.' -ForegroundColor Gray }
 
   # Docker phải chạy TRƯỚC khi tạo .env: chỉ Docker mới cho biết máy đã có dữ liệu của
