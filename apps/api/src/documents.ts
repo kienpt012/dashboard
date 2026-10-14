@@ -42,7 +42,7 @@ import {
 import { createHash } from 'node:crypto';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
-import { audit, getActor, resolveDepartmentScope } from './access';
+import { audit, getActor, resolveDepartmentScope, WORKING_ROLES } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { detectDocumentKind } from './document-processing';
 import { ExtractionWorker } from './extraction-worker';
@@ -262,7 +262,7 @@ export class DocumentsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(...WORKING_ROLES)
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),
     limits: { files: 1, fileSize: DOCUMENT_MAX_BYTES },
@@ -365,7 +365,7 @@ export class DocumentsController {
 
   @Post(':id/extract')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(...WORKING_ROLES)
   async reExtract(@Req() req: any, @Param('id') id: string) {
     const actor = getActor(req);
     return this.prisma.$transaction(async (tx) => {
@@ -408,7 +408,7 @@ export class DocumentsController {
 
   @Post(':id/extraction-jobs/:jobId/cancel')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(...WORKING_ROLES)
   async cancelExtractionJob(
     @Req() req: any,
     @Param('id') id: string,

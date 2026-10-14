@@ -50,7 +50,7 @@ import { basename } from 'path';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import * as bcrypt from 'bcryptjs';
-import { type Actor, audit, assertDepartmentAccess, getActor, resolveDepartmentScope } from './access';
+import { type Actor, audit, assertDepartmentAccess, getActor, isLeadership, resolveDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { PrismaService } from './prisma.service';
 import { getClientIp, RateLimitService } from './rate-limit';
@@ -1137,7 +1137,8 @@ export class FeedbackController {
   }
 
   private assertCanHandle(actor: Actor, feedback: { departmentId: string | null; assignedToId: string | null }) {
-    if (actor.role === Role.ADMIN) return;
+    // Lãnh đạo UBND xử lý được mọi hồ sơ như quản trị; văn thư chỉ tiếp nhận, phân loại, chuyển phòng (không vào đây).
+    if (isLeadership(actor)) return;
     if (!feedback.departmentId) throw new ForbiddenException('Phản ánh chưa được phân công cho đơn vị');
     assertDepartmentAccess(actor, feedback.departmentId);
     if (actor.role === Role.STAFF && feedback.assignedToId !== actor.id) {
@@ -1320,7 +1321,7 @@ export class FeedbackController {
 
   @Get('assignees')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER)
   async assignees(@Req() req: any, @Query('departmentId') requestedDepartmentId?: string) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
@@ -1344,7 +1345,7 @@ export class FeedbackController {
 
   @Get(':id/attachments/:attachmentId/download')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF)
   async downloadAttachment(
     @Req() req: any,
     @Param('id') id: string,
@@ -1364,7 +1365,7 @@ export class FeedbackController {
 
   @Get(':id/publication-preview')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.LEADER)
   async publicationPreview(
     @Req() req: any,
     @Param('id') id: string,
@@ -1394,7 +1395,7 @@ export class FeedbackController {
 
   @Post(':id/triage')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER)
   async triage(@Req() req: any, @Param('id') id: string, @Body() dto: TriageFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1437,7 +1438,7 @@ export class FeedbackController {
 
   @Post(':id/assign')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER)
   async assign(@Req() req: any, @Param('id') id: string, @Body() dto: AssignFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1495,7 +1496,7 @@ export class FeedbackController {
 
   @Post(':id/start')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
   async start(@Req() req: any, @Param('id') id: string, @Body() dto: ExpectedVersionDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1505,7 +1506,7 @@ export class FeedbackController {
 
   @Post(':id/request-information')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
   async requestInformation(@Req() req: any, @Param('id') id: string, @Body() dto: RequestInformationDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1527,7 +1528,7 @@ export class FeedbackController {
 
   @Post(':id/messages')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
   async addMessage(@Req() req: any, @Param('id') id: string, @Body() dto: MessageFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1552,7 +1553,7 @@ export class FeedbackController {
 
   @Post(':id/contact-attempt')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
   async logContactAttempt(@Req() req: any, @Param('id') id: string, @Body() dto: ContactAttemptDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1576,7 +1577,7 @@ export class FeedbackController {
 
   @Post(':id/submit-resolution')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
   async submitResolution(@Req() req: any, @Param('id') id: string, @Body() dto: SubmitResolutionDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1586,7 +1587,7 @@ export class FeedbackController {
 
   @Post(':id/review')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async review(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewResolutionDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1621,7 +1622,7 @@ export class FeedbackController {
 
   @Post(':id/close')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async close(@Req() req: any, @Param('id') id: string, @Body() dto: CloseFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1630,7 +1631,7 @@ export class FeedbackController {
 
   @Post(':id/close-no-response')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async closeNoResponse(@Req() req: any, @Param('id') id: string, @Body() dto: CloseNoResponseDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1669,7 +1670,7 @@ export class FeedbackController {
 
   @Post(':id/reject')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.LEADER)
   async reject(@Req() req: any, @Param('id') id: string, @Body() dto: RejectFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1678,7 +1679,7 @@ export class FeedbackController {
 
   @Post(':id/reopen')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async reopen(@Req() req: any, @Param('id') id: string, @Body() dto: ReopenFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1726,7 +1727,7 @@ export class FeedbackController {
 
   @Post(':id/reopen-request/reject')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async rejectReopenRequest(@Req() req: any, @Param('id') id: string, @Body() dto: RejectReopenRequestDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);
@@ -1773,7 +1774,7 @@ export class FeedbackController {
 
   @Post(':id/publish')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.LEADER)
   async publish(@Req() req: any, @Param('id') id: string, @Body() dto: PublishFeedbackDto) {
     const actor = getActor(req);
     const feedback = await this.findScoped(actor, id);

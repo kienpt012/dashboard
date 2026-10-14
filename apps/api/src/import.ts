@@ -18,7 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ImportBatchStatus, ProgressReviewStatus, Role } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import { audit, assertDepartmentAccess, getActor, resolveDepartmentScope } from './access';
+import { audit, assertDepartmentAccess, getActor, isLeadership, resolveDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { PrismaService } from './prisma.service';
@@ -164,7 +164,7 @@ export class ImportController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
   async list(@Req() req: any, @Query('departmentId') requestedDepartmentId?: string) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
@@ -211,7 +211,7 @@ export class ImportController {
 
   @Get('batch/:id')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
   async detail(@Req() req: any, @Param('id') id: string) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor);
@@ -253,7 +253,7 @@ export class ImportController {
 
   @Get('template')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
   async template(
     @Req() req: any,
     @Res() res: Response,
@@ -405,7 +405,7 @@ export class ImportController {
 
   @Post('targets/preview')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE, files: 1 } }))
   async preview(@UploadedFile() uploaded: Express.Multer.File, @Req() req: any) {
     const file = validateWorkbookFile(uploaded);
@@ -594,13 +594,13 @@ export class ImportController {
 
   @Post(':id/apply')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
   async apply(@Param('id') id: string, @Req() req: any) {
     const actor = getActor(req);
     const existing = await this.prisma.importBatch.findUnique({ where: { id } });
     if (!existing) throw new BadRequestException('Không tìm thấy lần import');
     if (existing.departmentId) assertDepartmentAccess(actor, existing.departmentId);
-    else if (actor.role !== Role.ADMIN) throw new ConflictException('Chỉ quản trị viên được áp dụng file nhiều phòng ban');
+    else if (!isLeadership(actor)) throw new ConflictException('Chỉ lãnh đạo UBND hoặc quản trị viên được áp dụng file nhiều phòng ban');
     if (existing.createdBy !== actor.username) {
       throw new ForbiddenException('Bạn chỉ được áp dụng file do chính mình thực hiện xem trước');
     }
@@ -614,7 +614,7 @@ export class ImportController {
           throw new ForbiddenException('Bạn chỉ được áp dụng file do chính mình thực hiện xem trước');
         }
         if (draft.departmentId) assertDepartmentAccess(actor, draft.departmentId);
-        else if (actor.role !== Role.ADMIN) throw new ConflictException('Chỉ quản trị viên được áp dụng file nhiều phòng ban');
+        else if (!isLeadership(actor)) throw new ConflictException('Chỉ lãnh đạo UBND hoặc quản trị viên được áp dụng file nhiều phòng ban');
         if (PROCESSED_BATCH_STATUSES.includes(draft.status)) return { ...draft, idempotent: true };
         if (draft.status !== ImportBatchStatus.PREVIEWED) throw new ConflictException('Lần import không còn ở trạng thái chờ áp dụng');
         if (draft.errorRows > 0) throw new ConflictException('File còn lỗi; vui lòng sửa và thực hiện xem trước lại');
@@ -652,7 +652,8 @@ export class ImportController {
         }
         if (conflicts.length) throw new ConflictException({ message: 'Dữ liệu đã thay đổi sau bước xem trước', errors: conflicts });
 
-        const approved = actor.role === Role.ADMIN;
+        // Lãnh đạo UBND và quản trị ghi nhận thẳng; trưởng phòng, chuyên viên tạo báo cáo chờ duyệt.
+        const approved = isLeadership(actor);
         if (!approved) {
           const pending = await tx.progressUpdate.findMany({
             where: {
