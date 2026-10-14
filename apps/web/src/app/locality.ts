@@ -67,11 +67,17 @@ export function localityInitials(locality: PublicLocality) {
   return (words.length >= 2 ? words[0][0] + words[words.length - 1][0] : (words[0] ?? 'IO').slice(0, 2)).toUpperCase();
 }
 
+/** "Phường Lái Thiêu" — không lặp loại đơn vị khi tên đã có sẵn. */
+export function localityTitle(locality: PublicLocality) {
+  const name = locality.name.trim();
+  return name.toLocaleLowerCase('vi').startsWith(locality.kindLabel.toLocaleLowerCase('vi')) ? name : `${locality.kindLabel} ${name}`;
+}
+
 /** "UBND phường Lái Thiêu" → ["ỦY BAN NHÂN DÂN", "PHƯỜNG LÁI THIÊU"] cho phần đầu văn bản. */
 export function agencyLines(locality: PublicLocality) {
   const raw = (locality.agencyName || '').trim();
   const match = /^(UBND|Ủy ban nhân dân|Uỷ ban nhân dân)\s+(.+)$/i.exec(raw);
   if (match) return ['ỦY BAN NHÂN DÂN', match[2].toUpperCase()];
-  if (locality.configured) return ['ỦY BAN NHÂN DÂN', `${locality.kindLabel} ${locality.name}`.toUpperCase()];
+  if (locality.configured) return ['ỦY BAN NHÂN DÂN', localityTitle(locality).toUpperCase()];
   return [raw.toUpperCase() || 'ỦY BAN NHÂN DÂN'];
 }

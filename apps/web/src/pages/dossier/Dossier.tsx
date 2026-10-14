@@ -1,7 +1,7 @@
 import { BellOutlined, CopyOutlined, DownOutlined, FileSearchOutlined, ReloadOutlined, SendOutlined, SolutionOutlined, SwapOutlined, UndoOutlined, UserAddOutlined } from '@ant-design/icons';
 import { Alert, App, Badge, Button, Card, Col, Dropdown, Flex, Progress, Result, Row, Space, Tabs, Tag, Tooltip, Typography, type MenuProps } from 'antd';
-import { useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
 import { LoadError, PageSkeleton } from '@/components/States';
@@ -86,6 +86,17 @@ function DossierView({ d }: { d: DossierData }) {
   const [explaining, setExplaining] = useState(false);
   const p = d.permissions;
   const canReport = d.valueSource === 'MANUAL' && p.canReport && !d.isArchived;
+  const [params, setParams] = useSearchParams();
+
+  // Mở sẵn biểu mẫu báo cáo khi đi từ "Việc của tôi" (?bao-cao=kỳ).
+  useEffect(() => {
+    const preset = params.get('bao-cao');
+    if (!preset) return;
+    if (canReport) setReporting({ period: preset === '1' ? undefined : preset });
+    const next = new URLSearchParams(params);
+    next.delete('bao-cao');
+    setParams(next, { replace: true });
+  }, [params, setParams, canReport]);
 
   async function remind() {
     const result = await run(() => http.post<{ sent: number; message: string }>(`/targets/${d.id}/remind`));

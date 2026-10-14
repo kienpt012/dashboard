@@ -13,7 +13,7 @@
 
 @page landscape {
   size: A4 landscape;
-  margin: 15mm 15mm 12mm 20mm;
+  margin: 12mm 15mm 10mm 20mm;
 }
 
 @media print {
@@ -47,6 +47,22 @@
 
   .print-doc.landscape {
     page: landscape;
+  }
+
+  .print-doc.landscape .print-doc-head {
+    margin-bottom: 1mm;
+  }
+
+  .print-doc.landscape .print-doc-title {
+    margin: 1mm 0 3mm;
+  }
+
+  .print-doc.landscape .print-doc-sign {
+    margin-top: 3mm;
+  }
+
+  .print-doc.landscape .print-doc-sign-space {
+    height: 13mm;
   }
 
   .print-doc * {
@@ -133,6 +149,11 @@
     font-size: 10.5pt;
   }
 
+  .print-doc.landscape th {
+    font-size: 10pt;
+    padding: 2pt 2pt;
+  }
+
   .print-doc thead {
     display: table-header-group;
   }
@@ -174,6 +195,38 @@
     width: 9mm;
   }
 
+  .print-doc .w-name {
+    width: 60mm;
+  }
+
+  .print-doc .w-person {
+    width: 34mm;
+  }
+
+  .print-doc .w-title {
+    width: 92mm;
+  }
+
+  .print-doc .w-unit {
+    width: 18mm;
+  }
+
+  .print-doc .w-plan {
+    width: 30mm;
+  }
+
+  .print-doc .w-num {
+    width: 17mm;
+  }
+
+  .print-doc .w-eval {
+    width: 25mm;
+  }
+
+  .print-doc .w-dept {
+    width: 44mm;
+  }
+
   .print-doc .print-note {
     margin-top: 4mm;
     font-size: 11pt;
@@ -190,7 +243,17 @@
     gap: 10mm;
     margin-top: 6mm;
     break-inside: avoid;
+    break-before: avoid;
     text-align: center;
+  }
+
+  /* Không để phần chữ ký đứng một mình ở trang cuối: kéo theo vài dòng cuối của bảng. */
+  .print-doc tbody tr:nth-last-child(-n + 3) {
+    break-after: avoid;
+  }
+
+  .print-doc-body {
+    break-after: avoid;
   }
 
   .print-doc-sign > div {
