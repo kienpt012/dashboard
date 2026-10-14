@@ -53,12 +53,12 @@
   --sp-12: 96px;
 
   /* ---------- Bo góc ----------------------------------------------------- */
-  --r-xs: 6px;
-  --r-sm: 8px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 18px;
-  --r-2xl: 24px;
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 10px;
+  --r-2xl: 12px;
   --r-pill: 999px;
 
   /* ---------- Thang màu gốc --------------------------------------------- */
@@ -238,26 +238,26 @@
   --bd-ai: var(--ai-200);
 
   /* Đổ bóng */
-  --sh-xs: 0 1px 2px rgba(17, 24, 56, 0.05);
-  --sh-sm: 0 2px 6px rgba(17, 24, 56, 0.06), 0 1px 2px rgba(17, 24, 56, 0.04);
-  --sh-md: 0 6px 18px rgba(17, 24, 56, 0.08), 0 2px 5px rgba(17, 24, 56, 0.04);
-  --sh-lg: 0 16px 38px rgba(17, 24, 56, 0.1), 0 4px 10px rgba(17, 24, 56, 0.05);
-  --sh-xl: 0 28px 64px rgba(17, 24, 56, 0.16), 0 8px 20px rgba(17, 24, 56, 0.07);
+  --sh-xs: none;
+  --sh-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --sh-md: 0 2px 6px rgba(16, 24, 40, 0.07);
+  --sh-lg: 0 8px 24px rgba(16, 24, 40, 0.1);
+  --sh-xl: 0 16px 40px rgba(16, 24, 40, 0.14);
   --sh-focus: 0 0 0 3px var(--bd-focus);
   --sh-inset: inset 0 1px 2px rgba(17, 24, 56, 0.05);
   /* Bóng ở mép vùng cuộn ngang, báo còn nội dung phía đó. */
   --sh-edge: rgba(17, 24, 56, 0.16);
 
-  /* Vỏ điều hướng — luôn tối để giữ khí chất trung tâm điều hành */
-  --nav-bg: linear-gradient(180deg, #131c40 0%, #0d1430 60%, #0b1129 100%);
-  --nav-solid: #101838;
-  --nav-tx: #dbe4ff;
-  --nav-tx-muted: #8e9cc9;
-  --nav-tx-faint: #6b78a3;
-  --nav-active-bg: rgba(106, 141, 251, 0.16);
-  --nav-active-tx: #ffffff;
-  --nav-hover-bg: rgba(255, 255, 255, 0.06);
-  --nav-bd: rgba(255, 255, 255, 0.08);
+  /* Vỏ điều hướng — sáng, phẳng; chế độ tối dùng xám trung tính */
+  --nav-bg: var(--n-0);
+  --nav-solid: var(--n-0);
+  --nav-tx: var(--n-700);
+  --nav-tx-muted: var(--n-500);
+  --nav-tx-faint: var(--n-400);
+  --nav-active-bg: var(--brand-50);
+  --nav-active-tx: var(--brand-700);
+  --nav-hover-bg: var(--n-100);
+  --nav-bd: var(--n-150);
 
   /* Thanh cuộn */
   --scrollbar-thumb: var(--n-300);
@@ -283,11 +283,11 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --bg-canvas: #080b14;
-    --bg-surface: #11172a;
-    --bg-surface-2: #161d33;
-    --bg-surface-3: #1d2540;
-    --bg-inset: #0e1424;
+    --bg-canvas: #0f1115;
+    --bg-surface: #16181d;
+    --bg-surface-2: #1b1e24;
+    --bg-surface-3: #22262d;
+    --bg-inset: #121419;
     --bg-overlay: rgba(4, 6, 12, 0.68);
     --bg-scrim: rgba(8, 11, 20, 0.72);
 
@@ -305,10 +305,10 @@
     --bg-bad: var(--bad-500);
     --bg-bad-soft: rgba(226, 59, 86, 0.16);
 
-    --tx-strong: #eaeffb;
-    --tx-normal: #c2cbdf;
-    --tx-muted: #8d98b3;
-    --tx-subtle: #6d7899;
+    --tx-strong: #e8eaee;
+    --tx-normal: #c4c8d0;
+    --tx-muted: #9aa0ab;
+    --tx-subtle: #737a86;
     --tx-onbrand: #ffffff;
     --tx-brand: var(--brand-300);
     --tx-accent: var(--accent-300);
@@ -317,9 +317,9 @@
     --tx-warn: var(--warn-300);
     --tx-bad: var(--bad-300);
 
-    --bd-subtle: #202942;
-    --bd-normal: #2a3450;
-    --bd-strong: #3a4666;
+    --bd-subtle: #24282f;
+    --bd-normal: #2e333b;
+    --bd-strong: #3d434d;
     --bd-brand: var(--brand-500);
     --bd-focus: rgba(106, 141, 251, 0.42);
     --bd-ok: rgba(52, 184, 120, 0.32);
@@ -327,24 +327,24 @@
     --bd-bad: rgba(241, 88, 114, 0.32);
     --bd-ai: rgba(158, 124, 255, 0.32);
 
-    --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --sh-sm: 0 2px 6px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --sh-md: 0 6px 18px rgba(0, 0, 0, 0.48), 0 2px 5px rgba(0, 0, 0, 0.32);
-    --sh-lg: 0 16px 38px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.34);
-    --sh-xl: 0 28px 64px rgba(0, 0, 0, 0.62), 0 8px 20px rgba(0, 0, 0, 0.4);
+    --sh-xs: none;
+    --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --sh-md: 0 2px 6px rgba(0, 0, 0, 0.35);
+    --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --sh-xl: 0 16px 40px rgba(0, 0, 0, 0.5);
     --sh-focus: 0 0 0 3px var(--bd-focus);
     --sh-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-edge: rgba(0, 0, 0, 0.55);
 
-    --nav-bg: linear-gradient(180deg, #0d1322 0%, #0a0f1c 100%);
-    --nav-solid: #0b1120;
-    --nav-tx: #d5ddf0;
-    --nav-tx-muted: #808ca9;
-    --nav-tx-faint: #66708c;
-    --nav-active-bg: rgba(106, 141, 251, 0.18);
+    --nav-bg: #121419;
+    --nav-solid: #121419;
+    --nav-tx: #d3d7de;
+    --nav-tx-muted: #9aa0ab;
+    --nav-tx-faint: #737a86;
+    --nav-active-bg: rgba(91, 124, 245, 0.16);
     --nav-active-tx: #ffffff;
     --nav-hover-bg: rgba(255, 255, 255, 0.05);
-    --nav-bd: rgba(255, 255, 255, 0.07);
+    --nav-bd: #24282f;
 
     --scrollbar-thumb: #303a58;
     --scrollbar-thumb-hover: #414d72;
@@ -362,11 +362,11 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg-canvas: #080b14;
-  --bg-surface: #11172a;
-  --bg-surface-2: #161d33;
-  --bg-surface-3: #1d2540;
-  --bg-inset: #0e1424;
+  --bg-canvas: #0f1115;
+  --bg-surface: #16181d;
+  --bg-surface-2: #1b1e24;
+  --bg-surface-3: #22262d;
+  --bg-inset: #121419;
   --bg-overlay: rgba(4, 6, 12, 0.68);
   --bg-scrim: rgba(8, 11, 20, 0.72);
 
@@ -384,10 +384,10 @@
   --bg-bad: var(--bad-500);
   --bg-bad-soft: rgba(226, 59, 86, 0.16);
 
-  --tx-strong: #eaeffb;
-  --tx-normal: #c2cbdf;
-  --tx-muted: #8d98b3;
-  --tx-subtle: #6d7899;
+  --tx-strong: #e8eaee;
+  --tx-normal: #c4c8d0;
+  --tx-muted: #9aa0ab;
+  --tx-subtle: #737a86;
   --tx-onbrand: #ffffff;
   --tx-brand: var(--brand-300);
   --tx-accent: var(--accent-300);
@@ -396,9 +396,9 @@
   --tx-warn: var(--warn-300);
   --tx-bad: var(--bad-300);
 
-  --bd-subtle: #202942;
-  --bd-normal: #2a3450;
-  --bd-strong: #3a4666;
+  --bd-subtle: #24282f;
+  --bd-normal: #2e333b;
+  --bd-strong: #3d434d;
   --bd-brand: var(--brand-500);
   --bd-focus: rgba(106, 141, 251, 0.42);
   --bd-ok: rgba(52, 184, 120, 0.32);
@@ -406,24 +406,24 @@
   --bd-bad: rgba(241, 88, 114, 0.32);
   --bd-ai: rgba(158, 124, 255, 0.32);
 
-  --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --sh-sm: 0 2px 6px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --sh-md: 0 6px 18px rgba(0, 0, 0, 0.48), 0 2px 5px rgba(0, 0, 0, 0.32);
-  --sh-lg: 0 16px 38px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.34);
-  --sh-xl: 0 28px 64px rgba(0, 0, 0, 0.62), 0 8px 20px rgba(0, 0, 0, 0.4);
+  --sh-xs: none;
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-md: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --sh-xl: 0 16px 40px rgba(0, 0, 0, 0.5);
   --sh-focus: 0 0 0 3px var(--bd-focus);
   --sh-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-edge: rgba(0, 0, 0, 0.55);
 
-  --nav-bg: linear-gradient(180deg, #0d1322 0%, #0a0f1c 100%);
-  --nav-solid: #0b1120;
-  --nav-tx: #d5ddf0;
-  --nav-tx-muted: #808ca9;
-  --nav-tx-faint: #66708c;
-  --nav-active-bg: rgba(106, 141, 251, 0.18);
+  --nav-bg: #121419;
+  --nav-solid: #121419;
+  --nav-tx: #d3d7de;
+  --nav-tx-muted: #9aa0ab;
+  --nav-tx-faint: #737a86;
+  --nav-active-bg: rgba(91, 124, 245, 0.16);
   --nav-active-tx: #ffffff;
   --nav-hover-bg: rgba(255, 255, 255, 0.05);
-  --nav-bd: rgba(255, 255, 255, 0.07);
+  --nav-bd: #24282f;
 
   --scrollbar-thumb: #303a58;
   --scrollbar-thumb-hover: #414d72;
@@ -439,18 +439,18 @@
 /* Người dùng đặt hệ điều hành ở chế độ tương phản cao. */
 @media (prefers-contrast: more) {
   :root {
-    --bd-subtle: var(--n-300);
-    --bd-normal: var(--n-400);
-    --bd-strong: var(--n-600);
-    --tx-muted: var(--n-600);
-    --tx-subtle: var(--n-500);
+    --bd-subtle: #24282f;
+    --bd-normal: #2e333b;
+    --bd-strong: #3d434d;
+    --tx-muted: #9aa0ab;
+    --tx-subtle: #737a86;
   }
 
   :root[data-theme='dark'] {
-    --bd-subtle: #3a4666;
-    --bd-normal: #4a5880;
-    --bd-strong: #6b7aa3;
-    --tx-muted: #a8b3cc;
-    --tx-subtle: #8d98b3;
+    --bd-subtle: #24282f;
+    --bd-normal: #2e333b;
+    --bd-strong: #3d434d;
+    --tx-muted: #9aa0ab;
+    --tx-subtle: #737a86;
   }
 }

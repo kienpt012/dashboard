@@ -15,7 +15,7 @@ export default function ScreenFooter(){
   useEffect(()=>setLoadedAt(new Date()),[location.pathname,location.search]);
   return <footer className="screen-footer" aria-label="Định danh màn hình">
     <span className="code">{screenCodeFor(location.pathname)}</span>
-    <span>{locality.brandName}{locality.configured?` · ${locality.agencyName}`:''}</span>
-    <span>Dữ liệu lúc {fmtDateTime(loadedAt)}</span>
+    <span>{locality.brandName}</span>
+    <span>{fmtDateTime(loadedAt)}</span>
   </footer>;
 }

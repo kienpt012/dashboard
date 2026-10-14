@@ -148,40 +148,6 @@
   font-size: var(--fs-sm);
 }
 
-/* Nút "Báo lỗi" nổi: nằm ngay trên nút Copilot để không che nhau. */
-.bug-fab {
-  position: fixed;
-  right: var(--sp-5);
-  bottom: calc(var(--sp-5) + 56px + var(--sp-3));
-  z-index: var(--z-copilot);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  height: 34px;
-  padding: 0 var(--sp-3);
-  border: 1px solid var(--bd-normal);
-  border-radius: var(--r-pill);
-  background: var(--bg-surface);
-  color: var(--tx-muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  box-shadow: var(--sh-sm);
-  transition: color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out),
-    box-shadow var(--t-fast) var(--ease-out);
-}
-
-.bug-fab:hover,
-.bug-fab:focus-visible {
-  color: var(--tx-bad);
-  border-color: var(--bd-bad);
-  box-shadow: var(--sh-md);
-}
-
-.bug-fab svg {
-  width: 15px;
-  height: 15px;
-}
-
 .bug-context {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -252,25 +218,12 @@ label.field {
 }
 
 @media (max-width: 640px) {
-  .bug-fab {
-    right: var(--sp-4);
-    bottom: calc(var(--sp-4) + 56px + var(--sp-2));
-    width: 38px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .bug-fab span {
-    display: none;
-  }
-
   .bug-context {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media print {
-  .bug-fab,
   .notif {
     display: none !important;
   }

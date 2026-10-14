@@ -49,7 +49,7 @@ export default function BugReportButton(){
       form.set('viewport',context.viewport);
       if(file)form.set('screenshot',file);
       await api('/bug-reports',{method:'POST',body:form});
-      toast.ok('Đã gửi báo lỗi','Kèm địa chỉ trang và thời điểm để quản trị viên tìm đúng chỗ.');
+      toast.ok('Đã gửi báo lỗi');
       setOpen(false);
     }catch(reason){
       setError(reason instanceof Error?reason.message:'Không gửi được báo lỗi');
@@ -57,20 +57,20 @@ export default function BugReportButton(){
   }
 
   return <>
-    <button type="button" className="bug-fab" onClick={start} aria-label="Báo lỗi màn hình này" title="Báo lỗi màn hình này">
-      <Bug aria-hidden="true"/><span>Báo lỗi</span>
+    <button type="button" className="top-icon-btn" onClick={start} aria-label="Báo lỗi màn hình này" title="Báo lỗi màn hình này">
+      <Bug aria-hidden="true"/>
     </button>
-    {open&&<Modal title="Báo lỗi màn hình này" description="Hệ thống tự ghi lại địa chỉ trang và thời điểm để người sửa tìm đúng chỗ." onClose={()=>setOpen(false)}>
+    {open&&<Modal title="Báo lỗi" onClose={()=>setOpen(false)}>
       <div className="bug-context">
         <span><b>Mã màn hình</b>{context.screenCode}</span>
         <span><b>Thời điểm</b>{fmtDateTime(openedAt)}</span>
         <span className="full"><b>Địa chỉ</b><code>{context.url}</code></span>
       </div>
-      <label className="field">Lỗi bạn gặp
-        <textarea rows={5} value={description} onChange={event=>setDescription(event.target.value)} onPaste={onPaste} placeholder="Ví dụ: bấm Lưu số liệu thì báo lỗi, số liệu tháng 9 không hiện…" maxLength={4000}/>
+      <label className="field">Mô tả lỗi
+        <textarea rows={5} value={description} onChange={event=>setDescription(event.target.value)} onPaste={onPaste} maxLength={4000}/>
       </label>
       <label className="btn secondary sm bug-file">
-        <ImagePlus aria-hidden="true"/>{file?`Ảnh: ${file.name||'ảnh dán từ bộ nhớ tạm'}`:'Đính kèm ảnh chụp (hoặc dán Ctrl+V)'}
+        <ImagePlus aria-hidden="true"/>{file?file.name||'Ảnh đã dán':'Đính kèm ảnh'}
         <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event=>setFile(event.target.files?.[0]??null)}/>
       </label>
       {error&&<p className="form-error">{error}</p>}

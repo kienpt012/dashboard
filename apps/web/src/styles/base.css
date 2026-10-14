@@ -425,7 +425,20 @@ p.eyebrow {
    Báo cáo chỉ tiêu thường được in ra để họp. Bỏ toàn bộ vỏ giao diện, giữ nội dung.
    -------------------------------------------------------------------------- */
 @media print {
-  :root {
+  :root,
+  :root[data-theme='dark'],
+  :root:not([data-theme='light']) {
+    color-scheme: light;
+    --tx-subtle: #555;
+    --tx-brand: #000;
+    --tx-ok: #000;
+    --tx-warn: #000;
+    --tx-bad: #000;
+    --bg-ok-soft: #fff;
+    --bg-warn-soft: #fff;
+    --bg-bad-soft: #fff;
+    --bg-brand-soft: #fff;
+    --bd-strong: #666;
     --bg-canvas: #fff;
     --bg-surface: #fff;
     --bg-surface-2: #fff;
@@ -442,6 +455,9 @@ p.eyebrow {
     --sh-xl: none;
   }
 
+  .skip-link,
+  .screen-footer,
+  .notif,
   .sidebar,
   .topbar,
   .scroll-progress,
@@ -464,11 +480,19 @@ p.eyebrow {
     max-width: none !important;
   }
 
+  /* Không cấm cắt khung lớn: một bảng dài bị đẩy nguyên khối sang trang sau sẽ để lại trang trống. */
   .panel,
   .card {
-    break-inside: avoid;
     border: 1px solid #ccc !important;
     box-shadow: none !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
   }
 
   a[href^='http']::after {

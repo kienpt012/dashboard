@@ -116,15 +116,13 @@
 }
 
 .btn.ai {
-  background: linear-gradient(135deg, var(--ai-500), var(--ai-700));
+  background: var(--bg-ai);
   border-color: transparent;
   color: #fff;
-  box-shadow: var(--sh-sm);
 }
 
 .btn.ai:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--ai-400), var(--ai-600));
-  box-shadow: var(--sh-md);
+  background: var(--ai-600);
 }
 
 .btn.sm,
@@ -694,8 +692,8 @@ label > .input-icon {
 }
 
 .panel-head h3 {
-  font-size: var(--fs-lg);
-  font-weight: 700;
+  font-size: var(--fs-md);
+  font-weight: 600;
   color: var(--tx-strong);
   margin: 0;
 }
@@ -1112,13 +1110,14 @@ th {
   top: 0;
   z-index: 1;
   text-align: left;
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--bg-surface-3);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--bd-subtle);
   color: var(--tx-muted);
-  font-size: var(--fs-micro);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: var(--ls-caps);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
   white-space: nowrap;
   border-bottom: 1px solid var(--bd-subtle);
 }
@@ -1266,9 +1265,9 @@ td strong {
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: var(--r-md);
-  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
-  color: #fff;
+  border-radius: var(--r-pill);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
   font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: var(--ls-wide);

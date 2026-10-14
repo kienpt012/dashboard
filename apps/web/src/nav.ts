@@ -77,7 +77,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         to: '/trinh-chieu',
-        label: 'Trình chiếu phòng họp',
+        label: 'Trình chiếu',
         hint: 'Màn hình lớn tự chuyển qua từng bộ chỉ tiêu và từng phòng',
         icon: MonitorPlay,
         roles: ALL_ROLES,
@@ -86,7 +86,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         to: '/admin/trach-nhiem',
-        label: 'Trách nhiệm người đứng đầu',
+        label: 'Trách nhiệm',
         hint: 'Chậm duyệt, bị tự thông qua, từ chối đề xuất, việc bị đá qua lại',
         icon: Scale,
         roles: SUPERVISOR_ROLES,

@@ -82,25 +82,24 @@ export function CopyCode({ value, label }: { value: string; label?: string }) {
   );
 }
 
-/** Đầu trang chuẩn: nhãn nhóm, tiêu đề, mô tả và vùng hành động bên phải. */
+/**
+ * Đầu trang: chỉ tiêu đề và các nút thao tác. Không nhãn nhóm, không câu mô tả —
+ * phần giải thích thuộc về tài liệu hướng dẫn sử dụng, không đặt trên giao diện.
+ */
 export function PageHead({
-  eyebrow,
   title,
-  description,
   actions,
 }: {
-  eyebrow?: string;
-  title: string;
-  description: string;
+  title: ReactNode;
   actions?: ReactNode;
+  /** @deprecated Không còn hiển thị; giữ để không vỡ trang cũ. */
+  eyebrow?: string;
+  /** @deprecated Không còn hiển thị; giữ để không vỡ trang cũ. */
+  description?: string;
 }) {
   return (
     <div className="page-head">
-      <div>
-        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </div>
+      <h2>{title}</h2>
       {actions && <div className="page-actions">{actions}</div>}
     </div>
   );
