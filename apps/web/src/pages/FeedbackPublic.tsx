@@ -23,6 +23,7 @@ import {
 import { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, downloadApi } from '../api';
+import { localityInitials, useLocality } from '../locality';
 import ScrollProgress from '../components/ScrollProgress';
 import { toast } from '../components/Toast';
 import { CopyButton, Empty, Skeleton, SkeletonText } from '../components/UI';
@@ -144,6 +145,10 @@ function isAcceptedEvidenceFile(file:File){
 }
 
 export default function FeedbackPublic(){
+  const locality=useLocality();
+  const unitName=locality.configured?locality.name:'Trung tâm điều hành';
+  const agencyName=locality.configured?locality.agencyName:'cơ quan';
+  const initials=localityInitials(locality);
   const [tab,setTab]=useState<'send'|'track'>('send');
   const tabRefs=useRef<Array<HTMLButtonElement|null>>([]);
   const receiptRef=useRef<HTMLDivElement|null>(null);
@@ -630,6 +635,6 @@ export default function FeedbackPublic(){
       </section>
     </main>
 
-    <footer className="feedback-public-footer"><span>© {currentVietnamYear()} UBND Phường Lái Thiêu</span><Link to="/">Cổng thông tin điều hành</Link><Link to="/admin/login">Không gian nội bộ</Link></footer>
+    <footer className="feedback-public-footer"><span>© {currentVietnamYear()} {agencyName}</span><Link to="/">Cổng thông tin điều hành</Link><Link to="/admin/login">Không gian nội bộ</Link></footer>
   </div>;
 }

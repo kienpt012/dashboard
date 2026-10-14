@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { localityInitials, useLocality } from '../locality';
 import ScrollProgress from '../components/ScrollProgress';
 import { toast } from '../components/Toast';
 import { Skeleton } from '../components/UI';
@@ -66,6 +67,10 @@ function formatDate(value?:string|null,includeTime=false){
 }
 
 export default function PublishedFeedbackDetail(){
+  const locality=useLocality();
+  const unitName=locality.configured?locality.name:'Trung tâm điều hành';
+  const agencyName=locality.configured?locality.agencyName:'cơ quan';
+  const initials=localityInitials(locality);
   const {code=''}=useParams();
   const [detail,setDetail]=useState<PublishedFeedbackDetailType|null>(null);
   const [loading,setLoading]=useState(true);
@@ -158,7 +163,7 @@ export default function PublishedFeedbackDetail(){
                 <p className="published-detail-code">{detail.code}</p>
               </div>
               <div className="published-detail-summary">
-                <div><Building2/><span><small>Đơn vị xử lý</small><b>{detail.departmentName||'UBND Phường Lái Thiêu'}</b></span></div>
+                <div><Building2/><span><small>Đơn vị xử lý</small><b>{detail.departmentName||agencyName}</b></span></div>
                 <div><FileText/><span><small>Nhóm vấn đề</small><b>{categoryLabels[detail.category]||'Nội dung khác'}</b></span></div>
                 <div><CalendarDays/><span><small>Công khai ngày</small><b>{formatDate(detail.publishedAt)}</b></span></div>
               </div>
@@ -190,7 +195,7 @@ export default function PublishedFeedbackDetail(){
 
     <Reveal asChild><section className="published-detail-cta"><div><MessageCircleMore/><span><b>Gửi phản ánh mới</b><small>Tạo hồ sơ mới hoặc tra cứu hồ sơ đã gửi bằng mã bảo mật.</small></span><Link to="/phan-anh">Gửi hoặc tra cứu phản ánh</Link></div></section></Reveal>
 
-    <footer className="public-footer"><div className="public-container"><p>© {currentVietnamYear()} UBND Phường Lái Thiêu.</p></div></footer>
+    <footer className="public-footer"><div className="public-container"><p>© {currentVietnamYear()} {agencyName}.</p></div></footer>
 
     <button
       type="button"

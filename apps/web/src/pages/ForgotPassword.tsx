@@ -13,6 +13,7 @@ import {
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
+import { localityInitials, useLocality } from '../locality';
 import { currentVietnamYear } from '../date';
 import '../styles/auth.css';
 
@@ -23,11 +24,15 @@ const strongPasswordPattern='(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])
 const strongPasswordRegex=/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,128}$/;
 
 function AuthVisual(){
+  const locality=useLocality();
+  const unitName=locality.configured?locality.name:'Trung tâm điều hành';
+  const agencyName=locality.configured?locality.agencyName:'cơ quan';
+  const initials=localityInitials(locality);
   const currentYear=currentVietnamYear();
   return <section className="login-visual">
     <div className="visual-grid"/>
     <div className="visual-content">
-      <div className="gov-badge">LT <span>PHƯỜNG LÁI THIÊU</span></div>
+      <div className="gov-badge">{initials} <span>{unitName.toUpperCase()}</span></div>
       <p className="eyebrow light">KHÔI PHỤC TÀI KHOẢN</p>
       <h1>Khôi phục<br/><em>quyền truy cập.</em></h1>
       <p className="lead">Mã xác thực được gửi đến email công vụ đã đăng ký và chỉ sử dụng được một lần.</p>
@@ -38,6 +43,9 @@ function AuthVisual(){
 }
 
 export default function ForgotPassword(){
+  const brandLocality=useLocality();
+  const brandInitials=localityInitials(brandLocality);
+  const brand=brandLocality.brandName;
   const [stage,setStage]=useState<Stage>('request');
   const [identifier,setIdentifier]=useState('');
   const [otp,setOtp]=useState('');
@@ -128,7 +136,7 @@ export default function ForgotPassword(){
     <AuthVisual/>
     <section className="login-panel">
       <div className="login-card reset-card">
-        <div className="mobile-brand"><div className="brand-mark">LT</div> IOC LÁI THIÊU</div>
+        <div className="mobile-brand"><div className="brand-mark">{brandInitials}</div> {brand.toUpperCase()}</div>
         <div className="reset-steps" aria-label="Tiến trình khôi phục mật khẩu">
           <i aria-label="Bước 1: xác nhận tài khoản" aria-current={stage==='request'?'step':undefined} className={stage!=='request'?'done':'active'}>1</i>
           <span/>

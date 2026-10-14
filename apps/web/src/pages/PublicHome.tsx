@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AnimationEvent, CSSProperties, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { localityInitials, useLocality } from '../locality';
 import { CountUp, Reveal, ScrollGrid } from '../components/Motion';
 import ScrollProgress from '../components/ScrollProgress';
 import { toast } from '../components/Toast';
@@ -143,6 +144,10 @@ function PublicTargetCard({ item, index }: { item: PublicTarget; index: number }
 }
 
 export default function PublicHome() {
+  const locality=useLocality();
+  const unitName=locality.configured?locality.name:'Trung tâm điều hành';
+  const agencyName=locality.configured?locality.agencyName:'cơ quan';
+  const initials=localityInitials(locality);
   const [publicDashboard, setPublicDashboard] = useState<PublicDashboardResponse | null>(null);
   const [dashboardResolved, setDashboardResolved] = useState(false);
   const [data, setData] = useState<PublicOverview>();
@@ -363,7 +368,7 @@ export default function PublicHome() {
   function renderHeader(links: ReactNode, live?: ReactNode) {
     return <>
       <header className={`public-header${stuck ? ' is-stuck' : ''}`}>
-        <Link to="/" className="public-brand" inert={hidden} aria-hidden={hidden}><div className="brand-mark">LT</div><div><strong>PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></Link>
+        <Link to="/" className="public-brand" inert={hidden} aria-hidden={hidden}><div className="brand-mark">{initials}</div><div><strong>{unitName.toUpperCase()}</strong><span>Cổng thông tin điều hành số</span></div></Link>
         <nav ref={menuNavRef} id="public-navigation" aria-label="Điều hướng cổng thông tin" className={menu ? 'show' : ''} tabIndex={menu ? -1 : undefined}>
           {links}
           <Link to="/admin/login" className="nav-admin-link" onClick={() => setMenu(false)}><CircleUserRound />Đăng nhập hệ thống</Link>
@@ -383,7 +388,7 @@ export default function PublicHome() {
   function renderFooter(links: ReactNode) {
     return <footer className="public-footer" inert={hidden} aria-hidden={hidden}><div className="public-container">
       <div className="footer-grid">
-        <div className="footer-brand"><div className="brand-mark">LT</div><div><strong>UBND PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></div>
+        <div className="footer-brand"><div className="brand-mark">{initials}</div><div><strong>{agencyName.toUpperCase()}</strong><span>Cổng thông tin điều hành số</span></div></div>
         <div className="footer-col">
           <strong>Nội dung công khai</strong>
           <div className="footer-links">{links}</div>
@@ -397,7 +402,7 @@ export default function PublicHome() {
           </div>
         </div>
       </div>
-      <p>© {year} UBND Phường Lái Thiêu.</p>
+      <p>© {year} {agencyName}.</p>
     </div></footer>;
   }
 
@@ -415,7 +420,7 @@ export default function PublicHome() {
   if (!dashboardResolved) {
     return <div className="public-site public-dashboard-loading-shell" data-hero="false">
       <ScrollProgress />
-      <header className="public-header"><Link to="/" className="public-brand"><div className="brand-mark">LT</div><div><strong>PHƯỜNG LÁI THIÊU</strong><span>Cổng thông tin điều hành số</span></div></Link></header>
+      <header className="public-header"><Link to="/" className="public-brand"><div className="brand-mark">{initials}</div><div><strong>{unitName.toUpperCase()}</strong><span>Cổng thông tin điều hành số</span></div></Link></header>
       <main role="status" aria-live="polite" className="public-boot">
         <Skeleton className="public-boot-hero" />
         <PublicCardSkeletons count={3} />
@@ -470,7 +475,7 @@ export default function PublicHome() {
         <div className="public-container hero-grid">
           <Reveal asChild index={0}><div className="hero-copy">
             <span className="hero-kicker"><ShieldCheck />Số liệu đã phê duyệt công bố</span>
-            <h1>Cổng thông tin điều hành số Phường Lái Thiêu</h1>
+            <h1>Cổng thông tin điều hành số {locality.configured ? locality.name : ''}</h1>
             <p>Theo dõi tiến độ thực hiện chỉ tiêu năm {data?.year ?? year}, kết quả xử lý phản ánh của người dân và số liệu điều hành đã được phê duyệt công khai.</p>
             <div className="hero-actions">
               <a className="public-btn primary" href="#chi-tieu"><BarChart3 />Xem chỉ tiêu công khai</a>
@@ -624,7 +629,7 @@ export default function PublicHome() {
                 <div className="published-feedback-meta"><span><BadgeCheck />{item.category ? feedbackCategoryNames[item.category] : 'Kết quả xử lý'}</span><time dateTime={item.publicPublishedAt}>{new Date(item.publicPublishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}</time></div>
                 <h3>{item.publicTitle || 'Kết quả xử lý phản ánh'}</h3>
                 <p>{item.publicSummary || 'Kết quả đang được cập nhật.'}</p>
-                <div className="published-feedback-foot"><span><Building2 />{item.department?.name || 'UBND Phường Lái Thiêu'}</span><b>{item.code}</b></div>
+                <div className="published-feedback-foot"><span><Building2 />{item.department?.name || agencyName}</span><b>{item.code}</b></div>
                 <span className="published-feedback-view">Xem toàn bộ quá trình xử lý <ArrowRight/></span>
               </Link></Reveal>)}</ScrollGrid>
               : <div className="public-empty-panel"><Empty

@@ -2,6 +2,7 @@ import { ArrowRight, BarChart3, CheckCircle2, Eye, EyeOff, LockKeyhole, ShieldCh
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, auth } from '../api';
+import { localityInitials, useLocality } from '../locality';
 import { currentVietnamYear } from '../date';
 import type { User } from '../types';
 import '../styles/auth.css';
@@ -16,6 +17,10 @@ function safeNextPath(value:string|null){
 }
 
 export default function Login(){
+  const locality=useLocality();
+  const unitName=locality.configured?locality.name:'Trung tâm điều hành';
+  const agencyName=locality.configured?locality.agencyName:'cơ quan';
+  const initials=localityInitials(locality);
   const [username,setUsername]=useState('');
   const [password,setPassword]=useState('');
   const [show,setShow]=useState(false);
@@ -40,18 +45,18 @@ export default function Login(){
     <section className="login-visual">
       <div className="visual-grid"/>
       <div className="visual-content">
-        <div className="gov-badge">LT <span>PHƯỜNG LÁI THIÊU</span></div>
-        <p className="eyebrow light">HỆ THỐNG ĐIỀU HÀNH NỘI BỘ</p>
-        <h1>Quản lý chỉ tiêu<br/><em>và phản ánh.</em></h1>
-        <p className="lead">Khu vực dành cho cán bộ được phân quyền của UBND Phường Lái Thiêu.</p>
-        <div className="visual-points"><span><CheckCircle2/>Chỉ tiêu và báo cáo</span><span><BarChart3/>Tiếp nhận phản ánh</span><span><ShieldCheck/>Phân quyền theo đơn vị</span></div>
+        <div className="gov-badge">{initials} <span>{unitName.toUpperCase()}</span></div>
+        <p className="eyebrow light">TRUNG TÂM ĐIỀU HÀNH THÔNG MINH</p>
+        <h1>Điều hành bằng dữ liệu,<br/><em>rõ trách nhiệm.</em></h1>
+        <p className="lead">Khu vực dành cho cán bộ được phân quyền của {agencyName}.</p>
+        <div className="visual-points"><span><CheckCircle2/>Chỉ tiêu và hồ sơ ba phần</span><span><BarChart3/>Số liệu tự tính từ dữ liệu</span><span><ShieldCheck/>Việc nào cũng có hạn, có người</span></div>
       </div>
-      <div className="visual-footer">UBND PHƯỜNG LÁI THIÊU · HỆ THỐNG ĐIỀU HÀNH NỘI BỘ · {currentYear}</div>
+      <div className="visual-footer">{agencyName.toUpperCase()} · {locality.brandName.toUpperCase()} · {currentYear}</div>
     </section>
 
     <section className="login-panel">
       <form className="login-card" onSubmit={submit}>
-        <div className="mobile-brand"><div className="brand-mark">LT</div> IOC LÁI THIÊU</div>
+        <div className="mobile-brand"><div className="brand-mark">{initials}</div> {locality.brandName.toUpperCase()}</div>
         <span className="eyebrow">ĐĂNG NHẬP NỘI BỘ</span>
         <h2>Đăng nhập hệ thống</h2>
         <p>Nhập tài khoản đã được cấp để truy cập đúng phạm vi công việc.</p>
