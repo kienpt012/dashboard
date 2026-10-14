@@ -1,30 +1,37 @@
-# Nghiệp vụ hệ thống IOC Lái Thiêu
+# Nghiệp vụ hệ thống IOC
 
 Tài liệu này là chuẩn nghiệp vụ dùng chung cho giao diện React, API NestJS và dữ liệu PostgreSQL. Mọi kiểm tra quyền quan trọng phải thực hiện ở API; việc ẩn nút trên giao diện chỉ nhằm cải thiện trải nghiệm.
 
 ## 1. Nhóm người dùng và phạm vi dữ liệu
 
-| Chức năng | Quản trị hệ thống | Lãnh đạo đơn vị | Cán bộ cập nhật | Người dùng chỉ xem |
-|---|---:|---:|---:|---:|
-| Xem dashboard, chỉ tiêu, báo cáo | Toàn hệ thống | Đơn vị mình | Đơn vị mình | Đơn vị mình |
-| Đặt và sửa chỉ tiêu | Có | Không | Không | Không |
-| Báo cáo số liệu | Có, hiệu lực ngay | Gửi chờ duyệt | Gửi chờ duyệt | Không |
-| Duyệt/từ chối báo cáo | Có | Người khác gửi trong đơn vị mình | Không | Không |
-| Tải/nhập phiếu Excel | Theo phạm vi chọn, hiệu lực ngay | Đơn vị mình, chờ duyệt | Đơn vị mình, chờ duyệt | Không |
-| Xem phản ánh | Toàn hệ thống | Đơn vị mình | Chỉ hồ sơ được giao | Đơn vị mình, thông tin người gửi đã ẩn |
-| Phân loại, phân công phản ánh | Có | Trong đơn vị mình | Không | Không |
-| Xử lý và trình kết quả phản ánh | Có | Trong đơn vị mình | Chỉ hồ sơ được giao | Không |
-| Duyệt kết quả phản ánh | Có | Hồ sơ trong đơn vị do người khác trình | Không | Không |
-| Công bố phản ánh đã ẩn danh | Có | Không | Không | Không |
-| Quản lý phòng ban, tài khoản, cấu hình | Có | Không | Không | Không |
-| Xem nhật ký hệ thống | Có | Không | Không | Không |
-| Xem hồ sơ, đổi mật khẩu cá nhân | Có | Có | Có | Có |
+Sáu vai trò theo bộ máy UBND cấp xã (D-014). Thẩm quyền nghiệp vụ (lãnh đạo) tách khỏi quản trị kỹ thuật.
+
+| Chức năng | Quản trị hệ thống | Lãnh đạo UBND | Văn thư | Trưởng phòng | Chuyên viên | Người xem |
+|---|---:|---:|---:|---:|---:|---:|
+| Xem trung tâm điều hành, chỉ tiêu, báo cáo | Toàn địa phương | Toàn địa phương | Toàn địa phương | Phòng mình | Phòng mình | Phòng mình |
+| Tạo, sửa, lưu trữ, công bố chỉ tiêu; nạp bộ chỉ tiêu mẫu | Có | Có | Không | Không | Không | Không |
+| Giao chỉ tiêu cho chuyên viên, nhắc việc, đánh giá kết quả | Có | Có | Không | Phòng mình | Không | Không |
+| Báo cáo số liệu kỳ kèm minh chứng | Có, hiệu lực ngay | Có, hiệu lực ngay | Không | Gửi chờ duyệt | Gửi chờ duyệt | Không |
+| Duyệt/từ chối báo cáo số liệu | Có | Có | Không | Người khác gửi trong phòng | Không | Không |
+| Chuyển việc cho đồng nghiệp / trả về trưởng phòng | — | — | — | — | Người được giao, tối đa `maxTransfers` lần | — |
+| Yêu cầu giải trình | Có | Có | Không | Không | Không | Không |
+| Trả lời giải trình | Có | Có | Không | Phòng mình | Người được giao | Không |
+| Đề xuất chỉ tiêu mới | Có | Có | Có | Có | Có | Không |
+| Rà soát và trình đề xuất do AI trích xuất | Có | Có | Có | Có | Có | Không |
+| Duyệt/từ chối đề xuất đã trình | Có | Có | Loại đề xuất AI chưa trình | Phòng mình | Không | Không |
+| Tải văn bản, chạy trích xuất AI | Có | Có | Có | Có | Có | Không |
+| Bảng dữ liệu: tạo bảng / thêm, sửa dòng | Có / Có | Có / Có | Có / Có | Không / Bảng của phòng | Không / Bảng của phòng | Không |
+| Tiếp nhận, chuyển phản ánh tới phòng | Có | Có | Có | Trong phòng mình | Không | Không |
+| Xử lý, trình, duyệt, công bố kết quả phản ánh | Có | Có | Không | Trong phòng mình | Hồ sơ được giao | Không |
+| Màn hình trách nhiệm người đứng đầu | Có | Có | Không | Phòng mình | Không | Không |
+| Thiết lập địa phương, tài khoản, cấu hình, nhật ký, báo lỗi, trang công khai | Có | Không | Không | Không | Không | Không |
+| Gửi báo lỗi kèm địa chỉ trang | Có | Có | Có | Có | Có | Có |
 
 Quy tắc bắt buộc:
 
 - API nạp lại tài khoản và phòng ban từ cơ sở dữ liệu ở từng request.
-- Tài khoản quản trị có phạm vi toàn hệ thống và không gắn cố định với phòng ban. Khi một thao tác cần phạm vi đơn vị (tạo chỉ tiêu, tải/nhập Excel), quản trị viên phải chọn rõ phòng ban thay vì kế thừa một đơn vị ngầm định.
-- Tài khoản ngoài vai trò quản trị phải thuộc một phòng ban đang hoạt động.
+- Quản trị, lãnh đạo UBND và văn thư có phạm vi toàn địa phương; quản trị không gắn phòng ban, lãnh đạo và văn thư có thể gắn Văn phòng để hiển thị nhưng không bị thu hẹp phạm vi. Khi một thao tác cần phạm vi đơn vị (tạo chỉ tiêu, tải/nhập Excel), quản trị viên phải chọn rõ phòng ban thay vì kế thừa một đơn vị ngầm định.
+- Trưởng phòng, chuyên viên và người xem phải thuộc một phòng ban đang hoạt động.
 - Tham số `departmentId` do trình duyệt gửi không được phép mở rộng phạm vi của người dùng.
 - Cán bộ cập nhật chỉ thấy phản ánh được giao trực tiếp; người chỉ xem chỉ nhận trao đổi/sự kiện công khai và dữ liệu liên hệ đã che.
 - Khi tài khoản bị khóa, đổi vai trò hoặc phòng ban ngừng hoạt động, API đọc trạng thái mới từ cơ sở dữ liệu nên token cũ không giúp vượt quyền.
@@ -63,6 +70,49 @@ Giá trị `0` của chỉ tiêu “càng thấp càng tốt” chỉ là kết 
 4. Duyệt: cập nhật kết quả chính thức, tăng phiên bản, lưu người/thời gian duyệt.
 5. Từ chối: bắt buộc nêu lý do để người gửi sửa và báo cáo lại.
 6. Nếu chỉ tiêu đã thay đổi sau lúc gửi, hệ thống chặn duyệt để tránh ghi đè số liệu mới.
+
+## 3a. Bộ chỉ tiêu, hồ sơ ba phần và cơ chế trách nhiệm (bản 2)
+
+Chi tiết thiết kế: [docs/requirements/02-thiet-ke-ioc-v2.md](requirements/02-thiet-ke-ioc-v2.md).
+
+**Bộ chỉ tiêu.** Mỗi chỉ tiêu thuộc một bộ: kế hoạch (vd KT-XH thành phố giao), chấm điểm (vd DTI 100 điểm), nhiệm vụ,
+thống kê (TT 148/2026/TT-BTC). Chỉ tiêu có thể có chỉ tiêu con; chỉ tiêu cha tổng hợp từ con (điểm cộng dồn, có trần;
+loại khác lấy tiến độ bình quân theo trọng số). Chỉ tiêu thống kê không có mục tiêu nên chỉ có trạng thái "chưa có số
+liệu" / "đã có số liệu".
+
+**Kỳ báo cáo.** Khoá kỳ `2026` (năm), `2026-H1` (6 tháng), `2026-Q3` (quý), `2026-M09` (tháng). Hạn báo cáo là ngày
+`reportDueDay` (mặc định 20, theo QĐ 333) của tháng cuối kỳ, giờ Việt Nam. Kỳ đã qua hạn mà chưa có báo cáo được tính
+là "thiếu báo cáo" và chỉ tiêu chưa từng báo cáo mà quá hạn chuyển sang `Quá hạn`.
+
+**Hồ sơ ba phần** (`/admin/targets/:id`): (1) chỉ đạo điều hành — văn bản chỉ đạo (văn bản nguồn của đề xuất được duyệt
+tự thành văn bản chỉ đạo); (2) thực hiện — số liệu theo kỳ, nguồn số liệu, giải trình khi chưa đạt, minh chứng (ảnh/PDF
+≤ 10 MB hoặc liên kết); (3) đánh giá theo kỳ — Vượt/Đạt/Đạt một phần/Không đạt, bắt buộc ghi chú khi chưa đạt. Phiếu
+nguồn số liệu ghi hệ thống nguồn, cơ quan cung cấp, hướng dẫn lấy số.
+
+**Chỉ tiêu tự tính.** Chỉ tiêu có công thức (D-012) lấy số từ kho dữ liệu; không nhận báo cáo tay. Mỗi khi dữ liệu thay
+đổi, chỉ tiêu liên quan được tính lại và ghi một báo cáo đã duyệt "tự tính từ dữ liệu".
+
+**Giao việc và chống đá việc.** Trưởng phòng giao chỉ tiêu cho một chuyên viên. Chuyên viên được chuyển cho đồng nghiệp
+tối đa `maxTransfers` lần (kèm lý do), sau đó chỉ được trả về trưởng phòng. Mỗi lần chuyển/trả tăng `bounceCount`; từ 3
+lần trở lên chỉ tiêu hiện ở mục "Việc bị treo" của lãnh đạo. Chỉ tiêu chưa giao quá `assignmentStallDays` ngày thì nhắc
+trưởng phòng, quá gấp đôi thì báo lãnh đạo.
+
+**Tự thông qua có trách nhiệm (D-013).** Báo cáo chờ duyệt quá `reportAutoApproveDays` ngày (mặc định 7) được hệ thống
+tự thông qua; đề xuất chỉ tiêu do người trình quá `proposalAutoApproveDays` ngày (mặc định 3) tự thành chỉ tiêu. Sự kiện
+ghi rõ người đáng lẽ phải xử lý và hiện ở màn hình "Trách nhiệm người đứng đầu". Không tự thông qua khi số liệu chỉ tiêu
+đã đổi sau lúc gửi hoặc đề xuất thiếu trường bắt buộc (leo thang lên lãnh đạo). **Kết quả AI không bao giờ tự thông qua**
+khi chưa có người rà soát và bấm trình.
+
+**Giải trình.** Lãnh đạo yêu cầu giải trình trên một chỉ tiêu; trưởng phòng và chuyên viên phụ trách nhận thông báo, trả
+lời trong `explanationDueDays` ngày; quá hạn thì leo thang. Nội dung giải trình nằm trong hồ sơ chỉ tiêu.
+
+**Thông báo và nhắc việc.** Bộ giám sát chạy định kỳ trong API: tự thông qua, nhắc đề xuất sắp hết hạn, nhắc thiếu báo
+cáo kỳ (leo thang sau 7 ngày), nhắc chưa giao người, leo thang giải trình quá hạn, tính lại chỉ tiêu tự tính từ phản
+ánh. Mỗi thông báo có khoá chống trùng nên chạy lại không nhắc hai lần.
+
+**Màn hình.** Trung tâm điều hành (DH-01), Việc của tôi (DH-02), Trình chiếu phòng họp (DH-03), Trách nhiệm người đứng
+đầu (DH-04), Bộ chỉ tiêu (CT-01), Hồ sơ chỉ tiêu (CT-06), Đề xuất chỉ tiêu (CT-03), Kho dữ liệu (DL-01), Thiết lập địa
+phương (HT-01), Báo lỗi (HT-06). Mã màn hình in ở dải định danh chân trang để ảnh chụp màn hình luôn truy được nguồn.
 
 ## 4. Quy trình Excel không gây xung đột
 
@@ -264,7 +314,8 @@ Smoke test giao diện bao phủ trang chính công khai, trang gửi/tra cứu 
 
 ## 10. Giới hạn hiện tại và pha nghiệp vụ kế tiếp
 
-- Trường `frequency` hiện mô tả chu kỳ mong muốn của chỉ tiêu, nhưng mỗi chỉ tiêu vẫn có một giá trị hiện hành. Pha tiếp theo nên bổ sung `TargetReportingPeriod` với khóa kỳ như `2026-M07`, `2026-Q3`, `2026-Y1`; từng báo cáo phải liên kết một kỳ, mỗi kỳ có trạng thái mở/chốt/mở khóa và người phê duyệt. Excel V2 cần tải theo kỳ và khóa số liệu sau khi chốt.
+- Báo cáo đã gắn kỳ (`periodKey`) và hồ sơ hiển thị kỳ đã/chưa báo cáo, nhưng mỗi chỉ tiêu vẫn có một giá trị hiện hành (giá trị lũy kế mới nhất). Chưa có thao tác chốt/mở khóa kỳ; phiếu Excel vẫn cập nhật giá trị hiện hành.
+- Thời hạn trách nhiệm tính theo ngày lịch, chưa trừ ngày nghỉ (câu hỏi mở với khách hàng).
 - Tệp đính kèm phản ánh chưa nên bật trước khi có đủ quét mã độc, giới hạn dung lượng/loại tệp, kiểm soát truy cập và lịch lưu/xóa.
 - Kênh email/Zalo chỉ được coi là đã gửi sau khi có nhà cung cấp, hàng đợi gửi, webhook trạng thái và cơ chế gửi lại; hiện hệ thống ghi nhận lần liên hệ thủ công.
 - Môi trường công khai thật phải dùng HTTPS, bí mật do hệ thống quản lý secret cung cấp, sao lưu PostgreSQL có diễn tập phục hồi và giám sát lỗi/SLA.
