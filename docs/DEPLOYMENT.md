@@ -1,5 +1,18 @@
 # Triển khai và môi trường phát triển
 
+## 0. Triển khai cho một địa phương thật (không dữ liệu mẫu)
+
+```bash
+cp .env.example .env            # đặt POSTGRES_PASSWORD, JWT_SECRET (≥32 ký tự)
+docker compose up -d --build
+docker compose exec -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD='<mật-khẩu-mạnh>' api ./docker-entrypoint.sh bootstrap
+```
+
+Lệnh `bootstrap` áp dụng migration rồi chỉ tạo **tài khoản quản trị đầu tiên** (bỏ qua nếu đã có quản trị viên đang
+hoạt động). Sau đó đăng nhập `/admin/login` → **Thiết lập địa phương** (`/admin/thiet-lap`): thông tin đơn vị, mẫu cơ cấu
+tổ chức, bộ chỉ tiêu từ thư viện, thời hạn trách nhiệm → tạo tài khoản lãnh đạo, văn thư, trưởng phòng, chuyên viên.
+Không chạy `seed` trên máy của địa phương thật: dữ liệu mẫu là một phường giả lập.
+
 ## 1. Môi trường dev cục bộ (đang dùng)
 
 Yêu cầu: Node.js 22, Docker Desktop và Ollama. Tesseract 5 cùng dữ liệu ngôn ngữ `vie+eng` đã nằm trong image API khi chạy Docker, không cần cài hay khởi động service OCR trên host.

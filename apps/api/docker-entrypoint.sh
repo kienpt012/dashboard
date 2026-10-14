@@ -36,7 +36,14 @@ export DIRECT_URL
 #                    `docker compose exec api ./docker-entrypoint.sh seed`, so the
 #                    database URL is derived exactly as the running API derives it.
 #                    The seed is idempotent and never overwrites existing rows.
+#   bootstrap        apply migrations and create only the first ADMIN account
+#                    (ADMIN_USERNAME / ADMIN_PASSWORD) for a real locality without
+#                    demo data; the locality is then configured at /admin/thiet-lap.
 case "${1:-serve}" in
+  bootstrap)
+    npx prisma migrate deploy --schema=prisma/schema.prisma
+    exec npx tsx prisma/bootstrap.ts
+    ;;
   seed)
     npx prisma migrate deploy --schema=prisma/schema.prisma
     ALLOW_DEMO_SEED=true exec npx tsx prisma/seed.ts
@@ -49,7 +56,7 @@ case "${1:-serve}" in
     exec node dist/main.js
     ;;
   *)
-    echo "Unknown command: $1 (expected: serve or seed)" >&2
+    echo "Unknown command: $1 (expected: serve, seed or bootstrap)" >&2
     exit 64
     ;;
 esac

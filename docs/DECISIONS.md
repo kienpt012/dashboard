@@ -57,3 +57,69 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 
 - Nhất quán với FeedbackAttachment hiện có; blob không bao giờ được select trong query danh sách;
   worker chỉ đọc blob khi xử lý. Giới hạn được ghi trong [hạn chế đã biết](KNOWN_ISSUES.md); object storage là hướng production.
+
+## D-009 · 2026-10-14 · "Áp dụng nhiều địa bàn" = mỗi địa phương một bản cài, cấu hình bằng hồ sơ địa phương và thư viện mẫu
+
+- **Bối cảnh**: buổi trao đổi với khách hàng (ghi âm 035_1) có lúc hiểu "nhiều địa bàn" là một hệ thống tổng hợp,
+  so sánh nhiều xã. Ý của nhóm là **mang đi địa phương nào cũng cài và dùng được ngay**.
+- **Phương án**: (a) đa thuê bao (multi-tenant) một CSDL nhiều xã; (b) mỗi địa phương một bản cài, mọi thứ đặc thù
+  nằm trong dữ liệu cấu hình; (c) giữ nguyên, sửa tay mã nguồn cho từng nơi.
+- **Chọn**: (b). Bảng `LocalityProfile` (một dòng `default`) giữ loại đơn vị, tên, cơ quan, tỉnh, mã ĐVHC, liên hệ,
+  màu; trình hướng dẫn `/admin/thiet-lap` áp dụng mẫu cơ cấu tổ chức (`templates/org-templates.ts`) và bộ chỉ tiêu
+  (`templates/*.ts`). Giao diện, email, tệp Excel xuất ra đều đọc tên từ hồ sơ địa phương.
+- **Căn cứ**: dữ liệu chỉ tiêu và phản ánh của xã là dữ liệu nội bộ, quyền quản lý thuộc từng UBND; Nghị định
+  150/2025 (sửa bởi 370/2025) cho tỉnh quyết định cơ cấu phòng nên không thể đóng cứng; đa thuê bao làm mọi truy vấn
+  phải mang thêm khoá địa phương — rủi ro rò dữ liệu chéo cao hơn nhiều so với lợi ích ở quy mô cấp xã.
+
+## D-010 · 2026-10-14 · Nhiều "bộ chỉ tiêu" song song, thư viện mẫu là mã nguồn có căn cứ đã xác minh
+
+- **Bối cảnh**: một phường cùng lúc chịu nhiều hệ chỉ tiêu khác bản chất: kế hoạch KT-XH thành phố giao
+  (QĐ 333/QĐ-UBND, báo cáo trước ngày 20 hằng tháng), chấm điểm chuyển đổi số DTI (QĐ 3336/QĐ-UBND, 8 nhóm 100 điểm),
+  chỉ tiêu thống kê cấp xã (Thông tư 148/2026/TT-BTC, 55 chỉ tiêu), nhiệm vụ địa phương tự đặt.
+- **Chọn**: bảng `Framework` với `kind` ∈ PLAN/SCORE/TASK/STAT và `issuingLevel`; chỉ tiêu có cha–con, số thứ tự,
+  mã chuẩn, nhóm, điểm tối đa, thang chấm. Thư viện mẫu viết bằng TypeScript (kiểm tra bằng test: DTI tổng 100 điểm,
+  TT148 đủ 55 mã, KT-XH đủ 30 chỉ tiêu) thay vì nhập tay qua giao diện.
+- **Căn cứ**: mẫu là tri thức pháp lý cần được rà soát như mã (review, test, lịch sử thay đổi). Mỗi mẫu ghi căn cứ và
+  phạm vi áp dụng; mẫu của một tỉnh chỉ gợi ý cho đơn vị thuộc tỉnh đó. Văn bản đầu vào chưa xác minh (vd kết quả của
+  một công cụ AI đối chiếu sai với ảnh bản gốc) bị loại.
+
+## D-011 · 2026-10-14 · Hồ sơ chỉ tiêu ba phần; minh chứng chỉ nhận ảnh/PDF ≤ 10 MB
+
+- **Chọn**: mỗi chỉ tiêu có (1) chỉ đạo điều hành (`TargetDirective`), (2) thực hiện (báo cáo theo kỳ `periodKey` +
+  nguồn số liệu + giải trình + minh chứng `Evidence`), (3) đánh giá theo kỳ (`TargetEvaluation`, bắt buộc ghi chú khi
+  chưa đạt). Văn bản nguồn của đề xuất được duyệt tự trở thành văn bản chỉ đạo.
+- **Căn cứ**: đây đúng là cách cán bộ đang làm hồ sơ chấm điểm DTI và báo cáo QĐ 333 (văn bản → số liệu → minh
+  chứng → tự đánh giá). Minh chứng lưu `Bytes` như D-008 nhưng chỉ ảnh/PDF (kiểm tra magic-byte); Word/Excel đi qua
+  Kho văn bản để được OCR/trích xuất và tránh tệp thực thi đội lốt.
+
+## D-012 · 2026-10-14 · Chỉ tiêu tự tính bằng công thức JSON khai báo trên kho dữ liệu nghiệp vụ
+
+- **Phương án**: (a) biểu thức dạng chuỗi chạy `eval`/thư viện biểu thức; (b) JSON khai báo có lược đồ cố định;
+  (c) chỉ cho nhập tay.
+- **Chọn**: (b). `Dataset` (cột có kiểu) + `DatasetRow` (JSONB); bộ máy `formula.ts` thuần TypeScript: phép gộp,
+  điều kiện, tỷ lệ/phần trăm, quy tắc điểm (linear, capped, threshold, steps, binary, band), trả kèm dấu vết. Bảng hệ
+  thống `feedback` đọc trực tiếp phân hệ phản ánh, không chép dữ liệu cá nhân.
+- **Căn cứ**: người dùng không thể chèn mã; máy chủ kiểm tra cấu trúc trước khi lưu; mọi con số tự tính truy ngược
+  được về dòng dữ liệu gốc — điều kiện để lãnh đạo tin số liệu. Nhập Excel theo mẫu sinh từ khai báo cột.
+
+## D-013 · 2026-10-14 · Tự thông qua có trách nhiệm (bổ sung D-006)
+
+- **Bối cảnh**: khách hàng nêu "trưởng phòng không duyệt thì việc treo mãi"; D-006 cấm tự duyệt kết quả AI.
+- **Chọn**: báo cáo số liệu chờ duyệt quá `reportAutoApproveDays` và đề xuất chỉ tiêu **do người trình** quá
+  `proposalAutoApproveDays` được hệ thống tự thông qua; sự kiện ghi rõ người đáng lẽ phải duyệt và được tính vào màn
+  hình "Trách nhiệm người đứng đầu". Kết quả AI **không bao giờ** vào hàng chờ tự thông qua khi chưa có người bấm trình
+  (D-006 giữ nguyên với AI). Không tự thông qua nếu số liệu chỉ tiêu đã thay đổi sau lúc gửi hoặc đề xuất thiếu trường
+  bắt buộc — khi đó leo thang lên lãnh đạo.
+- **Căn cứ**: biến "chờ vô hạn" thành "chờ có hạn và có người chịu trách nhiệm"; khớp tinh thần Nghị định 335/2025 về
+  đánh giá công chức theo kết quả nhiệm vụ và tiến độ.
+
+## D-014 · 2026-10-14 · Sáu vai trò và bộ giám sát thời hạn chạy trong tiến trình API
+
+- **Chọn**: thêm `LEADER` (Chủ tịch/Phó Chủ tịch: giao, duyệt, đánh giá, yêu cầu giải trình toàn địa phương) và
+  `CLERK` (Văn thư: tiếp nhận văn bản, rà soát đề xuất AI, chuyển phản ánh; không báo cáo số liệu) — tách thẩm quyền
+  nghiệp vụ khỏi `ADMIN` kỹ thuật. Bộ giám sát (`accountability-worker.ts`) chạy định kỳ trong API như worker outbox
+  (D-004): tự thông qua, nhắc thiếu báo cáo kỳ, nhắc chưa giao người, leo thang việc bị treo/giải trình quá hạn; mỗi
+  thông báo có `dedupeKey` nên chạy lại không nhắc trùng.
+- **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
+  hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
+- **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
