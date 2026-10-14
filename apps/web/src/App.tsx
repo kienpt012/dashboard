@@ -6,37 +6,38 @@ import Layout from './components/Layout';
 import { Spinner } from './components/UI';
 import { useLocality } from './locality';
 import { titleFor } from './nav';
-import Accountability from './pages/Accountability';
-import BugReports from './pages/BugReports';
-import Datasets from './pages/Datasets';
-import Frameworks from './pages/Frameworks';
-import MyWork from './pages/MyWork';
 import OpsCenter from './pages/OpsCenter';
-import Proposals from './pages/Proposals';
-import SetupWizard from './pages/SetupWizard';
-import TargetDossier from './pages/TargetDossier';
-import Wallboard from './pages/Wallboard';
-import Departments from './pages/Departments';
-import DocumentReview from './pages/DocumentReview';
-import Documents from './pages/Documents';
 import Forbidden from './pages/Forbidden';
-import Imports from './pages/Imports';
 import Login from './pages/Login';
 import PublicHome from './pages/PublicHome';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
 import Targets from './pages/Targets';
-import Users from './pages/Users';
-import Approvals from './pages/Approvals';
-import FeedbackAdmin from './pages/FeedbackAdmin';
 import FeedbackPublic from './pages/FeedbackPublic';
 import PublishedFeedbackDetail from './pages/PublishedFeedbackDetail';
-import AuditLogs from './pages/AuditLogs';
-import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import type { AuthMeResponse, Role, User } from './types';
 
 const PublicDashboardStudio = lazy(() => import('./pages/PublicDashboardStudio'));
+// Trang quản trị tải theo nhu cầu: trang đầu (đăng nhập, trung tâm điều hành) nhẹ hơn.
+const Accountability = lazy(() => import('./pages/Accountability'));
+const BugReports = lazy(() => import('./pages/BugReports'));
+const Datasets = lazy(() => import('./pages/Datasets'));
+const Frameworks = lazy(() => import('./pages/Frameworks'));
+const MyWork = lazy(() => import('./pages/MyWork'));
+const Proposals = lazy(() => import('./pages/Proposals'));
+const SetupWizard = lazy(() => import('./pages/SetupWizard'));
+const TargetDossier = lazy(() => import('./pages/TargetDossier'));
+const Wallboard = lazy(() => import('./pages/Wallboard'));
+const DocumentReview = lazy(() => import('./pages/DocumentReview'));
+const Documents = lazy(() => import('./pages/Documents'));
+const FeedbackAdmin = lazy(() => import('./pages/FeedbackAdmin'));
+const Imports = lazy(() => import('./pages/Imports'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const Users = lazy(() => import('./pages/Users'));
+const Departments = lazy(() => import('./pages/Departments'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Approvals = lazy(() => import('./pages/Approvals'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 /** Bắt buộc đăng nhập; mặc định hiển thị trong khung quản trị, hoặc toàn màn hình khi truyền `children`. */
 function Protected({children}:{children?:ReactNode}){
@@ -108,7 +109,7 @@ export default function App(){
     <Route path="/phan-anh/cong-khai/:code" element={<PublishedFeedbackDetail/>}/>
     <Route path="/admin/login" element={<LoginRoute/>}/>
     <Route path="/admin/forgot-password" element={auth.token?<Navigate to="/admin" replace/>:<ForgotPassword/>}/>
-    <Route path="/trinh-chieu" element={<Protected><Wallboard/></Protected>}/>
+    <Route path="/trinh-chieu" element={<Protected><Suspense fallback={<Spinner/>}><Wallboard/></Suspense></Protected>}/>
     <Route path="/admin" element={<Protected/>}>
       <Route index element={<RoleRoute allowed={ALL_ROLES}><OpsCenter/></RoleRoute>}/>
       <Route path="viec-cua-toi" element={<RoleRoute allowed={ALL_ROLES}><MyWork/></RoleRoute>}/>

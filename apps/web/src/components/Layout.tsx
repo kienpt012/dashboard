@@ -8,14 +8,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, Suspense } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { api, auth } from '../api';
 import { APPROVAL_ROLES, getInitials, hasAnyRole, isGlobal, roleLabels } from '../authz';
@@ -32,6 +25,7 @@ import CopilotDock from './CopilotDock';
 import ScrollProgress from './ScrollProgress';
 import ThemeToggle from './ThemeToggle';
 import { ToastHost } from './Toast';
+import { Spinner } from './UI';
 
 const RAIL_KEY = 'ioc_sidebar_rail';
 const DOCK_KEY = 'ioc_copilot_open';
@@ -339,7 +333,9 @@ export default function Layout() {
 
         <div className="page" id="noi-dung-chinh">
           <ErrorBoundary inline resetKey={location.pathname}>
-            <Outlet />
+            <Suspense fallback={<Spinner />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
           <ScreenFooter />
         </div>
