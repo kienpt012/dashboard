@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { Link } from 'react-router-dom';
 import { api, auth } from '../api';
 import { isGlobal } from '../authz';
+import PrintDocument from '../components/PrintDocument';
 import { PageHead, SkeletonTable } from '../components/UI';
-import { fmtDateTime, fmtNumber, relativeTime } from '../ioc-format';
+import { fmtNumber, relativeTime } from '../ioc-format';
 import '../styles/ioc-accountability.css';
 
 type Person={id:string;fullName:string;position?:string|null;lastLoginAt?:string|null};
@@ -17,38 +18,38 @@ type DepartmentRow={
 type Accountability={year:number;generatedAt:string;departments:DepartmentRow[];leaders:Person[];autoApprovedProposalsTotal:number;autoApprovedReportsTotal:number};
 type NumericKey=Exclude<keyof DepartmentRow,'id'|'name'|'color'|'managers'|'rejectionReasons'>;
 
-/** Các cột trách nhiệm; `warn`/`bad` là ngưỡng tô màu ô. */
-const COLUMNS:{key:NumericKey;label:string;hint:string;warn:number;bad:number}[]=[
-  {key:'pendingReports',label:'Báo cáo chờ duyệt',hint:'Báo cáo số liệu cán bộ đã gửi, trưởng phòng chưa duyệt.',warn:1,bad:5},
-  {key:'oldestPendingDays',label:'Chờ lâu nhất (ngày)',hint:'Số ngày của báo cáo chờ duyệt lâu nhất. Quá thời hạn quy định thì hệ thống tự thông qua.',warn:3,bad:7},
-  {key:'autoApprovedReports',label:'Báo cáo bị tự thông qua',hint:'Số báo cáo hệ thống phải tự thông qua vì người duyệt không xử lý trong thời hạn.',warn:1,bad:3},
-  {key:'rejectedProposals',label:'Đề xuất bị từ chối',hint:'Đề xuất chỉ tiêu của phòng bị từ chối; xem lý do ở dòng dưới tên phòng.',warn:3,bad:10},
-  {key:'autoApprovedProposals',label:'Đề xuất tự thông qua',hint:'Đề xuất đã trình mà người có thẩm quyền không xử lý trong thời hạn.',warn:1,bad:3},
-  {key:'bounces',label:'Chuyển / trả việc',hint:'Số lần chỉ tiêu bị chuyển cho đồng nghiệp hoặc trả về trưởng phòng — "đá việc".',warn:2,bad:5},
-  {key:'escalations',label:'Bị báo lên lãnh đạo',hint:'Số lần hệ thống leo thang: chưa giao người quá hạn, trễ báo cáo kỳ quá 7 ngày, việc bị đá qua lại.',warn:1,bad:5},
-  {key:'unassigned',label:'Chưa giao người',hint:'Chỉ tiêu của phòng chưa có chuyên viên phụ trách.',warn:1,bad:10},
-  {key:'missingReports',label:'Thiếu báo cáo kỳ',hint:'Chỉ tiêu có kỳ báo cáo đã qua hạn mà chưa có số liệu.',warn:1,bad:5},
-  {key:'openExplanations',label:'Giải trình đang mở',hint:'Yêu cầu giải trình của lãnh đạo chưa được trả lời.',warn:1,bad:3},
-  {key:'overdueExplanations',label:'Giải trình quá hạn',hint:'Yêu cầu giải trình đã quá hạn trả lời.',warn:1,bad:1},
-  {key:'withoutDirective',label:'Thiếu văn bản chỉ đạo',hint:'Chỉ tiêu (trừ chỉ tiêu thống kê) chưa có văn bản chỉ đạo điều hành trong hồ sơ.',warn:1,bad:10},
-  {key:'withoutEvaluation',label:'Chưa đánh giá',hint:'Chỉ tiêu chưa có đánh giá kết quả kỳ nào.',warn:1,bad:10},
+/** Cột trách nhiệm; `warn`/`bad` là ngưỡng tô màu con số trên màn hình. */
+const COLUMNS:{key:NumericKey;label:string;warn:number;bad:number}[]=[
+  {key:'pendingReports',label:'Chờ duyệt',warn:1,bad:5},
+  {key:'oldestPendingDays',label:'Chờ lâu nhất (ngày)',warn:3,bad:7},
+  {key:'autoApprovedReports',label:'Báo cáo tự thông qua',warn:1,bad:3},
+  {key:'rejectedProposals',label:'Đề xuất bị từ chối',warn:3,bad:10},
+  {key:'autoApprovedProposals',label:'Đề xuất tự thông qua',warn:1,bad:3},
+  {key:'bounces',label:'Chuyển, trả việc',warn:2,bad:5},
+  {key:'escalations',label:'Báo lên lãnh đạo',warn:1,bad:5},
+  {key:'unassigned',label:'Chưa giao người',warn:1,bad:10},
+  {key:'missingReports',label:'Thiếu báo cáo kỳ',warn:1,bad:5},
+  {key:'overdueExplanations',label:'Giải trình quá hạn',warn:1,bad:1},
 ];
 
-function tone(value:number,column:typeof COLUMNS[number]){
-  if(value>=column.bad)return 'bad';
-  if(value>=column.warn)return 'warn';
-  return value===0?'zero':'';
-}
+const tone=(value:number,column:typeof COLUMNS[number])=>value>=column.bad?'bad':value>=column.warn?'warn':value===0?'zero':'';
+const managerNames=(row:DepartmentRow)=>row.managers.map(person=>person.fullName).join(', ');
 
-function loginText(person:Person){
-  if(!person.lastLoginAt)return {text:'Chưa từng đăng nhập',tone:'bad'};
+function loginState(person:Person){
+  if(!person.lastLoginAt)return {text:'chưa đăng nhập',tone:'bad'};
   const days=(Date.now()-new Date(person.lastLoginAt).getTime())/86_400_000;
-  return {text:`Đăng nhập ${relativeTime(person.lastLoginAt)}`,tone:days>7?'warn':'ok'};
+  return {text:`đăng nhập ${relativeTime(person.lastLoginAt)}`,tone:days>7?'warn':''};
 }
 
-/** Trách nhiệm người đứng đầu (DH-04): theo từng phòng — chậm duyệt, bị tự thông qua, đá việc, giải trình, đăng nhập. */
+function asOf(iso:string){
+  const at=new Date(iso);
+  const pad=(value:number)=>String(value).padStart(2,'0');
+  return `${pad(at.getHours())} giờ ${pad(at.getMinutes())} ngày ${pad(at.getDate())}/${pad(at.getMonth()+1)}/${at.getFullYear()}`;
+}
+
+/** Trách nhiệm người đứng đầu (DH-04): theo từng phòng — chậm duyệt, tự thông qua, đá việc, giải trình, đăng nhập. */
 export default function Accountability(){
-  const me=auth.user;
+  const global=isGlobal(auth.user);
   const [year,setYear]=useState(()=>new Date().getFullYear());
   const [data,setData]=useState<Accountability|null>(null);
   const [error,setError]=useState('');
@@ -57,89 +58,151 @@ export default function Accountability(){
   const load=useCallback(async()=>{
     setError('');
     try{setData(await api<Accountability>(`/ioc/accountability?year=${year}`))}
-    catch(caught){setError(caught instanceof Error?caught.message:'Không tải được dữ liệu trách nhiệm')}
+    catch(caught){setError(caught instanceof Error?caught.message:'Không tải được dữ liệu')}
   },[year]);
   useEffect(()=>{setData(null);void load()},[load]);
 
   const rows=useMemo(()=>[...(data?.departments??[])].sort((a,b)=>sort.key==='name'
     ?a.name.localeCompare(b.name,'vi')*sort.dir
     :((a[sort.key] as number)-(b[sort.key] as number))*sort.dir||a.name.localeCompare(b.name,'vi')),[data,sort]);
-
+  const printRows=useMemo(()=>[...(data?.departments??[])].sort((a,b)=>a.name.localeCompare(b.name,'vi')),[data]);
   const toggleSort=(key:NumericKey|'name')=>setSort(current=>current.key===key?{key,dir:current.dir===1?-1:1}:{key,dir:key==='name'?1:-1});
-  const global=isGlobal(me);
-  const years=[year-1,year,year+1].filter((value,index,list)=>list.indexOf(value)===index);
+  const sum=(key:NumericKey)=>rows.reduce((total,row)=>total+(row[key] as number),0);
+  const thisYear=new Date().getFullYear();
 
-  return <div className="accountability">
-    <PageHead
-      eyebrow="Điều hành"
-      title="Trách nhiệm người đứng đầu"
-      description={global
-        ?'Theo từng phòng: ai chậm duyệt, việc nào bị hệ thống tự thông qua, đề xuất bị từ chối vì sao, việc bị đá qua lại, giải trình quá hạn, có dùng hệ thống không. Đầu vào để đánh giá cán bộ theo kết quả nhiệm vụ (Nghị định 335/2025).'
-        :'Các chỉ số trách nhiệm của phòng bạn: báo cáo chờ duyệt, việc bị tự thông qua, chuyển trả việc, giải trình. Lãnh đạo UBND xem cùng bảng này cho mọi phòng.'}
-      actions={<>
-        <label className="acc-year">Năm<select value={year} onChange={event=>setYear(Number(event.target.value))}>{years.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-        <button type="button" className="btn secondary" onClick={()=>void load()}><RefreshCw aria-hidden="true"/>Làm mới</button>
-        <button type="button" className="btn secondary" onClick={()=>window.print()}><Printer aria-hidden="true"/>In</button>
-      </>}
-    />
+  const head=<PageHead title="Trách nhiệm người đứng đầu" actions={<>
+    <select aria-label="Năm" value={year} onChange={event=>setYear(Number(event.target.value))}>
+      {[thisYear+1,thisYear,thisYear-1,thisYear-2].map(value=><option key={value} value={value}>Năm {value}</option>)}
+    </select>
+    <button type="button" className="btn secondary icon" onClick={()=>void load()} aria-label="Làm mới" title="Làm mới"><RefreshCw aria-hidden="true"/></button>
+    <button type="button" className="btn secondary" onClick={()=>window.print()} disabled={!data}><Printer aria-hidden="true"/>In</button>
+  </>}/>;
 
-    {error?<div className="form-error" role="alert">{error} <button type="button" className="btn secondary sm" onClick={()=>void load()}>Thử lại</button></div>
-      :!data?<SkeletonTable rows={6}/>
-      :<>
-        <div className="ioc-kpis">
-          <div className={`ioc-kpi ${data.autoApprovedReportsTotal?'bad':'ok'}`}><span>Báo cáo bị tự thông qua</span><strong>{fmtNumber(data.autoApprovedReportsTotal)}</strong><small>người duyệt để quá hạn</small></div>
-          <div className={`ioc-kpi ${data.autoApprovedProposalsTotal?'warn':'ok'}`}><span>Đề xuất tự thông qua</span><strong>{fmtNumber(data.autoApprovedProposalsTotal)}</strong><small>không ai quyết định trong hạn</small></div>
-          <div className="ioc-kpi info"><span>Báo cáo đang chờ duyệt</span><strong>{fmtNumber(rows.reduce((sum,row)=>sum+row.pendingReports,0))}</strong><small>trên toàn bộ phòng</small></div>
-          <div className="ioc-kpi warn"><span>Chuyển / trả việc</span><strong>{fmtNumber(rows.reduce((sum,row)=>sum+row.bounces,0))}</strong><small>lần trong năm {data.year}</small></div>
+  if(error)return <>{head}<div className="form-error" role="alert">{error} <button type="button" className="btn secondary sm" onClick={()=>void load()}>Thử lại</button></div></>;
+  if(!data)return <>{head}<SkeletonTable rows={6}/></>;
+
+  return <>
+    <div className="screen-only acc">
+      {head}
+      <section className="acc-stats panel flush" aria-label="Tổng hợp">
+        <div><span>Báo cáo tự thông qua</span><strong className={data.autoApprovedReportsTotal?'bad':''}>{fmtNumber(data.autoApprovedReportsTotal)}</strong></div>
+        <div><span>Đề xuất tự thông qua</span><strong className={data.autoApprovedProposalsTotal?'warn':''}>{fmtNumber(data.autoApprovedProposalsTotal)}</strong></div>
+        <div><span>Báo cáo chờ duyệt</span><strong>{fmtNumber(sum('pendingReports'))}</strong></div>
+        <div><span>Chuyển, trả việc</span><strong>{fmtNumber(sum('bounces'))}</strong></div>
+        <div><span>Giải trình quá hạn</span><strong className={sum('overdueExplanations')?'bad':''}>{fmtNumber(sum('overdueExplanations'))}</strong></div>
+      </section>
+
+      <section className="panel flush">
+        <div className="table-wrap">
+          <table className="acc-table">
+            <thead><tr>
+              <th scope="col" aria-sort={sort.key==='name'?(sort.dir===1?'ascending':'descending'):'none'}>
+                <SortButton active={sort.key==='name'} dir={sort.dir} onClick={()=>toggleSort('name')}>Đơn vị</SortButton>
+              </th>
+              <th scope="col" className="ioc-num">Chỉ tiêu</th>
+              {COLUMNS.map(column=><th key={column.key} scope="col" className="ioc-num" aria-sort={sort.key===column.key?(sort.dir===1?'ascending':'descending'):'none'}>
+                <SortButton active={sort.key===column.key} dir={sort.dir} onClick={()=>toggleSort(column.key)}>{column.label}</SortButton>
+              </th>)}
+            </tr></thead>
+            <tbody>{rows.map(row=><tr key={row.id}>
+              <td className="acc-name">
+                <Link className="acc-dept" to={`/admin/targets?departmentId=${encodeURIComponent(row.id)}`}><i className="ioc-dept-dot" style={{'--dept':row.color} as CSSProperties} aria-hidden="true"/>{row.name}</Link>
+                {row.managers.length
+                  ?row.managers.map(person=>{const login=loginState(person);return <small key={person.id}>{person.fullName} · <span className={login.tone}>{login.text}</span></small>})
+                  :<small className="warn">Chưa có trưởng phòng</small>}
+                {row.rejectionReasons.length>0&&<details className="acc-reasons">
+                  <summary>Lý do từ chối ({row.rejectionReasons.length})</summary>
+                  <ul>{row.rejectionReasons.map((item,index)=><li key={index}>{item.reason||'—'} <span>({item.actorName})</span></li>)}</ul>
+                </details>}
+              </td>
+              <td className="ioc-num">{fmtNumber(row.targets)}</td>
+              {COLUMNS.map(column=><td key={column.key} className={`ioc-num ${tone(row[column.key] as number,column)}`}>{fmtNumber(row[column.key] as number)}</td>)}
+            </tr>)}</tbody>
+          </table>
         </div>
+      </section>
 
-        <section className="panel flush">
-          <div className="panel-head"><div><h3>Theo từng phòng</h3><p>Bấm tiêu đề cột để sắp xếp. Ô đỏ/vàng là điểm cần chấn chỉnh. Số liệu lúc {fmtDateTime(data.generatedAt)}.</p></div></div>
-          <div className="table-wrap tall">
-            <table className="acc-table">
-              <thead><tr>
-                <th scope="col" aria-sort={sort.key==='name'?(sort.dir===1?'ascending':'descending'):'none'}>
-                  <button type="button" className="acc-sort" onClick={()=>toggleSort('name')}>Phòng · trưởng phòng{sort.key==='name'&&(sort.dir===1?<ArrowUp aria-hidden="true"/>:<ArrowDown aria-hidden="true"/>)}</button>
-                </th>
-                <th scope="col" className="ioc-num">Chỉ tiêu</th>
-                {COLUMNS.map(column=><th key={column.key} scope="col" className="ioc-num" aria-sort={sort.key===column.key?(sort.dir===1?'ascending':'descending'):'none'}>
-                  <button type="button" className="acc-sort" title={column.hint} onClick={()=>toggleSort(column.key)}>{column.label}{sort.key===column.key&&(sort.dir===1?<ArrowUp aria-hidden="true"/>:<ArrowDown aria-hidden="true"/>)}</button>
-                </th>)}
-              </tr></thead>
-              <tbody>
-                {rows.map(row=><tr key={row.id}>
-                  <td className="name">
-                    <Link className="acc-dept" to={`/admin/targets?departmentId=${encodeURIComponent(row.id)}`}><span className="ioc-dept-dot" style={{'--dept':row.color} as CSSProperties} aria-hidden="true"/>{row.name}</Link>
-                    {row.managers.length
-                      ?row.managers.map(person=>{const login=loginText(person);return <span key={person.id} className="acc-person">{person.fullName}{person.position?` — ${person.position}`:''} · <span className={`ioc-${login.tone}`}>{login.text}</span></span>})
-                      :<span className="acc-person ioc-warn">Chưa có trưởng phòng trên hệ thống</span>}
-                    {row.rejectionReasons.length>0&&<details className="acc-reasons-box">
-                      <summary>{row.rejectionReasons.length} lý do từ chối gần đây</summary>
-                      <ul className="acc-reasons">{row.rejectionReasons.map((item,index)=><li key={index}>{item.reason||'(không ghi lý do)'} — {item.actorName}, {fmtDateTime(item.at)}</li>)}</ul>
-                    </details>}
-                  </td>
-                  <td className="ioc-num">{fmtNumber(row.targets)}</td>
-                  {COLUMNS.map(column=>{const value=row[column.key];const level=tone(value,column);return <td key={column.key} className="ioc-num">
-                    <span className={`acc-cell ${level}`}>{fmtNumber(value)}</span>
-                  </td>})}
-                </tr>)}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      {global&&data.leaders.length>0&&<section className="panel flush">
+        <div className="panel-head"><h3>Lãnh đạo UBND</h3></div>
+        <table className="acc-leaders">
+          <tbody>{data.leaders.map(person=>{const login=loginState(person);return <tr key={person.id}>
+            <td>{person.fullName}</td>
+            <td className="acc-muted">{person.position||'Lãnh đạo UBND'}</td>
+            <td className={`ioc-num ${login.tone}`}>{login.text}</td>
+          </tr>})}</tbody>
+        </table>
+      </section>}
+    </div>
 
-        {global&&data.leaders.length>0&&<section className="panel acc-leaders">
-          <div className="panel-head"><div><h3>Lãnh đạo UBND</h3><p>Lần đăng nhập gần nhất — lãnh đạo dùng hệ thống thì cán bộ mới dùng theo.</p></div></div>
-          <ul className="ioc-list">{data.leaders.map(person=>{const login=loginText(person);return <li key={person.id}>
-            <span className="grow"><span className="title">{person.fullName}</span><span className="sub">{person.position||'Lãnh đạo UBND'}</span></span>
-            <span className={`side ioc-${login.tone}`}>{login.text}</span>
-          </li>})}</ul>
-        </section>}
+    <PrintDocument
+      kind="PHỤ LỤC"
+      title={`Tình hình thực hiện trách nhiệm của người đứng đầu các phòng, đơn vị năm ${data.year}`}
+      subtitle={`(Số liệu trích xuất từ hệ thống lúc ${asOf(data.generatedAt)})`}
+      orientation="landscape"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th rowSpan={2} className="w-stt">STT</th>
+            <th rowSpan={2} className="w-name">Phòng, đơn vị</th>
+            <th rowSpan={2} className="w-person">Người đứng đầu</th>
+            <th rowSpan={2}>Số chỉ tiêu</th>
+            <th colSpan={3}>Duyệt báo cáo số liệu</th>
+            <th colSpan={2}>Đề xuất chỉ tiêu</th>
+            <th colSpan={3}>Giao việc</th>
+            <th rowSpan={2}>Thiếu báo cáo kỳ</th>
+            <th rowSpan={2}>Giải trình quá hạn</th>
+          </tr>
+          <tr>
+            <th>Đang chờ</th>
+            <th>Chờ lâu nhất (ngày)</th>
+            <th>Tự thông qua</th>
+            <th>Bị từ chối</th>
+            <th>Tự thông qua</th>
+            <th>Chưa giao người</th>
+            <th>Chuyển, trả việc</th>
+            <th>Báo lên lãnh đạo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {printRows.map((row,index)=><tr key={row.id}>
+            <td className="num">{index+1}</td>
+            <td className="text">{row.name}</td>
+            <td className="text">{managerNames(row)||'—'}</td>
+            <td className="num">{row.targets}</td>
+            <td className="num">{row.pendingReports}</td>
+            <td className="num">{row.oldestPendingDays}</td>
+            <td className="num">{row.autoApprovedReports}</td>
+            <td className="num">{row.rejectedProposals}</td>
+            <td className="num">{row.autoApprovedProposals}</td>
+            <td className="num">{row.unassigned}</td>
+            <td className="num">{row.bounces}</td>
+            <td className="num">{row.escalations}</td>
+            <td className="num">{row.missingReports}</td>
+            <td className="num">{row.overdueExplanations}</td>
+          </tr>)}
+          <tr className="group">
+            <td className="num" colSpan={3}>Tổng cộng</td>
+            <td className="num">{sum('targets')}</td>
+            <td className="num">{sum('pendingReports')}</td>
+            <td className="num">{Math.max(0,...rows.map(row=>row.oldestPendingDays))}</td>
+            <td className="num">{sum('autoApprovedReports')}</td>
+            <td className="num">{sum('rejectedProposals')}</td>
+            <td className="num">{sum('autoApprovedProposals')}</td>
+            <td className="num">{sum('unassigned')}</td>
+            <td className="num">{sum('bounces')}</td>
+            <td className="num">{sum('escalations')}</td>
+            <td className="num">{sum('missingReports')}</td>
+            <td className="num">{sum('overdueExplanations')}</td>
+          </tr>
+        </tbody>
+      </table>
+    </PrintDocument>
+  </>;
+}
 
-        <details className="panel acc-legend">
-          <summary>Cách tính từng cột</summary>
-          <dl className="dos-kv">{COLUMNS.map(column=><div key={column.key}><dt>{column.label}</dt><dd>{column.hint}</dd></div>)}</dl>
-        </details>
-      </>}
-  </div>;
+function SortButton({active,dir,onClick,children}:{active:boolean;dir:1|-1;onClick:()=>void;children:string}){
+  return <button type="button" className="acc-sort" onClick={onClick}>
+    {children}{active&&(dir===1?<ArrowUp aria-hidden="true"/>:<ArrowDown aria-hidden="true"/>)}
+  </button>;
 }

@@ -15,10 +15,18 @@
 /* Trang khổ ngang cho bảng rộng (Chrome/Edge hỗ trợ trang có tên). */
 @page landscape {
   size: A4 landscape;
-  margin: 15mm 15mm 15mm 20mm;
+  margin: 12mm 15mm 10mm 20mm;
 }
 
 @media print {
+  /* Hiệu ứng xuất hiện không có thời gian chạy khi in — khối đứng yên ở trạng thái đầu (trong suốt). */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
   .print-only {
     display: block !important;
   }
@@ -48,7 +56,7 @@
     display: grid;
     grid-template-columns: 2fr 3fr;
     gap: 8mm;
-    margin-bottom: 6mm;
+    margin-bottom: 3mm;
   }
 
   .print-doc-agency,
@@ -85,7 +93,7 @@
   }
 
   .print-doc-nation em {
-    margin-top: 5mm;
+    margin-top: 3mm;
     font-size: 13pt;
     font-style: italic;
   }
@@ -95,7 +103,7 @@
     flex-direction: column;
     align-items: center;
     gap: 1mm;
-    margin: 4mm 0 6mm;
+    margin: 2mm 0 4mm;
     text-align: center;
   }
 
@@ -129,9 +137,13 @@
     break-inside: avoid;
   }
 
+  .print-doc tbody tr:last-child td {
+    border-bottom: 0.75pt solid #000 !important;
+  }
+
   .print-doc th,
   .print-doc td {
-    padding: 3pt 4pt;
+    padding: 2pt 4pt;
     border: 0.75pt solid #000;
     color: #000;
     background: #fff;
@@ -139,8 +151,26 @@
   }
 
   .print-doc th {
+    position: static;
     font-weight: 700;
+    font-size: inherit;
     text-align: center;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: normal;
+  }
+
+  /* Độ rộng cột chữ để tên đơn vị, họ tên không bị ngắt nhiều dòng. */
+  .print-doc .w-stt {
+    width: 9mm;
+  }
+
+  .print-doc .w-name {
+    width: 58mm;
+  }
+
+  .print-doc .w-person {
+    width: 34mm;
   }
 
   .print-doc td.num,
@@ -170,7 +200,7 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10mm;
-    margin-top: 10mm;
+    margin-top: 5mm;
     break-inside: avoid;
     text-align: center;
   }
@@ -193,6 +223,6 @@
 
   .print-doc-sign-space {
     display: block;
-    height: 22mm;
+    height: 16mm;
   }
 }
