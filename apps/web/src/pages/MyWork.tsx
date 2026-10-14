@@ -1,13 +1,13 @@
-import { AlertTriangle, ArrowRight, Check, CheckCircle2, FilePlus2, Info, RefreshCw, Sparkles, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, FilePlus2, RefreshCw, UserPlus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError, auth } from '../api';
-import { ADMIN_ROLES, APPROVAL_ROLES, FRAMEWORK_EDITOR_ROLES, hasAnyRole, roleLabels, SUPERVISOR_ROLES } from '../authz';
+import { ADMIN_ROLES, APPROVAL_ROLES, FRAMEWORK_EDITOR_ROLES, hasAnyRole, SUPERVISOR_ROLES } from '../authz';
+import { DensityToggle, Hint, useDensity } from '../components/Detail';
 import { Badge, Empty, Modal, PageHead, Skeleton, SkeletonTable, StateCard } from '../components/UI';
 import { toast } from '../components/Toast';
 import type { MyWork as MyWorkData, TargetBrief } from '../ioc-types';
 import { fmtDate, fmtDateTime, fmtNumber, relativeTime, statusTone, untilText, valueWithUnit } from '../ioc-format';
-import { useLocality } from '../locality';
 import { statusMeta } from '../types';
 import '../styles/ioc-mywork.css';
 
@@ -37,13 +37,6 @@ const proposalStatus:Record<string,{label:string;tone:Tone}>={
   REJECTED:{label:'Bị từ chối',tone:'bad'},
 };
 const statusOrder:Record<string,number>={OVERDUE:0,AT_RISK:1,NOT_STARTED:2,ON_TRACK:3,COMPLETED:4};
-const hourFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',hourCycle:'h23'});
-const dayFormat=new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-
-function greeting(){
-  const hour=Number(hourFormat.format(new Date()));
-  return hour<11?'Chào buổi sáng':hour<13?'Chào buổi trưa':hour<18?'Chào buổi chiều':'Chào buổi tối';
-}
 
 /** Nhãn kỳ báo cáo từ khoá kỳ (2026-M09, 2026-Q3, 2026-H1, 2026) — giống periodLabel phía máy chủ. */
 function periodName(key?:string|null){
@@ -61,7 +54,7 @@ function msUntil(at?:string|null){return at?new Date(at).getTime()-Date.now():Nu
 /** "Còn 18 giờ sẽ tự thông qua" hoặc "Đã đến hạn tự thông qua". */
 function autoText(at:string){
   const text=untilText(at);
-  return msUntil(at)>0?`${text.charAt(0).toUpperCase()}${text.slice(1)} sẽ tự thông qua`:'Đã đến hạn tự thông qua';
+  return msUntil(at)>0?`Tự thông qua ${text}`:'Đến hạn tự thông qua';
 }
 function urgency(ms:number):Tone{return ms<=DAY?'bad':ms<=2*DAY?'warn':'neutral'}
 function sev(tone:Tone){return tone==='bad'?'critical':tone==='warn'?'warning':'info'}
@@ -74,7 +67,6 @@ function errorText(reason:unknown,fallback:string){return reason instanceof Erro
 export default function MyWork(){
   const user=auth.user;
   const role=user?.role;
-  const locality=useLocality();
   const reviewer=hasAnyRole(user,APPROVAL_ROLES);
   const isAdmin=hasAnyRole(user,ADMIN_ROLES);
   const [data,setData]=useState<Work|null>(null);
@@ -90,6 +82,8 @@ export default function MyWork(){
   const [reason,setReason]=useState('');
   const [rejectError,setRejectError]=useState('');
   const [,setTick]=useState(0);
+  const [density,setDensity]=useDensity('my-work');
+  const detailed=density==='detailed';
   const requestRef=useRef(0);
   const tabRefs=useRef<Partial<Record<TabKey,HTMLButtonElement|null>>>({});
 
@@ -158,29 +152,29 @@ export default function MyWork(){
   function submitReject(event:FormEvent){
     event.preventDefault();
     if(!rejecting)return;
-    if(!reason.trim()){setRejectError('Vui lòng ghi rõ lý do trả lại để người báo cáo biết cần sửa gì.');return}
+    if(!reason.trim()){setRejectError('Vui lòng nhập lý do.');return}
     void review(rejecting,'REJECT',reason.trim());
   }
 
-  const head=(description:string,actions?:boolean)=><PageHead
-    eyebrow={`Việc của tôi · ${dayFormat.format(new Date())}`}
-    title={`${greeting()}, ${user?.fullName||'bạn'}`}
-    description={description}
-    actions={actions?<button type="button" className="btn secondary" disabled={loading||refreshing} onClick={()=>void load(true)}>
-      <RefreshCw className={refreshing?'spin':undefined} aria-hidden="true"/>{refreshing?'Đang làm mới…':'Làm mới'}
-    </button>:undefined}
+  const head=(actions?:boolean)=><PageHead
+    title="Việc của tôi"
+    actions={actions?<>
+      <DensityToggle value={density} onChange={setDensity}/>
+      <button type="button" className="btn secondary icon" disabled={loading||refreshing} onClick={()=>void load(true)} aria-label="Làm mới" title="Làm mới">
+        <RefreshCw className={refreshing?'spin':undefined} aria-hidden="true"/>
+      </button>
+    </>:undefined}
   />;
-  const roleLine=[user?.position||(role?roleLabels[role]:'Cán bộ'),user?.department?.name||(locality.configured?locality.name:'')].filter(Boolean).join(' · ');
 
   if(loading&&!data)return <div className="mw" aria-busy="true">
-    {head(roleLine)}
+    {head()}
     <div className="mw-skel-tabs" aria-hidden="true">{Array.from({length:5},(_,index)=><Skeleton key={index}/>)}</div>
     <SkeletonTable rows={5}/>
   </div>;
 
   if(!data)return <div className="mw">
-    {head(roleLine)}
-    <StateCard icon={<AlertTriangle/>} title="Không tải được danh sách việc" description={error||'Máy chủ không phản hồi. Vui lòng thử lại sau ít phút.'}
+    {head()}
+    <StateCard icon={<AlertTriangle/>} title="Không tải được danh sách việc" description={error||'Máy chủ không phản hồi.'}
       action={<button type="button" className="btn primary" onClick={()=>void load()}>Thử lại</button>}/>
   </div>;
 
@@ -215,17 +209,16 @@ export default function MyWork(){
   const allTabs:(Tab&{show:boolean})[]=[
     {key:'bao-cao',label:'Cần báo cáo',count:data.needReport.length,hot:lateReports>0,work:true,show:reporter},
     {key:'tra-lai',label:'Bị trả lại',count:openRejected,hot:openRejected>0,work:true,show:reporter||data.rejectedReports.length>0},
-    {key:'cho-duyet',label:'Chờ tôi duyệt',count:data.toReview.length,hot:urgentReviews>0,work:true,show:reviewer},
-    {key:'de-xuat',label:'Đề xuất chờ xử lý',count:data.proposals.length,hot:urgentProposals>0,work:true,show:hasAnyRole(user,FRAMEWORK_EDITOR_ROLES)||role==='MANAGER'},
-    {key:'giai-trinh',label:'Giải trình được yêu cầu',count:data.explanations.length,hot:data.explanations.length>0,work:true,show:reporter},
+    {key:'cho-duyet',label:'Chờ duyệt',count:data.toReview.length,hot:urgentReviews>0,work:true,show:reviewer},
+    {key:'de-xuat',label:'Đề xuất',count:data.proposals.length,hot:urgentProposals>0,work:true,show:hasAnyRole(user,FRAMEWORK_EDITOR_ROLES)||role==='MANAGER'},
+    {key:'giai-trinh',label:'Giải trình',count:data.explanations.length,hot:data.explanations.length>0,work:true,show:reporter},
     {key:'chua-giao',label:'Chưa giao người',count:data.unassigned.length,hot:false,work:true,show:hasAnyRole(user,SUPERVISOR_ROLES)},
     {key:'chi-tieu',label:'Chỉ tiêu của tôi',count:data.myTargets.length,hot:false,work:false,show:reporter},
     {key:'de-xuat-cua-toi',label:'Đề xuất của tôi',count:data.myProposals.length,hot:false,work:false,show:reporter||role==='CLERK'},
   ];
   const workTotal=allTabs.filter(tab=>tab.work).reduce((sum,tab)=>sum+tab.count,0);
-  const urgentTotal=lateReports+openRejected+urgentReviews+urgentProposals+data.explanations.length;
   // Hết việc: chỉ giữ các tab tra cứu còn nội dung, phần còn lại thay bằng trạng thái "đã xử lý hết".
-  const tabs:Tab[]=allTabs.filter(tab=>workTotal===0?!tab.work&&tab.count>0:tab.show||tab.count>0);
+  const tabs:Tab[]=allTabs.filter(tab=>workTotal===0?!tab.work&&tab.count>0:detailed?tab.show||tab.count>0:tab.count>0||(!tab.work&&tab.show));
   const requested=params.get('tab');
   const active=tabs.find(tab=>tab.key===requested)??tabs.find(tab=>tab.work&&tab.count>0)??tabs.find(tab=>tab.count>0)??tabs[0];
 
@@ -243,44 +236,45 @@ export default function MyWork(){
   }
 
   const unitOf=(targetId:string)=>known.get(targetId)?.unit??'';
-  const proposalDays=rules.proposalAutoApproveDays;
-  const ruleText=reportDays!=null&&proposalDays!=null
-    ?`Quy tắc tự thông qua: ${reportDays>0?`báo cáo số liệu chờ duyệt quá ${reportDays} ngày`:'báo cáo số liệu (đang tắt tự thông qua)'}${proposalDays>0?`, đề xuất chỉ tiêu đã trình quá ${proposalDays} ngày`:''} sẽ được hệ thống tự thông qua và ghi trách nhiệm cho người có thẩm quyền duyệt mà không xử lý.`
-    :'Quy tắc tự thông qua: báo cáo số liệu và đề xuất chỉ tiêu đã trình, nếu người có thẩm quyền không xử lý trong thời hạn địa phương quy định, sẽ được hệ thống tự thông qua và ghi trách nhiệm cho người duyệt. Mỗi đề xuất có đồng hồ đếm ngược riêng.';
 
   // ---- Nội dung từng nhóm việc ----
   function needReportPanel(){
     const items=[...data!.needReport].sort((a,b)=>Number(a.pendingReport)-Number(b.pendingReport)||b.missingPeriods.length-a.missingPeriods.length);
     return <>
-      <PanelHead title="Chỉ tiêu cần báo cáo số liệu" hint="Chỉ tiêu được giao cho bạn còn thiếu số liệu ở kỳ đã đến hạn hoặc chưa báo cáo lần nào."
-        link={{to:'/admin/targets?assignee=me',label:'Xem trong danh mục'}}/>
+      <PanelHead title="Cần báo cáo" link={{to:'/admin/targets?assignee=me',label:'Danh mục'}}/>
       {items.length?<ul className="ioc-list mw-list">{items.map(target=>{
         const late=target.missingPeriods.length>0&&!target.pendingReport;
         const extra=target.missingPeriods.length-PERIODS_SHOWN;
         return <li key={target.id}>
           <span className={`ioc-sev ${late?'critical':target.pendingReport?'info':'warning'}`} aria-hidden="true"/>
           <div className="grow">
-            <Link className="title" to={`/admin/targets/${target.id}#thuc-hien`}>{target.title}</Link>
-            <span className="sub"><span className="ioc-code">{target.code}</span> · {target.departmentName} · Kỳ hiện tại: {target.currentPeriod}</span>
-            <div className="mw-periods">
-              {target.missingPeriods.length>0&&<span className="mw-label">Còn thiếu:</span>}
+            <Hint title={target.title} rows={[
+              {label:'Mã',value:target.code},
+              {label:'Phòng',value:target.departmentName},
+              {label:'Kỳ hiện tại',value:target.currentPeriod},
+              {label:'Còn thiếu',value:target.missingPeriods.join(', ')},
+              {label:'Số liệu',value:valueLine(target)},
+            ]}>
+              <Link className="title" to={`/admin/targets/${target.id}#thuc-hien`}>{target.title}</Link>
+            </Hint>
+            <span className="sub"><span className="ioc-code">{target.code}</span> · {target.currentPeriod}</span>
+            {detailed&&target.missingPeriods.length>0&&<div className="mw-periods">
               {target.missingPeriods.slice(0,PERIODS_SHOWN).map(period=><Badge key={period} tone="bad">{period}</Badge>)}
               {extra>0&&<Badge tone="neutral">+{extra} kỳ</Badge>}
-              {!target.missingPeriods.length&&!target.hasReport&&<Badge tone="warn">Chưa báo cáo lần nào</Badge>}
-              {target.pendingReport&&<Badge tone="info">Đã gửi, đang chờ duyệt</Badge>}
-            </div>
+            </div>}
           </div>
           <div className="side">
+            <span className={`mw-state ${late?'bad':''}`}>{target.pendingReport?'Đang chờ duyệt':target.missingPeriods.length?`Thiếu ${target.missingPeriods.length} kỳ`:!target.hasReport?'Chưa báo cáo':''}</span>
             <Link className={`btn sm ${target.pendingReport?'secondary':'primary'}`} to={`/admin/targets/${target.id}#thuc-hien`}><FilePlus2 aria-hidden="true"/>Báo cáo</Link>
           </div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Không có chỉ tiêu nào cần báo cáo" description="Mọi kỳ đã đến hạn của chỉ tiêu được giao cho bạn đều đã có số liệu."/>}
+      })}</ul>:<Empty showIcon={false} title="Không có chỉ tiêu cần báo cáo" description=""/>}
     </>;
   }
 
   function rejectedPanel(){
     return <>
-      <PanelHead title="Báo cáo bị trả lại" hint="Đọc lý do của người duyệt, sửa số liệu hoặc bổ sung minh chứng rồi báo cáo lại."/>
+      <PanelHead title="Bị trả lại"/>
       {data!.rejectedReports.length?<ul className="ioc-list mw-list">{data!.rejectedReports.map(report=>{
         const done=resolved(report);
         return <li key={report.id}>
@@ -289,22 +283,21 @@ export default function MyWork(){
             <Link className="title" to={`/admin/targets/${report.target.id}#thuc-hien`}>{report.target.title}</Link>
             <span className="sub"><span className="ioc-code">{report.target.code}</span> · Số liệu đã gửi: {valueWithUnit(report.value,unitOf(report.target.id))}
               {report.reviewedAt&&<> · Trả lại {relativeTime(report.reviewedAt)}</>}</span>
-            <p className="mw-quote bad"><b>Lý do:</b> {report.reviewNote||'Người duyệt không ghi lý do.'}</p>
-            {done&&<div className="mw-periods"><Badge tone="ok">Đã có báo cáo mới sau lần trả lại</Badge></div>}
+            <p className="mw-quote bad">{report.reviewNote||'—'}</p>
+            {done&&<span className="sub">Đã báo cáo lại</span>}
           </div>
           <div className="side">
             <Link className={`btn sm ${done?'secondary':'primary'}`} to={`/admin/targets/${report.target.id}#thuc-hien`}>{done?'Mở hồ sơ':'Báo cáo lại'}</Link>
           </div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Không có báo cáo nào bị trả lại" description="Báo cáo bị người duyệt trả lại sẽ hiện ở đây kèm lý do."/>}
+      })}</ul>:<Empty showIcon={false} title="Không có báo cáo bị trả lại" description=""/>}
     </>;
   }
 
   function reviewPanel(){
     const items=[...data!.toReview].sort((a,b)=>b.days-a.days);
     return <>
-      <PanelHead title="Báo cáo số liệu chờ tôi duyệt" hint="Duyệt để số liệu thành chính thức, hoặc trả lại kèm lý do. Báo cáo chờ quá hạn sẽ tự thông qua và ghi trách nhiệm người duyệt."
-        link={{to:'/admin/approvals',label:'Mở trang duyệt'}}/>
+      <PanelHead title="Chờ tôi duyệt" link={{to:'/admin/approvals',label:'Trang duyệt'}}/>
       {items.length?<ul className="ioc-list mw-list">{items.map(item=>{
         const update=pending.get(item.id);
         const unit=update?.target.unit??item.target.unit;
@@ -315,41 +308,44 @@ export default function MyWork(){
         return <li key={item.id}>
           <span className={`ioc-sev ${sev(tone)}`} aria-hidden="true"/>
           <div className="grow">
-            <Link className="title" to={`/admin/targets/${item.target.id}#thuc-hien`}>{item.target.title}</Link>
-            <span className="sub"><span className="ioc-code">{item.target.code}</span> · {item.target.departmentName} · Gửi {relativeTime(item.createdAt)}</span>
-            {update&&<span className="mw-value">
-              {update.user.fullName} báo cáo{update.periodKey?` ${periodName(update.periodKey)}`:''}: <b>{update.valueText||valueWithUnit(update.value,unit)}</b>
-              <span className="ioc-muted"> (số chính thức hiện tại {valueWithUnit(item.target.currentValue,unit)})</span>
-            </span>}
-            {update?.dataSource&&<span className="sub">Nguồn số liệu: {update.dataSource}</span>}
-            {(update?.explanation||update?.note)&&<p className="mw-quote">{update.explanation||update.note}</p>}
-            <div className="mw-periods">
-              <Badge tone={tone}>Đã chờ {item.days} ngày</Badge>
-              {autoAt&&<Badge tone={tone}>{autoText(autoAt)}</Badge>}
-              {stale&&<Badge tone="warn">Chỉ tiêu đã có số liệu mới sau lúc gửi — cần trả lại để báo cáo lại</Badge>}
-            </div>
+            <Hint title={item.target.title} rows={[
+              {label:'Người gửi',value:update?.user.fullName},
+              {label:'Kỳ',value:update?.periodKey?periodName(update.periodKey):null},
+              {label:'Số đề nghị',value:update?(update.valueText||valueWithUnit(update.value,unit)):null},
+              {label:'Số hiện tại',value:valueWithUnit(item.target.currentValue,unit)},
+              {label:'Nguồn',value:update?.dataSource},
+              {label:'Gửi lúc',value:fmtDateTime(item.createdAt)},
+            ]}>
+              <Link className="title" to={`/admin/targets/${item.target.id}#thuc-hien`}>{item.target.title}</Link>
+            </Hint>
+            <span className="sub">
+              <span className="ioc-code">{item.target.code}</span>
+              {update&&<> · {update.user.fullName}{update.periodKey?` · ${periodName(update.periodKey)}`:''}: <b>{update.valueText||valueWithUnit(update.value,unit)}</b></>}
+            </span>
+            {detailed&&update?.dataSource&&<span className="sub">Nguồn: {update.dataSource}</span>}
+            {detailed&&(update?.explanation||update?.note)&&<p className="mw-quote">{update.explanation||update.note}</p>}
+            {stale&&<span className="sub mw-warn">Chỉ tiêu đã có số liệu mới sau lúc gửi</span>}
           </div>
           <div className="side">
+            <span className={`mw-state ${tone==='bad'?'bad':tone==='warn'?'warn':''}`}>{autoAt?autoText(autoAt):`Chờ ${item.days} ngày`}</span>
             {reviewer&&update&&(confirmId===item.id?<>
-              <span className="mw-confirm">Duyệt số liệu này?</span>
-              <button type="button" className="btn primary sm" disabled={busy} onClick={()=>void review(item,'APPROVE')}><Check aria-hidden="true"/>{busy?'Đang duyệt…':'Xác nhận duyệt'}</button>
+              <button type="button" className="btn primary sm" disabled={busy} onClick={()=>void review(item,'APPROVE')}><Check aria-hidden="true"/>{busy?'Đang duyệt…':'Xác nhận'}</button>
               <button type="button" className="btn ghost sm" disabled={busy} onClick={()=>setConfirmId('')}>Huỷ</button>
             </>:<>
               <button type="button" className="btn primary sm" disabled={stale||Boolean(busyId)} title={stale?'Chỉ tiêu đã có số liệu mới sau lúc gửi':undefined}
                 onClick={()=>setConfirmId(item.id)}><Check aria-hidden="true"/>Duyệt</button>
               <button type="button" className="btn secondary sm danger-text" disabled={Boolean(busyId)} onClick={()=>openReject(item)}><X aria-hidden="true"/>Từ chối</button>
             </>)}
-            <Link className="btn ghost sm" to={`/admin/targets/${item.target.id}#thuc-hien`}>{update?'Mở hồ sơ':'Mở hồ sơ để duyệt'}</Link>
+            {!update&&<Link className="btn secondary sm" to={`/admin/targets/${item.target.id}#thuc-hien`}>Mở hồ sơ</Link>}
           </div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Không có báo cáo nào chờ bạn duyệt" description="Khi chuyên viên gửi số liệu, báo cáo sẽ hiện ở đây để bạn duyệt."/>}
+      })}</ul>:<Empty showIcon={false} title="Không có báo cáo chờ duyệt" description=""/>}
     </>;
   }
 
   function proposalsPanel(){
     return <>
-      <PanelHead title="Đề xuất chỉ tiêu chờ xử lý" hint="Đề xuất đã trình có đồng hồ đếm ngược; hết hạn mà chưa xử lý thì hệ thống tự thông qua."
-        link={{to:'/admin/proposals?status=SUBMITTED',label:'Tất cả đề xuất'}}/>
+      <PanelHead title="Đề xuất chờ xử lý" link={{to:'/admin/proposals?status=SUBMITTED',label:'Trang đề xuất'}}/>
       {data!.proposals.length?<ul className="ioc-list mw-list">{data!.proposals.map(proposal=>{
         const left=msUntil(proposal.autoApproveAt);
         const tone=proposal.autoApproveAt?urgency(left):'neutral';
@@ -359,41 +355,39 @@ export default function MyWork(){
           <div className="grow">
             <Link className="title" to={`/admin/proposals?id=${encodeURIComponent(proposal.id)}`}>{proposal.name}</Link>
             <span className="sub">
-              {proposal.responsibleDepartment?.name??'Chưa xác định phòng phụ trách'}
-              {proposal.document&&<> · Văn bản <span className="ioc-code">{proposal.document.code}</span></>}
-              {' · '}{proposal.submittedAt?`Trình ${relativeTime(proposal.submittedAt)}`:`Tạo ${relativeTime(proposal.createdAt)}`}
+              {proposal.origin==='AI'?'AI':'Cán bộ'} · {proposal.responsibleDepartment?.name??'Chưa xác định phòng'}
+              {detailed&&proposal.document&&<> · <span className="ioc-code">{proposal.document.code}</span></>}
+              {detailed&&<> · {proposal.submittedAt?`Trình ${relativeTime(proposal.submittedAt)}`:`Tạo ${relativeTime(proposal.createdAt)}`}</>}
             </span>
-            <div className="mw-periods">
-              {proposal.origin==='AI'?<Badge tone="ai"><Sparkles aria-hidden="true"/>AI trích từ văn bản</Badge>:<Badge tone="neutral">Cán bộ đề xuất</Badge>}
-              <Badge tone={screening?'info':'warn'}>{screening?'Chờ rà soát trước khi trình':'Đã trình, chờ quyết định'}</Badge>
-              {proposal.autoApproveAt&&<Badge tone={tone==='neutral'?'warn':tone}>{autoText(proposal.autoApproveAt)}</Badge>}
-            </div>
           </div>
           <div className="side">
-            <Link className="btn primary sm" to={`/admin/proposals?id=${encodeURIComponent(proposal.id)}`}>{screening?'Rà soát':'Xem và quyết định'}</Link>
+            <span className={`mw-state ${tone==='bad'?'bad':tone==='warn'?'warn':''}`}>{proposal.autoApproveAt?autoText(proposal.autoApproveAt):screening?'Chờ rà soát':'Đã trình'}</span>
+            <Link className="btn primary sm" to={`/admin/proposals?id=${encodeURIComponent(proposal.id)}`}>{screening?'Rà soát':'Quyết định'}</Link>
           </div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Không có đề xuất nào chờ bạn" description="Đề xuất chỉ tiêu do AI trích từ văn bản hoặc do cán bộ trình sẽ hiện ở đây."/>}
+      })}</ul>:<Empty showIcon={false} title="Không có đề xuất chờ xử lý" description=""/>}
     </>;
   }
 
   function explanationsPanel(){
     const items=[...data!.explanations].sort((a,b)=>msUntil(a.request.dueAt)-msUntil(b.request.dueAt));
     return <>
-      <PanelHead title="Giải trình được lãnh đạo yêu cầu" hint="Trả lời trong hồ sơ chỉ tiêu trước hạn; quá hạn sẽ được nhắc và ghi vào sổ trách nhiệm."/>
+      <PanelHead title="Giải trình"/>
       {items.length?<ul className="ioc-list mw-list">{items.map(target=>{
         const left=msUntil(target.request.dueAt);
         return <li key={target.request.id}>
           <span className={`ioc-sev ${left<=DAY?'critical':'warning'}`} aria-hidden="true"/>
           <div className="grow">
             <Link className="title" to={`/admin/targets/${target.id}`}>{target.title}</Link>
-            <span className="sub"><span className="ioc-code">{target.code}</span> · {target.departmentName} · Hạn trả lời {fmtDateTime(target.request.dueAt)}</span>
+            <span className="sub"><span className="ioc-code">{target.code}</span> · Hạn {fmtDateTime(target.request.dueAt)}</span>
             <p className="mw-quote warn">{target.request.message}</p>
-            <div className="mw-periods"><Badge tone={left<=DAY?'bad':'warn'}>{left>0?untilText(target.request.dueAt).replace(/^còn/,'Còn'):`Đã quá hạn ${untilText(target.request.dueAt).replace(/^quá /,'')}`}</Badge></div>
           </div>
-          <div className="side"><Link className="btn primary sm" to={`/admin/targets/${target.id}`}>Giải trình</Link></div>
+          <div className="side">
+            <span className={`mw-state ${left<=DAY?'bad':'warn'}`}>{left>0?untilText(target.request.dueAt):`Quá hạn ${untilText(target.request.dueAt).replace(/^quá /,'')}`}</span>
+            <Link className="btn primary sm" to={`/admin/targets/${target.id}`}>Giải trình</Link>
+          </div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Không có yêu cầu giải trình" description="Khi lãnh đạo yêu cầu giải trình một chỉ tiêu bạn phụ trách, yêu cầu sẽ hiện ở đây."/>}
+      })}</ul>:<Empty showIcon={false} title="Không có yêu cầu giải trình" description=""/>}
     </>;
   }
 
@@ -405,12 +399,11 @@ export default function MyWork(){
       groups.set(target.departmentId,group);
     }
     const list=[...groups.values()].sort((a,b)=>b.items.length-a.items.length);
-    const limit=list.length>1?5:20;
+    const limit=detailed?200:list.length>1?5:20;
     return <>
-      <PanelHead title="Chỉ tiêu chưa giao cho chuyên viên" hint="Mở hồ sơ chỉ tiêu để giao người phụ trách. Chỉ tiêu để lâu không giao sẽ bị nêu tên trong mục trách nhiệm."
-        link={{to:'/admin/targets?assignee=none',label:'Xem trong danh mục'}}/>
+      <PanelHead title="Chưa giao người" link={{to:'/admin/targets?assignee=none',label:'Danh mục'}}/>
       {list.length?list.map(group=><div className="mw-group" key={group.id}>
-        {list.length>1&&<h4><span className="ioc-dept-dot" style={{'--dept':group.color} as React.CSSProperties} aria-hidden="true"/>{group.name}<span className="count">{group.items.length} chỉ tiêu</span></h4>}
+        {list.length>1&&<h4><span className="ioc-dept-dot" style={{'--dept':group.color} as React.CSSProperties} aria-hidden="true"/>{group.name}<span className="count">{group.items.length}</span></h4>}
         <ul className="ioc-list mw-list">{group.items.slice(0,limit).map(target=><li key={target.id}>
           <span className="ioc-sev" aria-hidden="true"/>
           <div className="grow">
@@ -420,17 +413,16 @@ export default function MyWork(){
           <div className="side"><Link className="btn secondary sm" to={`/admin/targets/${target.id}`}><UserPlus aria-hidden="true"/>Giao người</Link></div>
         </li>)}</ul>
         {group.items.length>limit&&<Link className="mw-more" to={`/admin/targets?assignee=none&departmentId=${encodeURIComponent(group.id)}`}>
-          Xem cả {group.items.length} chỉ tiêu chưa giao<ArrowRight aria-hidden="true"/>
+          Xem cả {group.items.length}<ArrowRight aria-hidden="true"/>
         </Link>}
-      </div>):<Empty showIcon={false} title="Mọi chỉ tiêu đều đã có người phụ trách" description="Chỉ tiêu mới tạo chưa giao cho chuyên viên sẽ hiện ở đây."/>}
+      </div>):<Empty showIcon={false} title="Không có chỉ tiêu chưa giao" description=""/>}
     </>;
   }
 
   function myTargetsPanel(){
     const items=[...data!.myTargets].sort((a,b)=>(statusOrder[a.status]??9)-(statusOrder[b.status]??9));
     return <>
-      <PanelHead title="Chỉ tiêu tôi phụ trách" hint="Trạng thái và tiến độ của các chỉ tiêu được giao cho bạn trong năm."
-        link={{to:'/admin/targets?assignee=me',label:'Xem trong danh mục'}}/>
+      <PanelHead title="Chỉ tiêu của tôi" link={{to:'/admin/targets?assignee=me',label:'Danh mục'}}/>
       {items.length?<ul className="ioc-list mw-list">{items.map(target=>{
         const tone=statusTone[target.status]??'neutral';
         const width=Math.max(0,Math.min(100,target.progress));
@@ -438,8 +430,8 @@ export default function MyWork(){
           <span className={`ioc-sev ${target.status==='OVERDUE'?'critical':target.status==='AT_RISK'?'warning':''}`} aria-hidden="true"/>
           <div className="grow">
             <Link className="title" to={`/admin/targets/${target.id}`}>{target.title}</Link>
-            <span className="sub"><span className="ioc-code">{target.code}</span> · {valueLine(target)} · {target.lastReportedAt?`Báo cáo ${relativeTime(target.lastReportedAt)}`:'Chưa có báo cáo'}
-              {target.valueSource==='COMPUTED'?' · Tự tính từ kho dữ liệu':''}</span>
+            <span className="sub"><span className="ioc-code">{target.code}</span> · {valueLine(target)}
+              {detailed&&<> · {target.lastReportedAt?`Báo cáo ${relativeTime(target.lastReportedAt)}`:'Chưa có báo cáo'}{target.valueSource==='COMPUTED'?' · Tự tính':''}</>}</span>
             {target.kind!=='STAT'&&<div className="mw-progress">
               <div className="progress sm" role="progressbar" aria-label={`Tiến độ ${target.code}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(width)}>
                 <i className={tone==='info'||tone==='neutral'?undefined:tone} style={{width:`${width}%`}}/>
@@ -449,14 +441,13 @@ export default function MyWork(){
           </div>
           <div className="side"><Badge tone={tone}>{statusMeta[target.status]?.label??target.status}</Badge></div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Bạn chưa được giao chỉ tiêu nào" description="Trưởng phòng hoặc lãnh đạo giao chỉ tiêu trong hồ sơ chỉ tiêu; khi đó chỉ tiêu sẽ hiện ở đây."/>}
+      })}</ul>:<Empty showIcon={false} title="Chưa được giao chỉ tiêu" description=""/>}
     </>;
   }
 
   function myProposalsPanel(){
     return <>
-      <PanelHead title="Đề xuất chỉ tiêu của tôi" hint="Theo dõi đề xuất bạn đã tạo: đang chờ, đã duyệt thành chỉ tiêu, hay bị từ chối và vì sao."
-        link={{to:'/admin/proposals',label:'Trang đề xuất'}}/>
+      <PanelHead title="Đề xuất của tôi" link={{to:'/admin/proposals',label:'Trang đề xuất'}}/>
       {data!.myProposals.length?<ul className="ioc-list mw-list">{data!.myProposals.map(proposal=>{
         const meta=proposalStatus[proposal.status]??{label:proposal.status,tone:'neutral' as Tone};
         return <li key={proposal.id}>
@@ -466,13 +457,12 @@ export default function MyWork(){
             <span className="sub">Tạo {relativeTime(proposal.createdAt)}
               {proposal.createdTarget&&<> · Đã thành chỉ tiêu <Link to={`/admin/targets/${proposal.createdTarget.id}`}>{proposal.createdTarget.code}</Link></>}
             </span>
-            {proposal.status==='REJECTED'&&proposal.reviewNote&&<p className="mw-quote bad"><b>Lý do từ chối:</b> {proposal.reviewNote}</p>}
-            {proposal.status==='SUBMITTED'&&proposal.autoApproveAt&&<div className="mw-periods"><Badge tone="neutral">{autoText(proposal.autoApproveAt)}</Badge></div>}
+            {proposal.status==='REJECTED'&&proposal.reviewNote&&<p className="mw-quote bad">{proposal.reviewNote}</p>}
+            {detailed&&proposal.status==='SUBMITTED'&&proposal.autoApproveAt&&<span className="sub">{autoText(proposal.autoApproveAt)}</span>}
           </div>
           <div className="side"><Badge tone={meta.tone}>{meta.label}</Badge></div>
         </li>;
-      })}</ul>:<Empty showIcon={false} title="Bạn chưa có đề xuất nào" description="Phát hiện chỉ tiêu cần theo dõi? Tạo đề xuất ở trang Đề xuất chỉ tiêu."
-        action={<Link className="btn secondary sm" to="/admin/proposals">Mở trang đề xuất</Link>}/>}
+      })}</ul>:<Empty showIcon={false} title="Chưa có đề xuất" description="" action={<Link className="btn secondary sm" to="/admin/proposals">Tạo đề xuất</Link>}/>}
     </>;
   }
 
@@ -483,26 +473,9 @@ export default function MyWork(){
   const rejectingUpdate=rejecting?pending.get(rejecting.id):undefined;
 
   return <div className="mw">
-    {head(roleLine,true)}
+    {head(true)}
 
-    <p className="mw-summary" aria-live="polite">
-      {workTotal>0?<>Có <b>{workTotal}</b> việc đang chờ bạn{urgentTotal>0?<>, trong đó <b className="hot">{urgentTotal}</b> việc gấp (tô đỏ)</>:''}.</>:<>Không còn việc nào đang chờ bạn.</>}
-      {data.counts.unread>0&&<> Bạn có <b>{data.counts.unread}</b> thông báo chưa đọc ở biểu tượng chuông.</>}
-      <span className="mw-stamp"> Cập nhật lúc {fmtDateTime(data.generatedAt)}.</span>
-    </p>
-
-    {workTotal===0&&<section className="panel mw-clear">
-      <CheckCircle2 aria-hidden="true"/>
-      <div>
-        <h3>Bạn đã xử lý hết việc</h3>
-        <p>{role==='VIEWER'
-          ?'Tài khoản Người xem chỉ theo dõi số liệu, không được giao việc. Tình hình chung xem ở Trung tâm điều hành.'
-          :'Không còn báo cáo, phê duyệt, đề xuất hay giải trình nào đang chờ bạn. Khi có việc mới, hệ thống sẽ báo ở biểu tượng chuông.'}</p>
-        <div className="mw-clear-actions">
-          <Link className="btn secondary sm" to="/admin">Xem Trung tâm điều hành<ArrowRight aria-hidden="true"/></Link>
-        </div>
-      </div>
-    </section>}
+    {workTotal===0&&<div className="panel mw-clear"><span>Không có việc đang chờ.</span><Link to="/admin">Trung tâm điều hành</Link></div>}
 
     {active&&<>
       <div className="mw-tabs" role="tablist" aria-label="Nhóm việc" onKeyDown={onTabKey}>
@@ -518,18 +491,14 @@ export default function MyWork(){
       </section>
     </>}
 
-    <p className="mw-rule"><Info aria-hidden="true"/><span>{ruleText}</span></p>
-
     {rejecting&&<Modal title="Trả lại báo cáo" description={`${rejecting.target.code} · ${rejecting.target.title}`} onClose={()=>{if(!busyId)setRejecting(null)}}>
       <form onSubmit={submitReject}>
         {rejectingUpdate&&<div className="info-box"><p>
           {rejectingUpdate.user.fullName} báo cáo{rejectingUpdate.periodKey?` ${periodName(rejectingUpdate.periodKey)}`:''}: <b>{rejectingUpdate.valueText||valueWithUnit(rejectingUpdate.value,rejectingUpdate.target.unit)}</b>
         </p></div>}
-        <label>Lý do trả lại (bắt buộc)
-          <textarea rows={4} maxLength={2000} required value={reason} onChange={event=>setReason(event.target.value)}
-            placeholder="Ví dụ: Số liệu chưa khớp báo cáo của cơ quan thống kê, đề nghị kiểm tra lại và đính kèm minh chứng."/>
+        <label>Lý do
+          <textarea rows={4} maxLength={2000} required value={reason} onChange={event=>setReason(event.target.value)}/>
         </label>
-        <p className="field-hint">Người báo cáo nhận thông báo kèm lý do này và phải báo cáo lại. Thao tác không hoàn tác được.</p>
         {rejectError&&<div className="form-error" role="alert">{rejectError}</div>}
         <div className="modal-actions">
           <button type="button" className="btn secondary" disabled={Boolean(busyId)} onClick={()=>setRejecting(null)}>Huỷ</button>
@@ -540,10 +509,10 @@ export default function MyWork(){
   </div>;
 }
 
-/** Đầu khung nội dung của một nhóm việc: tiêu đề, giải thích ngắn, đường dẫn sang trang đầy đủ. */
-function PanelHead({title,hint,link}:{title:string;hint:string;link?:{to:string;label:string}}){
+/** Đầu khung của một nhóm việc: tiêu đề và đường dẫn sang trang đầy đủ. */
+function PanelHead({title,link}:{title:string;link?:{to:string;label:string}}){
   return <div className="panel-head">
-    <div><h3>{title}</h3><p>{hint}</p></div>
+    <h3>{title}</h3>
     {link&&<Link to={link.to}>{link.label}<ArrowRight aria-hidden="true"/></Link>}
   </div>;
 }

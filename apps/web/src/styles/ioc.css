@@ -1908,3 +1908,76 @@ a.title:hover {
 .settings-group-note {
   margin: 0 0 var(--sp-4);
 }
+
+/* ============================================================================
+   Chi tiết theo nhu cầu (components/Detail.tsx): thẻ hiện khi rê chuột, chế độ Gọn/Chi tiết.
+   ========================================================================== */
+.hint {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  outline: none;
+  cursor: default;
+}
+
+.hint:focus-visible {
+  border-radius: var(--r-xs);
+  box-shadow: var(--sh-focus);
+}
+
+.hint-card {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  width: max-content;
+  min-width: 220px;
+  max-width: 360px;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-normal);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: var(--sh-lg);
+  color: var(--tx-normal);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  line-height: var(--lh-snug);
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.hint-card.above {
+  transform: translateY(-100%);
+}
+
+.hint-title {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-weight: 600;
+  color: var(--tx-strong);
+}
+
+.hint-card dl {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+}
+
+.hint-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.hint-card dt {
+  color: var(--tx-muted);
+}
+
+.hint-card dd {
+  margin: 0;
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.density-toggle button {
+  min-height: 32px;
+}

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, auth } from '../api';
 import { APPROVAL_ROLES, FRAMEWORK_EDITOR_ROLES, hasAnyRole, SUPERVISOR_ROLES } from '../authz';
+import { DensityToggle, Hint, useDensity } from '../components/Detail';
 import { Empty, PageHead, Skeleton } from '../components/UI';
 import { fmtDate, fmtDateTime, fmtNumber, relativeTime } from '../ioc-format';
 import type { AlertItem, Overview } from '../ioc-types';
@@ -18,6 +19,8 @@ function vietnamYear(){
 }
 const deptStyle=(color?:string|null)=>({'--dept':color||undefined} as CSSProperties);
 const tone=(value:number,kind:'warn'|'bad')=>value>0?kind:'';
+const STATUS_LABELS:Record<string,string>={COMPLETED:'Hoàn thành',ON_TRACK:'Đúng tiến độ',AT_RISK:'Cần theo dõi',OVERDUE:'Quá hạn',NOT_STARTED:'Chưa bắt đầu'};
+const ALERT_KINDS:Record<string,string>={STALLED:'Bị treo',MISSING_REPORT:'Thiếu báo cáo',AT_RISK:'Nguy cơ không đạt',OVERDUE:'Quá hạn',UNASSIGNED:'Chưa giao người',PROPOSAL_PENDING:'Đề xuất chờ duyệt',REPORT_PENDING:'Báo cáo chờ duyệt',EXPLANATION_OVERDUE:'Giải trình quá hạn'};
 
 /** Trung tâm điều hành (DH-01): số liệu, việc cần xử lý, bộ chỉ tiêu, đơn vị, cảnh báo. */
 export default function OpsCenter(){
@@ -31,6 +34,9 @@ export default function OpsCenter(){
   const [error,setError]=useState('');
   const [refreshing,setRefreshing]=useState(false);
   const [allAlerts,setAllAlerts]=useState(false);
+  const [alertKind,setAlertKind]=useState('ALL');
+  const [density,setDensity]=useDensity('ops');
+  const detailed=density==='detailed';
   const seq=useRef(0);
 
   const load=useCallback(async(silent=false)=>{
@@ -58,6 +64,7 @@ export default function OpsCenter(){
 
   const head=<PageHead title={title} actions={<>
     {data&&<span className="ops-updated" title={`Tổng hợp lúc ${fmtDateTime(data.generatedAt)}`}>Cập nhật {fmtDateTime(data.dataAsOf??data.generatedAt)}</span>}
+    <DensityToggle value={density} onChange={setDensity}/>
     <select aria-label="Năm" value={year} onChange={event=>setParams(next=>{next.set('year',event.target.value);return next},{replace:true})}>
       {[currentYear+1,currentYear,currentYear-1,currentYear-2].map(value=><option key={value} value={value}>Năm {value}</option>)}
     </select>
@@ -88,7 +95,9 @@ export default function OpsCenter(){
     {label:'Việc bị treo',value:t.stalled,tone:tone(t.stalled,'bad'),to:'#viec-bi-treo'},
     {label:'Phản ánh quá hạn',value:t.feedbackOverdue,tone:tone(t.feedbackOverdue,'bad'),to:'/admin/feedback'},
   ];
-  const alerts=allAlerts?data.alerts:data.alerts.slice(0,8);
+  const alertKinds=[...new Set(data.alerts.map(alert=>alert.kind))];
+  const filteredAlerts=alertKind==='ALL'?data.alerts:data.alerts.filter(alert=>alert.kind===alertKind);
+  const alerts=allAlerts||detailed?filteredAlerts:filteredAlerts.slice(0,8);
 
   return <>
     {head}
@@ -120,10 +129,13 @@ export default function OpsCenter(){
               <thead><tr>
                 <th scope="col">Bộ chỉ tiêu</th>
                 <th scope="col">Loại</th>
+                {detailed&&<th scope="col">Cấp giao</th>}
                 <th scope="col" className="ioc-num">Chỉ tiêu</th>
                 <th scope="col" className="ioc-num">Kết quả</th>
                 <th scope="col">Trạng thái</th>
                 <th scope="col" className="ioc-num">Thiếu báo cáo</th>
+                {detailed&&<th scope="col" className="ioc-num">Có chỉ đạo</th>}
+                {detailed&&<th scope="col" className="ioc-num">Đã đánh giá</th>}
               </tr></thead>
               <tbody>{data.frameworks.map(framework=>{
                 const s=framework.summary;
@@ -131,12 +143,30 @@ export default function OpsCenter(){
                   :framework.kind==='STAT'?`${fmtNumber(s.reported)} / ${fmtNumber(s.total)} có số liệu`
                   :`${fmtNumber(s.progress??0)}%`;
                 return <tr key={framework.id}>
-                  <td><Link className="ops-link" to={`/admin/targets?frameworkId=${encodeURIComponent(framework.id)}`}>{framework.name}</Link></td>
+                  <td>
+                    <Hint title={framework.name} rows={[
+                      {label:'Căn cứ',value:framework.legalBasis},
+                      {label:'Cấp giao',value:framework.issuingLevelLabel},
+                      ...STATUS_KEYS.map(key=>({label:STATUS_LABELS[key],value:s.counts[key]?fmtNumber(s.counts[key]):null})),
+                      {label:'Đã có số liệu',value:`${fmtNumber(s.reported)}/${fmtNumber(s.total)}`},
+                      {label:'Có văn bản chỉ đạo',value:`${fmtNumber(s.withDirective)}/${fmtNumber(s.total)}`},
+                      {label:'Đã đánh giá',value:`${fmtNumber(s.withEvaluation)}/${fmtNumber(s.total)}`},
+                    ]}>
+                      <Link className="ops-link" to={`/admin/targets?frameworkId=${encodeURIComponent(framework.id)}`}>{framework.name}</Link>
+                    </Hint>
+                    {detailed&&framework.legalBasis&&<small className="ops-muted ops-sub">{framework.legalBasis}</small>}
+                  </td>
                   <td className="ops-muted">{framework.kindLabel}</td>
+                  {detailed&&<td className="ops-muted">{framework.issuingLevelLabel}</td>}
                   <td className="ioc-num">{fmtNumber(s.total)}</td>
                   <td className="ioc-num ops-strong">{result}</td>
-                  <td><StatusBar counts={s.counts} total={s.total}/></td>
+                  <td>
+                    <StatusBar counts={s.counts} total={s.total}/>
+                    {detailed&&<small className="ops-muted ops-counts">{STATUS_KEYS.filter(key=>s.counts[key]).map(key=>`${STATUS_LABELS[key]} ${s.counts[key]}`).join(' · ')}</small>}
+                  </td>
                   <td className={`ioc-num ${tone(framework.missingReports,'warn')}`}>{fmtNumber(framework.missingReports)}</td>
+                  {detailed&&<td className="ioc-num">{fmtNumber(s.withDirective)}</td>}
+                  {detailed&&<td className="ioc-num">{fmtNumber(s.withEvaluation)}</td>}
                 </tr>;
               })}</tbody>
             </table>
@@ -158,6 +188,10 @@ export default function OpsCenter(){
               <th scope="col" className="ioc-num">Thiếu báo cáo</th>
               <th scope="col" className="ioc-num">Chưa giao</th>
               <th scope="col" className="ioc-num">Chờ duyệt</th>
+              {detailed&&<th scope="col" className="ioc-num">Giải trình mở</th>}
+              {detailed&&<th scope="col" className="ioc-num">Thống kê có số liệu</th>}
+              {detailed&&<th scope="col" className="ioc-num">Có chỉ đạo</th>}
+              {detailed&&<th scope="col" className="ioc-num">Đã đánh giá</th>}
               <th scope="col">Tiến độ</th>
             </tr></thead>
             <tbody>{data.departments.map(department=>{
@@ -165,7 +199,18 @@ export default function OpsCenter(){
               const manager=department.managers[0];
               return <tr key={department.id}>
                 <td>
-                  <Link className="ops-link ops-dept" to={by('')}><i className="ioc-dept-dot" style={deptStyle(department.color)} aria-hidden="true"/>{department.name}</Link>
+                  <Hint title={department.name} rows={[
+                    {label:'Trưởng phòng',value:department.managers.map(item=>item.fullName).join(', ')||'Chưa có'},
+                    {label:'Đăng nhập gần nhất',value:manager?(manager.lastLoginAt?fmtDateTime(manager.lastLoginAt):'Chưa đăng nhập'):null},
+                    {label:'Chưa bắt đầu',value:fmtNumber(department.notStarted)},
+                    {label:'Chờ duyệt lâu nhất',value:department.pendingReports?`${fmtNumber(department.oldestPendingDays)} ngày`:null},
+                    {label:'Giải trình đang mở',value:fmtNumber(department.openExplanations)},
+                    {label:'Thống kê có số liệu',value:department.statTotal?`${fmtNumber(department.statReported)}/${fmtNumber(department.statTotal)}`:null},
+                    {label:'Có văn bản chỉ đạo',value:fmtNumber(department.withDirective)},
+                    {label:'Đã đánh giá',value:fmtNumber(department.withEvaluation)},
+                  ]}>
+                    <Link className="ops-link ops-dept" to={by('')}><i className="ioc-dept-dot" style={deptStyle(department.color)} aria-hidden="true"/>{department.name}</Link>
+                  </Hint>
                   <small className="ops-muted">{manager?`${manager.fullName}${manager.lastLoginAt?'':' · chưa đăng nhập'}`:'Chưa có trưởng phòng'}</small>
                 </td>
                 <td className="ioc-num">{fmtNumber(department.total)}</td>
@@ -176,6 +221,10 @@ export default function OpsCenter(){
                 <td className={`ioc-num ${tone(department.missingReports,'warn')}`}>{fmtNumber(department.missingReports)}</td>
                 <td className={`ioc-num ${tone(department.unassigned,'warn')}`}><Link to={by('assignee=none')}>{fmtNumber(department.unassigned)}</Link></td>
                 <td className={`ioc-num ${department.oldestPendingDays>=3?'bad':tone(department.pendingReports,'warn')}`}>{fmtNumber(department.pendingReports)}</td>
+                {detailed&&<td className={`ioc-num ${tone(department.openExplanations,'warn')}`}>{fmtNumber(department.openExplanations)}</td>}
+                {detailed&&<td className="ioc-num">{department.statTotal?`${fmtNumber(department.statReported)}/${fmtNumber(department.statTotal)}`:'—'}</td>}
+                {detailed&&<td className="ioc-num">{fmtNumber(department.withDirective)}</td>}
+                {detailed&&<td className="ioc-num">{fmtNumber(department.withEvaluation)}</td>}
                 <td><span className="ops-progress"><span className="progress sm"><i style={{width:`${Math.min(100,department.progress)}%`}}/></span>{fmtNumber(department.progress)}%</span></td>
               </tr>;
             })}</tbody>
@@ -185,7 +234,13 @@ export default function OpsCenter(){
 
       <div className="ops-columns">
         <section className="panel flush">
-          <div className="panel-head"><h3>Cảnh báo</h3><span className="ops-muted">{fmtNumber(data.alerts.length)}</span></div>
+          <div className="panel-head"><h3>Cảnh báo</h3><span className="ops-muted">{fmtNumber(filteredAlerts.length)}</span></div>
+          {alertKinds.length>1&&<div className="ops-filter" role="group" aria-label="Lọc cảnh báo">
+            <button type="button" className={alertKind==='ALL'?'active':''} aria-pressed={alertKind==='ALL'} onClick={()=>setAlertKind('ALL')}>Tất cả <b>{data.alerts.length}</b></button>
+            {alertKinds.map(kind=><button key={kind} type="button" className={alertKind===kind?'active':''} aria-pressed={alertKind===kind} onClick={()=>setAlertKind(kind)}>
+              {ALERT_KINDS[kind]??kind} <b>{data.alerts.filter(alert=>alert.kind===kind).length}</b>
+            </button>)}
+          </div>}
           {alerts.length
             ?<ul className="ops-list">
               {alerts.map((alert,index)=>{
@@ -200,7 +255,7 @@ export default function OpsCenter(){
               })}
             </ul>
             :<p className="ops-empty">Không có cảnh báo.</p>}
-          {data.alerts.length>8&&<button type="button" className="ops-more" onClick={()=>setAllAlerts(value=>!value)}>{allAlerts?'Thu gọn':`Xem tất cả ${data.alerts.length}`}</button>}
+          {!detailed&&filteredAlerts.length>8&&<button type="button" className="ops-more" onClick={()=>setAllAlerts(value=>!value)}>{allAlerts?'Thu gọn':`Xem tất cả ${filteredAlerts.length}`}</button>}
         </section>
 
         <div className="ops-side">
@@ -208,7 +263,7 @@ export default function OpsCenter(){
             <div className="panel-head"><h3>Việc bị treo</h3><span className="ops-muted">{fmtNumber(data.stalled.length)}</span></div>
             {data.stalled.length
               ?<ul className="ops-list">
-                {data.stalled.slice(0,6).map(item=><li key={item.id}>
+                {(detailed?data.stalled:data.stalled.slice(0,6)).map(item=><li key={item.id}>
                   <i className="ops-dot critical" aria-hidden="true"/>
                   <div>
                     <Link className="ops-link" to={`/admin/targets/${item.id}`}>{item.title}</Link>
@@ -217,19 +272,20 @@ export default function OpsCenter(){
                 </li>)}
               </ul>
               :<p className="ops-empty">Không có việc bị treo.</p>}
-            {data.stalled.length>6&&<Link className="ops-more" to="/admin/trach-nhiem">Xem tất cả {data.stalled.length}</Link>}
+            {!detailed&&data.stalled.length>6&&<Link className="ops-more" to="/admin/trach-nhiem">Xem tất cả {data.stalled.length}</Link>}
           </section>
 
           <section className="panel flush">
             <div className="panel-head"><h3>Hoạt động gần đây</h3></div>
             {data.recent.length
               ?<ul className="ops-list compact">
-                {data.recent.slice(0,6).map(event=>{
+                {data.recent.slice(0,detailed?25:6).map(event=>{
                   const to=event.target?`/admin/targets/${event.target.id}`:event.candidate?`/admin/proposals?id=${encodeURIComponent(event.candidate.id)}`:null;
                   const subject=event.target?.code??event.candidate?.name;
                   return <li key={event.id}>
                     <div>
                       <span><b>{event.actorName}</b> · {event.label.toLocaleLowerCase('vi')}{subject&&<> {to?<Link className="ops-link" to={to}>{subject}</Link>:subject}</>}</span>
+                      {detailed&&event.note&&<small className="ops-muted">{event.note}</small>}
                       <small className="ops-muted" title={fmtDateTime(event.createdAt)}>{relativeTime(event.createdAt)}</small>
                     </div>
                   </li>;
@@ -244,7 +300,7 @@ export default function OpsCenter(){
 }
 
 function StatusBar({counts,total}:{counts:Record<string,number>;total:number}){
-  const label=STATUS_KEYS.filter(key=>counts[key]).map(key=>`${({COMPLETED:'Hoàn thành',ON_TRACK:'Đúng tiến độ',AT_RISK:'Cần theo dõi',OVERDUE:'Quá hạn',NOT_STARTED:'Chưa bắt đầu'} as Record<string,string>)[key]} ${counts[key]}`).join(' · ');
+  const label=STATUS_KEYS.filter(key=>counts[key]).map(key=>`${STATUS_LABELS[key]} ${counts[key]}`).join(' · ');
   return <span className="ioc-dist ops-dist" role="img" aria-label={label} title={label}>
     {STATUS_KEYS.map(key=>counts[key]?<i key={key} className={key} style={{width:`${(counts[key]/Math.max(total,1))*100}%`}}/>:null)}
   </span>;

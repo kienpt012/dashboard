@@ -283,3 +283,45 @@ a.ops-todo-item:hover {
     display: none;
   }
 }
+
+.ops-sub,
+.ops-counts {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+}
+
+.ops-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-5);
+  border-bottom: 1px solid var(--bd-subtle);
+}
+
+.ops-filter button {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.ops-filter button:hover {
+  background: var(--bg-surface-2);
+  color: var(--tx-strong);
+}
+
+.ops-filter button.active {
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+  font-weight: 600;
+}
+
+.ops-filter b {
+  font-weight: 600;
+}
+
+.ops-table td:first-child,
+.ops-table th:first-child {
+  min-width: 260px;
+}
