@@ -99,7 +99,7 @@ export class IocController {
         targetValue: target.targetValue, currentValue: target.currentValue, direction: target.direction, dueDate: target.dueDate,
         riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind, now,
       });
-      const periods = target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now) : [];
+      const periods = target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
       const reported = reportedByTarget.get(target.id) ?? new Set<string>();
       const missingPeriods = periods.filter(period => period.overdue && !reported.has(period.key)).map(period => period.key);
       const pending = pendingReports.filter(report => report.targetId === target.id);

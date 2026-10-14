@@ -147,6 +147,8 @@ export function dueReportPeriods(
   year: number,
   dueDay: number | null | undefined,
   now: Date = new Date(),
+  /** Thời điểm chỉ tiêu được tạo: kỳ đã hết hạn trước đó không bị tính là thiếu báo cáo. */
+  since?: Date | null,
 ): { key: string; deadline: Date; overdue: boolean }[] {
   const nowYear = vietnamCalendar(now).year;
   if (year > nowYear) return [];
@@ -154,7 +156,7 @@ export function dueReportPeriods(
     .map(key => {
       const deadline = reportDeadline(key, dueDay)!;
       const bounds = periodBounds(key)!;
-      return { key, deadline, started: bounds.start <= now, overdue: deadline < now };
+      return { key, deadline, started: bounds.start <= now, overdue: deadline < now && (!since || deadline >= since) };
     })
     .filter(period => period.started)
     .map(({ key, deadline, overdue }) => ({ key, deadline, overdue }));

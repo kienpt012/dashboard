@@ -108,6 +108,11 @@ test('hạn báo cáo là ngày 20 của tháng cuối kỳ theo giờ Việt Na
   assert.deepEqual(periods.map(period => [period.key, period.overdue]), [
     ['2026-Q1', true], ['2026-Q2', true], ['2026-Q3', true], ['2026-Q4', false],
   ]);
+  // Chỉ tiêu tạo ngày 15/7: kỳ quý I, II hết hạn trước khi chỉ tiêu tồn tại thì không bị tính là thiếu báo cáo.
+  const late = dueReportPeriods(TargetFrequency.QUARTERLY, 2026, 20, new Date('2026-10-14T03:00:00Z'), new Date('2026-07-15T02:00:00Z'));
+  assert.deepEqual(late.map(period => [period.key, period.overdue]), [
+    ['2026-Q1', false], ['2026-Q2', false], ['2026-Q3', true], ['2026-Q4', false],
+  ]);
 });
 
 test('phòng chủ trì được ánh xạ theo vai trò, thiếu vai trò thì giao văn phòng', () => {

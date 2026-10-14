@@ -235,13 +235,13 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
     const targets = await this.prisma.target.findMany({
       where: { year, isArchived: false, valueSource: ValueSource.MANUAL, children: { none: {} } },
       select: {
-        id: true, code: true, title: true, frequency: true, year: true, reportDueDay: true, assigneeId: true, departmentId: true, kind: true,
+        id: true, code: true, title: true, frequency: true, year: true, reportDueDay: true, assigneeId: true, departmentId: true, kind: true, createdAt: true,
         updates: { where: { reviewStatus: { not: ProgressReviewStatus.REJECTED }, periodKey: { not: null } }, select: { periodKey: true } },
       },
     });
     for (const target of targets) {
       const reported = new Set(target.updates.map(update => update.periodKey!));
-      const periods = dueReportPeriods(target.frequency, target.year, target.reportDueDay, now);
+      const periods = dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt);
       const missing = periods.filter(period => period.overdue && !reported.has(period.key));
       const latest = missing[missing.length - 1];
       if (latest) {

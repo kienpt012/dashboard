@@ -274,7 +274,7 @@ export class DossierController {
     });
     const reportedPeriods = new Set(target.updates.filter(update => update.reviewStatus !== ProgressReviewStatus.REJECTED && update.periodKey).map(update => update.periodKey!));
     const periods = target.valueSource === ValueSource.MANUAL
-      ? dueReportPeriods(target.frequency, target.year, target.reportDueDay).map(period => ({
+      ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, new Date(), target.createdAt).map(period => ({
           key: period.key, label: periodLabel(period.key), deadline: period.deadline, overdue: period.overdue, reported: reportedPeriods.has(period.key),
         }))
       : [];
