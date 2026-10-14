@@ -19,11 +19,14 @@ import {
   Target as TargetIcon,
   TrendingDown,
   TrendingUp,
+  UserRound,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, api, auth } from '../api';
+import { hasAnyRole, IMPORT_ROLES, isGlobal, LEADERSHIP_ROLES } from '../authz';
+import { frameworkKindLabels, frequencyLabels, type Framework, type FrameworkKind, type Frequency } from '../ioc-types';
 import { Empty, Modal, PageHead, Skeleton } from '../components/UI';
 import { toast } from '../components/Toast';
 import { Reveal } from '../components/Motion';
@@ -53,12 +56,18 @@ type TargetForm = {
   targetValue: string;
   weight: string;
   year: string;
-  frequency: 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+  frequency: Frequency;
   direction: 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER';
   dueDate: string;
   departmentId: string;
   isHighlighted: boolean;
   publicOrder: string;
+  /** Trường bản 2 — chỉ gửi khi tạo mới (API sửa chưa nhận). */
+  frameworkId: string;
+  kind: FrameworkKind;
+  targetText: string;
+  standardCode: string;
+  groupName: string;
 };
 
 type MySubmission = {
@@ -89,6 +98,11 @@ function newTargetForm(year = currentYear, departmentId = ''): TargetForm {
     departmentId,
     isHighlighted: false,
     publicOrder: '0',
+    frameworkId: '',
+    kind: 'PLAN',
+    targetText: '',
+    standardCode: '',
+    groupName: '',
   };
 }
 
@@ -150,10 +164,13 @@ function mutationMessage(reason: unknown, fallback: string) {
 
 export default function Targets() {
   const user = auth.user;
-  const canCreate = user?.role === 'ADMIN';
-  const canReport = user?.role !== 'VIEWER';
-  const canImport = user?.role !== 'VIEWER';
-  const isAdmin = user?.role === 'ADMIN';
+  // Bản 2: lãnh đạo UBND và quản trị đặt, sửa, lưu trữ, công bố chỉ tiêu; văn thư và người xem không báo cáo số liệu.
+  const canCreate = hasAnyRole(user, LEADERSHIP_ROLES);
+  const canManage = canCreate;
+  const canReport = hasAnyRole(user, ['ADMIN', 'LEADER', 'MANAGER', 'STAFF']);
+  const canImport = hasAnyRole(user, IMPORT_ROLES);
+  /** Phạm vi toàn địa phương (quản trị, lãnh đạo, văn thư) — được lọc theo phòng và xem kho lưu trữ. */
+  const isAdmin = isGlobal(user);
   const canTrackOwnSubmissions = user?.role === 'MANAGER' || user?.role === 'STAFF';
   const [params, setParams] = useSearchParams();
   const requestedYear = Number(params.get('year'));
@@ -164,15 +181,18 @@ export default function Targets() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [search, setSearch] = useState(() => params.get('search') || '');
-  const [status, setStatus] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
+  const [search, setSearch] = useState(() => params.get('search') || params.get('q') || '');
+  const [status, setStatus] = useState(() => params.get('status') || '');
+  const [departmentId, setDepartmentId] = useState(() => params.get('departmentId') || '');
+  const [frameworkId, setFrameworkId] = useState(() => params.get('frameworkId') || '');
+  const [kind, setKind] = useState(() => params.get('kind') || '');
+  const [assignee, setAssignee] = useState<'' | 'me' | 'none'>(() => (['me', 'none'].includes(params.get('assignee') || '') ? params.get('assignee') as 'me' | 'none' : ''));
+  const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [year, setYear] = useState(() => Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : currentYear);
   const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState<TargetForm>(() => newTargetForm());
-  const [modal, setModal] = useState<'create' | 'edit' | 'progress' | null>(null);
+  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [selected, setSelected] = useState<Target | null>(null);
-  const [progress, setProgress] = useState({ value: '', note: '' });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -180,13 +200,30 @@ export default function Targets() {
 
   /* Phân biệt "chưa có dữ liệu" với "bộ lọc không khớp gì": hai tình huống này cần
      hai câu trả lời khác nhau, và tình huống thứ hai cần một lối thoát. */
-  const hasFilters = Boolean(search.trim() || status || departmentId);
+  const hasFilters = Boolean(search.trim() || status || departmentId || frameworkId || kind || assignee);
 
   function clearFilters() {
     setSearch('');
     setStatus('');
     setDepartmentId('');
+    setFrameworkId('');
+    setKind('');
+    setAssignee('');
   }
+
+  // Đồng bộ bộ lọc lên URL để liên kết từ trung tâm điều hành, việc của tôi mở đúng danh sách và chia sẻ được.
+  useEffect(() => {
+    const next = new URLSearchParams(params);
+    const sync = (key: string, value: string) => { if (value) next.set(key, value); else next.delete(key); };
+    sync('status', status);
+    sync('departmentId', departmentId);
+    sync('frameworkId', frameworkId);
+    sync('kind', kind);
+    sync('assignee', assignee);
+    next.delete('q');
+    if (next.toString() !== params.toString()) setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, departmentId, frameworkId, kind, assignee]);
   const [visibilityPendingIds, setVisibilityPendingIds] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<TargetSort>(null);
   const { ref: targetPanelRef, inView: targetPanelInView } = useInView<HTMLElement>({ amount: 0 });
@@ -216,13 +253,18 @@ export default function Targets() {
       const query = new URLSearchParams({ year: String(year) });
       query.set('archived', String(showArchived));
       if (isAdmin && departmentId) query.set('departmentId', departmentId);
-      const [targetRows, departmentRows] = await Promise.all([
+      if (frameworkId) query.set('frameworkId', frameworkId);
+      if (kind) query.set('kind', kind);
+      if (assignee === 'me') query.set('mine', 'true');
+      const [targetRows, departmentRows, frameworkRows] = await Promise.all([
         api<Target[]>(`/targets?${query}`),
         api<Department[]>('/departments'),
+        api<Framework[]>(`/frameworks?year=${year}`).catch(() => [] as Framework[]),
       ]);
       if (requestId !== loadRequestId.current) return;
       setTargets(targetRows);
       setDepartments(departmentRows);
+      setFrameworks(frameworkRows);
       setForm(previous => ({
         ...previous,
         departmentId: previous.departmentId
@@ -257,7 +299,7 @@ export default function Targets() {
 
   useEffect(() => {
     void load();
-  }, [year, departmentId, showArchived]);
+  }, [year, departmentId, showArchived, frameworkId, kind, assignee]);
 
   useEffect(() => {
     void loadMySubmissions(year);
@@ -270,9 +312,10 @@ export default function Targets() {
   }, [params, canCreate, setParams]);
 
   const visible = useMemo(() => targets.filter(target => {
-    const matchesSearch = !search || `${target.code} ${target.title}`.toLocaleLowerCase('vi-VN').includes(search.toLocaleLowerCase('vi-VN'));
-    return matchesSearch && (!status || target.status === status);
-  }), [targets, search, status]);
+    const haystack = `${target.code} ${target.standardCode ?? ''} ${target.title} ${target.groupName ?? ''} ${target.assignee?.fullName ?? ''}`;
+    const matchesSearch = !search || haystack.toLocaleLowerCase('vi-VN').includes(search.toLocaleLowerCase('vi-VN'));
+    return matchesSearch && (!status || target.status === status) && (assignee !== 'none' || (!target.assigneeId && target.valueSource !== 'COMPUTED'));
+  }), [targets, search, status, assignee]);
 
   const sortedVisible = useMemo(() => {
     if (!sort || showArchived) return visible;
@@ -356,20 +399,14 @@ export default function Targets() {
       departmentId: target.department.id,
       isHighlighted: target.isHighlighted,
       publicOrder: String(target.publicOrder ?? 0),
+      frameworkId: target.frameworkId ?? '',
+      kind: target.kind ?? 'PLAN',
+      targetText: '',
+      standardCode: target.standardCode ?? '',
+      groupName: target.groupName ?? '',
     });
     setError('');
     setModal('edit');
-  }
-
-  function openProgress(target: Target, draft?: { value: number; note?: string | null }) {
-    if (canTrackOwnSubmissions && pendingSubmissionTargetIds.has(target.id)) {
-      setLoadError(`Chỉ tiêu ${target.code} đã có báo cáo chờ duyệt. Hãy theo dõi kết quả trong mục “Báo cáo của tôi” trước khi gửi lại.`);
-      return;
-    }
-    setSelected(target);
-    setProgress({ value: String(draft?.value ?? target.currentValue), note: draft?.note ?? '' });
-    setError('');
-    setModal('progress');
   }
 
   async function submitTarget(event: FormEvent) {
@@ -404,6 +441,11 @@ export default function Targets() {
       ...(!editing ? {
         year: Number(form.year),
         departmentId: form.departmentId,
+        kind: form.kind,
+        ...(form.frameworkId ? { frameworkId: form.frameworkId } : {}),
+        ...(form.targetText.trim() ? { targetText: form.targetText.trim() } : {}),
+        ...(form.standardCode.trim() ? { standardCode: form.standardCode.trim() } : {}),
+        ...(form.groupName.trim() ? { groupName: form.groupName.trim() } : {}),
       } : {}),
     };
     try {
@@ -433,50 +475,6 @@ export default function Targets() {
     } catch (reason) {
       const message = mutationMessage(reason, editing ? 'Không thể cập nhật chỉ tiêu' : 'Không thể tạo chỉ tiêu');
       toast.error(editing ? 'Không thể cập nhật chỉ tiêu' : 'Không thể tạo chỉ tiêu', message);
-      if (reason instanceof ApiError && reason.status === 409) {
-        setModal(null);
-        setSelected(null);
-        await load();
-        setLoadError(message);
-      } else {
-        setError(message);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitProgress(event: FormEvent) {
-    event.preventDefault();
-    if (!selected) return;
-    setError('');
-    const progressValue = Number(progress.value);
-    if (!progress.value.trim() || !Number.isFinite(progressValue) || progressValue < 0) {
-      setError('Giá trị thực hiện phải là một số không âm.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const result = await api<{ reviewStatus: string }>(`/targets/${selected.id}/progress`, {
-        method: 'POST',
-        body: JSON.stringify({
-          value: progressValue,
-          note: progress.note.trim(),
-          baseVersion: selected.version,
-        }),
-      });
-      setModal(null);
-      setSelected(null);
-      setNotice(result.reviewStatus === 'PENDING'
-        ? 'Báo cáo đã được gửi và đang chờ lãnh đạo đơn vị duyệt.'
-        : 'Số liệu đã được cập nhật và ghi vào lịch sử chỉ tiêu.');
-      toast.ok(result.reviewStatus === 'PENDING'
-        ? 'Đã gửi báo cáo chờ duyệt'
-        : 'Đã cập nhật số liệu chỉ tiêu');
-      await Promise.all([load(), loadMySubmissions()]);
-    } catch (reason) {
-      const message = mutationMessage(reason, 'Không thể gửi báo cáo số liệu');
-      toast.error('Không thể gửi báo cáo số liệu', message);
       if (reason instanceof ApiError && reason.status === 409) {
         setModal(null);
         setSelected(null);
@@ -634,7 +632,7 @@ export default function Targets() {
                     <strong className="tg-review-reason">{submission.reviewNote || 'Báo cáo cần được điều chỉnh trước khi nộp lại.'}</strong>
                     {submission.reviewer && <small className="tg-vis-hint">Người duyệt: {submission.reviewer.fullName}</small>}
                     {!newerSubmissionExists
-                      ? <button className="btn secondary sm" type="button" onClick={() => openProgress(submission.target, { value: submission.value, note: submission.note })}><RotateCcw />Sửa và nộp lại</button>
+                      ? <Link className="btn secondary sm" to={`/admin/targets/${submission.target.id}#thuc-hien`}><RotateCcw />Sửa và nộp lại</Link>
                       : <small className="tg-vis-hint">Đã có lần nộp mới hơn cho chỉ tiêu này.</small>}
                   </div> : submission.reviewStatus === 'APPROVED'
                     ? <span className="tg-quiet">{submission.reviewer ? `Duyệt bởi ${submission.reviewer.fullName}` : 'Đã ghi nhận vào số liệu chính thức'}</span>
@@ -658,6 +656,19 @@ export default function Targets() {
           <select value={status} onChange={event => setStatus(event.target.value)} aria-label="Trạng thái">
             <option value="">Tất cả trạng thái</option>
             {Object.entries(statusMeta).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+          </select>
+          {frameworks.length > 0 && <select value={frameworkId} onChange={event => setFrameworkId(event.target.value)} aria-label="Bộ chỉ tiêu">
+            <option value="">Mọi bộ chỉ tiêu</option>
+            {frameworks.map(framework => <option key={framework.id} value={framework.id}>{framework.name}</option>)}
+          </select>}
+          <select value={kind} onChange={event => setKind(event.target.value)} aria-label="Loại chỉ tiêu">
+            <option value="">Mọi loại</option>
+            {(Object.keys(frameworkKindLabels) as FrameworkKind[]).map(key => <option key={key} value={key}>{frameworkKindLabels[key]}</option>)}
+          </select>
+          <select value={assignee} onChange={event => setAssignee(event.target.value as '' | 'me' | 'none')} aria-label="Người phụ trách">
+            <option value="">Mọi người phụ trách</option>
+            <option value="me">Tôi phụ trách</option>
+            <option value="none">Chưa giao người</option>
           </select>
         </div>
         {isAdmin && <button type="button" aria-pressed={showArchived} className={`btn secondary tg-toggle ${showArchived ? 'active' : ''}`} onClick={() => setShowArchived(value => !value)}>{showArchived ? <TargetIcon /> : <Archive />}{showArchived ? 'Xem chỉ tiêu đang hoạt động' : 'Kho lưu trữ'}</button>}
@@ -699,9 +710,10 @@ export default function Targets() {
                     <div className="tg-ident">
                       <span className="tg-ident-icon" aria-hidden="true"><TargetIcon /></span>
                       <div className="tg-ident-body">
-                        <span className="code">{target.code}</span>
-                        <strong className="tg-title">{target.title}</strong>
+                        <span className="code">{target.code}{target.standardCode ? ` · ${target.standardCode}` : ''}{target.framework ? ` · ${target.framework.name}` : ''}</span>
+                        <Link className="tg-title tg-title-link" to={`/admin/targets/${target.id}`}>{target.title}</Link>
                         <span className="tg-meta">
+                          <span className={`tg-meta-item ${target.assignee || target.valueSource === 'COMPUTED' ? '' : 'tg-unassigned'}`}><UserRound aria-hidden="true" />{target.valueSource === 'COMPUTED' ? 'Tự tính từ dữ liệu' : target.valueSource === 'CHILDREN' ? 'Tổng hợp từ chỉ tiêu con' : target.assignee?.fullName ?? 'Chưa giao người'}</span>
                           <span className="tg-dept"><i aria-hidden="true" style={{ background: target.department.color }} />{target.department.name}</span>
                           <span className="tg-meta-item"><Calendar aria-hidden="true" />{new Date(target.dueDate).toLocaleDateString('vi-VN')}</span>
                           <span className="tg-meta-item">
@@ -725,7 +737,7 @@ export default function Targets() {
                     </div>
                   </td>
                   <td data-label="Trạng thái"><span className={`status ${statusMeta[target.status]?.color}`}>{statusMeta[target.status]?.label}</span></td>
-                  <td data-label="Trang người dân">{isAdmin && !target.isArchived ? <div className="tg-visibility">
+                  <td data-label="Trang người dân">{canManage && !target.isArchived ? <div className="tg-visibility">
                     <button
                       type="button"
                       role="switch"
@@ -749,13 +761,12 @@ export default function Targets() {
                     {!target.lastReportedAt && !target.isPublic && <small className="tg-vis-hint">Chưa có số liệu chính thức</small>}
                   </div> : <span className={`status ${target.isPublic ? 'ok' : 'neutral'}`}>{target.isPublic ? 'Đang hiển thị' : 'Nội bộ'}</span>}</td>
                   <td data-label="Thao tác"><div className="tg-actions">
-                    {canReport && !target.isArchived ? <button
-                      className="btn secondary sm"
-                      disabled={Boolean(actionId) || visibilityBusy || ownSubmissionPending || checkingOwnSubmissions}
-                      title={ownSubmissionPending ? 'Báo cáo gần nhất đang chờ người có thẩm quyền duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra trạng thái báo cáo' : ''}
-                      onClick={() => openProgress(target)}
-                    >{ownSubmissionPending ? 'Đang chờ duyệt' : checkingOwnSubmissions ? 'Đang kiểm tra...' : 'Báo cáo số liệu'}</button> : <span className="tg-quiet">{target.isArchived ? 'Đã lưu trữ' : 'Chỉ xem'}</span>}
-                    {isAdmin && !target.isArchived && <button
+                    {target.isArchived
+                      ? <span className="tg-quiet">Đã lưu trữ</span>
+                      : canReport && (target.valueSource ?? 'MANUAL') === 'MANUAL' && !ownSubmissionPending && !checkingOwnSubmissions
+                        ? <Link className="btn secondary sm" to={`/admin/targets/${target.id}#thuc-hien`}>Báo cáo số liệu</Link>
+                        : <Link className="btn ghost sm" to={`/admin/targets/${target.id}`} title={ownSubmissionPending ? 'Báo cáo gần nhất đang chờ người có thẩm quyền duyệt' : undefined}>{ownSubmissionPending ? 'Đang chờ duyệt' : 'Mở hồ sơ'}</Link>}
+                    {canManage && !target.isArchived && <button
                       type="button"
                       className="row-action"
                       title="Sửa"
@@ -763,7 +774,7 @@ export default function Targets() {
                       disabled={Boolean(actionId) || visibilityBusy}
                       onClick={() => openEdit(target)}
                     ><Pencil /></button>}
-                    {isAdmin && <button
+                    {canManage && <button
                       type="button"
                       className={`row-action ${target.isArchived ? '' : 'danger'}`}
                       title={target.isArchived ? 'Khôi phục' : 'Lưu trữ'}
@@ -786,8 +797,8 @@ export default function Targets() {
                 title={showArchived ? 'Kho lưu trữ đang trống' : `Chưa có chỉ tiêu nào cho năm ${year}`}
                 description={showArchived
                   ? 'Chỉ tiêu đã kết thúc kỳ kế hoạch sẽ được chuyển vào đây.'
-                  : isAdmin
-                    ? 'Hãy đặt chỉ tiêu đầu tiên hoặc chọn năm kế hoạch khác.'
+                  : canManage
+                    ? 'Hãy đặt chỉ tiêu đầu tiên, nạp bộ chỉ tiêu mẫu ở trang Bộ chỉ tiêu, hoặc chọn năm kế hoạch khác.'
                     : 'Hãy chọn năm kế hoạch khác, hoặc liên hệ quản trị viên để được giao chỉ tiêu.'}
               />}
       </section>
@@ -826,7 +837,16 @@ export default function Targets() {
             <label>Đơn vị tính<input required minLength={1} maxLength={50} value={form.unit} onChange={event => setForm({ ...form, unit: event.target.value })} /></label>
             <label>Chiều đánh giá<select value={form.direction} onChange={event => setForm({ ...form, direction: event.target.value as TargetForm['direction'] })}><option value="HIGHER_IS_BETTER">Càng cao càng tốt</option><option value="LOWER_IS_BETTER">Càng thấp càng tốt</option></select></label>
             <label>Trọng số<input type="number" step="0.1" min="0.1" max="10" required value={form.weight} onChange={event => setForm({ ...form, weight: event.target.value })} /></label>
-            <label>Tần suất báo cáo dự kiến<select value={form.frequency} onChange={event => setForm({ ...form, frequency: event.target.value as TargetForm['frequency'] })}><option value="YEARLY">Hàng năm</option><option value="QUARTERLY">Hàng quý</option><option value="MONTHLY">Hàng tháng</option></select><small className="field-hint">Dùng để định hướng nhịp báo cáo; hệ thống luôn lưu giá trị thực hiện hiện hành mới nhất.</small></label>
+            <label>Tần suất báo cáo dự kiến<select value={form.frequency} onChange={event => setForm({ ...form, frequency: event.target.value as TargetForm['frequency'] })}>{(['YEARLY', 'SEMIANNUAL', 'QUARTERLY', 'MONTHLY'] as Frequency[]).map(value => <option key={value} value={value}>{frequencyLabels[value]}</option>)}</select><small className="field-hint">Quyết định các kỳ báo cáo trong hồ sơ chỉ tiêu; hạn báo cáo mặc định ngày 20 tháng cuối kỳ.</small></label>
+            {modal === 'create' && <>
+              <label>Bộ chỉ tiêu<select value={form.frameworkId} onChange={event => { const framework = frameworks.find(item => item.id === event.target.value); setForm({ ...form, frameworkId: event.target.value, kind: framework?.kind ?? form.kind }); }}>
+                <option value="">Không thuộc bộ nào</option>
+                {frameworks.map(framework => <option key={framework.id} value={framework.id}>{framework.name}</option>)}
+              </select></label>
+              <label>Loại chỉ tiêu<select value={form.kind} onChange={event => setForm({ ...form, kind: event.target.value as FrameworkKind })}>{(Object.keys(frameworkKindLabels) as FrameworkKind[]).map(key => <option key={key} value={key}>{frameworkKindLabels[key]}</option>)}</select></label>
+              <label>Mục tiêu nguyên văn (không bắt buộc)<input maxLength={300} value={form.targetText} placeholder="Ví dụ: ≥ 95%; 2.500 lao động" onChange={event => setForm({ ...form, targetText: event.target.value })} /></label>
+              <label>Mã chuẩn / nhóm<span className="tg-inline-pair"><input maxLength={40} aria-label="Mã chuẩn" placeholder="Mã chuẩn" value={form.standardCode} onChange={event => setForm({ ...form, standardCode: event.target.value })} /><input maxLength={160} aria-label="Nhóm chỉ tiêu" placeholder="Nhóm" value={form.groupName} onChange={event => setForm({ ...form, groupName: event.target.value })} /></span></label>
+            </>}
             <label>Hạn hoàn thành<input type="date" required min={`${form.year}-01-01`} max={`${form.year}-12-31`} value={form.dueDate} onChange={event => setForm({ ...form, dueDate: event.target.value })} /><small className="field-hint">Hạn phải nằm trong năm kế hoạch {form.year || 'đã chọn'}.</small></label>
           </div>
         </fieldset>
@@ -854,21 +874,5 @@ export default function Targets() {
       </form>
     </Modal>}
 
-    {modal === 'progress' && selected && <Modal title="Báo cáo kết quả thực hiện" onClose={closeModal}>
-      <form className="tg-form" onSubmit={submitProgress}>
-        <div className="tg-preview">
-          <span className="code">{selected.code}</span>
-          <strong>{selected.title}</strong>
-          <p>Hiện tại: {selected.currentValue.toLocaleString('vi-VN')} · Mục tiêu: {selected.targetValue.toLocaleString('vi-VN')} {selected.unit} · Phiên bản {selected.version}</p>
-        </div>
-        {user?.role !== 'ADMIN' && <div className="info-box tg-note"><ClipboardCheck aria-hidden="true" /><div><strong>Cần người có thẩm quyền duyệt</strong><p>Số liệu chỉ trở thành kết quả chính thức sau khi được phê duyệt; người gửi không thể tự duyệt.</p></div></div>}
-        {error && <div className="form-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}
-        <div className="form-grid">
-          <label>Giá trị thực hiện mới<input type="number" inputMode="decimal" step="any" min="0" required value={progress.value} onChange={event => setProgress({ ...progress, value: event.target.value })} /><small className="field-hint">Nhập số không âm theo đơn vị “{selected.unit}”. Ví dụ: chỉ tiêu ngân sách nhập giá trị tiền, chỉ tiêu tỷ lệ nhập phần trăm.</small></label>
-          <label>Nguồn số liệu / ghi chú<textarea required value={progress.note} onChange={event => setProgress({ ...progress, note: event.target.value })} placeholder="Nêu kỳ báo cáo và nguồn đối chiếu..." /></label>
-        </div>
-        <div className="modal-actions"><button type="button" className="btn secondary" disabled={submitting} onClick={closeModal}>Hủy</button><button className="btn primary" disabled={submitting}>{submitting ? 'Đang gửi...' : user?.role === 'ADMIN' ? 'Xác nhận cập nhật' : 'Gửi chờ duyệt'}</button></div>
-      </form>
-    </Modal>}
   </>;
 }

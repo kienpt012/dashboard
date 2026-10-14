@@ -839,3 +839,28 @@
     transform: none;
   }
 }
+
+/* Bản 2: tên chỉ tiêu mở hồ sơ, người phụ trách, cặp ô mã chuẩn/nhóm. */
+.tg-title-link {
+  display: block;
+  font-weight: 700;
+  color: var(--tx-strong);
+  text-decoration: none;
+}
+
+.tg-title-link:hover,
+.tg-title-link:focus-visible {
+  color: var(--tx-brand);
+  text-decoration: underline;
+}
+
+.tg-unassigned {
+  color: var(--tx-warn);
+  font-weight: 600;
+}
+
+.tg-inline-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--sp-2);
+}
