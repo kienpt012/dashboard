@@ -1,0 +1,255 @@
+/* ============================================================================
+   VIỆC CỦA TÔI (DH-02) — bổ sung cho mục 5 của ioc.css (.mw-tabs, .mw-tab, .mw-periods).
+   Chỉ dùng token ngữ nghĩa; đẹp ở cả sáng/tối và bề ngang 375px.
+   ========================================================================== */
+.mw-summary {
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-muted);
+}
+
+.mw-summary b {
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.mw-summary b.hot {
+  color: var(--tx-bad);
+}
+
+.mw-stamp {
+  color: var(--tx-subtle);
+}
+
+.mw-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--sh-focus);
+}
+
+.mw-panel .panel-head > div {
+  min-width: 0;
+}
+
+/* Dòng việc: nút hành động xuống hàng trên màn hình hẹp thay vì bóp nội dung. */
+.mw-list > li .side {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mw-label {
+  align-self: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+}
+
+.mw-value {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--tx-normal);
+  overflow-wrap: anywhere;
+}
+
+.mw-value b {
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Trích dẫn: lý do trả lại, nội dung yêu cầu giải trình, ghi chú người gửi. */
+.mw-quote {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid var(--bd-strong);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-normal);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.mw-quote.bad {
+  border-left-color: var(--bg-bad);
+  background: var(--bg-bad-soft);
+}
+
+.mw-quote.warn {
+  border-left-color: var(--bg-warn);
+  background: var(--bg-warn-soft);
+}
+
+.mw-quote b {
+  color: var(--tx-strong);
+}
+
+.mw-confirm {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.mw-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 320px;
+  margin-top: var(--sp-2);
+}
+
+.mw-progress .progress {
+  flex: 1;
+}
+
+.mw-progress span {
+  min-width: 44px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Nhóm chỉ tiêu chưa giao theo phòng. */
+.mw-group + .mw-group {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--bd-subtle);
+}
+
+.mw-group h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.mw-group h4 .count {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-muted);
+  white-space: nowrap;
+}
+
+.mw-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-brand);
+}
+
+.mw-more:hover {
+  text-decoration: underline;
+}
+
+.mw-more svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Trạng thái rỗng tích cực: đã xử lý hết việc. */
+.mw-clear {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-left: 3px solid var(--bg-ok);
+}
+
+.mw-clear > svg {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  color: var(--tx-ok);
+}
+
+.mw-clear h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  color: var(--tx-strong);
+}
+
+.mw-clear p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-muted);
+}
+
+.mw-clear-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* Ghi chú quy tắc tự thông qua ở cuối trang. */
+.mw-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--tx-subtle);
+}
+
+.mw-rule svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+}
+
+.mw-skel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.mw-skel-tabs .skeleton {
+  width: 132px;
+  height: 36px;
+  border-radius: var(--r-pill);
+}
+
+@media (max-width: 640px) {
+  .mw-panel {
+    padding: var(--sp-4);
+  }
+
+  .mw-panel .panel-head {
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  .mw-list > li {
+    flex-wrap: wrap;
+  }
+
+  .mw-list > li .side {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: calc(8px + var(--sp-3));
+  }
+
+  .mw-clear {
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .mw-tab {
+    min-height: 34px;
+    font-size: var(--fs-xs);
+  }
+}

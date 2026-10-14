@@ -1,0 +1,423 @@
+/* ============================================================================
+   Bộ chỉ tiêu (CT-01) — bổ sung cho .fw-card / .fw-library / .fw-template trong ioc.css.
+   Chỉ token ngữ nghĩa; tiền tố fw-.
+   ========================================================================== */
+
+.fw-year {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.fw-year > select {
+  width: auto;
+  margin-top: 0;
+}
+
+.fw-error {
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+
+.fw-error > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Giải thích đầu trang (VH-01), thu gọn được. */
+.fw-intro {
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.fw-intro > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--tx-strong);
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--r-xs);
+}
+
+.fw-intro > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fw-intro > summary svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--tx-brand);
+}
+
+.fw-intro > summary .chev {
+  margin-left: auto;
+  color: var(--tx-muted);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.fw-intro[open] > summary .chev {
+  transform: rotate(180deg);
+}
+
+.fw-intro-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.fw-intro-grid > div {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.fw-intro-grid .ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--bg-brand-soft);
+  color: var(--tx-brand);
+}
+
+.fw-intro-grid .ic svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fw-intro-grid strong {
+  display: block;
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--tx-strong);
+}
+
+.fw-intro-grid p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-muted);
+}
+
+/* Lưới thẻ bộ chỉ tiêu. */
+.fw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: var(--sp-4);
+}
+
+.fw-card {
+  align-content: start;
+  min-width: 0;
+}
+
+.fw-card.inactive {
+  border-style: dashed;
+  background: var(--bg-inset);
+  box-shadow: none;
+}
+
+.fw-head {
+  flex: 1;
+  min-width: 0;
+}
+
+.fw-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.fw-card h3 a {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.fw-card h3 a:hover {
+  color: var(--tx-brand);
+  text-decoration: underline;
+}
+
+.fw-meta {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.fw-wall {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tx-subtle);
+  white-space: nowrap;
+}
+
+.fw-wall svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fw-wall.on {
+  color: var(--tx-ok);
+}
+
+.fw-legal,
+.fw-desc,
+.fw-none {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-normal);
+}
+
+.fw-legal b {
+  color: var(--tx-strong);
+}
+
+.fw-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--tx-muted);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.fw-none {
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--tx-muted);
+}
+
+.fw-meter {
+  margin-top: var(--sp-2);
+}
+
+.fw-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.fw-facts b {
+  color: var(--tx-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.fw-card .ioc-legend a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fw-card .ioc-legend a:hover {
+  color: var(--tx-brand);
+  text-decoration: underline;
+}
+
+.fw-card footer {
+  align-items: center;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--bd-subtle);
+}
+
+.fw-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.fw-inactive {
+  margin-top: var(--sp-4);
+}
+
+.fw-inactive > summary {
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+  cursor: pointer;
+}
+
+/* Thư viện mẫu. */
+.fw-library-panel {
+  margin-top: var(--sp-6);
+  scroll-margin-top: var(--sp-8);
+}
+
+.fw-page .fw-library {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
+.fw-template {
+  align-content: start;
+  min-width: 0;
+}
+
+.fw-template p b {
+  color: var(--tx-normal);
+}
+
+.fw-tpl-meta {
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+}
+
+.fw-tpl-meta > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sp-2);
+}
+
+.fw-tpl-meta dt {
+  min-width: 92px;
+  color: var(--tx-muted);
+}
+
+.fw-tpl-meta dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  color: var(--tx-normal);
+}
+
+.fw-tpl-meta dd a {
+  color: var(--tx-brand);
+}
+
+.fw-template .row {
+  flex-wrap: wrap;
+}
+
+.fw-dup {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  color: var(--tx-warn);
+}
+
+.fw-dup svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+}
+
+/* Hộp thoại nạp mẫu, công tắc, kết quả tính lại. */
+.fw-lead {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--tx-normal);
+}
+
+.fw-plan {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fw-plan li {
+  display: flex;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--tx-normal);
+}
+
+.fw-plan svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--tx-brand);
+}
+
+.fw-plan b {
+  color: var(--tx-strong);
+}
+
+.fw-toggle {
+  display: grid;
+  gap: 2px;
+}
+
+.fw-toggle .field-hint {
+  margin-top: 0;
+  padding-left: calc(38px + var(--sp-2));
+}
+
+.fw-code-input {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.fw-recompute {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.fw-recompute th[scope='row'] {
+  font-weight: 500;
+  text-align: left;
+  min-width: 220px;
+}
+
+.fw-recompute th[scope='row'] a {
+  color: var(--tx-strong);
+  text-decoration: none;
+}
+
+.fw-recompute th[scope='row'] a:hover {
+  color: var(--tx-brand);
+  text-decoration: underline;
+}
+
+.fw-recompute td .field-hint {
+  max-width: 280px;
+}
+
+@media (max-width: 600px) {
+  .fw-intro {
+    padding: var(--sp-3) var(--sp-4);
+  }
+
+  .fw-card {
+    padding: var(--sp-4);
+  }
+
+  .fw-card header {
+    flex-direction: column;
+  }
+
+  .fw-template .row > select,
+  .fw-template .row > .btn {
+    flex: 1 1 auto;
+  }
+}

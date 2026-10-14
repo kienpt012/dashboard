@@ -1,0 +1,496 @@
+/* ============================================================================
+   Trình chiếu phòng họp (DH-03) — bổ sung cho nhóm .wb-* trong ioc.css.
+   Màn hình TV đặt xa người xem: chữ lớn, ô cao đều nhau để tính được số ô vừa
+   màn hình, màu đỏ nổi bật, ẩn con trỏ và nút điều khiển khi không dùng chuột.
+   ========================================================================== */
+
+.wb.idle {
+  cursor: none;
+}
+
+.wb-controls {
+  align-items: center;
+  transition: opacity var(--t-slow) var(--ease-out);
+}
+
+.wb.idle .wb-controls:not(:focus-within) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wb-controls .btn.on {
+  background: var(--bg-warn-soft);
+  border-color: var(--bd-warn);
+  color: var(--tx-warn);
+}
+
+.wb-brand > div {
+  min-width: 0;
+}
+
+.wb-brand strong,
+.wb-brand small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Thân trang: đầu trang · lưới ô · dòng "… và N chỉ tiêu khác". */
+.wb-body {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  animation: wb-enter var(--t-slower) var(--ease-out);
+}
+
+@keyframes wb-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--sp-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wb-title {
+  flex: 1 1 480px;
+  min-width: 0;
+}
+
+.wb-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--tx-brand);
+}
+
+.wb-eyebrow.bad {
+  color: var(--tx-bad);
+}
+
+.wb-eyebrow .ioc-dept-dot {
+  width: 14px;
+  height: 14px;
+}
+
+.wb-slide-head h1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.wb-slide-head p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.wb-summary strong small {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--tx-muted);
+}
+
+.wb-summary .info strong {
+  color: var(--tx-brand);
+}
+
+/* Ô chỉ tiêu: là liên kết tới hồ sơ, cao đều nhau (tiêu đề luôn chiếm 2 dòng, dòng nhãn luôn có). */
+.wb-tile {
+  align-content: start;
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+}
+
+.wb-tile:hover {
+  box-shadow: var(--sh-md);
+  border-color: var(--bd-normal);
+}
+
+.wb-tile .t {
+  min-height: calc(2em * var(--lh-snug));
+}
+
+.wb-tile .v small {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-muted);
+}
+
+.wb-tile .d {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.wb-tile .d span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-tile .d .none {
+  color: var(--tx-warn);
+  font-weight: 700;
+}
+
+.wb-tile .s.ok {
+  color: var(--tx-ok);
+}
+
+.wb-tile .s.warn {
+  color: var(--tx-warn);
+}
+
+.wb-tile .s.bad {
+  color: var(--tx-bad);
+}
+
+.wb-tile .s.info {
+  color: var(--tx-brand);
+}
+
+.wb-tile .s.neutral {
+  color: var(--tx-muted);
+}
+
+.wb-tile .f {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  min-height: calc(1em * var(--lh-snug) + 4px);
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  color: var(--tx-muted);
+}
+
+.wb-tile .f .goal {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-flag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 1px var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: var(--lh-snug);
+}
+
+.wb-flag svg {
+  width: 1em;
+  height: 1em;
+}
+
+.wb-flag.bad {
+  background: var(--bg-bad);
+  color: var(--tx-onbrand);
+}
+
+.wb-flag.warn {
+  background: var(--bg-warn-soft);
+  border-color: var(--bd-warn);
+  color: var(--tx-warn);
+}
+
+.wb-flag.neutral {
+  background: var(--bg-inset);
+  border-color: var(--bd-subtle);
+  color: var(--tx-muted);
+}
+
+/* Dòng "… và N chỉ tiêu khác": luôn giữ chỗ để lưới ô không đổi chiều cao giữa các trang. */
+.wb-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  min-height: calc(var(--fs-md) * var(--lh-snug));
+}
+
+.wb-more strong {
+  color: var(--tx-strong);
+}
+
+.wb-more .bad {
+  color: var(--tx-bad);
+  font-weight: 700;
+}
+
+.wb-more a {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-brand);
+}
+
+/* Chân màn hình. */
+.wb-foot {
+  flex-wrap: wrap;
+}
+
+.wb-code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.wb-stale {
+  color: var(--tx-bad);
+  font-weight: 700;
+}
+
+.wb-keys {
+  color: var(--tx-subtle);
+  transition: opacity var(--t-slow) var(--ease-out);
+}
+
+.wb.idle .wb-keys {
+  opacity: 0;
+}
+
+.wb-count {
+  min-width: 4ch;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-strong);
+}
+
+.wb-dots {
+  flex-wrap: wrap;
+}
+
+.wb-dots button {
+  position: relative;
+  transition: width var(--t-base) var(--ease-out), background-color var(--t-base) var(--ease-out);
+}
+
+/* Vùng bấm rộng hơn chấm nhìn thấy. */
+.wb-dots button::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--sp-2) * -1) calc(var(--sp-1) * -1);
+}
+
+.wb-dots button:hover:not(.active) {
+  background: var(--tx-muted);
+}
+
+/* Trạng thái tải, lỗi, rỗng — giữa màn hình, chữ lớn. */
+.wb-state {
+  grid-row: 1 / -1;
+  place-self: center;
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  max-width: 760px;
+  padding: var(--sp-6);
+  text-align: center;
+}
+
+.wb-state > svg {
+  width: 56px;
+  height: 56px;
+  color: var(--tx-muted);
+}
+
+.wb-state.bad > svg {
+  color: var(--tx-bad);
+}
+
+.wb-state h1 {
+  margin: 0;
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-tight);
+  color: var(--tx-strong);
+}
+
+.wb-state p {
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-normal);
+  color: var(--tx-muted);
+}
+
+.wb-state .actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-3);
+}
+
+.wb-skel-eyebrow {
+  width: 220px;
+  height: 14px;
+  margin-bottom: var(--sp-2);
+}
+
+.wb-skel-title {
+  width: min(640px, 70%);
+  height: 40px;
+}
+
+.wb-skel-sum {
+  width: 120px;
+  height: 76px;
+}
+
+.wb-skel-tile {
+  height: 132px;
+  border-radius: var(--r-md);
+}
+
+/* TV 1080p trở lên: phóng chữ để đọc được từ cuối phòng họp. */
+@media (min-width: 1800px) {
+  .wb-brand strong {
+    font-size: var(--fs-xl);
+  }
+
+  .wb-brand small,
+  .wb-foot,
+  .wb-eyebrow {
+    font-size: var(--fs-md);
+  }
+
+  .wb-clock strong {
+    font-size: var(--fs-3xl);
+  }
+
+  .wb-slide-head p {
+    font-size: var(--fs-lg);
+  }
+
+  .wb-summary div {
+    min-width: 150px;
+  }
+
+  .wb-summary strong {
+    font-size: var(--fs-4xl);
+  }
+
+  .wb-summary span {
+    font-size: var(--fs-md);
+  }
+
+  .wb-tile .t {
+    font-size: var(--fs-lg);
+  }
+
+  .wb-tile .v {
+    font-size: var(--fs-2xl);
+  }
+
+  .wb-tile .d,
+  .wb-tile .s,
+  .wb-more {
+    font-size: var(--fs-md);
+  }
+
+  .wb-tile .f,
+  .wb-flag {
+    font-size: var(--fs-base);
+  }
+}
+
+/* Màn hình hẹp: cuộn dọc, hiện đủ mọi ô, nút điều khiển luôn thấy (không có chuột để đánh thức). */
+@media (max-width: 760px) {
+  .wb-top {
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+  }
+
+  .wb-brand .mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .wb-brand strong {
+    font-size: var(--fs-md);
+  }
+
+  .wb-clock {
+    margin-left: auto;
+  }
+
+  .wb-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .wb.idle .wb-controls:not(:focus-within) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .wb.idle {
+    cursor: auto;
+  }
+
+  .wb-summary {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .wb-summary div {
+    flex: 1 1 calc(50% - var(--sp-3));
+    min-width: 0;
+    padding: var(--sp-2);
+  }
+
+  .wb-summary strong {
+    font-size: var(--fs-2xl);
+  }
+
+  .wb-tile .t {
+    min-height: 0;
+  }
+
+  .wb-keys {
+    display: none;
+  }
+
+  .wb-bar {
+    flex-basis: 100%;
+    order: -1;
+  }
+
+  .wb-state h1 {
+    font-size: var(--fs-xl);
+  }
+
+  .wb-state p {
+    font-size: var(--fs-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-body {
+    animation: none;
+  }
+
+  .wb-controls,
+  .wb-keys,
+  .wb-tile,
+  .wb-dots button {
+    transition: none;
+  }
+}
