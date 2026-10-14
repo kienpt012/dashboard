@@ -10,6 +10,8 @@ datasource db {
 
 enum Role {
   ADMIN
+  LEADER
+  CLERK
   MANAGER
   STAFF
   VIEWER
@@ -26,6 +28,7 @@ enum TargetStatus {
 enum TargetFrequency {
   MONTHLY
   QUARTERLY
+  SEMIANNUAL
   YEARLY
 }
 
@@ -141,8 +144,92 @@ enum CandidateKind {
 
 enum CandidateStatus {
   PROPOSED
+  SUBMITTED
   APPROVED
   REJECTED
+}
+
+// Đề xuất do AI trích xuất hay do một cán bộ tự phát hiện. Chỉ đề xuất đã có người
+// trình (SUBMITTED) mới được tự thông qua khi quá hạn — kết quả AI luôn qua tay người trước.
+enum CandidateOrigin {
+  AI
+  HUMAN
+}
+
+enum LocalityKind {
+  XA
+  PHUONG
+  DAC_KHU
+  TRUONG_HOC
+  CO_QUAN_KHAC
+}
+
+enum DepartmentKind {
+  LEADERSHIP
+  OFFICE
+  SPECIALIZED
+  CENTER
+  OTHER
+}
+
+// Loại bộ chỉ tiêu: kế hoạch – thực hiện, chấm điểm, nhiệm vụ, thống kê.
+enum FrameworkKind {
+  PLAN
+  SCORE
+  TASK
+  STAT
+}
+
+// Cấp giao chỉ tiêu: Trung ương, tỉnh/thành phố, hoặc địa phương tự đặt.
+enum IssuingLevel {
+  CENTRAL
+  PROVINCE
+  LOCAL
+}
+
+// Nguồn giá trị thực hiện: báo cáo tay, tự tính từ kho dữ liệu, hoặc tổng hợp từ chỉ tiêu con.
+enum ValueSource {
+  MANUAL
+  COMPUTED
+  CHILDREN
+}
+
+enum DirectiveKind {
+  KE_HOACH
+  CHUONG_TRINH
+  THONG_BAO_KET_LUAN
+  CONG_VAN
+  QUYET_DINH
+  NGHI_QUYET
+  CHI_THI
+  BAO_CAO
+  KHAC
+}
+
+enum EvaluationResult {
+  EXCEEDED
+  ACHIEVED
+  PARTIAL
+  NOT_ACHIEVED
+}
+
+enum EvidenceKind {
+  FILE
+  LINK
+  DOCUMENT
+}
+
+enum ExplanationStatus {
+  OPEN
+  ANSWERED
+  CANCELLED
+}
+
+enum BugReportStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  WONT_FIX
 }
 
 enum AgentActionStatus {
@@ -157,6 +244,11 @@ model Department {
   id                  String               @id @default(cuid())
   code                String               @unique
   name                String
+  shortName           String?
+  kind                DepartmentKind       @default(SPECIALIZED)
+  // Lĩnh vực phụ trách: căn cứ gợi ý đơn vị chủ trì khi văn thư rà soát đề xuất.
+  responsibilities    String?
+  sortOrder           Int                  @default(0)
   description         String?
   color               String               @default("#0f766e")
   isActive            Boolean              @default(true)
@@ -169,6 +261,8 @@ model Department {
   feedbacks           Feedback[]
   documents           SourceDocument[]
   indicatorCandidates IndicatorCandidate[]
+  coordinatedTargets  TargetCoordinator[]
+  datasets            Dataset[]
 }
 
 model User {
@@ -176,6 +270,8 @@ model User {
   username                String                   @unique
   passwordHash            String
   fullName                String
+  // Chức vụ hiển thị (Chủ tịch, Trưởng phòng, Chuyên viên…) — thẩm quyền vẫn do role quyết định.
+  position                String?
   email                   String?                  @unique
   role                    Role                     @default(STAFF)
   isActive                Boolean                  @default(true)
@@ -192,6 +288,10 @@ model User {
   uploadedDocuments       SourceDocument[]         @relation("DocumentUploader")
   reviewedCandidates      IndicatorCandidate[]     @relation("CandidateReviewer")
   agentActions            AgentAction[]            @relation("AgentActionUser")
+  assignedTargets         Target[]                 @relation("TargetAssignee")
+  notifications           Notification[]
+  explanationRequests     ExplanationRequest[]     @relation("ExplanationRequester")
+  bugReports              BugReport[]
 }
 
 model PasswordResetChallenge {
@@ -218,6 +318,40 @@ model Target {
   code                     String               @unique
   title                    String
   description              String?
+  // Bộ chỉ tiêu và vị trí trong bộ (STT, mã chuẩn như CT3, X0210, 6.4).
+  frameworkId              String?
+  framework                Framework?           @relation(fields: [frameworkId], references: [id], onDelete: SetNull)
+  kind                     FrameworkKind        @default(PLAN)
+  issuingLevel             IssuingLevel         @default(LOCAL)
+  ordinal                  String?
+  standardCode             String?
+  // Nhóm trong bộ chỉ tiêu (vd "02. Kinh tế", "Nhận thức số") để hiển thị theo mục như văn bản giao.
+  groupName                String?
+  sortOrder                Int                  @default(0)
+  parentId                 String?
+  parent                   Target?              @relation("TargetTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children                 Target[]             @relation("TargetTree")
+  // Mục tiêu nguyên văn trong văn bản giao ("≥95", "Phấn đấu 100%") bên cạnh giá trị số.
+  targetText               String?
+  maxScore                 Float?
+  scoringRule              String?
+  evidenceRequirement      String?
+  // Phiếu nguồn số liệu: lấy ở đâu, ai cung cấp, cách lấy — để người mới vẫn biết lấy số.
+  dataSourceSystem         String?
+  dataSourceAgency         String?
+  collectionGuide          String?
+  dataSourceUrl            String?
+  reportDueDay             Int?
+  valueSource              ValueSource          @default(MANUAL)
+  formula                  Json?
+  computedAt               DateTime?
+  // Giao việc tới từng người; đếm số lần chuyển để chống "đá việc".
+  assigneeId               String?
+  assignee                 User?                @relation("TargetAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignedAt               DateTime?
+  assignedById             String?
+  transferCount            Int                  @default(0)
+  bounceCount              Int                  @default(0)
   unit                     String
   targetValue              Float
   currentValue             Float                @default(0)
@@ -265,15 +399,30 @@ model Target {
   updates                  ProgressUpdate[]
   sourceCandidate          IndicatorCandidate?  @relation("CandidateCreatedTarget")
   matchedCandidates        IndicatorCandidate[] @relation("CandidateMatchedTarget")
+  coordinators             TargetCoordinator[]
+  directives               TargetDirective[]
+  evaluations              TargetEvaluation[]
+  evidences                Evidence[]
+  workEvents               WorkEvent[]
+  explanationRequests      ExplanationRequest[]
 
   @@index([year, status])
   @@index([departmentId])
   @@index([isArchived, year])
+  @@index([frameworkId, sortOrder])
+  @@index([parentId])
+  @@index([assigneeId])
 }
 
 model ProgressUpdate {
   id            String               @id @default(cuid())
   value         Float
+  // Kỳ báo cáo: 2026, 2026-H1, 2026-Q3, 2026-M09.
+  periodKey     String?
+  valueText     String?
+  dataSource    String?
+  explanation   String?
+  autoApproved  Boolean              @default(false)
   note          String?
   reviewStatus  ProgressReviewStatus @default(APPROVED)
   baseVersion   Int                  @default(1)
@@ -287,8 +436,10 @@ model ProgressUpdate {
   user          User                 @relation(fields: [userId], references: [id])
   importBatchId String?
   importBatch   ImportBatch?         @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  evidences     Evidence[]
 
   @@index([reviewStatus, targetId])
+  @@index([targetId, periodKey])
   @@index([importBatchId, reviewStatus])
 }
 
@@ -320,6 +471,13 @@ model SystemSetting {
   feedbackFirstResponseDays   Int      @default(2)
   feedbackResolutionDays      Int      @default(10)
   feedbackCitizenResponseDays Int      @default(7)
+  // Cơ chế "không để việc bị treo" — đặt 0 để tắt từng cơ chế.
+  reportAutoApproveDays       Int      @default(7)
+  proposalAutoApproveDays     Int      @default(3)
+  explanationDueDays          Int      @default(3)
+  assignmentStallDays         Int      @default(3)
+  maxTransfers                Int      @default(1)
+  wallboardRotateSeconds      Int      @default(20)
   version                     Int      @default(1)
   updatedBy                   String?
   updatedAt                   DateTime @updatedAt
@@ -493,6 +651,9 @@ model SourceDocument {
   candidates      IndicatorCandidate[]
   sourcedTargets  Target[]              @relation("TargetSourceDocument")
   publications    DocumentPublication[]
+  directives      TargetDirective[]
+  evidences       Evidence[]
+  frameworks      Framework[]
 
   @@index([status, createdAt])
   @@index([departmentId, createdAt])
@@ -638,8 +799,21 @@ model AgentAction {
 // Chỉ tiêu ứng viên do AI/rule đề xuất. Chỉ trở thành Target chính thức sau khi người có thẩm quyền duyệt.
 model IndicatorCandidate {
   id                        String           @id @default(cuid())
-  documentId                String
-  document                  SourceDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId                String?
+  document                  SourceDocument?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  origin                    CandidateOrigin  @default(AI)
+  frameworkId               String?
+  framework                 Framework?       @relation(fields: [frameworkId], references: [id], onDelete: SetNull)
+  targetKind                FrameworkKind    @default(PLAN)
+  issuingLevel              IssuingLevel?
+  standardCode              String?
+  targetText                String?
+  proposedById              String?
+  submittedById             String?
+  submittedAt               DateTime?
+  // Hạn tự thông qua khi người duyệt không xử lý (chỉ đặt khi đã trình).
+  autoApproveAt             DateTime?
+  autoApproved              Boolean          @default(false)
   chunkId                   String?
   chunk                     DocumentChunk?   @relation(fields: [chunkId], references: [id], onDelete: SetNull)
   pageNumber                Int?
@@ -666,7 +840,7 @@ model IndicatorCandidate {
   coordinatingDepartments   String?
   legalBasis                String?
   formula                   String?
-  sourceQuote               String
+  sourceQuote               String           @default("")
   confidence                Float
   fieldConfidence           Json?
   warnings                  Json?
@@ -685,8 +859,11 @@ model IndicatorCandidate {
   createdAt                 DateTime         @default(now())
   updatedAt                 DateTime         @updatedAt
 
+  workEvents WorkEvent[]
+
   @@index([status, createdAt])
   @@index([documentId, status])
+  @@index([status, autoApproveAt])
 }
 
 model AuditLog {
@@ -703,4 +880,261 @@ model AuditLog {
 
   @@index([departmentId, createdAt])
   @@index([actorId, createdAt])
+}
+
+// ───────────────────────── IOC v2: địa phương, bộ chỉ tiêu, trách nhiệm, dữ liệu ─────────────────────────
+
+// Hồ sơ địa phương (một bản ghi). Mọi tên hiển thị, tiêu đề, email, tệp xuất đều đọc từ đây —
+// mang hệ thống sang xã/phường khác chỉ cần chạy trình thiết lập, không sửa mã.
+model LocalityProfile {
+  id               String       @id @default("default")
+  kind             LocalityKind @default(PHUONG)
+  name             String
+  agencyName       String
+  shortName        String
+  provinceName     String?
+  adminUnitCode    String?
+  agencyCode       String?
+  address          String?
+  phone            String?
+  email            String?
+  website          String?
+  emailDomain      String?
+  primaryColor     String       @default("#1d4ed8")
+  setupCompletedAt DateTime?
+  appliedTemplates String[]     @default([])
+  version          Int          @default(1)
+  updatedBy        String?
+  updatedAt        DateTime     @updatedAt
+}
+
+// Bộ chỉ tiêu: một văn bản giao hoặc một bộ chỉ số (KT-XH, chuyển đổi số, CCHC, thống kê…).
+model Framework {
+  id               String               @id @default(cuid())
+  code             String               @unique
+  name             String
+  kind             FrameworkKind        @default(PLAN)
+  issuingLevel     IssuingLevel         @default(LOCAL)
+  year             Int?
+  legalBasis       String?
+  description      String?
+  maxScore         Float?
+  templateKey      String?
+  sourceDocumentId String?
+  sourceDocument   SourceDocument?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  sortOrder        Int                  @default(0)
+  showOnWallboard  Boolean              @default(true)
+  isActive         Boolean              @default(true)
+  version          Int                  @default(1)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  targets          Target[]
+  candidates       IndicatorCandidate[]
+
+  @@index([isActive, sortOrder])
+}
+
+model TargetCoordinator {
+  targetId     String
+  target       Target     @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([targetId, departmentId])
+  @@index([departmentId])
+}
+
+// Phần 1 của hồ sơ chỉ tiêu: các văn bản chỉ đạo điều hành (một chỉ tiêu có thể có nhiều văn bản).
+model TargetDirective {
+  id               String          @id @default(cuid())
+  targetId         String
+  target           Target          @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  kind             DirectiveKind   @default(KHAC)
+  docNumber        String?
+  title            String
+  issuedDate       DateTime?
+  issuer           String?
+  note             String?
+  sourceDocumentId String?
+  sourceDocument   SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  createdById      String
+  createdByName    String
+  createdAt        DateTime        @default(now())
+  evidences        Evidence[]
+
+  @@index([targetId, issuedDate])
+}
+
+// Phần 3 của hồ sơ chỉ tiêu: đánh giá theo kỳ (đạt / vượt / không đạt + biện pháp chấn chỉnh).
+model TargetEvaluation {
+  id               String           @id @default(cuid())
+  targetId         String
+  target           Target           @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  periodKey        String
+  result           EvaluationResult
+  score            Float?
+  note             String?
+  correctiveAction String?
+  evaluatedById    String
+  evaluatedByName  String
+  evaluatedByRole  Role
+  evaluatedAt      DateTime         @default(now())
+  version          Int              @default(1)
+  evidences        Evidence[]
+
+  @@unique([targetId, periodKey])
+}
+
+// Minh chứng: tệp (ảnh chụp màn hình phần mềm nguồn, biên bản, kế hoạch…), liên kết, hoặc văn bản trong kho.
+model Evidence {
+  id               String            @id @default(cuid())
+  targetId         String
+  target           Target            @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  progressUpdateId String?
+  progressUpdate   ProgressUpdate?   @relation(fields: [progressUpdateId], references: [id], onDelete: Cascade)
+  directiveId      String?
+  directive        TargetDirective?  @relation(fields: [directiveId], references: [id], onDelete: Cascade)
+  evaluationId     String?
+  evaluation       TargetEvaluation? @relation(fields: [evaluationId], references: [id], onDelete: SetNull)
+  kind             EvidenceKind      @default(FILE)
+  title            String
+  originalName     String?
+  mimeType         String?
+  size             Int?
+  sha256           String?
+  data             Bytes?
+  url              String?
+  sourceDocumentId String?
+  sourceDocument   SourceDocument?   @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  note             String?
+  capturedAt       DateTime?
+  createdById      String
+  createdByName    String
+  createdAt        DateTime          @default(now())
+
+  @@index([targetId, createdAt])
+  @@index([progressUpdateId])
+}
+
+// Dòng thời gian trách nhiệm: ai giao, ai chuyển, ai trả lại, hệ thống nhắc hoặc tự thông qua lúc nào.
+// actorId null nghĩa là hệ thống tự thực hiện theo quy tắc thời hạn.
+model WorkEvent {
+  id                String              @id @default(cuid())
+  targetId          String?
+  target            Target?             @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  candidateId       String?
+  candidate         IndicatorCandidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  action            String
+  actorId           String?
+  actorName         String
+  // Người chịu trách nhiệm cho sự kiện (vd trưởng phòng để quá hạn duyệt) — phục vụ mục trách nhiệm người đứng đầu.
+  responsibleUserId String?
+  departmentId      String?
+  note              String?
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+
+  @@index([targetId, createdAt])
+  @@index([candidateId, createdAt])
+  @@index([responsibleUserId, action, createdAt])
+  @@index([departmentId, createdAt])
+  @@index([createdAt])
+}
+
+model ExplanationRequest {
+  id            String            @id @default(cuid())
+  targetId      String
+  target        Target            @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User              @relation("ExplanationRequester", fields: [requestedById], references: [id])
+  message       String
+  dueAt         DateTime
+  status        ExplanationStatus @default(OPEN)
+  response      String?
+  responderId   String?
+  responderName String?
+  respondedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  version       Int               @default(1)
+
+  @@index([targetId, status])
+  @@index([status, dueAt])
+}
+
+// Thông báo trong ứng dụng. dedupeKey duy nhất để bộ giám sát chạy lại không nhắc trùng.
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String
+  title      String
+  body       String?
+  link       String?
+  entityType String?
+  entityId   String?
+  dedupeKey  String    @unique
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+// Kho dữ liệu nghiệp vụ: bảng có cấu trúc để chỉ tiêu tự tính (vd cuộc họp CĐS, hồ sơ TTHC…).
+model Dataset {
+  id                String       @id @default(cuid())
+  code              String       @unique
+  name              String
+  description       String?
+  columns           Json
+  ownerDepartmentId String?
+  ownerDepartment   Department?  @relation(fields: [ownerDepartmentId], references: [id], onDelete: SetNull)
+  updateCycle       String?
+  sourceSystem      String?
+  collectionGuide   String?
+  templateKey       String?
+  isActive          Boolean      @default(true)
+  version           Int          @default(1)
+  lastDataAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  rows              DatasetRow[]
+}
+
+model DatasetRow {
+  id          String   @id @default(cuid())
+  datasetId   String
+  dataset     Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  data        Json
+  createdById String
+  updatedById String?
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([datasetId, createdAt])
+}
+
+// Báo lỗi có ngữ cảnh: ghi lại đúng trang, lúc nào, để biết lỗi ở đâu mà sửa.
+model BugReport {
+  id             String          @id @default(cuid())
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reporterName   String
+  url            String
+  pageTitle      String?
+  screenCode     String?
+  viewport       String?
+  userAgent      String?
+  description    String
+  screenshot     Bytes?
+  screenshotMime String?
+  status         BugReportStatus @default(NEW)
+  adminNote      String?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now())
+
+  @@index([status, createdAt])
 }

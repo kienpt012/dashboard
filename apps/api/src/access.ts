@@ -12,6 +12,7 @@ export interface Actor {
   id: string;
   username: string;
   fullName: string;
+  position?: string | null;
   email?: string | null;
   role: Role;
   isActive: boolean;
@@ -56,12 +57,45 @@ export function getActor(request: RequestWithActor): Actor {
   return request.user;
 }
 
+// Vai trò có phạm vi toàn địa phương: quản trị hệ thống, lãnh đạo UBND và văn thư (đầu mối tiếp nhận).
+// Các vai trò còn lại chỉ thấy dữ liệu phòng ban của mình.
+export const GLOBAL_ROLES: readonly Role[] = [Role.ADMIN, Role.LEADER, Role.CLERK];
+// Thẩm quyền nghiệp vụ "giao và đánh giá": lãnh đạo UBND (ADMIN giữ toàn quyền để tương thích bản 1).
+export const LEADERSHIP_ROLES: readonly Role[] = [Role.ADMIN, Role.LEADER];
+// Mọi vai trò được làm việc (khác chỉ xem) — dùng cho đề xuất chỉ tiêu, báo lỗi, minh chứng.
+export const WORKING_ROLES: readonly Role[] = [Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF];
+
+export function isGlobalRole(role: Role): boolean {
+  return GLOBAL_ROLES.includes(role);
+}
+
+export function isLeadership(actor: Pick<Actor, 'role'>): boolean {
+  return LEADERSHIP_ROLES.includes(actor.role);
+}
+
+/** Người có quyền duyệt/đánh giá trong phạm vi một phòng: lãnh đạo UBND, hoặc trưởng phòng của chính phòng đó. */
+export function canSuperviseDepartment(actor: Actor, departmentId: string): boolean {
+  if (isLeadership(actor)) return true;
+  return actor.role === Role.MANAGER && actor.departmentId === departmentId && Boolean(actor.department?.isActive);
+}
+
+/** Tác nhân hệ thống cho các thao tác tự động theo quy tắc thời hạn (tự thông qua, nhắc việc). */
+export const SYSTEM_ACTOR: Actor = {
+  id: 'system',
+  username: 'he-thong',
+  fullName: 'Hệ thống IOC',
+  role: Role.ADMIN,
+  isActive: true,
+  departmentId: null,
+  department: null,
+};
+
 export function resolveDepartmentScope(
   actor: Actor,
   requestedDepartmentId?: string | null,
 ): string | undefined {
   const requested = requestedDepartmentId?.trim() || undefined;
-  if (actor.role === Role.ADMIN) {
+  if (isGlobalRole(actor.role)) {
     return requested;
   }
   if (!actor.departmentId || !actor.department?.isActive) {
@@ -75,7 +109,7 @@ export function resolveDepartmentScope(
 
 export function assertDepartmentAccess(actor: Actor, departmentId: string): void {
   const scopedDepartmentId = resolveDepartmentScope(actor, departmentId);
-  if (actor.role !== Role.ADMIN && scopedDepartmentId !== departmentId) {
+  if (!isGlobalRole(actor.role) && scopedDepartmentId !== departmentId) {
     throw new ForbiddenException('Bạn không có quyền thao tác dữ liệu của phòng ban này');
   }
 }

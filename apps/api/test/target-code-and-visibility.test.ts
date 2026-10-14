@@ -81,6 +81,7 @@ test('bộ cấp mã dùng tiếp dãy toàn cục khi hai phòng ban có cùng 
 });
 
 test('tạo chỉ tiêu tự cấp mã toàn cục trong Serializable, thử lại khi đụng mã và bỏ qua mã do client chèn', async () => {
+  const workEvents: any[] = [];
   let attempts = 0;
   let departmentReads = 0;
   let createdData: Record<string, unknown> | undefined;
@@ -113,6 +114,15 @@ test('tạo chỉ tiêu tự cấp mã toàn cục trong Serializable, thử l�
     },
     auditLog: {
       create: async () => undefined,
+    },
+    workEvent: {
+      create: async (args: any) => {
+        workEvents.push(args.data);
+        return args.data;
+      },
+    },
+    notification: {
+      createMany: async (args: any) => ({ count: args.data.length }),
     },
   };
   const prisma = {

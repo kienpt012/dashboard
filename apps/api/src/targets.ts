@@ -14,15 +14,20 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  FrameworkKind,
   ImportBatchStatus,
+  IssuingLevel,
   ProgressReviewStatus,
   Prisma,
   Role,
   TargetDirection,
   TargetFrequency,
   TargetStatus,
+  ValueSource,
 } from '@prisma/client';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -39,7 +44,10 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { type Actor, audit, getActor, resolveDepartmentScope } from './access';
+import { type Actor, audit, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, LEADERSHIP_ROLES, resolveDepartmentScope } from './access';
+import { rollupParents } from './datasets';
+import { isValidPeriodKey, periodKeyFor, periodLabel } from './periods';
+import { departmentManagerIds, notifyUsers, recordWorkEvent, targetLink } from './work';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear, parsePlanningDueDate } from './planning-date';
@@ -72,6 +80,24 @@ export class CreateTargetDto {
   @IsString() departmentId!: string;
   @IsOptional() @IsBoolean() isHighlighted?: boolean;
   @IsOptional() @IsInt() @Min(0) publicOrder?: number;
+  // ── IOC bản 2 ──
+  @IsOptional() @IsString() frameworkId?: string;
+  @IsOptional() @IsEnum(FrameworkKind) kind?: FrameworkKind;
+  @IsOptional() @IsEnum(IssuingLevel) issuingLevel?: IssuingLevel;
+  @IsOptional() @IsString() parentId?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(20) ordinal?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(40) standardCode?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(160) groupName?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(300) targetText?: string;
+  @IsOptional() @IsNumber() @Min(0) @Max(1000) maxScore?: number;
+  @IsOptional() @Trim() @IsString() @MaxLength(2000) scoringRule?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(1000) evidenceRequirement?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(500) dataSourceSystem?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(500) dataSourceAgency?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(4000) collectionGuide?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(31) reportDueDay?: number;
+  @IsOptional() @IsString() assigneeId?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) coordinatorDepartmentIds?: string[];
 }
 
 export class UpdateTargetDto {
@@ -106,6 +132,11 @@ class ProgressDto {
   @IsNumber() @Min(0) value!: number;
   @IsOptional() @IsString() @MaxLength(2000) note?: string;
   @IsInt() @Min(1) baseVersion!: number;
+  // Kỳ báo cáo, giá trị nguyên văn, nguồn số liệu lần này và giải trình khi chưa đạt (hồ sơ phần "Thực hiện").
+  @IsOptional() @Trim() @IsString() @MaxLength(12) periodKey?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(300) valueText?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(500) dataSource?: string;
+  @IsOptional() @Trim() @IsString() @MaxLength(2000) explanation?: string;
 }
 
 class ReviewDto {
@@ -119,7 +150,7 @@ class TargetLifecycleDto {
   @IsInt() @Min(1) expectedPublicationVersion!: number;
 }
 
-async function refreshImportBatchStatus(tx: Prisma.TransactionClient, importBatchId?: string | null) {
+export async function refreshImportBatchStatus(tx: Prisma.TransactionClient, importBatchId?: string | null) {
   if (!importBatchId) return;
   const updates = await tx.progressUpdate.findMany({
     where: { importBatchId },
@@ -178,8 +209,8 @@ export class TargetsController {
     expectedVersion: number,
     expectedPublicationVersion: number,
   ) {
-    if (actor.role !== Role.ADMIN) {
-      throw new ForbiddenException('Chỉ quản trị viên được thay đổi hiển thị chỉ tiêu trên trang người dân');
+    if (!isLeadership(actor)) {
+      throw new ForbiddenException('Chỉ lãnh đạo hoặc quản trị viên được thay đổi hiển thị chỉ tiêu trên trang người dân');
     }
     const riskThreshold = isPublic ? await this.riskThreshold() : 70;
 
@@ -293,8 +324,12 @@ export class TargetsController {
     @Query('departmentId') requestedDepartmentId?: string,
     @Query('search') search?: string,
     @Query('archived') archivedRaw?: string,
+    @Query('frameworkId') frameworkId?: string,
+    @Query('mine') mineRaw?: string,
+    @Query('kind') kindRaw?: string,
   ) {
     const actor = getActor(req);
+    const kind = kindRaw && Object.values(FrameworkKind).includes(kindRaw as FrameworkKind) ? kindRaw as FrameworkKind : undefined;
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
     const year = yearRaw ? Number(yearRaw) : undefined;
     if (yearRaw && (!Number.isInteger(year) || year! < 2000 || year! > 2100)) {
@@ -312,26 +347,44 @@ export class TargetsController {
       this.prisma.target.findMany({
         where: {
           year,
-          departmentId,
           isArchived: archivedRaw === 'true',
-          OR: normalizedSearch
-            ? [
-                { title: { contains: normalizedSearch, mode: 'insensitive' } },
-                { code: { contains: normalizedSearch, mode: 'insensitive' } },
-              ]
-            : undefined,
+          ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
+          ...(mineRaw === 'true' ? { assigneeId: actor.id } : {}),
+          ...(kind ? { kind } : {}),
+          ...(departmentId ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }] } : {}),
+          ...(normalizedSearch
+            ? {
+                AND: [{
+                  OR: [
+                    { title: { contains: normalizedSearch, mode: 'insensitive' } },
+                    { code: { contains: normalizedSearch, mode: 'insensitive' } },
+                    { standardCode: { contains: normalizedSearch, mode: 'insensitive' } },
+                  ],
+                }],
+              }
+            : {}),
         },
         include: {
           department: true,
+          framework: { select: { id: true, code: true, name: true, kind: true, issuingLevel: true } },
+          assignee: { select: { id: true, fullName: true } },
+          coordinators: { select: { department: { select: { id: true, name: true } } } },
           updates: {
             where: { reviewStatus: ProgressReviewStatus.APPROVED },
             take: 3,
             orderBy: { createdAt: 'desc' },
             include: { user: { select: { fullName: true } } },
           },
-          _count: { select: { updates: { where: { reviewStatus: ProgressReviewStatus.PENDING } } } },
+          _count: {
+            select: {
+              updates: { where: { reviewStatus: ProgressReviewStatus.PENDING } },
+              directives: true,
+              evaluations: true,
+              children: true,
+            },
+          },
         },
-        orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+        orderBy: frameworkId ? [{ sortOrder: 'asc' }, { code: 'asc' }] : [{ status: 'asc' }, { dueDate: 'asc' }],
       }),
       this.riskThreshold(),
     ]);
@@ -345,15 +398,19 @@ export class TargetsController {
         dueDate: target.dueDate,
         riskThreshold,
         hasReport: Boolean(target.lastReportedAt),
+        kind: target.kind,
       }),
       pendingUpdates: _count.updates,
+      directiveCount: _count.directives,
+      evaluationCount: _count.evaluations,
+      childCount: _count.children,
     }));
     return status ? evaluated.filter(target => target.status === status) : evaluated;
   }
 
   @Get('pending-updates')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async pendingUpdates(@Req() req: any, @Query('departmentId') requestedDepartmentId?: string) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
@@ -409,7 +466,7 @@ export class TargetsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(...LEADERSHIP_ROLES)
   async create(@Req() req: any, @Body() dto: CreateTargetDto) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor, dto.departmentId);
@@ -431,12 +488,30 @@ export class TargetsController {
       departmentId,
       isHighlighted: dto.isHighlighted ?? false,
       publicOrder: dto.publicOrder,
+      frameworkId: dto.frameworkId,
+      kind: dto.kind,
+      issuingLevel: dto.issuingLevel,
+      parentId: dto.parentId,
+      ordinal: dto.ordinal,
+      standardCode: dto.standardCode,
+      groupName: dto.groupName,
+      targetText: dto.targetText,
+      maxScore: dto.maxScore,
+      scoringRule: dto.scoringRule,
+      evidenceRequirement: dto.evidenceRequirement,
+      dataSourceSystem: dto.dataSourceSystem,
+      dataSourceAgency: dto.dataSourceAgency,
+      collectionGuide: dto.collectionGuide,
+      reportDueDay: dto.reportDueDay,
+      valueSource: ValueSource.MANUAL,
+      assigneeId: dto.assigneeId,
+      coordinatorDepartmentIds: dto.coordinatorDepartmentIds,
     });
   }
 
   @Patch(':id/visibility')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(...LEADERSHIP_ROLES)
   async setVisibility(
     @Req() req: any,
     @Param('id') id: string,
@@ -454,7 +529,7 @@ export class TargetsController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(...LEADERSHIP_ROLES)
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTargetDto) {
     const actor = getActor(req);
     const target = await this.targetInScope(actor, id);
@@ -479,7 +554,7 @@ export class TargetsController {
       );
     }
     if (
-      actor.role !== Role.ADMIN &&
+      !isLeadership(actor) &&
       (dto.departmentId !== undefined || dto.isHighlighted !== undefined || dto.publicOrder !== undefined)
     ) {
       throw new ForbiddenException('Chỉ quản trị viên được đổi phòng ban hoặc cấu hình công khai');
@@ -576,7 +651,7 @@ export class TargetsController {
 
   @Post(':id/archive')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(...LEADERSHIP_ROLES)
   async archive(@Req() req: any, @Param('id') id: string, @Body() dto: TargetLifecycleDto) {
     const actor = getActor(req);
     try {
@@ -639,7 +714,7 @@ export class TargetsController {
 
   @Post(':id/unarchive')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(...LEADERSHIP_ROLES)
   async unarchive(@Req() req: any, @Param('id') id: string, @Body() dto: TargetLifecycleDto) {
     const actor = getActor(req);
     try {
@@ -699,7 +774,7 @@ export class TargetsController {
 
   @Post(':id/publish')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(...LEADERSHIP_ROLES)
   async publish(
     @Req() req: any,
     @Param('id') id: string,
@@ -717,21 +792,41 @@ export class TargetsController {
 
   @Post(':id/progress')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
   async progress(@Param('id') id: string, @Body() dto: ProgressDto, @Req() req: any) {
     const actor = getActor(req);
     const target = await this.targetInScope(actor, id);
     if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
     if (target.isArchived) throw new ConflictException('Chỉ tiêu đã được lưu trữ và không còn nhận báo cáo mới');
+    if (target.valueSource === ValueSource.COMPUTED) {
+      throw new BadRequestException('Chỉ tiêu này tự tính từ kho dữ liệu. Hãy cập nhật bảng dữ liệu nguồn thay vì nhập số.');
+    }
+    if (target.valueSource === ValueSource.CHILDREN) {
+      throw new BadRequestException('Chỉ tiêu này tổng hợp từ chỉ tiêu con. Hãy báo cáo ở từng chỉ tiêu con.');
+    }
+    if (actor.role === Role.CLERK) {
+      throw new ForbiddenException('Văn thư không trực tiếp báo cáo số liệu; người phụ trách của phòng chủ trì sẽ cập nhật');
+    }
+    const periodKey = dto.periodKey?.trim() || periodKeyFor(target.frequency);
+    if (!isValidPeriodKey(periodKey) || !periodKey.startsWith(String(target.year))) {
+      throw new BadRequestException('Kỳ báo cáo không hợp lệ hoặc không thuộc năm kế hoạch của chỉ tiêu');
+    }
+    const reportFields = {
+      periodKey,
+      valueText: dto.valueText?.trim() || null,
+      dataSource: dto.dataSource?.trim() || null,
+      explanation: dto.explanation?.trim() || null,
+    };
+    const valueLabel = dto.valueText?.trim() || String(dto.value);
     const baseVersion = dto.baseVersion;
     if (baseVersion !== target.version) {
       throw new ConflictException('Số liệu đã thay đổi. Vui lòng tải lại chỉ tiêu trước khi báo cáo.');
     }
     const departmentId = resolveDepartmentScope(actor);
 
-    if (actor.role !== Role.ADMIN) {
-      if (!dto.note?.trim()) {
-        throw new BadRequestException('Vui lòng ghi rõ kỳ báo cáo hoặc nguồn số liệu');
+    if (!isLeadership(actor)) {
+      if (!dto.note?.trim() && !reportFields.dataSource) {
+        throw new BadRequestException('Vui lòng ghi rõ nguồn số liệu hoặc ghi chú cho báo cáo');
       }
       try {
         const update = await this.prisma.$transaction(async (tx) => {
@@ -757,11 +852,23 @@ export class TargetsController {
               targetId: id,
               userId: actor.id,
               value: dto.value,
-              note: dto.note!.trim(),
+              note: dto.note?.trim() || null,
+              ...reportFields,
               baseVersion,
               reviewStatus: ProgressReviewStatus.PENDING,
             },
           });
+          const managers = (await departmentManagerIds(tx, currentTarget.departmentId)).filter(managerId => managerId !== actor.id);
+          await recordWorkEvent(tx, {
+            action: 'REPORT_SUBMITTED', actor, targetId: id, departmentId: currentTarget.departmentId,
+            responsibleUserId: managers[0] ?? null,
+            note: periodLabel(periodKey) + ': ' + valueLabel + ' ' + currentTarget.unit + ' — chờ duyệt',
+          });
+          await notifyUsers(tx, managers, {
+            kind: 'REPORT_SUBMITTED', title: actor.fullName + ' gửi số liệu ' + currentTarget.code + ' chờ duyệt',
+            body: periodLabel(periodKey) + ': ' + valueLabel + ' ' + currentTarget.unit,
+            link: '/admin/approvals', entityType: 'ProgressUpdate', entityId: created.id, dedupeKey: 'report:' + created.id,
+          }, actor.id);
           await audit(tx, actor, {
             action: 'PROGRESS_SUBMITTED',
             entityType: 'ProgressUpdate',
@@ -822,17 +929,23 @@ export class TargetsController {
         if (changed.count !== 1) {
           throw new ConflictException('Số liệu vừa được người khác cập nhật. Vui lòng tải lại chỉ tiêu.');
         }
-        await tx.progressUpdate.create({
+        const createdUpdate = await tx.progressUpdate.create({
           data: {
             targetId: id,
             userId: actor.id,
             value: dto.value,
             note: dto.note?.trim(),
+            ...reportFields,
             baseVersion,
             reviewStatus: ProgressReviewStatus.APPROVED,
             reviewedBy: actor.id,
             reviewedAt: new Date(),
           },
+        });
+        await recordWorkEvent(tx, {
+          action: 'REPORT_APPROVED', actor, targetId: id, departmentId: currentTarget.departmentId,
+          note: periodLabel(periodKey) + ': ' + valueLabel + ' ' + currentTarget.unit + ' (lãnh đạo cập nhật trực tiếp)',
+          metadata: { progressUpdateId: createdUpdate.id },
         });
         const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
         await audit(tx, actor, {
@@ -844,6 +957,7 @@ export class TargetsController {
         });
         return current;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      if (updated.parentId) await rollupParents(this.prisma, [updated.parentId], actor);
       return { reviewStatus: ProgressReviewStatus.APPROVED, target: updated };
     } catch (error) {
       if (isTargetConcurrencyError(error)) {
@@ -855,7 +969,7 @@ export class TargetsController {
 
   @Patch('updates/:updateId/review')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
   async review(@Req() req: any, @Param('updateId') updateId: string, @Body() dto: ReviewDto) {
     const actor = getActor(req);
     const departmentId = resolveDepartmentScope(actor);
@@ -894,6 +1008,15 @@ export class TargetsController {
             departmentId: update.target.departmentId,
             metadata: { targetId: update.targetId, reviewNote: dto.reviewNote },
           });
+          await recordWorkEvent(tx, {
+            action: 'REPORT_REJECTED', actor, targetId: update.targetId, departmentId: update.target.departmentId,
+            responsibleUserId: update.userId, note: dto.reviewNote!.trim(),
+          });
+          await notifyUsers(tx, [update.userId], {
+            kind: 'REPORT_REJECTED', title: 'Báo cáo số liệu ' + update.target.code + ' bị trả lại',
+            body: dto.reviewNote!.trim(), link: targetLink(update.targetId), entityType: 'Target', entityId: update.targetId,
+            dedupeKey: 'report-rejected:' + updateId,
+          }, actor.id);
           await refreshImportBatchStatus(tx, update.importBatchId);
           return tx.progressUpdate.findUniqueOrThrow({ where: { id: updateId } });
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -949,9 +1072,22 @@ export class TargetsController {
           departmentId: update.target.departmentId,
           metadata: { targetId: update.targetId, value: update.value, version: target.version },
         });
+        await recordWorkEvent(tx, {
+          action: 'REPORT_APPROVED', actor, targetId: update.targetId, departmentId: update.target.departmentId,
+          note: (update.periodKey ? periodLabel(update.periodKey) + ': ' : '') + (update.valueText || update.value) + ' ' + update.target.unit,
+          metadata: { progressUpdateId: updateId },
+        });
+        await notifyUsers(tx, [update.userId], {
+          kind: 'REPORT_APPROVED', title: 'Báo cáo số liệu ' + update.target.code + ' đã được duyệt',
+          body: null, link: targetLink(update.targetId), entityType: 'Target', entityId: update.targetId,
+          dedupeKey: 'report-approved:' + updateId,
+        }, actor.id);
         await refreshImportBatchStatus(tx, update.importBatchId);
         return { target, progressUpdate };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).then(async result => {
+        if (result.target.parentId) await rollupParents(this.prisma, [result.target.parentId], actor);
+        return result;
+      });
     } catch (error) {
       if (isTargetConcurrencyError(error)) {
         throw new ConflictException('Báo cáo vừa được xử lý đồng thời. Vui lòng tải lại dữ liệu và thử lại');

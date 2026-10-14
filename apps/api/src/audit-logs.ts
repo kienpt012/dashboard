@@ -141,6 +141,8 @@ const SAFE_METADATA_KEYS = new Set([
   'revoked',
   'visibility',
   'year',
+  'periodKey',
+  'targetId',
 ]);
 
 function safeMetadata(value: Prisma.JsonValue | null): Record<string, string | number | boolean | string[]> | null {

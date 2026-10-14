@@ -55,6 +55,48 @@ export class UpdateSystemSettingDto {
   @Min(1, { message: 'Thời hạn bổ sung thông tin phải từ 1 đến 60 ngày' })
   @Max(60, { message: 'Thời hạn bổ sung thông tin phải từ 1 đến 60 ngày' })
   feedbackCitizenResponseDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số ngày tự thông qua báo cáo phải là số nguyên' })
+  @Min(0, { message: 'Số ngày tự thông qua báo cáo phải từ 0 đến 60' })
+  @Max(60, { message: 'Số ngày tự thông qua báo cáo phải từ 0 đến 60' })
+  reportAutoApproveDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số ngày tự thông qua đề xuất phải là số nguyên' })
+  @Min(0, { message: 'Số ngày tự thông qua đề xuất phải từ 0 đến 30' })
+  @Max(30, { message: 'Số ngày tự thông qua đề xuất phải từ 0 đến 30' })
+  proposalAutoApproveDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Hạn giải trình phải là số nguyên' })
+  @Min(1, { message: 'Hạn giải trình phải từ 1 đến 30' })
+  @Max(30, { message: 'Hạn giải trình phải từ 1 đến 30' })
+  explanationDueDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số ngày nhắc chưa giao người phải là số nguyên' })
+  @Min(0, { message: 'Số ngày nhắc chưa giao người phải từ 0 đến 30' })
+  @Max(30, { message: 'Số ngày nhắc chưa giao người phải từ 0 đến 30' })
+  assignmentStallDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số lần chuyển việc tối đa phải là số nguyên' })
+  @Min(0, { message: 'Số lần chuyển việc tối đa phải từ 0 đến 5' })
+  @Max(5, { message: 'Số lần chuyển việc tối đa phải từ 0 đến 5' })
+  maxTransfers?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số giây chuyển trang trình chiếu phải là số nguyên' })
+  @Min(5, { message: 'Số giây chuyển trang trình chiếu phải từ 5 đến 300' })
+  @Max(300, { message: 'Số giây chuyển trang trình chiếu phải từ 5 đến 300' })
+  wallboardRotateSeconds?: number;
 }
 
 @Controller('settings')
@@ -83,6 +125,12 @@ export class SettingsController {
       feedbackFirstResponseDays: 2,
       feedbackResolutionDays: 10,
       feedbackCitizenResponseDays: 7,
+      reportAutoApproveDays: 7,
+      proposalAutoApproveDays: 3,
+      explanationDueDays: 3,
+      assignmentStallDays: 3,
+      maxTransfers: 1,
+      wallboardRotateSeconds: 20,
       version: 1,
       updatedBy: null,
       updatedAt: null,
@@ -121,6 +169,12 @@ export class SettingsController {
           feedbackFirstResponseDays: firstResponseDays,
           feedbackResolutionDays: resolutionDays,
           feedbackCitizenResponseDays: dto.feedbackCitizenResponseDays ?? 7,
+          reportAutoApproveDays: dto.reportAutoApproveDays ?? 7,
+          proposalAutoApproveDays: dto.proposalAutoApproveDays ?? 3,
+          explanationDueDays: dto.explanationDueDays ?? 3,
+          assignmentStallDays: dto.assignmentStallDays ?? 3,
+          maxTransfers: dto.maxTransfers ?? 1,
+          wallboardRotateSeconds: dto.wallboardRotateSeconds ?? 20,
           updatedBy: actor.username,
         } });
         changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
@@ -146,6 +200,24 @@ export class SettingsController {
           ...(dto.feedbackCitizenResponseDays !== undefined
             && dto.feedbackCitizenResponseDays !== current.feedbackCitizenResponseDays
             ? { feedbackCitizenResponseDays: dto.feedbackCitizenResponseDays }
+            : {}),
+          ...(dto.reportAutoApproveDays !== undefined && dto.reportAutoApproveDays !== current.reportAutoApproveDays
+            ? { reportAutoApproveDays: dto.reportAutoApproveDays }
+            : {}),
+          ...(dto.proposalAutoApproveDays !== undefined && dto.proposalAutoApproveDays !== current.proposalAutoApproveDays
+            ? { proposalAutoApproveDays: dto.proposalAutoApproveDays }
+            : {}),
+          ...(dto.explanationDueDays !== undefined && dto.explanationDueDays !== current.explanationDueDays
+            ? { explanationDueDays: dto.explanationDueDays }
+            : {}),
+          ...(dto.assignmentStallDays !== undefined && dto.assignmentStallDays !== current.assignmentStallDays
+            ? { assignmentStallDays: dto.assignmentStallDays }
+            : {}),
+          ...(dto.maxTransfers !== undefined && dto.maxTransfers !== current.maxTransfers
+            ? { maxTransfers: dto.maxTransfers }
+            : {}),
+          ...(dto.wallboardRotateSeconds !== undefined && dto.wallboardRotateSeconds !== current.wallboardRotateSeconds
+            ? { wallboardRotateSeconds: dto.wallboardRotateSeconds }
             : {}),
         };
         changedFields = Object.keys(updates);

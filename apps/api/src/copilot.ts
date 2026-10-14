@@ -20,7 +20,7 @@ import {
 } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsString, MaxLength, MinLength } from 'class-validator';
-import { type Actor, audit, getActor, resolveDepartmentScope } from './access';
+import { type Actor, audit, getActor, isLeadership, resolveDepartmentScope } from './access';
 import { approveCandidateById, missingApprovalFields } from './candidates';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
@@ -277,9 +277,9 @@ export class CopilotController {
     planner: 'llm' | 'rules',
     command: string,
   ): Promise<CopilotAnswer> {
-    if (actor.role !== Role.ADMIN) {
+    if (!isLeadership(actor)) {
       return {
-        reply: 'Duyệt chỉ tiêu hàng loạt cần quyền quản trị hệ thống. Bạn có thể xem và đề nghị duyệt từng mục tại màn hình "Kho văn bản".',
+        reply: 'Duyệt chỉ tiêu hàng loạt cần quyền lãnh đạo UBND. Bạn có thể xem và trình từng đề xuất tại màn hình "Đề xuất chỉ tiêu".',
         intent: 'BULK_APPROVE_CANDIDATES',
         planner,
         source: { tool: 'bulkApproveCandidates', parameters: { denied: 'role' } },
@@ -432,6 +432,10 @@ export class CopilotController {
     if (!action) throw new NotFoundException('Không tìm thấy hành động chờ xác nhận');
     if (action.userId !== actor.id) {
       throw new ForbiddenException('Chỉ người ra lệnh mới được xác nhận hành động này');
+    }
+    // Kiểm tra lại quyền tại thời điểm xác nhận: người vừa bị hạ quyền không được thực thi bản xem trước cũ.
+    if (!isLeadership(actor)) {
+      throw new ForbiddenException('Bạn không còn quyền duyệt đề xuất chỉ tiêu; hành động không được thực hiện');
     }
     if (action.status !== AgentActionStatus.PROPOSED) {
       throw new ConflictException('Hành động đã được xử lý hoặc đã hủy');
@@ -701,7 +705,7 @@ export class CopilotController {
             unit: candidate.unit,
             confidence: candidate.confidence,
             method: candidate.extractionMethod,
-            documentCode: candidate.document.code,
+            documentCode: candidate.document?.code ?? null,
           })),
         };
       }

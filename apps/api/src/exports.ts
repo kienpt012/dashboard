@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
+import { brandName, loadLocality } from './locality';
 
 const STATUS_LABELS: Record<TargetStatus, string> = {
   NOT_STARTED: 'Chưa bắt đầu',
@@ -113,7 +114,7 @@ export class ExportsController {
     const reviewerMap = new Map(reviewers.map(user => [user.id, user.fullName]));
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'IOC Lái Thiêu';
+    workbook.creator = brandName(await loadLocality(this.prisma));
     workbook.created = new Date();
     workbook.modified = new Date();
 

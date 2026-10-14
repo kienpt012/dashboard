@@ -28,8 +28,9 @@ import {
 } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from './prisma.service';
+import { recordWorkEvent } from './work';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
-import { audit, getActor } from './access';
+import { audit, getActor, isGlobalRole } from './access';
 
 const normalizeOptionalText = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? undefined : value;
@@ -74,6 +75,12 @@ class CreateUserDto {
 
   @IsOptional()
   @Transform(normalizeOptionalText)
+  @IsString({ message: 'Chức vụ không hợp lệ' })
+  @MaxLength(120, { message: 'Chức vụ không được vượt quá 120 ký tự' })
+  position?: string;
+
+  @IsOptional()
+  @Transform(normalizeOptionalText)
   @IsString({ message: 'Phòng ban không hợp lệ' })
   departmentId?: string;
 }
@@ -100,6 +107,11 @@ export class UpdateUserDto {
   role?: Role;
 
   @ValidateIfDefinedAndNotNull()
+  @IsString({ message: 'Chức vụ không hợp lệ' })
+  @MaxLength(120, { message: 'Chức vụ không được vượt quá 120 ký tự' })
+  position?: string | null;
+
+  @ValidateIfDefinedAndNotNull()
   @IsString({ message: 'Phòng ban không hợp lệ' })
   departmentId?: string | null;
 
@@ -121,6 +133,7 @@ const safeUserSelect = {
   id: true,
   username: true,
   fullName: true,
+  position: true,
   email: true,
   role: true,
   isActive: true,
@@ -139,7 +152,7 @@ export class UsersController {
   constructor(private prisma: PrismaService) {}
 
   private async ensureDepartment(role: Role, departmentId?: string | null) {
-    if (role !== Role.ADMIN && !departmentId) {
+    if (!isGlobalRole(role) && !departmentId) {
       throw new ConflictException('Vai trò này bắt buộc phải được gắn với một phòng ban');
     }
     if (!departmentId) return;
@@ -183,6 +196,7 @@ export class UsersController {
             fullName: dto.fullName.trim(),
             email: dto.email?.trim().toLowerCase(),
             role: dto.role,
+            position: dto.position?.trim() || null,
             departmentId,
           },
           select: safeUserSelect,
@@ -272,6 +286,7 @@ export class UsersController {
           where: { id, version: dto.expectedVersion },
           data: {
             ...(dto.fullName === undefined ? {} : { fullName: dto.fullName.trim() }),
+            ...(dto.position === undefined ? {} : { position: dto.position?.trim() || null }),
             ...(dto.email === undefined ? {} : { email: nextEmail }),
             ...(dto.role === undefined ? {} : { role: dto.role }),
             ...(dto.role === undefined && dto.departmentId === undefined ? {} : { departmentId: nextDepartmentId }),
@@ -282,6 +297,20 @@ export class UsersController {
           },
         });
         if (changed.count !== 1) throw new ConflictException('Tài khoản vừa được người khác cập nhật. Vui lòng tải lại.');
+        if (!remainsEligibleAssignee) {
+          // Bàn giao khi đổi cán bộ: chỉ tiêu người này đang phụ trách được trả về trưởng phòng để phân công lại,
+          // dòng thời gian ghi rõ lý do để không mất dấu trách nhiệm.
+          const released = await tx.target.findMany({ where: { assigneeId: id, isArchived: false }, select: { id: true, departmentId: true } });
+          if (released.length) {
+            await tx.target.updateMany({ where: { assigneeId: id }, data: { assigneeId: null, assignedAt: null } });
+            for (const target of released) {
+              await recordWorkEvent(tx, {
+                action: 'RETURNED', actor, targetId: target.id, departmentId: target.departmentId,
+                note: `${existing.fullName} bị khóa, đổi vai trò hoặc chuyển phòng — chỉ tiêu trả về trưởng phòng để phân công lại`,
+              });
+            }
+          }
+        }
         if (invalidatesPasswordReset) {
           await tx.passwordResetChallenge.updateMany({
             where: { userId: id, consumedAt: null },

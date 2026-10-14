@@ -22,6 +22,7 @@ import { audit, assertDepartmentAccess, getActor, resolveDepartmentScope } from 
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { PrismaService } from './prisma.service';
+import { brandName, loadLocality } from './locality';
 import { currentVietnamYear } from './planning-date';
 
 const TEMPLATE_VERSION = 'IOC_PROGRESS_V1';
@@ -268,7 +269,7 @@ export class ImportController {
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'IOC Lái Thiêu';
+    workbook.creator = brandName(await loadLocality(this.prisma));
     workbook.created = new Date();
     workbook.modified = new Date();
 

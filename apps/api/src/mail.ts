@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailOutboxStatus, Prisma } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { PrismaService } from './prisma.service';
+import { brandName, loadLocality } from './locality';
 
 export interface PasswordResetOtpMail {
   to: string;
@@ -115,7 +116,8 @@ export class MailService {
   private readonly from: string;
   private readonly appUrl: string;
 
-  constructor(config: ConfigService) {
+  // PrismaService là tùy chọn để có thể khởi tạo MailService độc lập trong kiểm thử cấu hình SMTP.
+  constructor(config: ConfigService, @Optional() private readonly prisma?: PrismaService) {
     const host = config.get<string>('SMTP_HOST')?.trim() || '';
     const user = config.get<string>('SMTP_USER')?.trim() || '';
     const pass = config.get<string>('SMTP_PASS') || '';
@@ -191,15 +193,26 @@ export class MailService {
     }
   }
 
+  /** Tên ứng dụng theo hồ sơ địa phương ("IOC Lái Thiêu", "IOC Tân Uyên"…); chưa thiết lập thì "IOC". */
+  private async brandName(): Promise<string> {
+    if (!this.prisma) return 'IOC';
+    try {
+      return brandName(await loadLocality(this.prisma));
+    } catch {
+      return 'IOC';
+    }
+  }
+
   private async deliverPasswordResetOtp(message: PasswordResetOtpMail): Promise<void> {
     if (!this.transporter) return;
     const resetUrl = `${this.appUrl}/admin/forgot-password`;
+    const brand = await this.brandName();
     await this.transporter.sendMail({
       from: this.from,
       to: message.to,
-      subject: 'Mã xác thực khôi phục mật khẩu IOC Lái Thiêu',
+      subject: `Mã xác thực khôi phục mật khẩu ${brand}`,
       text: [
-        'Bạn vừa yêu cầu khôi phục mật khẩu tài khoản nội bộ IOC Lái Thiêu.',
+        `Bạn vừa yêu cầu khôi phục mật khẩu tài khoản nội bộ ${brand}.`,
         `Mã xác thực: ${message.otp}`,
         `Mã có hiệu lực trong ${message.expiresInMinutes} phút và chỉ sử dụng được một lần.`,
         `Tiếp tục tại: ${resetUrl}`,
@@ -207,7 +220,7 @@ export class MailService {
       ].join('\n\n'),
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#173633;line-height:1.6">
-          <h2 style="color:#0f766e">Khôi phục mật khẩu IOC Lái Thiêu</h2>
+          <h2 style="color:#0f766e">Khôi phục mật khẩu ${escapeHtml(brand)}</h2>
           <p>Bạn vừa yêu cầu khôi phục mật khẩu tài khoản nội bộ.</p>
           <p style="font-size:30px;font-weight:800;letter-spacing:8px;background:#eef7f5;padding:18px;text-align:center;border-radius:10px">${escapeHtml(message.otp)}</p>
           <p>Mã có hiệu lực trong <strong>${message.expiresInMinutes} phút</strong> và chỉ sử dụng được một lần.</p>
