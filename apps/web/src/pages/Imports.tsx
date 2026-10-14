@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { DragEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { api, auth, downloadApi } from '../api';
+import { hasAnyRole, isGlobal, LEADERSHIP_ROLES } from '../authz';
 import { Empty, Modal, PageHead, SkeletonTable } from '../components/UI';
 import { toast } from '../components/Toast';
 import { currentVietnamYear } from '../date';
@@ -98,7 +99,8 @@ function statusMeta(status: ImportBatch['status']) {
 
 export default function Imports() {
   const user = auth.user;
-  const isAdmin = user?.role === 'ADMIN';
+  // Phạm vi toàn địa phương (quản trị, lãnh đạo UBND) chọn phòng; người khác chỉ phòng mình.
+  const isAdmin = isGlobal(user);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentId, setDepartmentId] = useState(isAdmin ? '' : user?.departmentId || '');
   const [year, setYear] = useState(currentYear);
@@ -304,7 +306,7 @@ export default function Imports() {
   }
 
   const selectedDepartment = departments.find(item => item.id === departmentId) || user?.department;
-  const requiresApproval = user?.role !== 'ADMIN';
+  const requiresApproval = !hasAnyRole(user, LEADERSHIP_ROLES);
   const canChooseFile = canOperateOnSelectedDepartment;
   const previewScopeMismatch = Boolean(isAdmin && preview && preview.departmentId !== departmentId);
   const canDownloadTemplate = !(downloading || (isAdmin && (!departmentId || !selectedDepartment?.isActive)));

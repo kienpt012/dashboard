@@ -1,6 +1,8 @@
 import { AlertTriangle, CalendarClock, CheckCircle2, Download, FileBarChart, Filter, Printer, TrendingUp } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, auth, downloadApi } from '../api';
+import { isGlobal } from '../authz';
+import { useLocality } from '../locality';
 import { Empty, PageHead, SkeletonTable } from '../components/UI';
 import { toast } from '../components/Toast';
 import { currentVietnamYear } from '../date';
@@ -49,7 +51,8 @@ function queryOf(filter: AppliedFilter) {
 
 export default function Reports() {
   const user = auth.user;
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = isGlobal(user);
+  const locality = useLocality();
   const ownDepartmentId = user?.departmentId || '';
   const [departments, setDepartments] = useState<Department[]>([]);
   const [year, setYear] = useState(String(currentYear));
@@ -111,7 +114,7 @@ export default function Reports() {
 
   const appliedDepartment = departments.find(item => item.id === appliedFilter.departmentId)
     || (!isAdmin ? user?.department : null);
-  const scopeName = appliedDepartment?.name || (isAdmin ? 'Toàn hệ thống' : 'Phòng ban của bạn');
+  const scopeName = appliedDepartment?.name || (isAdmin ? (locality.configured ? locality.name : 'Toàn địa phương') : 'Phòng ban của bạn');
   const selectedYear = Number(year);
   const yearIsValid = Number.isInteger(selectedYear) && selectedYear >= 2000 && selectedYear <= 2100;
   const filtersDirty = !yearIsValid || selectedYear !== appliedFilter.year || (isAdmin ? departmentId : ownDepartmentId) !== appliedFilter.departmentId;

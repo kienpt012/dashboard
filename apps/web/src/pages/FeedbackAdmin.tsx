@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api, auth, downloadApi } from '../api';
+import { hasAnyRole, isGlobal, LEADERSHIP_ROLES } from '../authz';
 import { toast } from '../components/Toast';
 import { Empty, PageHead, Skeleton, SkeletonCards } from '../components/UI';
 import type {
@@ -123,8 +124,11 @@ function deadlineLabel(item:Feedback){return item.status==='WAITING_CITIZEN'?'H�
 
 export default function FeedbackAdmin(){
   const user=auth.user!;
-  const isAdmin=user.role==='ADMIN';
-  const canReview=['ADMIN','MANAGER'].includes(user.role);
+  // Bản 2: lãnh đạo UBND làm được mọi việc như quản trị; văn thư tiếp nhận, phân loại, chuyển phòng nhưng không xử lý thay.
+  const isAdmin=isGlobal(user);
+  const isLeader=hasAnyRole(user,LEADERSHIP_ROLES);
+  const canReview=hasAnyRole(user,['ADMIN','LEADER','MANAGER']);
+  const canTriage=hasAnyRole(user,['ADMIN','LEADER','CLERK','MANAGER']);
   const [rows,setRows]=useState<Feedback[]>([]);
   const [stats,setStats]=useState<FeedbackStats|null>(null);
   const [departments,setDepartments]=useState<Department[]>([]);
@@ -242,7 +246,7 @@ export default function FeedbackAdmin(){
   }
 
   function canHandle(item:Feedback){
-    if(user.role==='ADMIN')return true;
+    if(isLeader)return true;
     if(user.role==='MANAGER')return item.departmentId===user.departmentId;
     return user.role==='STAFF'&&item.departmentId===user.departmentId&&item.assignedToId===user.id;
   }
@@ -293,13 +297,13 @@ export default function FeedbackAdmin(){
   }
 
   useEffect(()=>{
-    if(actionKind!=='assign'||!actionForm.departmentId||!canReview){setAssignees([]);return}
+    if(actionKind!=='assign'||!actionForm.departmentId||!canTriage){setAssignees([]);return}
     let active=true;
     api<Assignee[]>(`/feedbacks/assignees?departmentId=${encodeURIComponent(actionForm.departmentId)}`)
       .then(result=>{if(active)setAssignees(result)})
       .catch(reason=>{if(active)setActionError(getError(reason,'Không thể tải danh sách cán bộ xử lý'))});
     return()=>{active=false};
-  },[actionKind,actionForm.departmentId,canReview]);
+  },[actionKind,actionForm.departmentId,canTriage]);
 
   async function submitAction(event:FormEvent){
     event.preventDefault();if(!detail||!actionKind)return;
@@ -580,8 +584,8 @@ export default function FeedbackAdmin(){
           </div>
 
           <footer className="fb-drawer-foot">
-            {canReview&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('triage')}><Filter/>Phân loại</button>}
-            {canReview&&['RECEIVED','ASSIGNED','REOPENED','IN_PROGRESS','WAITING_CITIZEN'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('assign')}><UserCheck/>Phân công</button>}
+            {canTriage&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('triage')}><Filter/>Phân loại</button>}
+            {canTriage&&['RECEIVED','ASSIGNED','REOPENED','IN_PROGRESS','WAITING_CITIZEN'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('assign')}><UserCheck/>Phân công</button>}
             {canHandle(detail)&&['ASSIGNED','REOPENED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('start')}><Clock3/>Bắt đầu xử lý</button>}
             {canHandle(detail)&&['IN_PROGRESS','REOPENED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('request')}><MessageCircleMore/>Yêu cầu bổ sung</button>}
             {canHandle(detail)&&!['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&<button type="button" className="btn secondary sm" onClick={()=>startAction('contact')}><MessageCircleMore/>Ghi nhận liên hệ</button>}
@@ -591,11 +595,11 @@ export default function FeedbackAdmin(){
             {canReview&&detail.status==='PENDING_REVIEW'&&detail.submittedForReviewBy===user.id&&<span className="fb-readonly"><LockKeyhole/>Bạn đã trình hồ sơ này; cần người khác duyệt kết quả.</span>}
             {canReview&&detail.status==='RESOLVED'&&<button type="button" className="btn secondary sm" onClick={()=>startAction('close')}><CheckCircle2/>Đóng hồ sơ</button>}
             {canReview&&detail.status==='WAITING_CITIZEN'&&detail.citizenResponseDueAt&&new Date(detail.citizenResponseDueAt)<=new Date()&&<button type="button" className="btn danger-soft sm" onClick={()=>startAction('closeNoResponse')}><XCircle/>Kết thúc do quá hạn bổ sung</button>}
-            {isAdmin&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button type="button" className="btn danger-soft sm" onClick={()=>startAction('reject')}><XCircle/>Không tiếp nhận</button>}
+            {isLeader&&['RECEIVED','ASSIGNED'].includes(detail.status)&&<button type="button" className="btn danger-soft sm" onClick={()=>startAction('reject')}><XCircle/>Không tiếp nhận</button>}
             {canReview&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&detail.reopenRequestedAt&&<><button type="button" className="btn danger-soft sm" onClick={()=>startAction('rejectReopen')}><XCircle/>Từ chối đề nghị</button><button type="button" className="btn primary sm" onClick={()=>startAction('reopen')}><RotateCcw/>Chấp nhận mở lại</button></>}
             {canReview&&['RESOLVED','CLOSED','REJECTED'].includes(detail.status)&&!detail.reopenRequestedAt&&<button type="button" className="btn secondary sm" onClick={()=>startAction('reopen')}><RotateCcw/>{detail.status==='REJECTED'?'Khôi phục hồ sơ':'Mở lại nội bộ'}</button>}
-            {isAdmin&&['RESOLVED','CLOSED'].includes(detail.status)&&(detail.isPublic||!detail.reopenRequestedAt)&&<button type="button" className="btn secondary sm" onClick={()=>startAction(detail.isPublic?'unpublish':'publish')}><Eye/>{detail.isPublic?'Gỡ công khai':'Công khai'}</button>}
-            {!canHandle(detail)&&!canReview&&<span className="fb-readonly"><Eye/>Bạn đang xem hồ sơ ở chế độ chỉ đọc.</span>}
+            {isLeader&&['RESOLVED','CLOSED'].includes(detail.status)&&(detail.isPublic||!detail.reopenRequestedAt)&&<button type="button" className="btn secondary sm" onClick={()=>startAction(detail.isPublic?'unpublish':'publish')}><Eye/>{detail.isPublic?'Gỡ công khai':'Công khai'}</button>}
+            {!canHandle(detail)&&!canReview&&!canTriage&&<span className="fb-readonly"><Eye/>Bạn đang xem hồ sơ ở chế độ chỉ đọc.</span>}
           </footer>
 
           {actionKind&&<form className="fb-sheet" onSubmit={submitAction}>

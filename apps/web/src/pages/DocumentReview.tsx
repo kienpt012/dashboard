@@ -9,11 +9,14 @@ import {
   ShieldCheck,
   X,
   XCircle,
+  Clock3,
+  Send,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, api, auth } from '../api';
-import { ADMIN_ROLES, APPROVAL_ROLES, DOCUMENT_ROLES, hasAnyRole } from '../authz';
+import { DOCUMENT_ROLES, hasAnyRole } from '../authz';
+import { untilText } from '../ioc-format';
 import { Empty, Modal, PageHead, Spinner } from '../components/UI';
 import type {
   CandidateStatus,
@@ -36,7 +39,7 @@ type CandidateForm = {
   targetValue: string;
   targetYear: string;
   direction: 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER';
-  frequency: '' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+  frequency: '' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'YEARLY';
   deadline: string;
   responsibleDepartmentId: string;
   coordinatingDepartments: string;
@@ -50,9 +53,10 @@ type ApproveResult = {
 
 type QuoteMatch = { pageNumber: number; start: number; end: number };
 
-const frequencyShortLabels: Record<'MONTHLY' | 'QUARTERLY' | 'YEARLY', string> = { MONTHLY: 'Tháng', QUARTERLY: 'Quý', YEARLY: 'Năm' };
-const frequencyLongLabels: Record<'MONTHLY' | 'QUARTERLY' | 'YEARLY', string> = { MONTHLY: 'Hàng tháng', QUARTERLY: 'Hàng quý', YEARLY: 'Hàng năm' };
-const tabLabels: Record<CandidateStatus, string> = { PROPOSED: 'Chờ xác minh', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối' };
+const frequencyShortLabels: Record<'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'YEARLY', string> = { MONTHLY: 'Tháng', QUARTERLY: 'Quý', SEMIANNUAL: '6 tháng', YEARLY: 'Năm' };
+const frequencyLongLabels: Record<'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'YEARLY', string> = { MONTHLY: 'Hàng tháng', QUARTERLY: 'Hàng quý', SEMIANNUAL: '6 tháng', YEARLY: 'Hàng năm' };
+// Bản 2: kết quả AI phải được rà soát rồi trình (SUBMITTED) mới vào hàng chờ quyết định; không bao giờ tự thông qua khi chưa trình.
+const tabLabels: Record<CandidateStatus, string> = { PROPOSED: 'Chờ rà soát', SUBMITTED: 'Đã trình', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối' };
 
 function messageOf(error: unknown) {
   return error instanceof Error ? error.message : 'Có lỗi xảy ra, vui lòng thử lại';
@@ -106,9 +110,10 @@ function findQuote(pages: DocumentPage[], quote: string, preferredPage?: number 
 export default function DocumentReview() {
   const { id = '' } = useParams();
   const user = auth.user;
-  const canEdit = hasAnyRole(user, APPROVAL_ROLES);
-  const canApprove = hasAnyRole(user, ADMIN_ROLES);
-  const canReject = hasAnyRole(user, APPROVAL_ROLES);
+  // Quyền từng đề xuất do API tính (canEdit/canDecide); văn thư được loại đề xuất AI chưa trình.
+  const canEditCandidate = (candidate: IndicatorCandidate) => Boolean(candidate.canEdit);
+  const canDecideCandidate = (candidate: IndicatorCandidate) => Boolean(candidate.canDecide);
+  const canRejectCandidate = (candidate: IndicatorCandidate) => Boolean(candidate.canDecide) || (user?.role === 'CLERK' && candidate.status === 'PROPOSED');
   const canReextract = hasAnyRole(user, DOCUMENT_ROLES);
   const [doc, setDoc] = useState<SourceDocumentDetail | null>(null);
   const [docLoading, setDocLoading] = useState(true);
@@ -226,6 +231,7 @@ export default function DocumentReview() {
 
   const grouped = useMemo(() => ({
     PROPOSED: candidates.filter(candidate => candidate.status === 'PROPOSED'),
+    SUBMITTED: candidates.filter(candidate => candidate.status === 'SUBMITTED'),
     APPROVED: candidates.filter(candidate => candidate.status === 'APPROVED'),
     REJECTED: candidates.filter(candidate => candidate.status === 'REJECTED'),
   }), [candidates]);
@@ -393,11 +399,26 @@ export default function DocumentReview() {
       });
       setModal(null);
       setModalCandidate(null);
-      setNotice(<>Đã tạo chỉ tiêu <Link className="cand-created-link" to={`/admin/targets?search=${encodeURIComponent(result.target.code)}${result.target.year ? `&year=${result.target.year}` : ''}`}>{result.target.code}</Link> từ đề xuất đã xác minh. Theo dõi tại mục Quản lý chỉ tiêu.</>);
+      setNotice(<>Đã tạo chỉ tiêu <Link className="cand-created-link" to={`/admin/targets/${result.target.id}`}>{result.target.code}</Link> từ đề xuất đã xác minh. Theo dõi tại mục Quản lý chỉ tiêu.</>);
       await loadCandidates();
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 409) await handleConflict(reason, 'Không thể duyệt đề xuất');
       else setError(messageOf(reason));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /** Trình lãnh đạo: đề xuất AI đã rà soát vào hàng chờ quyết định, bắt đầu đếm ngược tự thông qua. */
+  async function submitCandidate(candidate: IndicatorCandidate) {
+    setSubmitting(true);
+    try {
+      await api(`/candidates/${candidate.id}/submit`, { method: 'POST', body: JSON.stringify({ expectedVersion: candidate.version }) });
+      setNotice('Đã trình đề xuất. Lãnh đạo hoặc trưởng phòng chủ trì sẽ nhận thông báo để quyết định.');
+      await loadCandidates();
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) await handleConflict(reason, 'Không thể trình đề xuất');
+      else setLoadError(`${messageOf(reason)}${reason instanceof ApiError && reason.status === 400 ? ' Hãy bấm Sửa để bổ sung rồi trình lại.' : ''}`);
     } finally {
       setSubmitting(false);
     }
@@ -570,7 +591,7 @@ export default function DocumentReview() {
       <section className="panel">
         <div className="panel-head"><div><h3><ListChecks /> Chỉ tiêu ứng viên</h3><p>Kết quả máy tạo cần được cán bộ xác minh; nhấn vào một đề xuất để đối chiếu trích dẫn gốc</p></div></div>
         <div className="cand-chips">
-          {(['PROPOSED', 'APPROVED', 'REJECTED'] as CandidateStatus[]).map(key => <button
+          {(['PROPOSED', 'SUBMITTED', 'APPROVED', 'REJECTED'] as CandidateStatus[]).map(key => <button
             key={key}
             type="button"
             className={`cand-chip ${tab === key ? 'active' : ''}`}
@@ -626,14 +647,17 @@ export default function DocumentReview() {
               </div>
               {candidate.isDuplicateSuspect && <div className="cand-duplicate"><AlertTriangle />Nghi trùng với chỉ tiêu {candidate.matchedTarget ? `${candidate.matchedTarget.code} — ${candidate.matchedTarget.title}` : 'đã có trong hệ thống'}</div>}
               {candidate.warnings?.length ? <ul className="cand-warning">{candidate.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul> : null}
-              {candidate.status === 'PROPOSED' && <div className="cand-actions">
-                {canEdit && <button type="button" className="btn secondary compact" disabled={submitting} onClick={event => { event.stopPropagation(); openEdit(candidate); }}><Pencil />Sửa</button>}
-                {canApprove && <button type="button" className="btn primary compact" disabled={submitting} onClick={event => { event.stopPropagation(); openApprove(candidate); }}><BadgeCheck />Duyệt</button>}
-                {canReject && <button type="button" className="btn secondary compact" disabled={submitting} onClick={event => { event.stopPropagation(); openReject(candidate); }}><XCircle />Từ chối</button>}
+              {candidate.status === 'SUBMITTED' && candidate.autoApproveAt && <div className="cand-note cand-countdown"><Clock3 aria-hidden="true" />Đã trình — tự thông qua {untilText(candidate.autoApproveAt)} nếu không ai quyết định</div>}
+              {(candidate.status === 'PROPOSED' || candidate.status === 'SUBMITTED') && <div className="cand-actions">
+                {canEditCandidate(candidate) && <button type="button" className="btn secondary compact" disabled={submitting} onClick={event => { event.stopPropagation(); openEdit(candidate); }}><Pencil />Sửa</button>}
+                {canEditCandidate(candidate) && candidate.status === 'PROPOSED' && <button type="button" className="btn secondary compact" disabled={submitting} onClick={event => { event.stopPropagation(); void submitCandidate(candidate); }}><Send />Trình lãnh đạo</button>}
+                {canDecideCandidate(candidate) && <button type="button" className="btn primary compact" disabled={submitting} onClick={event => { event.stopPropagation(); openApprove(candidate); }}><BadgeCheck />Duyệt</button>}
+                {canRejectCandidate(candidate) && <button type="button" className="btn secondary compact" disabled={submitting} onClick={event => { event.stopPropagation(); openReject(candidate); }}><XCircle />{candidate.status === 'PROPOSED' && !canDecideCandidate(candidate) ? 'Loại' : 'Từ chối'}</button>}
+                <Link className="btn ghost compact" to={`/admin/proposals?id=${candidate.id}`} onClick={event => event.stopPropagation()}>Mở trang đề xuất</Link>
               </div>}
               {candidate.status === 'APPROVED' && <div className="cand-created">
                 Đã tạo chỉ tiêu {candidate.createdTarget
-                  ? <Link className="cand-created-link" to={`/admin/targets?search=${encodeURIComponent(candidate.createdTarget.code)}`} onClick={event => event.stopPropagation()}>{candidate.createdTarget.code}</Link>
+                  ? <Link className="cand-created-link" to={`/admin/targets/${candidate.createdTarget.id}`} onClick={event => event.stopPropagation()}>{candidate.createdTarget.code}</Link>
                   : 'chính thức'}
                 {candidate.reviewedBy && <small className="block muted">Duyệt bởi {candidate.reviewedBy.fullName}{candidate.reviewedAt ? ` · ${new Date(candidate.reviewedAt).toLocaleString('vi-VN')}` : ''}</small>}
               </div>}

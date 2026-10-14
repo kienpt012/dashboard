@@ -12,7 +12,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../api';
-import { hasAnyRole } from '../authz';
+import { hasAnyRole, IMPORT_ROLES, LEADERSHIP_ROLES } from '../authz';
 import { navGroups } from '../nav';
 import { readTheme, writeTheme } from '../theme';
 import type { Role } from '../types';
@@ -103,7 +103,7 @@ export default function CommandPalette({
         icon: Plus,
         group: 'Thao tác nhanh',
         keywords: 'tao chi tieu moi them',
-        roles: ['ADMIN'],
+        roles: LEADERSHIP_ROLES,
         run: () => navigate('/admin/targets?new=1'),
       },
       {
@@ -113,7 +113,7 @@ export default function CommandPalette({
         icon: Upload,
         group: 'Thao tác nhanh',
         keywords: 'nhap excel import tai len',
-        roles: ['ADMIN', 'MANAGER', 'STAFF'],
+        roles: IMPORT_ROLES,
         run: () => navigate('/admin/imports'),
       },
       {

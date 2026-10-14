@@ -1297,3 +1297,17 @@ mark.doc-mark {
     min-height: 40px;
   }
 }
+
+/* Bản 2: đề xuất đã trình — đếm ngược tự thông qua. */
+.cand-countdown {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--tx-warn);
+  font-weight: 600;
+}
+
+.cand-countdown svg {
+  width: 14px;
+  height: 14px;
+}

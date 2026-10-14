@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { api, auth } from '../api';
-import { roleLabels } from '../authz';
+import { isGlobal, roleLabels } from '../authz';
+import { useLocality } from '../locality';
 import { PageHead } from '../components/UI';
 import type { User } from '../types';
 import '../styles/profile.css';
@@ -89,9 +90,10 @@ export default function Profile(){
     }finally{setSaving(false)}
   }
 
+  const locality=useLocality();
   if(!user)return <section className="panel profile-unavailable" role="alert"><CircleUserRound/><h3>Không thể đọc thông tin tài khoản</h3><p>Vui lòng đăng nhập lại để tiếp tục.</p></section>;
 
-  const scopeName=user.role==='ADMIN'?'Toàn hệ thống':user.department?.name||'Chưa gán phòng ban';
+  const scopeName=isGlobal(user)?(locality.configured?`Toàn ${locality.name}`:'Toàn địa phương'):user.department?.name||'Chưa gán phòng ban';
 
   return <div className="profile-page">
     <PageHead eyebrow="TÀI KHOẢN CÁ NHÂN" title="Hồ sơ & bảo mật" description="Kiểm tra phạm vi tài khoản và chủ động bảo vệ phiên làm việc của bạn."/>

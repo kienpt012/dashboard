@@ -302,7 +302,7 @@ export type DocumentStatus='UPLOADED'|'PROCESSING'|'PROCESSED'|'FAILED';
 export type ExtractionJobKind='DOCUMENT_PARSE'|'INDICATOR_EXTRACT';
 export type ExtractionJobStatus='PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'|'DEAD_LETTER'|'CANCELLED';
 export type CandidateKind='NEW_INDICATOR'|'PROGRESS_UPDATE';
-export type CandidateStatus='PROPOSED'|'APPROVED'|'REJECTED';
+export type CandidateStatus='PROPOSED'|'SUBMITTED'|'APPROVED'|'REJECTED';
 export type ExtractionMethod='RULE_BASED'|'LLM';
 
 export const documentTypeLabels:Record<DocumentType,string>={
@@ -412,7 +412,7 @@ export type IndicatorCandidate={
   actualValue?:number|null;
   targetYear?:number|null;
   direction?:'HIGHER_IS_BETTER'|'LOWER_IS_BETTER'|null;
-  frequency?:'MONTHLY'|'QUARTERLY'|'YEARLY'|null;
+  frequency?:'MONTHLY'|'QUARTERLY'|'SEMIANNUAL'|'YEARLY'|null;
   deadline?:string|null;
   responsibleDepartmentName?:string|null;
   responsibleDepartmentId?:string|null;
@@ -434,6 +434,13 @@ export type IndicatorCandidate={
   createdTargetId?:string|null;
   createdTarget?:{id:string;code:string;title:string}|null;
   version:number;
+  /** Bản 2: nguồn đề xuất, hạn tự thông qua (chỉ khi đã trình), cờ quyền do API tính. */
+  origin?:'AI'|'HUMAN';
+  submittedAt?:string|null;
+  autoApproveAt?:string|null;
+  autoApproved?:boolean;
+  canEdit?:boolean;
+  canDecide?:boolean;
   createdAt:string;
   updatedAt:string;
 };
