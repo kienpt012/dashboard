@@ -1894,3 +1894,40 @@ a.title:hover {
   border: 1px solid var(--bd-subtle);
   border-radius: var(--r-sm);
 }
+
+.bug-row {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  text-align: left;
+  white-space: normal;
+}
+
+.bug-row svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 3px;
+  color: var(--tx-muted);
+}
+
+.bug-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.bug-desc {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  white-space: pre-wrap;
+}
+
+.bug-desc svg {
+  width: 14px;
+  height: 14px;
+  color: var(--tx-bad);
+}

@@ -1,0 +1,126 @@
+/* ============================================================================
+   IOC — Trách nhiệm người đứng đầu (DH-04). Chỉ token ngữ nghĩa.
+   ========================================================================== */
+.accountability {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.acc-year {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.acc-year select {
+  width: auto;
+}
+
+.acc-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  text-align: inherit;
+  white-space: normal;
+  max-width: 140px;
+}
+
+.acc-sort svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+.acc-table th.ioc-num .acc-sort {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.acc-dept {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 700;
+  color: var(--tx-strong);
+  text-decoration: none;
+}
+
+.acc-dept:hover {
+  color: var(--tx-brand);
+}
+
+.acc-person {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.acc-cell {
+  display: inline-block;
+  min-width: 30px;
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-xs);
+  text-align: center;
+  font-weight: 700;
+}
+
+.acc-cell.bad {
+  background: var(--bg-bad-soft);
+  color: var(--tx-bad);
+}
+
+.acc-cell.warn {
+  background: var(--bg-warn-soft);
+  color: var(--tx-warn);
+}
+
+.acc-cell.zero {
+  color: var(--tx-subtle);
+  font-weight: 500;
+}
+
+.acc-reasons-box {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+}
+
+.acc-reasons-box summary {
+  cursor: pointer;
+  color: var(--tx-brand);
+}
+
+.acc-legend {
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.acc-legend summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.acc-legend .dos-kv {
+  margin-top: var(--sp-3);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+@media print {
+  .accountability .page-actions,
+  .acc-legend summary {
+    display: none;
+  }
+
+  .accountability .table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .acc-reasons-box {
+    display: block;
+  }
+}

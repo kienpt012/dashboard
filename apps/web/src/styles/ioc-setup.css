@@ -1,0 +1,160 @@
+/* ============================================================================
+   IOC — Thiết lập địa phương (HT-01): bổ sung cho .su-* trong ioc.css.
+   ========================================================================== */
+.setup {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.su-gap {
+  margin: 0;
+}
+
+.su-steps {
+  padding: 0;
+  list-style: none;
+}
+
+.su-step {
+  cursor: pointer;
+}
+
+.su-step b svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Xem trước thương hiệu: màu do người dùng chọn, chữ luôn trắng trên nền màu đó. */
+.su-brand-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.su-brand-preview .mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--su-brand, var(--bg-brand));
+  color: var(--tx-onbrand);
+  font-weight: 800;
+}
+
+.su-brand-preview strong {
+  display: block;
+  color: var(--tx-strong);
+}
+
+.su-brand-preview small {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.su-color {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.su-color input[type='color'] {
+  width: 48px;
+  height: 38px;
+  padding: 2px;
+}
+
+.su-inline {
+  margin-top: var(--sp-3);
+}
+
+.su-option.muted {
+  opacity: 0.75;
+}
+
+.su-check {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.su-check input {
+  width: auto;
+  margin: 0;
+}
+
+.su-check small {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.su-depts {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.su-dept {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) minmax(0, 1.2fr) minmax(0, 2fr);
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+}
+
+.su-dept.off {
+  background: var(--bg-inset);
+  opacity: 0.7;
+}
+
+.su-year {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.su-year input {
+  width: 100px;
+}
+
+.su-review {
+  margin-bottom: var(--sp-4);
+}
+
+.su-done {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.su-done > svg {
+  width: 36px;
+  height: 36px;
+  color: var(--tx-ok);
+}
+
+.su-done ul {
+  margin: 0;
+  padding-left: var(--sp-5);
+}
+
+.su-done .su-nav {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+@media (max-width: 760px) {
+  .su-dept {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
