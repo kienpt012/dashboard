@@ -1,0 +1,399 @@
+/* ============================================================================
+   IOC — Hồ sơ chỉ tiêu (CT-06): phần bổ sung cho các lớp .dos-* trong ioc.css.
+   Chỉ token ngữ nghĩa; kiểm tra ở cả sáng/tối và 375px.
+   ========================================================================== */
+.dossier {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.dos-loading {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.dos-gap {
+  margin-top: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.dos-muted {
+  color: var(--tx-muted);
+  font-size: var(--fs-sm);
+}
+
+.dos-req {
+  color: var(--tx-bad);
+  font-weight: 600;
+  font-size: var(--fs-xs);
+}
+
+.dos-warn-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--tx-warn);
+}
+
+.dos-warn-hint svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Đầu hồ sơ */
+.dos-title-main {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.dos-ids {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.dos-std {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.dos-std b {
+  font-family: var(--font-mono);
+  color: var(--tx-strong);
+}
+
+.dos-dept {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--tx-normal);
+}
+
+.dos-crumbs svg {
+  width: 14px;
+  height: 14px;
+  color: var(--tx-subtle);
+}
+
+/* Thẻ phần: bố cục chữ */
+.dos-part-tab > span:last-child {
+  min-width: 0;
+}
+
+/* Tiêu đề phụ trong một phần */
+.dos-subtitle {
+  margin: var(--sp-5) 0 var(--sp-3);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--tx-strong);
+}
+
+.dos-subtitle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.dos-subtitle-row .dos-subtitle {
+  margin-bottom: var(--sp-2);
+}
+
+.dos-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* Mục trong danh sách */
+.dos-entry-title {
+  font-weight: 600;
+  color: var(--tx-strong) !important;
+}
+
+.dos-docno {
+  font-family: var(--font-mono);
+}
+
+.dos-note {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.dos-bad-note {
+  background: var(--bg-bad-soft);
+  color: var(--tx-bad) !important;
+}
+
+.dos-confirm-target {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  font-size: var(--fs-sm);
+}
+
+.dos-evidence-plain {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border: 1px dashed var(--bd-normal);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.dos-evidence-plain svg {
+  width: 13px;
+  height: 13px;
+}
+
+.dos-evidence small {
+  color: var(--tx-subtle);
+}
+
+/* Báo cáo theo trạng thái duyệt */
+.dos-report.pending {
+  border-left: 3px solid var(--bg-warn);
+}
+
+.dos-report.approved {
+  border-left: 3px solid var(--bg-ok);
+}
+
+.dos-report.rejected {
+  border-left: 3px solid var(--bg-bad);
+}
+
+.dos-review {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px dashed var(--bd-normal);
+}
+
+.dos-review .row,
+.dos-form .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+/* Đánh giá theo kết quả */
+.dos-evaluation.ok {
+  border-left: 3px solid var(--bg-ok);
+}
+
+.dos-evaluation.info {
+  border-left: 3px solid var(--bg-brand);
+}
+
+.dos-evaluation.warn {
+  border-left: 3px solid var(--bg-warn);
+}
+
+.dos-evaluation.bad {
+  border-left: 3px solid var(--bg-bad);
+}
+
+.dos-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dos-results legend {
+  width: 100%;
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--tx-normal);
+}
+
+.dos-results label.chip {
+  cursor: pointer;
+}
+
+.dos-results input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dos-results label.chip:focus-within {
+  box-shadow: var(--sh-focus);
+}
+
+/* Biểu mẫu trong hồ sơ */
+.dos-form-title {
+  display: grid;
+  gap: 2px;
+}
+
+.dos-form-title strong {
+  font-size: var(--fs-base);
+  color: var(--tx-strong);
+}
+
+.dos-form-title span {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+}
+
+.dos-form label small {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  font-weight: 400;
+}
+
+.dos-files ul {
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dos-files li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--bd-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  font-size: var(--fs-sm);
+}
+
+.dos-files li span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dos-files li svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Kỳ báo cáo bấm được */
+.dos-period-block {
+  margin-bottom: var(--sp-4);
+}
+
+.dos-period-block .dos-periods {
+  margin-bottom: var(--sp-1);
+}
+
+button.dos-period {
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
+}
+
+button.dos-period:hover {
+  border-color: var(--bd-brand);
+  box-shadow: var(--sh-xs);
+}
+
+/* Công thức tự tính */
+.dos-formula {
+  margin-bottom: var(--sp-4);
+}
+
+.dos-formula > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--tx-strong);
+}
+
+.dos-formula > strong svg,
+.dos-formula li svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dos-formula-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--tx-muted);
+}
+
+.dos-formula-result b {
+  color: var(--tx-strong);
+}
+
+.dos-formula li {
+  margin-top: 2px;
+}
+
+.dos-children td small {
+  display: block;
+  margin-top: 2px;
+}
+
+.dos-children .title {
+  font-weight: 600;
+  color: var(--tx-strong);
+  text-decoration: none;
+}
+
+.dos-general-evidence {
+  margin-top: var(--sp-2);
+}
+
+/* Cột phải */
+.dos-side .panel-head h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.dos-side .panel-head h3 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--tx-brand);
+}
+
+.dos-side .dos-form {
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3);
+}
+
+.dos-side .ops-timeline {
+  margin-bottom: var(--sp-2);
+}
+
+@media (max-width: 640px) {
+  .dos-entry header .right {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .dos-review .row .btn,
+  .dos-form .row .btn {
+    flex: 1;
+  }
+}

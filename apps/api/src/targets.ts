@@ -817,7 +817,8 @@ export class TargetsController {
       dataSource: dto.dataSource?.trim() || null,
       explanation: dto.explanation?.trim() || null,
     };
-    const valueLabel = dto.valueText?.trim() || String(dto.value);
+    // Giá trị dạng chữ đã tự mang đơn vị ("72% (816 tỷ đồng)"); chỉ ghép đơn vị khi hiển thị số.
+    const valueLabel = dto.valueText?.trim() || `${dto.value} ${target.unit}`.trim();
     const baseVersion = dto.baseVersion;
     if (baseVersion !== target.version) {
       throw new ConflictException('Số liệu đã thay đổi. Vui lòng tải lại chỉ tiêu trước khi báo cáo.');
@@ -862,11 +863,11 @@ export class TargetsController {
           await recordWorkEvent(tx, {
             action: 'REPORT_SUBMITTED', actor, targetId: id, departmentId: currentTarget.departmentId,
             responsibleUserId: managers[0] ?? null,
-            note: periodLabel(periodKey) + ': ' + valueLabel + ' ' + currentTarget.unit + ' — chờ duyệt',
+            note: periodLabel(periodKey) + ': ' + valueLabel + ' — chờ duyệt',
           });
           await notifyUsers(tx, managers, {
             kind: 'REPORT_SUBMITTED', title: actor.fullName + ' gửi số liệu ' + currentTarget.code + ' chờ duyệt',
-            body: periodLabel(periodKey) + ': ' + valueLabel + ' ' + currentTarget.unit,
+            body: periodLabel(periodKey) + ': ' + valueLabel,
             link: '/admin/approvals', entityType: 'ProgressUpdate', entityId: created.id, dedupeKey: 'report:' + created.id,
           }, actor.id);
           await audit(tx, actor, {
@@ -944,7 +945,7 @@ export class TargetsController {
         });
         await recordWorkEvent(tx, {
           action: 'REPORT_APPROVED', actor, targetId: id, departmentId: currentTarget.departmentId,
-          note: periodLabel(periodKey) + ': ' + valueLabel + ' ' + currentTarget.unit + ' (lãnh đạo cập nhật trực tiếp)',
+          note: periodLabel(periodKey) + ': ' + valueLabel + ' (lãnh đạo cập nhật trực tiếp)',
           metadata: { progressUpdateId: createdUpdate.id },
         });
         const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });

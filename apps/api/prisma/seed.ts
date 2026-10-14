@@ -21,7 +21,7 @@ import { recomputeTargets, rollupParents } from '../src/datasets';
 import { applyFrameworkTemplate } from '../src/frameworks';
 import { evaluateTarget } from '../src/metrics';
 import { findFrameworkTemplate, ORG_TEMPLATES } from '../src/templates';
-import { periodKeyFor } from '../src/periods';
+import { periodKeyFor, periodLabel } from '../src/periods';
 
 // Dữ liệu mẫu IOC bản 2: một phường ví dụ được dựng bằng ĐÚNG trình thiết lập và thư viện bộ chỉ tiêu mẫu mà một
 // địa phương thật sẽ dùng. Kế hoạch KT-XH lấy theo mức giao công khai tại QĐ 333/QĐ-UBND; mọi số liệu THỰC HIỆN là
@@ -241,8 +241,8 @@ async function main() {
       target = await prisma.target.update({ where: { id: target.id }, data: { currentValue: value, status: metric.status, lastReportedAt: vn(date, 15), version: { increment: 1 } } });
       await prisma.workEvent.createMany({
         data: [
-          { targetId: target.id, action: 'REPORT_SUBMITTED', actorId: users[username].id, actorName: users[username].fullName, departmentId: target.departmentId, note: `${periodKey}: ${valueText ?? value} ${target.unit}`, createdAt: vn(date) },
-          { targetId: target.id, action: 'REPORT_APPROVED', actorId: reviewer.id, actorName: reviewer.fullName, departmentId: target.departmentId, note: `${periodKey}: ${valueText ?? value} ${target.unit}`, createdAt: vn(date, 15), metadata: { progressUpdateId: update.id } },
+          { targetId: target.id, action: 'REPORT_SUBMITTED', actorId: users[username].id, actorName: users[username].fullName, departmentId: target.departmentId, note: `${periodLabel(periodKey)}: ${valueText ?? `${value} ${target.unit}`}`, createdAt: vn(date) },
+          { targetId: target.id, action: 'REPORT_APPROVED', actorId: reviewer.id, actorName: reviewer.fullName, departmentId: target.departmentId, note: `${periodLabel(periodKey)}: ${valueText ?? `${value} ${target.unit}`}`, createdAt: vn(date, 15), metadata: { progressUpdateId: update.id } },
         ],
       });
     }
