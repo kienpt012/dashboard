@@ -14,9 +14,11 @@
     "@tanstack/react-query": "^5.104.2",
     "antd": "^6.6.6",
     "dayjs": "^1.11.23",
+    "dompurify": "^3.4.17",
     "echarts": "^6.1.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-grid-layout": "^2.3.0",
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
