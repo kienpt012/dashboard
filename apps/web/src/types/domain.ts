@@ -335,7 +335,7 @@ export type MyWork={
   year:number;
   generatedAt:string;
   counts:{needReport:number;rejectedReports:number;toReview:number;proposals:number;explanations:number;unassigned:number;unread:number};
-  needReport:(TargetBrief&{currentPeriod:string;missingPeriods:string[];pendingReport:boolean})[];
+  needReport:(TargetBrief&{currentPeriod:string;currentPeriodKey?:string;missingPeriods:string[];missingPeriodKeys?:string[];pendingReport:boolean})[];
   rejectedReports:{id:string;value:number;reviewNote?:string|null;reviewedAt?:string|null;target:{id:string;code:string;title:string}}[];
   toReview:{id:string;createdAt:string;days:number;target:TargetBrief}[];
   proposals:{id:string;name:string;status:string;origin:'AI'|'HUMAN';autoApproveAt?:string|null;submittedAt?:string|null;createdAt:string;responsibleDepartment?:{name:string}|null;document?:{code:string;title:string}|null}[];

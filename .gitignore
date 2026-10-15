@@ -6,7 +6,7 @@ coverage/
 *.log
 uploads
 .DS_Store
-work/
+/work/
 outputs/
 backups/
 qa-artifacts/

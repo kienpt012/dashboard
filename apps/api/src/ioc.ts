@@ -372,7 +372,15 @@ export class IocController {
       slides,
       stalled: snap.evaluated
         .filter(item => item.isLeaf && (item.target.bounceCount >= STALL_BOUNCES || item.stalledUnassigned || (item.explanation && item.explanation.dueAt < snap.now)))
-        .map(brief),
+        .map(item => ({
+          ...brief(item),
+          bounceCount: item.target.bounceCount,
+          reason: item.target.bounceCount >= STALL_BOUNCES
+            ? `Bị chuyển, trả qua lại ${item.target.bounceCount} lần`
+            : item.stalledUnassigned
+              ? `Chưa giao người phụ trách sau ${daysSince(item.target.createdAt, snap.now)} ngày`
+              : 'Quá hạn trả lời giải trình',
+        })),
     };
   }
 
@@ -453,7 +461,14 @@ export class IocController {
       .map(item => {
         const currentKey = periodKeyFor(item.target.frequency, snap.now);
         const reported = item.pending.length > 0;
-        return { ...this.targetBrief(item), currentPeriod: periodLabel(currentKey), missingPeriods: item.missingPeriods.map(periodLabel), pendingReport: reported };
+        return {
+          ...this.targetBrief(item),
+          currentPeriod: periodLabel(currentKey),
+          currentPeriodKey: currentKey,
+          missingPeriods: item.missingPeriods.map(periodLabel),
+          missingPeriodKeys: item.missingPeriods,
+          pendingReport: reported,
+        };
       })
       .filter(item => item.missingPeriods.length || !item.hasReport);
     const rejectedReports = await this.prisma.progressUpdate.findMany({
