@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ProgressReviewStatus, Role, TargetStatus } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
@@ -73,14 +73,26 @@ export class ExportsController {
     @Res() res: Response,
     @Query('year') yearRaw?: string,
     @Query('departmentId') requestedDepartmentId?: string,
+    @Query('frameworkId') frameworkRaw?: string,
   ) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    // "none": chỉ tiêu ngoài bộ; id: một bộ chỉ tiêu; bỏ trống: toàn bộ năm.
+    const frameworkId = frameworkRaw?.trim() || undefined;
+    const framework = frameworkId && frameworkId !== 'none'
+      ? await this.prisma.framework.findUnique({ where: { id: frameworkId }, select: { code: true } })
+      : null;
+    if (frameworkId && frameworkId !== 'none' && !framework) throw new NotFoundException('Không tìm thấy bộ chỉ tiêu');
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const riskThreshold = setting?.riskThreshold ?? 70;
     const targets = await this.prisma.target.findMany({
-      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
+      where: {
+        year,
+        isArchived: false,
+        ...(departmentId ? { departmentId } : {}),
+        ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
+      },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
@@ -262,9 +274,10 @@ export class ExportsController {
       action: 'EXPORT_TARGET_REPORT',
       entityType: 'REPORT_EXPORT',
       departmentId: departmentId ?? null,
-      metadata: { year, targetCount: targets.length, historyCount: history.length },
+      metadata: { year, frameworkId: frameworkId ?? null, targetCount: targets.length, historyCount: history.length },
     });
     const scope = departmentId ? targets[0]?.department.code ?? 'phong-ban' : 'toan-phuong';
-    return sendWorkbook(res, await workbook.xlsx.writeBuffer(), `Bao_cao_chi_tieu_${filePart(scope)}_${year}.xlsx`);
+    const set = framework ? `_${filePart(framework.code)}` : frameworkId === 'none' ? '_ngoai-bo' : '';
+    return sendWorkbook(res, await workbook.xlsx.writeBuffer(), `Bao_cao_chi_tieu${set}_${filePart(scope)}_${year}.xlsx`);
   }
 }

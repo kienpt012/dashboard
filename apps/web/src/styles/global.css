@@ -741,6 +741,42 @@ a.donut-row:hover {
   flex-direction: column;
 }
 
+.fw-desc.ant-typography {
+  margin: -2px 0 12px;
+  font-size: 13px;
+}
+
+.fw-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+.fw-status a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.fw-status a:hover {
+  color: var(--ioc-color-primary);
+}
+
+.fw-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.fw-status b {
+  font-weight: 600;
+  color: var(--ioc-color-text);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Số liệu và thanh tình trạng luôn nằm sát đáy thẻ: các thẻ cùng hàng thẳng nhau dù căn cứ dài ngắn khác nhau. */
 .fw-foot {
   margin-top: auto;

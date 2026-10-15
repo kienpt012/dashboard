@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLocality, type PublicLocality } from '@/app/locality';
 import { useMe } from '@/app/session';
-import { DistBar, YearSelect } from '@/components/Data';
+import { DistBar, Metric, YearSelect } from '@/components/Data';
 import { Page } from '@/components/Page';
 import { LoadError, PageSkeleton } from '@/components/States';
 import { LegalBasis } from '@/components/LegalBasis';
-import { KindTag } from '@/components/Tags';
+import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
 import { useAction, useApi } from '@/hooks/useApi';
 import { http } from '@/lib/api';
 import { currentYear, num, pct } from '@/lib/format';
@@ -33,6 +33,17 @@ const KINDS: { value: FrameworkKind; label: string }[] = [
   { value: 'TASK', label: 'Nhiệm vụ' },
 ];
 
+const CODE_PREFIX: Record<FrameworkKind, string> = { PLAN: 'KH', SCORE: 'CD', STAT: 'TK', TASK: 'NV' };
+
+/** Mã gợi ý chưa trùng: KH-2026, KH-2026-2… */
+function suggestCode(kind: FrameworkKind, year: number, taken: Set<string>) {
+  const base = `${CODE_PREFIX[kind] ?? 'BO'}-${year}`;
+  if (!taken.has(base)) return base;
+  let index = 2;
+  while (taken.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+}
+
 function nameForYear(template: FrameworkTemplate, year: number) {
   return template.effectiveYear ? template.sampleName.replace(`năm ${template.effectiveYear}`, `năm ${year}`) : template.sampleName;
 }
@@ -56,23 +67,34 @@ function result(framework: Framework) {
   return { label: 'Tiến độ', value: s.progress === null ? '—' : pct(s.progress) };
 }
 
-function FrameworkForm({ open, framework, year, onClose }: { open: boolean; framework?: Framework | null; year: number; onClose: () => void }) {
+function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolean; framework?: Framework | null; year: number; codes: string[]; onClose: () => void }) {
   const [form] = Form.useForm();
   const kind = Form.useWatch('kind', form);
+  const formYear = Form.useWatch('year', form);
+  const [codeTouched, setCodeTouched] = useState(false);
+  const taken = useMemo(() => new Set(codes.map(code => code.toUpperCase())), [codes]);
   useEffect(() => {
     if (!open) return;
     form.resetFields();
+    setCodeTouched(false);
     if (framework)
       form.setFieldsValue({
         name: framework.name,
         issuingLevel: framework.issuingLevel,
         legalBasis: framework.legalBasis ?? '',
         description: framework.description ?? '',
+        sortOrder: framework.sortOrder ?? 0,
         showOnWallboard: framework.showOnWallboard,
         isActive: framework.isActive,
       });
     else form.setFieldsValue({ kind: 'PLAN', issuingLevel: 'LOCAL', year, showOnWallboard: true, maxScore: 100 });
   }, [open, framework, form, year]);
+
+  // Mã gợi ý đi theo loại và năm cho tới khi người dùng tự sửa mã.
+  useEffect(() => {
+    if (!open || framework || codeTouched || !kind) return;
+    form.setFieldValue('code', suggestCode(kind, formYear || year, taken));
+  }, [open, framework, codeTouched, kind, formYear, year, taken, form]);
 
   const save = useAction(
     (values: Record<string, unknown>) =>
@@ -84,8 +106,16 @@ function FrameworkForm({ open, framework, year, onClose }: { open: boolean; fram
     <Modal title={framework ? 'Sửa bộ chỉ tiêu' : 'Tạo bộ chỉ tiêu'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={640} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
         {!framework && (
-          <Form.Item name="code" label="Mã bộ" rules={[{ required: true, pattern: /^[A-Z0-9][A-Z0-9_-]{1,39}$/, message: 'Chữ in hoa không dấu, số, gạch ngang (2–40 ký tự)' }]}>
-            <Input placeholder="KH-2026" />
+          <Form.Item
+            name="code"
+            label="Mã bộ"
+            normalize={(value?: string) => value?.toUpperCase().replace(/\s+/g, '-')}
+            rules={[
+              { required: true, pattern: /^[A-Z0-9][A-Z0-9_-]{1,39}$/, message: 'Chữ in hoa không dấu, số, gạch ngang (2–40 ký tự)' },
+              { validator: (_, value?: string) => (value && taken.has(value.toUpperCase()) ? Promise.reject(new Error('Mã đã được dùng')) : Promise.resolve()) },
+            ]}
+          >
+            <Input placeholder="KH-2026" maxLength={40} onChange={() => setCodeTouched(true)} />
           </Form.Item>
         )}
         {!framework && (
@@ -115,6 +145,11 @@ function FrameworkForm({ open, framework, year, onClose }: { open: boolean; fram
         <Form.Item name="description" label="Mô tả" className="span-2">
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={2000} />
         </Form.Item>
+        {framework && (
+          <Form.Item name="sortOrder" label="Thứ tự hiển thị" tooltip="Số nhỏ đứng trước trên trung tâm điều hành và trình chiếu">
+            <InputNumber min={0} max={9999} style={{ width: '100%' }} />
+          </Form.Item>
+        )}
         <Form.Item name="showOnWallboard" label="Hiện trên trình chiếu" valuePropName="checked">
           <Switch />
         </Form.Item>
@@ -128,8 +163,10 @@ function FrameworkForm({ open, framework, year, onClose }: { open: boolean; fram
   );
 }
 
-function TemplateLibrary({ open, frameworks, onClose }: { open: boolean; frameworks: Framework[]; onClose: () => void }) {
+function TemplateLibrary({ open, frameworks, year: pageYear, onClose }: { open: boolean; frameworks: Framework[]; year: number; onClose: () => void }) {
   const locality = useLocality();
+  const user = useMe();
+  const canApply = can(user, LEADERSHIP);
   const { modal } = App.useApp();
   const templates = useApi<FrameworkTemplate[]>(open ? '/frameworks/templates' : null, { staleTime: 10 * 60_000 });
   const [years, setYears] = useState<Record<string, number>>({});
@@ -162,9 +199,14 @@ function TemplateLibrary({ open, frameworks, onClose }: { open: boolean; framewo
       ) : (
         <Flex vertical gap={12}>
           {(templates.data ?? []).map(template => {
-            const year = years[template.key] ?? template.effectiveYear ?? currentYear();
+            const year = years[template.key] ?? pageYear;
             const existing = frameworks.find(item => item.templateKey === template.key && item.year === year);
             const fit = fits(template, locality);
+            const appliedYears = [...new Set(frameworks.filter(item => item.templateKey === template.key && item.year).map(item => item.year as number))].sort();
+            const warnings = [
+              fit === false ? `Mẫu dành cho ${scopeText(template)}` : null,
+              template.effectiveYear && year < template.effectiveYear ? `Mẫu có hiệu lực từ năm ${template.effectiveYear}` : null,
+            ].filter(Boolean) as string[];
             return (
               <Card key={template.key} size="small">
                 <Flex vertical gap={8}>
@@ -175,13 +217,18 @@ function TemplateLibrary({ open, frameworks, onClose }: { open: boolean; framewo
                   <span className="fw-basis">
                     <LegalBasis text={template.legalBasis} />
                   </span>
+                  {template.description && (
+                    <Typography.Paragraph type="secondary" ellipsis={{ rows: 2, expandable: 'collapsible', symbol: expanded => (expanded ? 'Thu gọn' : 'Xem thêm') }} style={{ marginBottom: 0 }}>
+                      {template.description}
+                    </Typography.Paragraph>
+                  )}
                   <Space size={[6, 6]} wrap>
                     <Tag>{ISSUING.find(item => item.value === template.issuingLevel)?.label}</Tag>
                     <Tag color={fit === false ? 'orange' : fit ? 'green' : 'default'}>{scopeText(template)}</Tag>
                     <Tag>{num(template.targetCount)} chỉ tiêu</Tag>
                     {template.computedCount > 0 && <Tag color="cyan">{num(template.computedCount)} tự tính</Tag>}
                     {template.datasetCount > 0 && <Tag>{num(template.datasetCount)} bảng dữ liệu</Tag>}
-                    {(template.appliedYears ?? []).filter(Boolean).map(applied => (
+                    {appliedYears.map(applied => (
                       <Tag key={String(applied)} color="blue">
                         Đã nạp {applied}
                       </Tag>
@@ -189,16 +236,25 @@ function TemplateLibrary({ open, frameworks, onClose }: { open: boolean; framewo
                   </Space>
                   <Flex gap={8} align="center" justify="flex-end" wrap>
                     <YearSelect value={year} onChange={value => setYears(current => ({ ...current, [template.key]: value }))} />
-                    <Tooltip title={existing ? `Năm ${year} đã nạp (${existing.code})` : undefined}>
+                    <Tooltip title={existing ? `Năm ${year} đã nạp (${existing.code})` : !canApply ? 'Lãnh đạo hoặc quản trị viên nạp mẫu' : undefined}>
                       <Button
                         type="primary"
                         icon={<AppstoreAddOutlined />}
-                        disabled={Boolean(existing)}
+                        disabled={Boolean(existing) || !canApply}
                         loading={apply.isPending && apply.variables?.template.key === template.key}
                         onClick={() =>
                           modal.confirm({
                             title: `Nạp bộ mẫu vào năm ${year}?`,
-                            content: `${nameForYear(template, year)} — ${num(template.targetCount)} chỉ tiêu.`,
+                            content: (
+                              <Flex vertical gap={8}>
+                                <span>{`${nameForYear(template, year)} — ${num(template.targetCount)} chỉ tiêu.`}</span>
+                                {warnings.map(warning => (
+                                  <Typography.Text key={warning} type="warning">
+                                    {warning}
+                                  </Typography.Text>
+                                ))}
+                              </Flex>
+                            ),
                             okText: 'Nạp',
                             onOk: () => apply.mutateAsync({ template, year }),
                           })
@@ -244,6 +300,7 @@ function RecomputeResult({ data, onClose }: { data: { framework: Framework; outc
 
 function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framework: Framework; onEdit: () => void; onRecompute: () => void; recomputing: boolean }) {
   const user = useMe();
+  const { modal } = App.useApp();
   const editor = can(user, FRAMEWORK_EDITORS);
   const s = framework.summary;
   const r = result(framework);
@@ -269,7 +326,22 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
                 { key: 'recompute', icon: <CalculatorOutlined />, label: 'Tính lại chỉ tiêu tự tính', onClick: onRecompute, disabled: recomputing },
                 { type: 'divider' },
                 { key: 'wall', label: framework.showOnWallboard ? 'Ẩn khỏi trình chiếu' : 'Hiện trên trình chiếu', onClick: () => toggle.mutate({ showOnWallboard: !framework.showOnWallboard }) },
-                { key: 'active', danger: framework.isActive, label: framework.isActive ? 'Ngừng sử dụng' : 'Dùng lại', onClick: () => toggle.mutate({ isActive: !framework.isActive }) },
+                {
+                  key: 'active',
+                  danger: framework.isActive,
+                  label: framework.isActive ? 'Ngừng sử dụng' : 'Dùng lại',
+                  onClick: () =>
+                    framework.isActive
+                      ? modal.confirm({
+                          title: `Ngừng sử dụng ${framework.code}?`,
+                          content: 'Bộ sẽ ẩn khỏi trung tâm điều hành và trình chiếu.',
+                          okText: 'Ngừng sử dụng',
+                          cancelText: 'Huỷ',
+                          okButtonProps: { danger: true },
+                          onOk: () => toggle.mutateAsync({ isActive: false }),
+                        })
+                      : toggle.mutate({ isActive: true }),
+                },
               ],
             }}
           >
@@ -289,6 +361,11 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
         <div className="fw-basis">
           <LegalBasis text={framework.legalBasis} />
         </div>
+      )}
+      {framework.description && (
+        <Typography.Paragraph type="secondary" ellipsis={{ rows: 2, expandable: 'collapsible', symbol: expanded => (expanded ? 'Thu gọn' : 'Xem thêm') }} className="fw-desc">
+          {framework.description}
+        </Typography.Paragraph>
       )}
       <div className="fw-foot">
       <div className="fw-stats">
@@ -318,6 +395,14 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
       <div style={{ marginTop: 14 }}>
         <DistBar counts={s.counts} total={s.total} />
       </div>
+      <div className="fw-status">
+        {STATUS_ORDER.filter(key => s.counts[key] > 0).map(key => (
+          <Link key={key} to={`/admin/targets?frameworkId=${framework.id}&year=${framework.year ?? ''}&status=${key}`}>
+            <i style={{ background: STATUS[key].hex }} />
+            {STATUS[key].label} <b>{num(s.counts[key])}</b>
+          </Link>
+        ))}
+      </div>
       </div>
     </Card>
   );
@@ -337,6 +422,17 @@ export default function Frameworks() {
   });
 
   const rows = useMemo(() => (list.data ?? []).filter(item => (item.year ?? year) === year && (show === 'all' || item.isActive)), [list.data, year, show]);
+  const totals = useMemo(() => {
+    const active = rows.filter(item => item.isActive);
+    const sum = (pick: (item: Framework) => number) => active.reduce((total, item) => total + pick(item), 0);
+    return {
+      frameworks: active.length,
+      targets: sum(item => item.summary.total),
+      reported: sum(item => item.summary.reported),
+      atRisk: sum(item => item.summary.counts.AT_RISK ?? 0),
+      overdue: sum(item => item.summary.counts.OVERDUE ?? 0),
+    };
+  }, [rows]);
 
   return (
     <Page
@@ -353,7 +449,7 @@ export default function Frameworks() {
               { value: 'all', label: 'Tất cả' },
             ]}
           />
-          {can(user, LEADERSHIP) && (
+          {can(user, FRAMEWORK_EDITORS) && (
             <Button icon={<AppstoreAddOutlined />} onClick={() => setLibrary(true)}>
               Thư viện mẫu
             </Button>
@@ -371,6 +467,16 @@ export default function Frameworks() {
       ) : !list.data ? (
         <PageSkeleton />
       ) : rows.length ? (
+        <>
+        <Card className="card-flush" style={{ marginBottom: 16 }}>
+          <div className="metric-grid metric-grid-5">
+            <Metric label="Bộ đang dùng" value={num(totals.frameworks)} />
+            <Metric label="Chỉ tiêu" value={num(totals.targets)} to={`/admin/targets?year=${year}`} />
+            <Metric label="Đã có số liệu" value={num(totals.reported)} foot={totals.targets ? pct((totals.reported / totals.targets) * 100) : undefined} />
+            <Metric label="Có nguy cơ" value={num(totals.atRisk)} tone={totals.atRisk ? 'warn' : undefined} to={`/admin/targets?year=${year}&status=AT_RISK`} />
+            <Metric label="Quá hạn" value={num(totals.overdue)} tone={totals.overdue ? 'bad' : undefined} to={`/admin/targets?year=${year}&status=OVERDUE`} />
+          </div>
+        </Card>
         <Row gutter={[16, 16]} align="stretch">
           {rows.map(framework => (
             <Col key={framework.id} xs={24} lg={12} xxl={8} style={{ display: 'flex' }}>
@@ -383,6 +489,7 @@ export default function Frameworks() {
             </Col>
           ))}
         </Row>
+        </>
       ) : (
         <Card>
           <Empty description={`Chưa có bộ chỉ tiêu năm ${year}`}>
@@ -394,8 +501,8 @@ export default function Frameworks() {
           </Empty>
         </Card>
       )}
-      <TemplateLibrary open={library} frameworks={list.data ?? []} onClose={() => setLibrary(false)} />
-      <FrameworkForm open={editing !== undefined} framework={editing} year={year} onClose={() => setEditing(undefined)} />
+      <TemplateLibrary open={library} frameworks={list.data ?? []} year={year} onClose={() => setLibrary(false)} />
+      <FrameworkForm open={editing !== undefined} framework={editing} year={year} codes={(list.data ?? []).map(item => item.code)} onClose={() => setEditing(undefined)} />
       <RecomputeResult data={recomputed} onClose={() => setRecomputed(null)} />
     </Page>
   );

@@ -1,5 +1,5 @@
 import { FileExcelOutlined, PrinterOutlined } from '@ant-design/icons';
-import { App, Button, Card, Col, Empty, Flex, Row, Select, Table, Typography, type TableColumnsType } from 'antd';
+import { App, Button, Card, Col, Empty, Flex, Row, Select, Table, Tooltip, Typography, type TableColumnsType } from 'antd';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { localityTitle, useLocality } from '@/app/locality';
@@ -14,11 +14,11 @@ import { useThemeMode } from '@/app/theme';
 import { useApi } from '@/hooks/useApi';
 import { departmentOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
-import { currentYear, dateTime, num, pct, vn } from '@/lib/format';
+import { fromNow, currentYear, dateTime, num, pct, vn } from '@/lib/format';
 import { isGlobal } from '@/lib/roles';
 import type { Target } from '@/types/core';
 import type { TargetStatusKey } from '@/types/domain';
-import { byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
+import { byDate, byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
 
 function planText(target: Target) {
   if (target.kind === 'STAT') return '—';
@@ -124,7 +124,9 @@ export default function Reports() {
   }, [frameworkId, yearFrameworks, params, setParams]);
 
   const list = useApi<Target[]>(frameworkId ? `/targets${query({ year, frameworkId, departmentId: global ? departmentId || undefined : undefined })}` : null, { keepPrevious: true });
-  const rows = list.data ?? [];
+  // Báo cáo của một phòng chỉ gồm chỉ tiêu phòng chủ trì (máy chủ trả cả chỉ tiêu phòng phối hợp).
+  const scopeDepartment = global ? departmentId : user.departmentId;
+  const rows = useMemo(() => (list.data ?? []).filter(row => !scopeDepartment || row.department.id === scopeDepartment), [list.data, scopeDepartment]);
   const framework = yearFrameworks.find(item => item.id === frameworkId);
   const department = (departments.data ?? []).find(item => item.id === (global ? departmentId : user.departmentId));
   const scope = department ? department.name : locality.configured ? localityTitle(locality) : 'Toàn địa phương';
@@ -141,12 +143,16 @@ export default function Reports() {
 
   const counts = useMemo(() => {
     const result: Record<TargetStatusKey, number> = { COMPLETED: 0, ON_TRACK: 0, AT_RISK: 0, OVERDUE: 0, NOT_STARTED: 0 };
-    for (const row of rows) if (row.kind !== 'STAT') result[row.status as TargetStatusKey] += 1;
+    for (const row of rows) if (row.kind !== 'STAT' && !rows.some(other => other.parentId === row.id)) result[row.status as TargetStatusKey] += 1;
     return result;
   }, [rows]);
-  const planned = rows.filter(row => row.kind !== 'STAT');
-  const stat = rows.filter(row => row.kind === 'STAT');
-  const avg = planned.length ? planned.reduce((sum, row) => sum + Math.min(100, row.progress ?? 0), 0) / planned.length : null;
+  // Cách tính khớp trang Bộ chỉ tiêu: đếm chỉ tiêu lá; tiến độ chung theo trọng số các chỉ tiêu cấp trên cùng.
+  const leaves = rows.filter(row => !rows.some(other => other.parentId === row.id));
+  const planned = leaves.filter(row => row.kind !== 'STAT');
+  const stat = leaves.filter(row => row.kind === 'STAT');
+  const top = rows.filter(row => row.kind !== 'STAT' && (!row.parentId || !rows.some(other => other.id === row.parentId)));
+  const topWeight = top.reduce((sum, row) => sum + (row.weight || 1), 0);
+  const avg = topWeight ? top.reduce((sum, row) => sum + Math.min(100, row.progress ?? 0) * (row.weight || 1), 0) / topWeight : null;
   const last = rows.reduce<string | null>((latest, row) => (row.lastReportedAt && (!latest || row.lastReportedAt > latest) ? row.lastReportedAt : latest), null);
 
   const byDepartment = useMemo(() => {
@@ -181,8 +187,9 @@ export default function Reports() {
   async function exportExcel() {
     setExporting(true);
     try {
-      const blob = await http.blob(`/exports/targets.xlsx${query({ year, departmentId: global ? departmentId || undefined : undefined })}`);
-      saveBlob(blob, `bao-cao-chi-tieu-${year}.xlsx`);
+      const blob = await http.blob(`/exports/targets.xlsx${query({ year, frameworkId, departmentId: global ? departmentId || undefined : undefined })}`);
+      const parts = ['bao-cao', framework?.code ?? 'ngoai-bo', department?.code, String(year)].filter(Boolean);
+      saveBlob(blob, `${parts.join('-')}.xlsx`.toLowerCase());
     } catch (error) {
       message.error(errorText(error, 'Không xuất được tệp Excel'));
     } finally {
@@ -214,6 +221,13 @@ export default function Reports() {
     { title: 'Tỷ lệ', key: 'progress', width: 150, hideForStat: true, sorter: byNumber(row => (row.kind === 'STAT' ? null : row.progress)), sortDirections: NUMBER_FIRST, render: (_, row) => (row.kind === 'STAT' ? <span className="muted">—</span> : <ProgressCell value={row.progress ?? 0} status={row.status} />) },
     { title: 'Đánh giá', key: 'status', width: 130, sorter: byRank(TARGET_STATUS_RANK, row => row.status), render: (_, row) => (row.kind === 'STAT' ? <span className={row.lastReportedAt ? 'tone-ok' : 'muted'}>{statusText(row)}</span> : <StatusTag status={row.status} />) },
     { title: 'Phòng chủ trì', key: 'dept', width: 200, sorter: byText(row => row.department.name), render: (_, row) => row.department.name },
+    {
+      title: 'Cập nhật',
+      key: 'updated',
+      width: 128,
+      sorter: byDate(row => row.lastReportedAt),
+      render: (_, row) => (row.lastReportedAt ? <Tooltip title={dateTime(row.lastReportedAt)}>{fromNow(row.lastReportedAt)}</Tooltip> : <span className="muted">Chưa báo cáo</span>),
+    },
   ];
   const columns = allColumns.filter(column => !(statOnly && column.hideForStat)).map(({ hideForStat: _hide, ...column }) => column) as TableColumnsType<Target>;
 
@@ -264,14 +278,27 @@ export default function Reports() {
           />
         </div>
         <div className="metric-grid metric-grid-5" style={{ borderTop: 0 }}>
-          <Metric label="Chỉ tiêu" value={num(rows.length)} foot={stat.length ? `${num(stat.length)} chỉ tiêu thống kê` : undefined} />
-          <Metric label="Tiến độ bình quân" value={avg === null ? '—' : pct(avg)} />
-          <Metric label="Hoàn thành" value={num(counts.COMPLETED)} tone="ok" />
-          <Metric label="Có nguy cơ / quá hạn" value={`${num(counts.AT_RISK)} / ${num(counts.OVERDUE)}`} tone={counts.AT_RISK || counts.OVERDUE ? 'warn' : undefined} />
-          <Metric
-            label={stat.length ? 'Thống kê có số liệu' : 'Chưa có số liệu'}
-            value={stat.length ? `${num(stat.filter(row => row.lastReportedAt).length)} / ${num(stat.length)}` : num(rows.filter(row => !row.lastReportedAt).length)}
-          />
+          {planned.length === 0 && stat.length > 0 ? (
+            // Bộ thống kê không có mục tiêu: chỉ theo dõi đã có số liệu hay chưa.
+            <>
+              <Metric label="Chỉ tiêu thống kê" value={num(stat.length)} />
+              <Metric label="Đã có số liệu" value={num(stat.filter(row => row.lastReportedAt).length)} tone="ok" foot={pct((stat.filter(row => row.lastReportedAt).length / stat.length) * 100)} />
+              <Metric label="Chưa có số liệu" value={num(stat.filter(row => !row.lastReportedAt).length)} tone={stat.some(row => !row.lastReportedAt) ? 'warn' : undefined} />
+              <Metric label="Phòng chủ trì" value={num(new Set(stat.map(row => row.department.id)).size)} />
+              <Metric label="Cập nhật gần nhất" value={last ? fromNow(last) : '—'} foot={last ? dateTime(last) : undefined} />
+            </>
+          ) : (
+            <>
+              <Metric label="Chỉ tiêu" value={num(leaves.length)} foot={stat.length ? `${num(stat.length)} chỉ tiêu thống kê` : undefined} />
+              <Metric label="Tiến độ chung" value={avg === null ? '—' : pct(avg)} />
+              <Metric label="Hoàn thành" value={num(counts.COMPLETED)} tone="ok" />
+              <Metric label="Có nguy cơ / quá hạn" value={`${num(counts.AT_RISK)} / ${num(counts.OVERDUE)}`} tone={counts.AT_RISK || counts.OVERDUE ? 'warn' : undefined} />
+              <Metric
+                label={stat.length ? 'Thống kê có số liệu' : 'Chưa có số liệu'}
+                value={stat.length ? `${num(stat.filter(row => row.lastReportedAt).length)} / ${num(stat.length)}` : num(planned.filter(row => !row.lastReportedAt).length)}
+              />
+            </>
+          )}
         </div>
       </Card>
 

@@ -71,6 +71,7 @@ export type Framework={
   description?:string|null;
   maxScore?:number|null;
   templateKey?:string|null;
+  sortOrder?:number;
   showOnWallboard:boolean;
   isActive:boolean;
   version:number;
