@@ -1,0 +1,222 @@
+/* Trình dựng trang công khai */
+
+.st-toolbar {
+  margin-bottom: 16px;
+}
+
+.st-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.st-main {
+  min-width: 0;
+}
+
+.st-canvas,
+.st-preview {
+  min-height: 520px;
+  padding: 20px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 12px;
+  background: var(--pd-bg);
+  overflow: hidden;
+}
+
+.st-frame {
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* Khối trong lưới kéo thả */
+.st-item {
+  padding: 0 !important;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.st-item:hover {
+  border-color: color-mix(in srgb, var(--ioc-color-primary) 45%, transparent);
+}
+
+.st-item.active {
+  border-color: var(--ioc-color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ioc-color-primary) 30%, transparent);
+}
+
+.st-item.pd-w-cta {
+  border: 1px dashed var(--pd-line) !important;
+  background: transparent;
+}
+
+.st-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--pd-line);
+  background: color-mix(in srgb, var(--pd-surface) 92%, var(--pd-text));
+  font-size: 12px;
+  color: var(--pd-muted);
+  flex-shrink: 0;
+}
+
+.st-handle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+}
+
+.st-handle:active {
+  cursor: grabbing;
+}
+
+.st-handle:hover {
+  color: var(--pd-text);
+}
+
+.st-bar-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.st-bar-actions button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pd-muted);
+  cursor: pointer;
+}
+
+.st-bar-actions button:hover {
+  background: color-mix(in srgb, var(--pd-text) 8%, transparent);
+  color: var(--pd-text);
+}
+
+/* Nội dung xem trước: không bấm được, phần dư được che mờ ở đáy */
+.st-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+
+.st-item.pd-w-cta .st-content {
+  padding: 8px;
+}
+
+.st-canvas .react-grid-item.react-grid-placeholder {
+  border-radius: var(--pd-radius);
+  background: var(--ioc-color-primary);
+  opacity: 0.16;
+}
+
+.st-canvas .react-grid-item > .react-resizable-handle {
+  z-index: 2;
+}
+
+.st-canvas .react-grid-item > .react-resizable-handle::after {
+  border-color: var(--pd-muted);
+}
+
+/* Bảng thuộc tính */
+.st-panel {
+  position: sticky;
+  top: 72px;
+  max-height: calc(100vh - 92px);
+  display: flex;
+  flex-direction: column;
+}
+
+.st-panel > .ant-card-body {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.st-form .ant-form-item {
+  margin-bottom: 14px;
+}
+
+.st-colors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.st-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+
+.st-checks .ant-checkbox-wrapper {
+  margin-inline-start: 0 !important;
+}
+
+.st-code textarea,
+textarea.st-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12.5px;
+}
+
+.st-binding {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.st-widget-actions {
+  padding-top: 12px;
+  border-top: 1px solid var(--ioc-color-border-secondary);
+}
+
+.st-revision {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (max-width: 1199px) {
+  .st-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .st-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 575px) {
+  .st-canvas,
+  .st-preview {
+    padding: 12px;
+  }
+}

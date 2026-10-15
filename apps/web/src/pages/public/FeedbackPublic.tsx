@@ -11,7 +11,7 @@ import {
   SendOutlined,
   StarFilled,
 } from '@ant-design/icons';
-import { Alert, App, Button, Card, Checkbox, Col, Empty, Form, Input, Modal, Radio, Rate, Result, Row, Select, Skeleton, Space, Steps, Tabs, Tag, Upload, type UploadFile } from 'antd';
+import { Alert, App, Button, Card, Checkbox, Col, Empty, Form, Grid, Input, Modal, Radio, Rate, Result, Row, Select, Skeleton, Space, Steps, Tabs, Tag, Upload, type UploadFile } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { localityTitle, useLocality } from '@/app/locality';
@@ -704,13 +704,14 @@ function PublishedTab() {
 // ---------------------------------------------------------------- Trang
 
 const TABS = [
-  { key: 'gui', label: 'Gửi phản ánh', icon: <FormOutlined /> },
-  { key: 'tra-cuu', label: 'Tra cứu hồ sơ', icon: <FileSearchOutlined /> },
-  { key: 'cong-khai', label: 'Kết quả đã công khai', icon: <CheckCircleFilled /> },
+  { key: 'gui', label: 'Gửi phản ánh', short: 'Gửi phản ánh', icon: <FormOutlined /> },
+  { key: 'tra-cuu', label: 'Tra cứu hồ sơ', short: 'Tra cứu', icon: <FileSearchOutlined /> },
+  { key: 'cong-khai', label: 'Kết quả đã công khai', short: 'Đã công khai', icon: <CheckCircleFilled /> },
 ];
 
 export default function FeedbackPublic() {
   const [params, setParams] = useSearchParams();
+  const screens = Grid.useBreakpoint();
   const requested = params.get('tab');
   const tab = TABS.some(item => item.key === requested) ? requested! : 'gui';
   const [handoff, setHandoff] = useState<Credentials | null>(() => (params.get('ma') ? { code: params.get('ma')!, secret: '' } : null));
@@ -730,7 +731,7 @@ export default function FeedbackPublic() {
             activeKey={tab}
             onChange={open}
             className="fbp-tabs"
-            items={TABS.map(item => ({ key: item.key, label: item.label, icon: item.icon }))}
+            items={TABS.map(item => ({ key: item.key, label: screens.sm ? item.label : item.short, icon: screens.sm ? item.icon : undefined }))}
           />
         </div>
       </section>

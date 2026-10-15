@@ -391,6 +391,9 @@
   .fbp-tabs .ant-tabs-tab {
     font-size: 14px;
   }
+  .fbp-tabs .ant-tabs-tab + .ant-tabs-tab {
+    margin-inline-start: 20px !important;
+  }
 }
 
 /* In biên nhận: chỉ giữ thẻ biên nhận */

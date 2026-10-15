@@ -163,7 +163,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }
 
 .pd-code {
@@ -171,6 +172,7 @@
   font-weight: 600;
   color: var(--pd-muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .pd-status {
