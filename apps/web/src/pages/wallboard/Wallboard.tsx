@@ -124,6 +124,51 @@ function Clock() {
 
 type Result = { value: number; decimals?: number; prefix?: string; suffix?: string; sub: string };
 
+/** Cung tròn quanh tâm (100,100) theo độ, 0° ở đỉnh, theo chiều kim đồng hồ. */
+function arc(radius: number, from: number, to: number) {
+  const point = (deg: number) => [100 + radius * Math.sin((deg * Math.PI) / 180), 100 - radius * Math.cos((deg * Math.PI) / 180)].map(value => value.toFixed(2)).join(' ');
+  return `M ${point(from)} A ${radius} ${radius} 0 ${to - from > 180 ? 1 : 0} 1 ${point(to)}`;
+}
+
+const TICKS = Array.from({ length: 72 }, (_, index) => {
+  const major = index % 6 === 0;
+  const angle = (index * 5 * Math.PI) / 180;
+  const outer = 98;
+  const inner = major ? 91.5 : 94.5;
+  return { major, x1: 100 + outer * Math.sin(angle), y1: 100 - outer * Math.cos(angle), x2: 100 + inner * Math.sin(angle), y2: 100 - inner * Math.cos(angle) };
+});
+
+const ARCS = [arc(88.5, 12, 96), arc(88.5, 132, 214), arc(88.5, 250, 334)];
+
+/** Vòng HUD nhiều lớp quanh biểu đồ: vạch chia độ, cung sáng, vòng chấm, tia quét radar, điểm sáng chạy quỹ đạo. */
+function Hud() {
+  return (
+    <div className="wb-hud" aria-hidden>
+      <div className="hud-sweep" />
+      <svg viewBox="0 0 200 200">
+        <g className="hud-ticks">
+          {TICKS.map((tick, index) => (
+            <line key={index} className={tick.major ? 'major' : undefined} x1={tick.x1} y1={tick.y1} x2={tick.x2} y2={tick.y2} />
+          ))}
+        </g>
+        <g className="hud-arcs">
+          {ARCS.map(path => (
+            <path key={`g${path}`} className="glow" d={path} />
+          ))}
+          {ARCS.map(path => (
+            <path key={path} className="line" d={path} />
+          ))}
+        </g>
+        <circle className="hud-dots" cx="100" cy="100" r="84" />
+        <g className="hud-orbit">
+          <circle className="halo" cx="100" cy="11.5" r="4.2" />
+          <circle className="core" cx="100" cy="11.5" r="1.6" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 function Donut({ counts, result, size = 300 }: { counts: Partial<Record<TargetStatusKey, number>>; result: Result; size?: number }) {
   const option = useMemo<ChartOption>(
     () => ({
@@ -147,10 +192,7 @@ function Donut({ counts, result, size = 300 }: { counts: Partial<Record<TargetSt
   );
   return (
     <div className="wb-donut" style={{ width: size, height: size }}>
-      <svg className="wb-hud" viewBox="0 0 100 100" aria-hidden>
-        <circle className="ring a" cx="50" cy="50" r="49" />
-        <circle className="ring b" cx="50" cy="50" r="46.5" />
-      </svg>
+      <Hud />
       <Chart option={option} height={size} />
       <div className="wb-donut-center">
         <strong>
@@ -168,7 +210,7 @@ function Counts({ counts }: { counts: Partial<Record<TargetStatusKey, number>> }
   return (
     <div className="wb-counts">
       {STATUS_ORDER.map((key, index) => (
-        <div key={key} style={{ '--i': index } as CSSProperties}>
+        <div key={key} className={(key === 'OVERDUE' || key === 'AT_RISK') && (counts[key] ?? 0) > 0 ? 'alert' : undefined} style={{ '--i': index, '--c': STATUS[key].hex } as CSSProperties}>
           <i style={{ background: STATUS[key].hex }} />
           <span>{STATUS[key].label}</span>
           <b>
@@ -291,7 +333,7 @@ function SlideView({ frame }: { frame: Extract<Frame, { kind: 'slide' }> }) {
         <Counts counts={counts} />
         <div className="wb-mini">
           {mini.map((item, index) => (
-            <div key={item.label}>
+            <div key={item.label} style={{ '--i': index } as CSSProperties}>
               <span>{item.label}</span>
               <b className={'warn' in item && item.warn && item.value > 0 ? 'warn' : undefined}>
                 <CountUp value={item.value} delay={500 + index * 120} />
