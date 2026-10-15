@@ -71,25 +71,62 @@
   text-overflow: ellipsis;
 }
 
-.wb-dots {
+/* Thanh tiến trình kiểu phân đoạn: mỗi nhóm một chấm; nhóm đang chiếu giãn ra thành các ô theo số trang,
+   ô của trang hiện tại chạy đầy theo thời gian — cũng là đồng hồ lật trang. */
+.wb-story {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 
-.wb-dots button {
+.wb-story button {
+  display: flex;
+  gap: 4px;
   width: 12px;
   height: 12px;
   padding: 0;
-  border-radius: 6px;
   border: 0;
+  border-radius: 6px;
   background: #2b3850;
   cursor: pointer;
-  transition: width 0.3s, background 0.3s;
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s;
 }
 
-.wb-dots button.on {
-  width: 36px;
+.wb-story button.past {
+  background: #55658a;
+}
+
+.wb-story button.on {
+  width: clamp(68px, calc(var(--pages, 1) * 30px + 8px), 388px);
+  height: 22px;
+  padding: 5px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.wb-story button i {
+  flex: 1;
+  min-width: 6px;
+  height: 100%;
+  border-radius: 6px;
+  background: rgba(232, 237, 246, 0.16);
+}
+
+.wb-story button i.done {
   background: #e8edf6;
+}
+
+.wb-story button i.run {
+  background: linear-gradient(90deg, #7dd3fc, #e8edf6) left / 0% 100% no-repeat, rgba(232, 237, 246, 0.16);
+  box-shadow: 0 0 12px rgba(125, 211, 252, 0.35);
+  animation: wb-fill linear forwards;
+}
+
+@keyframes wb-fill {
+  to {
+    background-size: 100% 100%, auto;
+  }
 }
 
 .wb-clock {
@@ -114,6 +151,16 @@
   text-transform: uppercase;
 }
 
+.wb-colon {
+  animation: wb-blink 1s steps(1) infinite;
+}
+
+@keyframes wb-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
 /* Thân: 880px */
 .wb-stage {
   height: 880px;
@@ -125,11 +172,13 @@
 @keyframes wb-in {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(14px) scale(0.992);
+    filter: blur(4px);
   }
   to {
     opacity: 1;
     transform: none;
+    filter: none;
   }
 }
 
@@ -645,9 +694,11 @@
   position: absolute;
   left: 0;
   bottom: 0;
-  height: 4px;
+  z-index: 2;
+  height: 3px;
   width: 100%;
-  background: var(--ioc-color-primary);
+  background: linear-gradient(90deg, transparent, var(--ioc-color-primary) 35%, #7dd3fc);
+  box-shadow: 0 0 14px rgba(125, 211, 252, 0.55);
   transform-origin: left;
   animation: wb-timer linear forwards;
 }
@@ -658,5 +709,314 @@
   }
   to {
     transform: scaleX(1);
+  }
+}
+
+/* ---------------------------------------------------------------- Hiệu ứng chuyển động (kiểu màn hình điều khiển) */
+
+.wb-top,
+.wb-stage,
+.wb-empty,
+.wb-bottom {
+  position: relative;
+  z-index: 1;
+}
+
+.wb-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wb-fx i {
+  position: absolute;
+  display: block;
+  will-change: transform;
+}
+
+/* Quầng sáng trôi chậm */
+.wb-aurora {
+  width: 1500px;
+  height: 1100px;
+  border-radius: 50%;
+}
+
+.wb-aurora.a {
+  left: 820px;
+  top: -560px;
+  background: radial-gradient(closest-side, rgba(37, 99, 235, 0.32), transparent);
+  animation: wb-drift-a 38s ease-in-out infinite alternate;
+}
+
+.wb-aurora.b {
+  left: -560px;
+  top: 480px;
+  background: radial-gradient(closest-side, rgba(14, 165, 233, 0.2), transparent);
+  animation: wb-drift-b 46s ease-in-out infinite alternate;
+}
+
+@keyframes wb-drift-a {
+  to {
+    transform: translate(-420px, 180px) scale(1.15);
+  }
+}
+
+@keyframes wb-drift-b {
+  to {
+    transform: translate(460px, -220px) scale(1.1);
+  }
+}
+
+/* Lưới mờ trôi chéo */
+.wb-grid {
+  inset: -80px;
+  background-image: linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+  background-size: 80px 80px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 25%, transparent 80%);
+  animation: wb-grid-move 26s linear infinite;
+}
+
+@keyframes wb-grid-move {
+  to {
+    transform: translate(80px, 80px);
+  }
+}
+
+/* Vệt quét sáng từ trên xuống */
+.wb-scan {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 240px;
+  background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.035) 70%, rgba(125, 211, 252, 0.12) 99%, transparent);
+  animation: wb-scan 11s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes wb-scan {
+  from {
+    transform: translateY(-260px);
+  }
+  to {
+    transform: translateY(1120px);
+  }
+}
+
+/* Ánh lướt trên biểu tượng */
+.wb-mark {
+  position: relative;
+  overflow: hidden;
+}
+
+.wb-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.5) 50%, transparent 65%);
+  transform: translateX(-130%);
+  animation: wb-shine 8s ease-in-out 2s infinite;
+}
+
+@keyframes wb-shine {
+  0%,
+  72% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+/* Vòng HUD quanh biểu đồ tròn */
+.wb-hud {
+  position: absolute;
+  inset: -16px;
+  width: calc(100% + 32px);
+  height: calc(100% + 32px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wb-hud .ring {
+  fill: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.wb-hud .ring.a {
+  stroke: rgba(125, 211, 252, 0.4);
+  stroke-width: 0.35;
+  stroke-dasharray: 0.8 3.2;
+  animation: wb-spin 60s linear infinite;
+}
+
+.wb-hud .ring.b {
+  stroke: rgba(148, 163, 184, 0.28);
+  stroke-width: 0.5;
+  stroke-dasharray: 22 7 5 7;
+  animation: wb-spin 42s linear infinite reverse;
+}
+
+@keyframes wb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wb-donut::before {
+  content: '';
+  position: absolute;
+  inset: 16%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.2), transparent 70%);
+  animation: wb-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes wb-breathe {
+  50% {
+    transform: scale(1.12);
+    opacity: 0.55;
+  }
+}
+
+/* Vào trang: khối bên trái trượt vào, tiêu đề hiện dần, các hàng lần lượt, thanh tiến độ chạy đầy */
+.wb-side {
+  animation: wb-side-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes wb-side-in {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+}
+
+.wb-main h2,
+.wb-overview h2 {
+  animation: wb-reveal 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+
+@keyframes wb-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.2;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+.wb-basis {
+  animation: wb-fade-up 0.8s ease-out 0.35s both;
+}
+
+.wb-thead {
+  animation: wb-fade-up 0.6s ease-out 0.2s both;
+}
+
+.wb-row,
+.wb-dept {
+  animation: wb-row-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 250ms);
+}
+
+@keyframes wb-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+.wb-bar i,
+.wb-dist i {
+  transform-origin: left;
+  animation: wb-grow 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 550ms);
+}
+
+@keyframes wb-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.wb-counts > div,
+.wb-mini > div,
+.wb-fw,
+.wb-pager {
+  animation: wb-fade-up 0.6s ease-out both;
+  animation-delay: calc(var(--i, 0) * 90ms + 300ms);
+}
+
+.wb-fw {
+  animation-delay: calc(var(--i, 0) * 140ms + 150ms);
+}
+
+@keyframes wb-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Chỉ tiêu quá hạn: vạch màu bên trái nhịp nhẹ */
+.wb-row.hot .wb-row-bar {
+  animation: wb-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes wb-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Chấm "trực tiếp" cạnh mốc số liệu */
+.wb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wb-live i {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.wb-live i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: wb-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes wb-ping {
+  75%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Người dùng bật giảm chuyển động: tắt hiệu ứng trang trí, giữ thanh tiến trình (cũng là đồng hồ lật trang). */
+@media (prefers-reduced-motion: reduce) {
+  .wb-fx,
+  .wb-hud,
+  .wb-donut::before,
+  .wb-mark::after {
+    display: none;
+  }
+  .wb-stage,
+  .wb-stage *,
+  .wb-colon,
+  .wb-live i::after {
+    animation: none !important;
   }
 }

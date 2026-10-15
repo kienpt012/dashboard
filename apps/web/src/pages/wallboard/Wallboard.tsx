@@ -1,6 +1,6 @@
 import { CaretRightOutlined, CloseOutlined, FullscreenExitOutlined, FullscreenOutlined, LeftOutlined, PauseOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons';
 import { Button, Spin } from 'antd';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { localityInitials, type PublicLocality } from '@/app/locality';
 import { useUser } from '@/app/session';
@@ -71,6 +71,35 @@ function paginate<T>(list: T[], height: (item: T) => number, budget: number) {
   return pages.length ? pages : [[]];
 }
 
+const REDUCED = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** Số đếm dần từ 0 lên giá trị đích mỗi khi trang được dựng lại. */
+function useTween(target: number, duration = 1100, delay = 0) {
+  const [value, setValue] = useState(REDUCED ? target : 0);
+  useEffect(() => {
+    if (REDUCED) {
+      setValue(target);
+      return;
+    }
+    let frame = 0;
+    const start = performance.now() + delay;
+    const step = (now: number) => {
+      const progress = Math.min(1, Math.max(0, (now - start) / duration));
+      setValue(target * (1 - Math.pow(1 - progress, 3)));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, duration, delay]);
+  return value;
+}
+
+function CountUp({ value, decimals = 0, delay = 0 }: { value: number; decimals?: number; delay?: number }) {
+  const current = useTween(value, 1100, delay);
+  const shown = decimals ? Math.round(current * 10 ** decimals) / 10 ** decimals : Math.round(current);
+  return <>{num(shown)}</>;
+}
+
 function sortTargets(targets: WallTarget[]) {
   return [...targets].sort((a, b) => WEIGHT[a.status] - WEIGHT[b.status] || (a.progress ?? 0) - (b.progress ?? 0));
 }
@@ -83,17 +112,25 @@ function Clock() {
   }, []);
   return (
     <div className="wb-clock">
-      <strong>{now.format('HH:mm')}</strong>
+      <strong>
+        {now.format('HH')}
+        <span className="wb-colon">:</span>
+        {now.format('mm')}
+      </strong>
       <span>{now.format('dddd, DD/MM/YYYY')}</span>
     </div>
   );
 }
 
-function Donut({ counts, center, sub, size = 300 }: { counts: Partial<Record<TargetStatusKey, number>>; center: string; sub: string; size?: number }) {
+type Result = { value: number; decimals?: number; prefix?: string; suffix?: string; sub: string };
+
+function Donut({ counts, result, size = 300 }: { counts: Partial<Record<TargetStatusKey, number>>; result: Result; size?: number }) {
   const option = useMemo<ChartOption>(
     () => ({
       tooltip: { show: false },
-      animation: false,
+      animation: !REDUCED,
+      animationDuration: 1400,
+      animationEasing: 'cubicOut',
       series: [
         {
           type: 'pie',
@@ -110,10 +147,18 @@ function Donut({ counts, center, sub, size = 300 }: { counts: Partial<Record<Tar
   );
   return (
     <div className="wb-donut" style={{ width: size, height: size }}>
+      <svg className="wb-hud" viewBox="0 0 100 100" aria-hidden>
+        <circle className="ring a" cx="50" cy="50" r="49" />
+        <circle className="ring b" cx="50" cy="50" r="46.5" />
+      </svg>
       <Chart option={option} height={size} />
       <div className="wb-donut-center">
-        <strong>{center}</strong>
-        <span>{sub}</span>
+        <strong>
+          {result.prefix}
+          <CountUp value={result.value} decimals={result.decimals} />
+          {result.suffix}
+        </strong>
+        <span>{result.sub}</span>
       </div>
     </div>
   );
@@ -122,11 +167,13 @@ function Donut({ counts, center, sub, size = 300 }: { counts: Partial<Record<Tar
 function Counts({ counts }: { counts: Partial<Record<TargetStatusKey, number>> }) {
   return (
     <div className="wb-counts">
-      {STATUS_ORDER.map(key => (
-        <div key={key}>
+      {STATUS_ORDER.map((key, index) => (
+        <div key={key} style={{ '--i': index } as CSSProperties}>
           <i style={{ background: STATUS[key].hex }} />
           <span>{STATUS[key].label}</span>
-          <b>{num(counts[key] ?? 0)}</b>
+          <b>
+            <CountUp value={counts[key] ?? 0} delay={200 + index * 80} />
+          </b>
         </div>
       ))}
     </div>
@@ -137,11 +184,11 @@ function countsOf(targets: WallTarget[]) {
   return targets.reduce<Partial<Record<TargetStatusKey, number>>>((acc, target) => ({ ...acc, [target.status]: (acc[target.status] ?? 0) + 1 }), {});
 }
 
-function frameworkResult(slide: FrameworkSlide) {
+function frameworkResult(slide: FrameworkSlide): Result {
   const s = slide.summary;
-  if (slide.kind === 'SCORE' && s.score !== null) return { center: num(s.score), sub: `/ ${num(s.maxScore ?? 100)} điểm` };
-  if (slide.kind === 'STAT') return { center: `${num(s.reported)}/${num(s.total)}`, sub: 'có số liệu' };
-  return { center: `${num(s.progress ?? 0)}%`, sub: 'tiến độ' };
+  if (slide.kind === 'SCORE' && s.score !== null) return { value: s.score, decimals: 2, sub: `/ ${num(s.maxScore ?? 100)} điểm` };
+  if (slide.kind === 'STAT') return { value: s.reported, suffix: `/${num(s.total)}`, sub: 'có số liệu' };
+  return { value: s.progress ?? 0, suffix: '%', sub: 'tiến độ' };
 }
 
 function Rows({ rows, showDepartment }: { rows: WallTarget[]; showDepartment: boolean }) {
@@ -154,12 +201,12 @@ function Rows({ rows, showDepartment }: { rows: WallTarget[]; showDepartment: bo
         <span className="right">{statOnly ? 'Số liệu' : 'Thực hiện / Kế hoạch'}</span>
         <span>{statOnly ? 'Tình trạng' : 'Tiến độ'}</span>
       </div>
-      {rows.map(target => {
+      {rows.map((target, index) => {
         const color = STATUS[target.status].hex;
         const stat = target.kind === 'STAT';
         const who = showDepartment ? target.departmentName : target.assigneeName ?? (target.valueSource === 'MANUAL' ? 'Chưa giao người' : 'Tự tính');
         return (
-          <div className="wb-row" key={target.id}>
+          <div className={`wb-row${target.status === 'OVERDUE' ? ' hot' : ''}`} key={target.id} style={{ '--i': index } as CSSProperties}>
             <i className="wb-row-bar" style={{ background: color }} />
             <div className="wb-row-main">
               <span className="wb-row-title">{target.title}</span>
@@ -216,21 +263,23 @@ function SlideView({ frame }: { frame: Extract<Frame, { kind: 'slide' }> }) {
   const slide = frame.slide;
   const framework = slide.type === 'framework';
   const counts = framework ? slide.summary.counts : countsOf(slide.targets);
-  const result = framework ? frameworkResult(slide) : (() => {
-    const planned = slide.targets.filter(target => target.kind !== 'STAT');
-    const avg = planned.length ? Math.round(planned.reduce((sum, target) => sum + Math.min(100, target.progress ?? 0), 0) / planned.length) : 0;
-    return { center: `${num(avg)}%`, sub: 'tiến độ bình quân' };
-  })();
+  const result: Result = framework
+    ? frameworkResult(slide)
+    : (() => {
+        const planned = slide.targets.filter(target => target.kind !== 'STAT');
+        const avg = planned.length ? Math.round(planned.reduce((sum, target) => sum + Math.min(100, target.progress ?? 0), 0) / planned.length) : 0;
+        return { value: avg, suffix: '%', sub: 'tiến độ bình quân' };
+      })();
   const mini = framework
     ? [
-        { label: 'Chỉ tiêu', value: num(slide.summary.total) },
-        { label: 'Có chỉ đạo', value: num(slide.summary.withDirective) },
-        { label: 'Đã đánh giá', value: num(slide.summary.withEvaluation) },
+        { label: 'Chỉ tiêu', value: slide.summary.total },
+        { label: 'Có chỉ đạo', value: slide.summary.withDirective },
+        { label: 'Đã đánh giá', value: slide.summary.withEvaluation },
       ]
     : [
-        { label: 'Chỉ tiêu', value: num(slide.targets.length) },
-        { label: 'Thiếu báo cáo', value: num(slide.targets.filter(target => target.missingPeriods?.length).length), warn: true },
-        { label: 'Đang giải trình', value: num(slide.targets.filter(target => target.explanationRequested).length), warn: true },
+        { label: 'Chỉ tiêu', value: slide.targets.length },
+        { label: 'Thiếu báo cáo', value: slide.targets.filter(target => target.missingPeriods?.length).length, warn: true },
+        { label: 'Đang giải trình', value: slide.targets.filter(target => target.explanationRequested).length, warn: true },
       ];
   return (
     <div className="wb-slide">
@@ -238,13 +287,15 @@ function SlideView({ frame }: { frame: Extract<Frame, { kind: 'slide' }> }) {
         <span className="wb-chip" style={!framework ? { background: slide.color } : undefined}>
           {framework ? slide.kindLabel : 'Phòng ban'}
         </span>
-        <Donut counts={counts} center={result.center} sub={result.sub} />
+        <Donut counts={counts} result={result} />
         <Counts counts={counts} />
         <div className="wb-mini">
-          {mini.map(item => (
+          {mini.map((item, index) => (
             <div key={item.label}>
               <span>{item.label}</span>
-              <b className={'warn' in item && item.warn && item.value !== '0' ? 'warn' : undefined}>{item.value}</b>
+              <b className={'warn' in item && item.warn && item.value > 0 ? 'warn' : undefined}>
+                <CountUp value={item.value} delay={500 + index * 120} />
+              </b>
             </div>
           ))}
         </div>
@@ -277,11 +328,11 @@ function OverviewView({ data }: { data: Wall }) {
       <section>
         <h2>Bộ chỉ tiêu năm {data.year}</h2>
         <div className={`wb-fw-grid n${frameworks.length}`}>
-          {frameworks.map(slide => {
+          {frameworks.map((slide, index) => {
             const result = frameworkResult(slide);
             return (
-              <div className="wb-fw" key={slide.id}>
-                <Donut counts={slide.summary.counts} center={result.center} sub={result.sub} size={200} />
+              <div className="wb-fw" key={slide.id} style={{ '--i': index } as CSSProperties}>
+                <Donut counts={slide.summary.counts} result={result} size={200} />
                 <div className="wb-fw-text">
                   <span className="wb-chip small">{slide.kindLabel}</span>
                   <strong>{slide.title}</strong>
@@ -297,14 +348,16 @@ function OverviewView({ data }: { data: Wall }) {
       <section>
         <h2>Tiến độ theo phòng</h2>
         <div className="wb-dept-list">
-          {departments.slice(0, 8).map(item => (
-            <div className="wb-dept" key={item.id}>
+          {departments.slice(0, 8).map((item, index) => (
+            <div className="wb-dept" key={item.id} style={{ '--i': index } as CSSProperties}>
               <div className="wb-dept-head">
                 <span>
                   <i style={{ background: item.color }} />
                   {item.title}
                 </span>
-                <b>{num(item.avg)}%</b>
+                <b>
+                  <CountUp value={item.avg} delay={300 + index * 90} />%
+                </b>
               </div>
               <div className="wb-dist">
                 {STATUS_ORDER.map(key =>
@@ -332,8 +385,8 @@ function StalledView({ frame }: { frame: Extract<Frame, { kind: 'stalled' }> }) 
             <span>Chỉ tiêu</span>
             <span>Lý do</span>
           </div>
-          {frame.rows.map(item => (
-            <div className="wb-row stalled" key={item.id}>
+          {frame.rows.map((item, index) => (
+            <div className="wb-row stalled hot" key={item.id} style={{ '--i': index } as CSSProperties}>
               <i className="wb-row-bar" style={{ background: STATUS.OVERDUE.hex }} />
               <div className="wb-row-main">
                 <span className="wb-row-title">{item.title}</span>
@@ -384,7 +437,15 @@ export default function Wallboard() {
   const total = frames.length;
   const position = total ? index % total : 0;
   const frame = frames[position];
-  const groups = total ? frames[total - 1].group + 1 : 0;
+  const groups = useMemo(() => {
+    const list: { pages: number; first: number }[] = [];
+    frames.forEach((item, at) => {
+      if (!list[item.group]) list[item.group] = { pages: 0, first: at };
+      list[item.group].pages += 1;
+    });
+    return list;
+  }, [frames]);
+  const page = frame && 'page' in frame ? frame.page : 0;
   // Trang con của cùng một bộ lật nhanh hơn để cả bộ không quá dài.
   const seconds = frame && 'pages' in frame && frame.pages > 1 ? Math.max(8, Math.round((data?.rotateSeconds ?? 20) * 0.6)) : data?.rotateSeconds ?? 20;
 
@@ -463,6 +524,12 @@ export default function Wallboard() {
   return (
     <div className="wb-viewport">
       <div className="wb" style={canvasStyle}>
+        <div className="wb-fx" aria-hidden>
+          <i className="wb-aurora a" />
+          <i className="wb-aurora b" />
+          <i className="wb-grid" />
+          <i className="wb-scan" />
+        </div>
         <header className="wb-top">
           <div className="wb-brand">
             <span className="wb-mark">{localityInitials(data?.locality ?? ({ shortName: 'IOC', name: 'IOC' } as PublicLocality))}</span>
@@ -474,22 +541,42 @@ export default function Wallboard() {
               </span>
             </div>
           </div>
-          <div className="wb-dots">
-            {Array.from({ length: groups }, (_, group) => (
-              <button
-                key={group}
-                type="button"
-                className={frame && frame.group === group ? 'on' : ''}
-                onClick={() => setIndex(frames.findIndex(item => item.group === group))}
-                aria-label={`Phần ${group + 1}`}
-              />
-            ))}
+          <div className="wb-story" role="tablist" aria-label="Tiến trình trình chiếu">
+            {groups.map((group, at) => {
+              const active = frame?.group === at;
+              const past = frame ? at < frame.group : false;
+              return (
+                <button
+                  key={at}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={active ? 'on' : past ? 'past' : ''}
+                  style={active ? ({ '--pages': group.pages } as CSSProperties) : undefined}
+                  onClick={() => setIndex(group.first)}
+                  aria-label={`Phần ${at + 1}${group.pages > 1 ? `, ${group.pages} trang` : ''}`}
+                >
+                  {active &&
+                    Array.from({ length: group.pages }, (_, part) => (
+                      <i
+                        key={part === page ? `run-${index}` : part}
+                        className={part < page ? 'done' : part === page ? 'run' : ''}
+                        style={part === page ? { animationDuration: `${seconds}s`, animationPlayState: paused || total < 2 ? 'paused' : 'running' } : undefined}
+                        onAnimationEnd={part === page ? () => go(1) : undefined}
+                      />
+                    ))}
+                </button>
+              );
+            })}
           </div>
           <Clock />
         </header>
         {body}
         <footer className="wb-bottom">
-          <span>{data ? `Số liệu lúc ${vn(data.generatedAt).format('HH:mm DD/MM/YYYY')}` : ''}</span>
+          <span className="wb-live">{data ? <>
+            <i />
+            Số liệu lúc {vn(data.generatedAt).format('HH:mm DD/MM/YYYY')}
+          </> : null}</span>
           <div className="wb-controls">
             <button type="button" onClick={() => go(-1)} aria-label="Trang trước">
               <LeftOutlined />
