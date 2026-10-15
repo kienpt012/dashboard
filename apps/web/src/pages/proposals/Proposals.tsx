@@ -18,7 +18,7 @@ import { can, isGlobal, WORKING } from '@/lib/roles';
 import type { FrameworkKind, Frequency, IssuingLevel, Proposal as BaseProposal } from '@/types/domain';
 import { DIRECTION_OPTIONS, FREQUENCY_OPTIONS, KIND_OPTIONS } from '../targets/TargetForm';
 
-type Proposal = BaseProposal & { targetKind?: FrameworkKind; issuingLevel?: IssuingLevel | null; standardCode?: string | null };
+export type Proposal = BaseProposal & { targetKind?: FrameworkKind; issuingLevel?: IssuingLevel | null; standardCode?: string | null };
 
 const STATUS: Record<Proposal['status'], { label: string; color: string }> = {
   PROPOSED: { label: 'Chưa trình', color: 'default' },
@@ -60,7 +60,7 @@ type FormValues = {
   sourceQuote?: string;
 };
 
-function ProposalForm({ open, item, onClose }: { open: boolean; item?: Proposal | null; onClose: () => void }) {
+export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Proposal | null; onClose: () => void }) {
   const user = useMe();
   const [form] = Form.useForm<FormValues>();
   const departments = useDepartments();
@@ -231,7 +231,7 @@ function ProposalForm({ open, item, onClose }: { open: boolean; item?: Proposal 
   );
 }
 
-function ApproveModal({ item, onClose }: { item: Proposal | null; onClose: () => void }) {
+export function ApproveModal({ item, onClose }: { item: Proposal | null; onClose: () => void }) {
   const { modal } = App.useApp();
   const [weight, setWeight] = useState<number | null>(1);
   const approve = useAction((target: Proposal) => http.post<{ target?: { id: string; code: string } }>(`/candidates/${target.id}/approve`, { expectedVersion: target.version, weight: weight ?? undefined }), {
