@@ -27,6 +27,16 @@ export function byDate<T>(get: Get<T, string | Date>) {
   });
 }
 
+/** Như byDate nhưng ô trống luôn nằm cuối dù sắp tăng hay giảm (antd truyền chiều sắp xếp ở tham số thứ ba). */
+export function byDateNullsLast<T>(get: Get<T, string | Date>) {
+  return (a: T, b: T, order?: 'ascend' | 'descend' | null) => {
+    const x = get(a);
+    const y = get(b);
+    if (!x || !y) return !x && !y ? 0 : (!x ? 1 : -1) * (order === 'descend' ? -1 : 1);
+    return new Date(x).getTime() - new Date(y).getTime();
+  };
+}
+
 /** Theo thứ tự nghiệp vụ cho trước; giá trị ngoài danh sách xếp cuối. */
 export function byRank<T, K extends string>(order: readonly K[], get: Get<T, K | string>) {
   return byNumber<T>(row => {

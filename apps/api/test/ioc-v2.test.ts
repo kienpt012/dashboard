@@ -140,6 +140,15 @@ test('tổng hợp bộ chấm điểm cộng điểm các nhóm đã có số l
   assert.equal(summary.total, 2);
 });
 
+test('tiến độ chung của bộ chỉ tính chỉ tiêu có mục tiêu, không để chỉ tiêu thống kê kéo xuống', () => {
+  const summary = summarizeFramework({ id: 'f', kind: FrameworkKind.PLAN, maxScore: null }, [
+    { id: 'p', parentId: null, kind: FrameworkKind.PLAN, status: TargetStatus.ON_TRACK, progress: 80, weight: 1, currentValue: 80, maxScore: null, hasReport: true, directiveCount: 0, evaluationCount: 0 },
+    { id: 's', parentId: null, kind: FrameworkKind.STAT, status: TargetStatus.NOT_STARTED, progress: 0, weight: 1, currentValue: 0, maxScore: null, hasReport: false, directiveCount: 0, evaluationCount: 0 },
+  ]);
+  assert.equal(summary.progress, 80);
+  assert.equal(summary.total, 2);
+});
+
 function actor(role: Role, departmentId: string | null, id = `${role}-1`): Actor {
   return { id, username: id, fullName: id, role, isActive: true, departmentId, department: departmentId ? { id: departmentId, code: 'X', name: 'X', isActive: true } : null };
 }

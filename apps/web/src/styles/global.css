@@ -1124,6 +1124,11 @@ a.donut-row:hover {
   height: 100%;
 }
 
+/* ScrollBox bọc văn bản phải cao bằng khung xem để phần thân tự cuộn. */
+.doc-preview > .scroll-box {
+  height: 100%;
+}
+
 .fw-basis {
   display: block;
   margin-bottom: 14px;

@@ -322,8 +322,10 @@ export function summarizeFramework(
   const topLevel = targets.filter(target => !target.parentId || !targets.some(other => other.id === target.parentId));
   const leaves = targets.filter(target => !targets.some(other => other.parentId === target.id));
   const counts = Object.values(TargetStatus).reduce((acc, status) => ({ ...acc, [status]: leaves.filter(target => target.status === status).length }), {} as Record<TargetStatus, number>);
-  const weight = topLevel.reduce((sum, target) => sum + target.weight, 0);
-  const progress = weight ? Math.round(topLevel.reduce((sum, target) => sum + target.progress * target.weight, 0) / weight) : 0;
+  // Chỉ tiêu thống kê không có mục tiêu nên không tham gia tiến độ chung (khớp Báo cáo tổng hợp và tệp Excel).
+  const weighted = topLevel.filter(target => target.kind !== FrameworkKind.STAT);
+  const weight = weighted.reduce((sum, target) => sum + target.weight, 0);
+  const progress = weight ? Math.round(weighted.reduce((sum, target) => sum + target.progress * target.weight, 0) / weight) : 0;
   const score = framework.kind === FrameworkKind.SCORE ? Math.round(topLevel.reduce((sum, target) => sum + (target.hasReport ? target.currentValue : 0), 0) * 100) / 100 : null;
   return {
     total: leaves.length,

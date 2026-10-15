@@ -274,7 +274,15 @@
 
 .dossier-refreshing {
   position: fixed;
-  right: 20px;
-  bottom: 44px;
+  inset-inline-end: 39px;
+  bottom: 80px;
+  z-index: 31;
   color: var(--ioc-color-primary);
+}
+
+@media (max-width: 575px) {
+  .dossier-refreshing {
+    inset-inline-end: 31px;
+    bottom: 72px;
+  }
 }

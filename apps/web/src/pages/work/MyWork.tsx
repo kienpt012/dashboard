@@ -10,7 +10,7 @@ import { DeptTag, ReviewTag, StatusTag } from '@/components/Tags';
 import { useApi } from '@/hooks/useApi';
 import { date, dateTime, fromNow, msUntil, num, until } from '@/lib/format';
 import { periodLabel } from '@/lib/periods';
-import { byDate, byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
+import { byDate, byDateNullsLast, byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
 import { APPROVERS, can, FRAMEWORK_EDITORS, isGlobal, SUPERVISORS } from '@/lib/roles';
 import type { MyWork as MyWorkData, TargetBrief } from '@/types/domain';
 import { PendingReviews, type PendingUpdate } from '../approvals/PendingReviews';
@@ -208,7 +208,7 @@ function Content({ data }: { data: MyWorkData }) {
               ),
             },
             { title: 'Trạng thái', dataIndex: 'status', width: 130, sorter: byRank(PROPOSAL_RANK, item => item.status), render: value => <Tag color={PROPOSAL_STATUS[value]?.color}>{PROPOSAL_STATUS[value]?.label ?? value}</Tag> },
-            { title: 'Tự thông qua', key: 'auto', width: 140, sorter: byDate(item => item.autoApproveAt), defaultSortOrder: 'ascend', render: (_, item) => <Countdown at={item.autoApproveAt} /> },
+            { title: 'Tự thông qua', key: 'auto', width: 140, sorter: byDateNullsLast(item => item.autoApproveAt), defaultSortOrder: 'ascend', render: (_, item) => <Countdown at={item.autoApproveAt} /> },
             { title: 'Tạo lúc', dataIndex: 'createdAt', width: 140, sorter: byDate(item => item.createdAt), render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
           ]}
         />

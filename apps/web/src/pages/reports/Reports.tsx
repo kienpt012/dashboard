@@ -45,7 +45,10 @@ function ReportPrint({ rows, title, scope, at }: { rows: Target[]; title: string
   const sections = groups(rows);
   const statOnly = rows.every(row => row.kind === 'STAT');
   const span = statOnly ? 6 : 8;
-  const count = (status: TargetStatusKey) => rows.filter(row => row.kind !== 'STAT' && row.status === status).length;
+  // Dòng tổng cộng đếm chỉ tiêu lá (như màn hình và tệp Excel); bảng vẫn liệt kê đủ chỉ tiêu cha để giữ cấu trúc văn bản.
+  const leaves = rows.filter(row => !rows.some(other => other.parentId === row.id));
+  const stats = leaves.filter(row => row.kind === 'STAT');
+  const count = (status: TargetStatusKey) => leaves.filter(row => row.kind !== 'STAT' && row.status === status).length;
   let index = 0;
   return (
     <PrintDocument kind="PHỤ LỤC" title={title} subtitle={`(${scope}; số liệu đến ${vn(at).format('HH')} giờ ${vn(at).format('mm')} ngày ${vn(at).format('DD/MM/YYYY')})`} orientation="landscape">
@@ -89,8 +92,8 @@ function ReportPrint({ rows, title, scope, at }: { rows: Target[]; title: string
           ))}
           <tr className="total">
             <td colSpan={span}>
-              {statOnly ? `Tổng cộng: ${rows.length} chỉ tiêu thống kê — đã có số liệu ${rows.filter(row => row.lastReportedAt).length}, chưa có số liệu ${rows.filter(row => !row.lastReportedAt).length}.` : <>Tổng cộng: {rows.length} chỉ tiêu — Hoàn thành {count('COMPLETED')}; Đúng tiến độ {count('ON_TRACK')}; Có nguy cơ {count('AT_RISK')}; Quá hạn {count('OVERDUE')}; Chưa bắt đầu {count('NOT_STARTED')}
-              {rows.some(row => row.kind === 'STAT') ? `; Thống kê có số liệu ${rows.filter(row => row.kind === 'STAT' && row.lastReportedAt).length}/${rows.filter(row => row.kind === 'STAT').length}` : ''}.</>}
+              {statOnly ? `Tổng cộng: ${leaves.length} chỉ tiêu thống kê — đã có số liệu ${stats.filter(row => row.lastReportedAt).length}, chưa có số liệu ${stats.filter(row => !row.lastReportedAt).length}.` : <>Tổng cộng: {leaves.length} chỉ tiêu — Hoàn thành {count('COMPLETED')}; Đúng tiến độ {count('ON_TRACK')}; Có nguy cơ {count('AT_RISK')}; Quá hạn {count('OVERDUE')}; Chưa bắt đầu {count('NOT_STARTED')}
+              {stats.length ? `; Thống kê có số liệu ${stats.filter(row => row.lastReportedAt).length}/${stats.length}` : ''}.</>}
             </td>
           </tr>
         </tbody>

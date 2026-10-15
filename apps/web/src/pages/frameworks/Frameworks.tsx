@@ -146,8 +146,8 @@ function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolea
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={2000} />
         </Form.Item>
         {framework && (
-          <Form.Item name="sortOrder" label="Thứ tự hiển thị" tooltip="Số nhỏ đứng trước trên trung tâm điều hành và trình chiếu">
-            <InputNumber min={0} max={9999} style={{ width: '100%' }} />
+          <Form.Item name="sortOrder" label="Thứ tự hiển thị" rules={[{ required: true, message: 'Nhập thứ tự hiển thị' }]}>
+            <InputNumber min={0} max={9999} precision={0} style={{ width: '100%' }} />
           </Form.Item>
         )}
         <Form.Item name="showOnWallboard" label="Hiện trên trình chiếu" valuePropName="checked">

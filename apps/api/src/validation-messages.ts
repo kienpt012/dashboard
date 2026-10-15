@@ -42,6 +42,10 @@ const FIELD_LABELS: Record<string, string> = {
   lookupSecret: 'Mã bảo mật',
   isPublic: 'Công khai',
   isActive: 'Trạng thái hoạt động',
+  sortOrder: 'Thứ tự hiển thị',
+  maxItems: 'Số mục tối đa',
+  changeNote: 'Nội dung thay đổi',
+  templateKey: 'Mẫu trang',
 };
 
 const TEMPLATES: Record<string, (field: string, value: string | null) => string> = {
