@@ -1,6 +1,6 @@
 import { Checkbox, Collapse, DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMe } from '@/app/session';
 import { useAction } from '@/hooks/useApi';
 import { departmentOptions, frameworkOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
@@ -54,9 +54,16 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
   const frameworks = useFrameworks();
   const editing = Boolean(target);
   const year = Form.useWatch('year', form);
+  const initialized = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initialized.current = null;
+      return;
+    }
+    const key = target?.id ?? 'new';
+    if (initialized.current === key) return;
+    initialized.current = key;
     form.resetFields();
     if (target) {
       form.setFieldsValue({
@@ -65,6 +72,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
         frameworkId: target.frameworkId ?? undefined,
         kind: target.kind ?? 'PLAN',
         departmentId: target.department.id,
+        coordinatorDepartmentIds: target.coordinators?.map(item => item.department.id) ?? [],
         unit: target.unit,
         targetValue: target.targetValue,
         targetText: target.targetText ?? '',
@@ -81,7 +89,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
     } else {
       const y = defaults?.year ?? currentYear();
       form.setFieldsValue({
-        kind: 'PLAN',
+        kind: frameworks.data?.find(item => item.id === defaults?.frameworkId)?.kind ?? 'PLAN',
         unit: '%',
         targetValue: 100,
         direction: 'HIGHER_IS_BETTER',
@@ -94,7 +102,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
         publicOrder: 0,
       });
     }
-  }, [open, target, defaults, form, user]);
+  }, [open, target, defaults, form, user, frameworks.data]);
 
   const save = useAction(
     async (values: Values) => {
@@ -157,7 +165,17 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={2000} />
         </Form.Item>
         <Form.Item name="frameworkId" label="Bộ chỉ tiêu">
-          <Select allowClear disabled={editing} options={frameworkOptions(frameworks.data)} placeholder="Không thuộc bộ nào" showSearch={{ optionFilterProp: 'label' }} />
+          <Select
+            allowClear
+            disabled={editing}
+            options={frameworkOptions(frameworks.data)}
+            placeholder="Không thuộc bộ nào"
+            showSearch={{ optionFilterProp: 'label' }}
+            onChange={value => {
+              const framework = frameworks.data?.find(item => item.id === value);
+              if (framework) form.setFieldValue('kind', framework.kind);
+            }}
+          />
         </Form.Item>
         <Form.Item name="kind" label="Loại" rules={[{ required: true }]}>
           <Select disabled={editing} options={KIND_OPTIONS} />
@@ -218,6 +236,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
             {
               key: 'more',
               label: 'Mã, nhóm và hiển thị công khai',
+              forceRender: true,
               children: (
                 <div className="form-grid">
                   <Form.Item name="standardCode" label="Mã theo văn bản">

@@ -453,6 +453,25 @@ function withoutSecret<T extends { lookupSecretHash?: string; clientSubmissionId
   return safe;
 }
 
+/**
+ * Thứ tự danh sách phản ánh: "trường:asc|desc". Mặc định hồ sơ mới nhất trên cùng.
+ * Luôn kèm createdAt/id để phân trang ổn định khi nhiều hồ sơ cùng giá trị.
+ */
+const FEEDBACK_SORT_FIELDS = ['createdAt', 'dueAt', 'priority', 'status', 'title'] as const;
+
+function feedbackListOrder(raw?: string): Prisma.FeedbackOrderByWithRelationInput[] {
+  const tail: Prisma.FeedbackOrderByWithRelationInput[] = [{ createdAt: 'desc' }, { id: 'desc' }];
+  if (!raw) return tail;
+  const [field, direction = 'asc'] = raw.split(':');
+  if (!(FEEDBACK_SORT_FIELDS as readonly string[]).includes(field) || !['asc', 'desc'].includes(direction)) {
+    throw new BadRequestException('Thứ tự sắp xếp không hợp lệ');
+  }
+  const dir = direction as Prisma.SortOrder;
+  if (field === 'createdAt') return [{ createdAt: dir }, { id: dir }];
+  if (field === 'dueAt') return [{ dueAt: { sort: dir, nulls: 'last' } }, ...tail];
+  return [{ [field]: dir } as Prisma.FeedbackOrderByWithRelationInput, ...tail];
+}
+
 @Controller('public/feedbacks')
 export class PublicFeedbackController {
   constructor(
@@ -1252,8 +1271,10 @@ export class FeedbackController {
     @Query('waitingCitizenExpired') waitingCitizenExpiredRaw?: string,
     @Query('page') pageRaw?: string,
     @Query('pageSize') pageSizeRaw?: string,
+    @Query('sort') sortRaw?: string,
   ) {
     const actor = getActor(req);
+    const orderBy = feedbackListOrder(sortRaw);
     const page = pageRaw === undefined ? 1 : Number(pageRaw);
     const pageSize = pageSizeRaw === undefined ? 25 : Number(pageSizeRaw);
     if (!Number.isInteger(page) || page < 1) {
@@ -1307,10 +1328,7 @@ export class FeedbackController {
         // Hàng đợi mặc định phản ánh đúng thứ tự tiếp nhận: hồ sơ mới nhất
         // luôn ở trên cùng. Các trường hợp quá hạn/xem xét lại đã có bộ lọc
         // chuyên biệt, không nên âm thầm đảo thứ tự mà người dùng đã chọn.
-        orderBy: [
-          { createdAt: 'desc' },
-          { id: 'desc' },
-        ],
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

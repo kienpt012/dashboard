@@ -1,6 +1,7 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Alert, App, Button, Checkbox, Flex, Form, Input, Modal, Select, Table, Upload, type UploadFile } from 'antd';
 import { useEffect, useState } from 'react';
+import { ScrollBox } from '@/components/Scroll';
 import { useAction } from '@/hooks/useApi';
 import { departmentOptions, useDepartments } from '@/hooks/useRefs';
 import { errorText, http } from '@/lib/api';
@@ -262,13 +263,15 @@ export function ImportModal({ dataset, open, onClose }: { dataset: DatasetDetail
             title={`${num(preview.valid)}/${num(preview.total)} dòng hợp lệ${preview.total - preview.valid ? ` · ${num(preview.total - preview.valid)} dòng lỗi` : ''}${preview.total - preview.valid > preview.errors.length ? ` (hiển thị ${preview.errors.length} lỗi đầu)` : ''}`}
             description={
               preview.errors.length > 0 && (
-                <ul className="plain-list" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                <ScrollBox maxHeight={200}>
+                <ul className="plain-list">
                   {preview.errors.map(item => (
                     <li key={item.line}>
                       Dòng {item.line}: {item.errors.join(' ')}
                     </li>
                   ))}
                 </ul>
+                </ScrollBox>
               )
             }
           />

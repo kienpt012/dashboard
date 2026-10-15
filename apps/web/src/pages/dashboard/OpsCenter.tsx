@@ -7,6 +7,7 @@ import { useMe } from '@/app/session';
 import { Chart, type ChartOption } from '@/components/Chart';
 import { DistBar, Metric, ProgressCell, TitleCell, YearSelect } from '@/components/Data';
 import { Page } from '@/components/Page';
+import { ScrollBox } from '@/components/Scroll';
 import { NoData, PageSkeleton, Query } from '@/components/States';
 import { LegalBasis } from '@/components/LegalBasis';
 import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
@@ -171,7 +172,7 @@ function Frameworks({ data }: { data: Overview }) {
         {
           title: 'Thiếu báo cáo',
           key: 'missing',
-          width: 130,
+          width: 144,
           align: 'center',
           sorter: (a, b) => a.missingReports - b.missingReports,
           render: (_, framework) => <span className={`num${framework.missingReports ? ' tone-warn' : ' muted'}`}>{num(framework.missingReports)}</span>,
@@ -321,7 +322,7 @@ function Alerts({ data }: { data: Overview }) {
         </div>
       )}
       {list.length ? (
-        <div className="feed">
+        <ScrollBox className="fill" bodyClassName="feed">
           {list.map((alert, index) => {
             const to = alertLink(alert, data.departments);
             return (
@@ -334,7 +335,7 @@ function Alerts({ data }: { data: Overview }) {
               </div>
             );
           })}
-        </div>
+        </ScrollBox>
       ) : (
         <NoData text="Không có cảnh báo" />
       )}
@@ -345,7 +346,7 @@ function Alerts({ data }: { data: Overview }) {
 function Stalled({ data }: { data: Overview }) {
   if (!data.stalled.length) return <NoData text="Không có việc bị treo" />;
   return (
-    <div className="feed">
+    <ScrollBox className="fill" bodyClassName="feed">
       {data.stalled.map(item => (
         <div className="feed-item" key={item.id}>
           <i className="sev critical" />
@@ -357,7 +358,7 @@ function Stalled({ data }: { data: Overview }) {
           </div>
         </div>
       ))}
-    </div>
+    </ScrollBox>
   );
 }
 
@@ -492,8 +493,8 @@ export default function OpsCenter() {
             )}
 
             <Row gutter={[16, 16]}>
-              <Col xs={24} xl={14}>
-                <Card className="card-flush card-tabs" style={{ height: '100%' }}>
+              <Col xs={24} xl={14} className="col-fill">
+                <Card className="card-flush card-tabs card-stretch">
                   <Tabs
                     items={[
                       { key: 'alerts', label: `Cảnh báo (${data.alerts.length})`, children: <Alerts data={data} /> },

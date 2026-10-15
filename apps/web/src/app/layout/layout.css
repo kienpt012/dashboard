@@ -21,6 +21,13 @@
   overflow-x: hidden;
   padding-bottom: 16px;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s;
+}
+
+.sider-scroll:hover,
+.sider-scroll:focus-within {
+  scrollbar-color: var(--ioc-color-border) transparent;
 }
 
 .brand {
@@ -260,7 +267,8 @@
   display: flex;
   gap: 14px;
   justify-content: flex-end;
-  padding: 10px 24px 14px;
+  /* chừa chỗ cho nút lên đầu trang */
+  padding: 10px 84px 14px 24px;
   font-size: 11px;
   color: var(--ioc-color-text-quaternary);
   font-variant-numeric: tabular-nums;
@@ -283,7 +291,6 @@
 
 .notif-list {
   max-height: min(460px, 70vh);
-  overflow-y: auto;
 }
 
 .notif-item {
@@ -440,7 +447,7 @@
     display: none;
   }
   .screen-strip {
-    padding: 8px 16px 12px;
+    padding: 8px 72px 12px 16px;
   }
 }
 

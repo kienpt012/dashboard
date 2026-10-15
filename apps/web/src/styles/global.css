@@ -475,8 +475,7 @@ a {
 
 /* Danh sách cảnh báo / hoạt động */
 .feed {
-  max-height: 440px;
-  overflow-y: auto;
+  min-width: 0;
 }
 
 .feed-item {
@@ -873,7 +872,6 @@ a.donut-row:hover {
   padding: 16px 20px;
   max-height: calc(100vh - 260px);
   min-height: 360px;
-  overflow-y: auto;
   white-space: pre-wrap;
   font-size: 13.5px;
   line-height: 1.75;
@@ -889,7 +887,6 @@ a.donut-row:hover {
 
 .candidate-list {
   max-height: calc(100vh - 260px);
-  overflow-y: auto;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -972,9 +969,6 @@ a.donut-row:hover {
   background: var(--ioc-color-primary-bg);
 }
 
-.feed.free {
-  max-height: none;
-}
 
 .filter-chip.ant-tag-checkable {
   margin: 0;
@@ -1085,4 +1079,224 @@ a.donut-row:hover {
   font-size: 13px;
   color: var(--ioc-color-text-secondary);
   line-height: 1.55;
+}
+
+/* Cuộn: nút lên đầu trang (vòng tiến độ) và khối cuộn có chỉ báo mép */
+.scroll-ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.scroll-ring circle {
+  fill: none;
+}
+
+.scroll-ring .track {
+  stroke: var(--ioc-color-border-secondary);
+}
+
+.scroll-ring .bar {
+  stroke: var(--ioc-color-primary);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+.to-top,
+.scroll-box-top {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ioc-color-bg-elevated);
+  color: var(--ioc-color-primary);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s, background-color 0.15s;
+}
+
+.to-top {
+  inset-inline-end: 24px;
+  bottom: 24px;
+  z-index: 30;
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+  transform: translateY(12px) scale(0.9);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14), 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.scroll-box-top {
+  position: absolute;
+  inset-inline-end: 14px;
+  bottom: 12px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+  transform: translateY(6px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
+}
+
+.to-top.show,
+.scroll-box-top.show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.to-top:hover,
+.scroll-box-top:hover {
+  background: var(--ioc-color-primary-bg);
+}
+
+.to-top:focus-visible,
+.scroll-box-top:focus-visible {
+  outline: 2px solid var(--ioc-color-primary);
+  outline-offset: 2px;
+}
+
+.scroll-box {
+  position: relative;
+  min-width: 0;
+}
+
+.scroll-box-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ioc-color-border) transparent;
+  --fade-top: #000;
+  --fade-bottom: #000;
+  /* Lớp thứ hai giữ thanh cuộn luôn rõ, chỉ nội dung mờ ở mép. */
+  -webkit-mask-image: linear-gradient(to bottom, var(--fade-top), #000 28px, #000 calc(100% - 28px), var(--fade-bottom)), linear-gradient(#000, #000);
+  -webkit-mask-size: 100% 100%, 12px 100%;
+  -webkit-mask-position: 0 0, 100% 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: linear-gradient(to bottom, var(--fade-top), #000 28px, #000 calc(100% - 28px), var(--fade-bottom)), linear-gradient(#000, #000);
+  mask-size: 100% 100%, 12px 100%;
+  mask-position: 0 0, 100% 0;
+  mask-repeat: no-repeat;
+}
+
+.scroll-box.fade-top > .scroll-box-body {
+  --fade-top: transparent;
+}
+
+.scroll-box.fade-bottom > .scroll-box-body {
+  --fade-bottom: transparent;
+}
+
+/* Khối cuộn lấp đầy phần còn lại của thẻ (thẻ cao bằng thẻ bên cạnh), tối thiểu --fill-min. */
+.col-fill {
+  display: flex;
+  flex-direction: column;
+}
+
+.col-fill > .ant-card {
+  flex: 1;
+}
+
+.card-stretch {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-stretch > .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.card-stretch > .ant-card-body > .ant-tabs {
+  flex: 1;
+  min-height: 0;
+}
+
+/* antd 6: .ant-tabs-body-holder > .ant-tabs-body > .ant-tabs-content (từng thẻ) */
+.card-stretch .ant-tabs-body-holder,
+.card-stretch .ant-tabs-body,
+.card-stretch .ant-tabs-content-active {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-stretch .ant-tabs-body,
+.card-stretch .ant-tabs-content-active {
+  flex: 1;
+  min-height: 0;
+}
+
+.scroll-box.fill {
+  flex: 1 1 0;
+  min-height: var(--fill-min, 440px);
+  contain: size;
+}
+
+.scroll-box.fill > .scroll-box-body {
+  position: absolute;
+  inset: 0;
+  max-height: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .to-top,
+  .scroll-box-top,
+  .scroll-ring .bar {
+    transition: none;
+  }
+}
+
+@media (max-width: 575px) {
+  .to-top {
+    inset-inline-end: 16px;
+    bottom: 16px;
+  }
+}
+
+@media print {
+  .to-top,
+  .scroll-box-top {
+    display: none !important;
+  }
+  .scroll-box-body {
+    max-height: none !important;
+    overflow: visible !important;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+  }
+}
+
+/* Cột số hẹp có sắp xếp: tiêu đề ở trên, mũi tên ở dưới để chữ có đủ bề ngang. */
+.ant-table-thead > tr > th.col-stack {
+  padding-inline: 6px !important;
+}
+
+.ant-table-thead th.col-stack .ant-table-column-sorters {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.ant-table-thead th.col-stack .ant-table-column-title {
+  flex: none;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.ant-table-thead th.col-stack .ant-table-column-sorter {
+  margin-inline-start: 0;
+}
+
+/* Ô bảng, tiêu đề thẻ: tránh dòng cuối chỉ còn một chữ. */
+.ant-table-cell,
+.ant-card-head-title,
+.cell-title,
+.feed-body {
+  text-wrap: pretty;
 }

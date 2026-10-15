@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Empty, Flex, Popover, Spin, Typography } from 'antd';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ScrollBox } from '@/components/Scroll';
 import { invalidate, useApi } from '@/hooks/useApi';
 import { http } from '@/lib/api';
 import { fromNow } from '@/lib/format';
@@ -40,7 +41,7 @@ export function Notifications() {
           </Button>
         )}
       </Flex>
-      <div className="notif-list">
+      <ScrollBox bodyClassName="notif-list" label="Về đầu danh sách">
         {list.isLoading ? (
           <Flex justify="center" style={{ padding: 32 }}>
             <Spin />
@@ -56,7 +57,7 @@ export function Notifications() {
             </button>
           ))
         )}
-      </div>
+      </ScrollBox>
     </div>
   );
 

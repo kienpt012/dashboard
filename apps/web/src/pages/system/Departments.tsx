@@ -12,6 +12,7 @@ import { http } from '@/lib/api';
 import { num } from '@/lib/format';
 import { can, ADMINS, isGlobal } from '@/lib/roles';
 import type { Department } from '@/types/core';
+import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
 
 type Kind = 'LEADERSHIP' | 'OFFICE' | 'SPECIALIZED' | 'CENTER' | 'OTHER';
 export const DEPARTMENT_KIND: Record<Kind, string> = {
@@ -126,6 +127,7 @@ export default function Departments() {
               {
                 title: 'Đơn vị',
                 key: 'name',
+                sorter: byText(item => item.name),
                 render: (_, item) => (
                   <TitleCell
                     title={
@@ -138,17 +140,19 @@ export default function Departments() {
                   />
                 ),
               },
-              { title: 'Loại', dataIndex: 'kind', width: 220, render: (value: Kind) => (value ? DEPARTMENT_KIND[value] ?? value : '—') },
-              { title: 'Cán bộ', key: 'users', width: 100, align: 'right', render: (_, item) => num(item._count?.users ?? 0) },
+              { title: 'Loại', dataIndex: 'kind', width: 220, sorter: byText(item => (item.kind ? (DEPARTMENT_KIND[item.kind as Kind] ?? item.kind) : '')), render: (value: Kind) => (value ? DEPARTMENT_KIND[value] ?? value : '—') },
+              { title: 'Cán bộ', key: 'users', width: 116, align: 'center', sorter: byNumber(item => item._count?.users ?? 0), sortDirections: NUMBER_FIRST, render: (_, item) => num(item._count?.users ?? 0) },
               {
                 title: 'Chỉ tiêu',
                 key: 'targets',
-                width: 100,
-                align: 'right',
+                width: 116,
+                align: 'center',
+                sorter: byNumber(item => item._count?.targets ?? 0),
+                sortDirections: NUMBER_FIRST,
                 render: (_, item) => <Link to={`/admin/targets?departmentId=${item.id}`}>{num(item._count?.targets ?? 0)}</Link>,
               },
-              { title: 'Phản ánh', key: 'feedbacks', width: 100, align: 'right', render: (_, item) => num(item._count?.feedbacks ?? 0) },
-              { title: 'Trạng thái', dataIndex: 'isActive', width: 130, render: value => (value ? <Badge status="success" text="Hoạt động" /> : <Tag>Ngừng</Tag>) },
+              { title: 'Phản ánh', key: 'feedbacks', width: 120, align: 'center', sorter: byNumber(item => item._count?.feedbacks ?? 0), sortDirections: NUMBER_FIRST, render: (_, item) => num(item._count?.feedbacks ?? 0) },
+              { title: 'Trạng thái', dataIndex: 'isActive', width: 130, sorter: byNumber(item => (item.isActive ? 0 : 1)), render: value => (value ? <Badge status="success" text="Hoạt động" /> : <Tag>Ngừng</Tag>) },
               ...(admin
                 ? [
                     {

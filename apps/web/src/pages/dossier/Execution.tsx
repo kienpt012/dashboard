@@ -10,6 +10,7 @@ import { date, dateTime, num } from '@/lib/format';
 import { APPROVERS, can, isGlobal, LEADERSHIP } from '@/lib/roles';
 import { useDossier, useDossierRun, type DossierData, type DossierReport } from './context';
 import { EvidenceList, EvidencePicker, uploadEvidenceFiles } from './evidence';
+import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
 
 export function valueText(value: number | null | undefined, unit: string) {
   return `${num(value)}${unit ? ` ${unit}` : ''}`;
@@ -237,6 +238,7 @@ function Children() {
         {
           title: 'Chỉ tiêu',
           key: 'title',
+          sorter: byText(child => `${child.standardCode || child.ordinal || ''} ${child.title}`),
           render: (_, child) => (
             <Link to={`/admin/targets/${child.id}`}>
               {child.standardCode || child.ordinal ? <span className="muted">{child.standardCode || child.ordinal} </span> : null}
@@ -248,6 +250,7 @@ function Children() {
           title: 'Phụ trách',
           key: 'owner',
           width: 200,
+          sorter: byText(child => `${child.department.name} ${child.assignee?.fullName ?? ''}`),
           render: (_, child) => (
             <div className="cell-title">
               <DeptTag name={child.department.name} color={child.department.color} />
@@ -260,6 +263,8 @@ function Children() {
           key: 'plan',
           width: 110,
           align: 'right',
+          sorter: byNumber(child => (child.kind === 'SCORE' ? (child.maxScore ?? child.targetValue) : child.targetValue)),
+          sortDirections: NUMBER_FIRST,
           render: (_, child) => (child.kind === 'SCORE' ? `${num(child.maxScore ?? child.targetValue)} điểm` : child.targetText || valueText(child.targetValue, child.unit)),
         },
         {
@@ -267,6 +272,8 @@ function Children() {
           key: 'current',
           width: 110,
           align: 'right',
+          sorter: byNumber(child => (child.lastReportedAt ? child.currentValue : null)),
+          sortDirections: NUMBER_FIRST,
           render: (_, child) => (child.lastReportedAt ? (child.kind === 'SCORE' ? `${num(child.currentValue)} điểm` : valueText(child.currentValue, child.unit)) : <span className="muted">Chưa có</span>),
         },
       ]}

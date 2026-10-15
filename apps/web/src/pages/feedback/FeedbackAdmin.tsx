@@ -110,7 +110,7 @@ function ActionModal({ item, action, onClose }: { item: Feedback; action: Action
 
   if (!action) return null;
   const textArea = (name: string, label: string, min: number, max: number, required = true) => (
-    <Form.Item name={name} label={label} rules={required ? [{ required: true, min, message: `Ít nhất ${min} ký tự` }] : []}>
+    <Form.Item name={name} label={label} rules={[{ required, min: required ? min : undefined, max, transform: value => typeof value === 'string' ? value.trim() : value, message: required ? `Từ ${min} đến ${max} ký tự` : `Tối đa ${max} ký tự` }]}>
       <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} maxLength={max} showCount />
     </Form.Item>
   );
@@ -154,8 +154,8 @@ function ActionModal({ item, action, onClose }: { item: Feedback; action: Action
               <Form.Item name="priority" label="Mức ưu tiên">
                 <Select options={options(FEEDBACK_PRIORITY)} />
               </Form.Item>
-              <Form.Item name="dueAt" label="Hạn xử lý">
-                <DatePicker showTime={{ format: 'HH:mm' }} format="HH:mm DD/MM/YYYY" style={{ width: '100%' }} />
+              <Form.Item name="dueAt" label="Hạn xử lý" rules={[{ validator: (_, value: dayjs.Dayjs | undefined) => !value || value.isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('Hạn xử lý phải ở tương lai')) }]}>
+                <DatePicker disabledDate={current => current.isBefore(dayjs(), 'day')} showTime={{ format: 'HH:mm' }} format="HH:mm DD/MM/YYYY" style={{ width: '100%' }} />
               </Form.Item>
             </div>
             {textArea('note', 'Ghi chú phân công', 3, 1000)}
@@ -202,7 +202,7 @@ function ActionModal({ item, action, onClose }: { item: Feedback; action: Action
           </>
         )}
         {action === 'submit' && textArea('summary', 'Kết quả xử lý', 10, 5000)}
-        {(action === 'approve' || action === 'close' || action === 'closeNoResponse') && textArea('note', 'Ghi chú', 0, 2000, false)}
+        {(action === 'approve' || action === 'close' || action === 'closeNoResponse') && textArea('note', 'Ghi chú', 0, action === 'approve' ? 2000 : 1000, false)}
         {action === 'return' && textArea('note', 'Lý do trả lại', 3, 2000)}
         {(action === 'reject' || action === 'reopen' || action === 'rejectReopen') && textArea('reason', 'Lý do', 10, 2000)}
         {action === 'publish' &&
@@ -220,6 +220,20 @@ function ActionModal({ item, action, onClose }: { item: Feedback; action: Action
                   { label: 'Tiêu đề', children: preview.data.title },
                   { label: 'Nội dung', children: <span className="pre-line">{preview.data.content}</span> },
                   { label: 'Kết quả', children: <span className="pre-line">{preview.data.resolutionSummary || '—'}</span> },
+                  {
+                    label: 'Trao đổi công khai',
+                    children: preview.data.messages.length ? (
+                      <Flex vertical gap={12} style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                        {preview.data.messages.map((entry, index) => (
+                          <div key={`${entry.createdAt}-${index}`}>
+                            <Typography.Text strong>{entry.authorName}</Typography.Text>
+                            <div className="entry-meta">{dateTime(entry.createdAt)}</div>
+                            <div className="pre-line">{entry.body}</div>
+                          </div>
+                        ))}
+                      </Flex>
+                    ) : <span className="muted">Không có trao đổi công khai</span>,
+                  },
                 ]}
               />
               <Form.Item name="confirmAnonymized" valuePropName="checked" rules={[{ validator: (_, value) => (value ? Promise.resolve() : Promise.reject(new Error('Cần xác nhận'))) }]} style={{ marginTop: 16 }}>
@@ -274,7 +288,7 @@ function FeedbackDrawer({ id, onClose }: { id: string | null; onClose: () => voi
       buttons.push({ key: 'reopen', label: 'Chấp nhận mở lại', primary: true });
     }
     if (canReview && DONE.includes(s) && !item.reopenRequestedAt) buttons.push({ key: 'reopen', label: s === 'REJECTED' ? 'Khôi phục hồ sơ' : 'Mở lại' });
-    if (leader && ['RESOLVED', 'CLOSED'].includes(s) && (item.isPublic || !item.reopenRequestedAt)) buttons.push({ key: item.isPublic ? 'unpublish' : 'publish', label: item.isPublic ? 'Gỡ công khai' : 'Công khai' });
+    if (leader && ['RESOLVED', 'CLOSED'].includes(s) && (item.isPublic || (!item.reopenRequestedAt && item.closureReason === 'RESOLVED'))) buttons.push({ key: item.isPublic ? 'unpublish' : 'publish', label: item.isPublic ? 'Gỡ công khai' : 'Công khai' });
   }
 
   return (
@@ -408,9 +422,8 @@ function FeedbackDrawer({ id, onClose }: { id: string | null; onClose: () => voi
                       key: event.id,
                       content: (
                         <div className="timeline-item">
-                          <span>
-                            <b>{event.actorName ?? 'Người dân'}</b> <span className="secondary">{(FEEDBACK_EVENT[event.action] ?? event.action).toLocaleLowerCase('vi')}</span>
-                          </span>
+                          <b>{FEEDBACK_EVENT[event.action] ?? event.action}</b>
+                          {event.actorName && <span className="secondary">{event.actorName}</span>}
                           {event.note && <span className="secondary pre-line">{event.note}</span>}
                           <span className="entry-meta">{dateTime(event.createdAt)}</span>
                         </div>
@@ -440,6 +453,8 @@ export default function FeedbackAdmin() {
   const [category, setCategory] = useState<string>();
   const [departmentId, setDepartmentId] = useState<string>();
   const [scope, setScope] = useState<'all' | 'mine' | 'reopen' | 'expired'>('all');
+  // Sắp xếp do máy chủ thực hiện trên toàn bộ kết quả, không chỉ trang đang xem.
+  const [sort, setSort] = useState<{ key: string; order: 'ascend' | 'descend' | null }>({ key: 'createdAt', order: 'descend' });
   const departments = useDepartments();
   const selectedId = params.get('id');
 
@@ -453,7 +468,11 @@ export default function FeedbackAdmin() {
     reopenRequested: scope === 'reopen' ? true : undefined,
     waitingCitizenExpired: scope === 'expired' ? true : undefined,
   };
-  const list = useApi<FeedbackListResponse>(`/feedbacks${query({ ...filters, page, pageSize: 20 })}`, { keepPrevious: true, refetchInterval: 120_000 });
+  const list = useApi<FeedbackListResponse>(`/feedbacks${query({ ...filters, page, pageSize: 20, sort: sort.order ? `${sort.key}:${sort.order === 'ascend' ? 'asc' : 'desc'}` : undefined })}`, {
+    keepPrevious: true,
+    refetchInterval: 120_000,
+  });
+  const sortOrder = (key: string) => (sort.key === key ? sort.order : null);
   const stats = useApi<FeedbackStats>(`/feedbacks/stats${query({ departmentId: global ? departmentId : undefined })}`, { refetchInterval: 120_000 });
   const s = stats.data;
 
@@ -515,7 +534,7 @@ export default function FeedbackAdmin() {
             }
             filters={
               <>
-                <Segmented
+                <div style={{ minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}><Segmented
                   value={scope}
                   onChange={value => {
                     setScope(value as typeof scope);
@@ -527,7 +546,7 @@ export default function FeedbackAdmin() {
                     { value: 'reopen', label: 'Xem xét lại' },
                     { value: 'expired', label: 'Quá hạn bổ sung' },
                   ]}
-                />
+                /></div>
                 <Select allowClear placeholder="Trạng thái" value={status} onChange={value => { setStatus(value); reset(); }} options={options(FEEDBACK_STATUS)} style={{ width: 190 }} popupMatchSelectWidth={false} />
                 <Select allowClear placeholder="Ưu tiên" value={priority} onChange={value => { setPriority(value); reset(); }} options={options(FEEDBACK_PRIORITY)} style={{ width: 130 }} />
                 <Select allowClear placeholder="Nhóm vấn đề" value={category} onChange={value => { setCategory(value); reset(); }} options={options(FEEDBACK_CATEGORY)} style={{ width: 180 }} popupMatchSelectWidth={false} />
@@ -541,16 +560,22 @@ export default function FeedbackAdmin() {
         ) : (
           <Table
             rowKey="id"
-            loading={list.isLoading || list.isFetching}
+            loading={list.isLoading || list.isPlaceholderData}
             dataSource={list.data?.items ?? []}
             scroll={{ x: 1100 }}
             pagination={{ current: page, pageSize: 20, total: list.data?.total ?? 0, onChange: setPage, showSizeChanger: false, showTotal: total => `${num(total)} hồ sơ` }}
             onRow={item => ({ onClick: () => setParams({ id: item.id }, { replace: true }), className: 'link-row' })}
             locale={{ emptyText: 'Không có phản ánh' }}
+            onChange={(_pagination, _filters, sorter, extra) => {
+              if (extra.action !== 'sort') return;
+              const next = Array.isArray(sorter) ? sorter[0] : sorter;
+              setSort({ key: String(next?.columnKey ?? 'createdAt'), order: next?.order ?? null });
+              setPage(1);
+            }}
             columns={[
-              { title: 'Phản ánh', key: 'title', render: (_, item) => <TitleCell title={item.title} sub={`${item.code} · ${FEEDBACK_CATEGORY[item.category]}`} /> },
-              { title: 'Ưu tiên', dataIndex: 'priority', width: 110, render: (value: Feedback['priority']) => <Tag color={FEEDBACK_PRIORITY[value].color}>{FEEDBACK_PRIORITY[value].label}</Tag> },
-              { title: 'Trạng thái', dataIndex: 'status', width: 190, render: (value: Feedback['status']) => <Tag color={FEEDBACK_STATUS[value].color}>{FEEDBACK_STATUS[value].label}</Tag> },
+              { title: 'Phản ánh', key: 'title', sorter: true, sortOrder: sortOrder('title'), render: (_, item) => <TitleCell title={item.title} sub={`${item.code} · ${FEEDBACK_CATEGORY[item.category]}`} /> },
+              { title: 'Ưu tiên', key: 'priority', dataIndex: 'priority', width: 110, sorter: true, sortOrder: sortOrder('priority'), sortDirections: ['descend', 'ascend'], render: (value: Feedback['priority']) => <Tag color={FEEDBACK_PRIORITY[value].color}>{FEEDBACK_PRIORITY[value].label}</Tag> },
+              { title: 'Trạng thái', key: 'status', dataIndex: 'status', width: 190, sorter: true, sortOrder: sortOrder('status'), render: (value: Feedback['status'], item) => <Flex vertical align="start" gap={4}><Tag color={FEEDBACK_STATUS[value].color}>{FEEDBACK_STATUS[value].label}</Tag>{item.reopenRequestedAt && <Tag color="orange">Đề nghị xem xét lại</Tag>}</Flex> },
               {
                 title: 'Đơn vị xử lý',
                 key: 'dept',
@@ -576,7 +601,7 @@ export default function FeedbackAdmin() {
                   );
                 },
               },
-              { title: 'Tiếp nhận', dataIndex: 'createdAt', width: 130, render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
+              { title: 'Tiếp nhận', key: 'createdAt', dataIndex: 'createdAt', width: 130, sorter: true, sortOrder: sortOrder('createdAt'), sortDirections: ['descend', 'ascend'], render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
             ]}
           />
         )}

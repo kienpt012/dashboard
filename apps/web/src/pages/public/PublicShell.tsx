@@ -3,6 +3,7 @@ import { Button, Drawer, Grid } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { agencyLines, localityInitials, localityTitle, useLocality } from '@/app/locality';
+import { BackToTop } from '@/components/Scroll';
 import { currentYear } from '@/lib/format';
 import './public.css';
 
@@ -89,6 +90,7 @@ export function PublicShell({ children, title }: { children: ReactNode; title?: 
           </div>
         </div>
       </footer>
+      <BackToTop />
     </div>
   );
 }

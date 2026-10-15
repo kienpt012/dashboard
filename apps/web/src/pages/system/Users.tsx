@@ -1,12 +1,13 @@
 import { EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Avatar, Badge, Button, Card, Form, Input, Modal, Select, Switch, Table, Tag, Tooltip } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
+import { useMe } from '@/app/session';
 import { TitleCell } from '@/components/Data';
 import { FilterBar, Page } from '@/components/Page';
 import { LoadError } from '@/components/States';
 import { useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, useDepartments } from '@/hooks/useRefs';
-import { http } from '@/lib/api';
+import { http, session } from '@/lib/api';
 import { dateTime, fromNow, num } from '@/lib/format';
 import { GLOBAL, initials, roleLabel, ROLES } from '@/lib/roles';
 import type { Role, User } from '@/types/core';
@@ -17,8 +18,12 @@ const ROLE_COLOR: Record<Role, string> = { ADMIN: 'red', LEADER: 'volcano', CLER
 function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; onClose: () => void }) {
   const [form] = Form.useForm();
   const departments = useDepartments();
+  const me = useMe();
+  const self = item?.id === me.id;
   const role = Form.useWatch('role', form) as Role | undefined;
   const needsDepartment = role ? !GLOBAL.includes(role) : false;
+  const availableDepartments = (departments.data ?? []).filter(department => department.isActive || department.id === item?.departmentId);
+  if (item?.department && !availableDepartments.some(department => department.id === item.departmentId)) availableDepartments.push(item.department);
 
   useEffect(() => {
     if (!open) return;
@@ -36,12 +41,19 @@ function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; 
         ...values,
         email: (values.email as string)?.trim() || (item ? null : undefined),
         position: (values.position as string)?.trim() || (item ? null : undefined),
-        departmentId: needsDepartment ? values.departmentId : item ? null : undefined,
-        password: (values.password as string) || undefined,
+        departmentId: values.role === 'ADMIN' ? null : values.departmentId ?? null,
+        password: self ? undefined : (values.password as string) || undefined,
       };
-      return item ? http.patch(`/users/${item.id}`, { ...body, expectedVersion: item.version }) : http.post('/users', body);
+      return item ? http.patch<User>(`/users/${item.id}`, { ...body, expectedVersion: item.version }) : http.post<User>('/users', body);
     },
-    { success: item ? 'Đã cập nhật tài khoản' : 'Đã tạo tài khoản', refresh: ['/users', '/departments'], onDone: onClose },
+    {
+      success: item ? 'Đã cập nhật tài khoản' : 'Đã tạo tài khoản',
+      refresh: ['/users', '/departments'],
+      onDone: saved => {
+        if (saved.id === me.id) session.setUser({ ...saved, departmentId: saved.departmentId ?? null });
+        onClose();
+      },
+    },
   );
 
   return (
@@ -56,28 +68,28 @@ function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; 
           <Input />
         </Form.Item>
         <Form.Item name="role" label="Vai trò" rules={[{ required: true }]}>
-          <Select options={ROLES.map(value => ({ value, label: roleLabel[value] }))} />
+          <Select disabled={self} options={ROLES.map(value => ({ value, label: roleLabel[value] }))} />
         </Form.Item>
         <Form.Item name="departmentId" label="Phòng ban" rules={[{ required: needsDepartment, message: 'Chọn phòng ban' }]}>
-          <Select allowClear disabled={!needsDepartment} options={departmentOptions(departments.data)} placeholder={needsDepartment ? undefined : 'Toàn địa phương'} />
+          <Select allowClear disabled={role === 'ADMIN'} showSearch={{ optionFilterProp: 'label' }} options={availableDepartments.map(department => ({ value: department.id, label: `${department.name}${department.isActive ? '' : ' (đã ngừng)'}`, disabled: !department.isActive }))} placeholder={needsDepartment ? undefined : 'Toàn địa phương'} />
         </Form.Item>
-        <Form.Item name="position" label="Chức vụ">
-          <Input maxLength={160} />
+        <Form.Item name="position" label="Chức vụ" rules={[{ max: 120, message: 'Chức vụ không quá 120 ký tự' }]}>
+          <Input maxLength={120} />
         </Form.Item>
         <Form.Item name="email" label="Email công vụ" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
           <Input />
         </Form.Item>
-        <Form.Item
+        {!self && <Form.Item
           name="password"
           label={item ? 'Đặt lại mật khẩu' : 'Mật khẩu'}
           extra={STRONG_PASSWORD_RULE}
           rules={[{ required: !item, message: 'Nhập mật khẩu' }, { pattern: STRONG_PASSWORD, message: 'Mật khẩu chưa đủ mạnh' }]}
         >
           <Input.Password autoComplete="new-password" />
-        </Form.Item>
+        </Form.Item>}
         {item && (
           <Form.Item name="isActive" label="Đang hoạt động" valuePropName="checked">
-            <Switch />
+            <Switch disabled={self} />
           </Form.Item>
         )}
       </Form>
@@ -141,8 +153,10 @@ export default function Users() {
                 title: 'Cán bộ',
                 key: 'name',
                 width: 260,
+                sorter: (a, b) => a.fullName.localeCompare(b.fullName, 'vi'),
+                defaultSortOrder: 'ascend',
                 render: (_, item) => (
-                  <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <span style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
                     <Avatar size={32} className="user-avatar">
                       {initials(item.fullName)}
                     </Avatar>
@@ -152,16 +166,17 @@ export default function Users() {
                   </span>
                 ),
               },
-              { title: 'Vai trò', dataIndex: 'role', width: 160, render: (value: Role) => <Tag color={ROLE_COLOR[value]}>{roleLabel[value]}</Tag> },
-              { title: 'Chức vụ', dataIndex: 'position', width: 220, render: value => value || <span className="muted">—</span> },
-              { title: 'Phòng ban', key: 'dept', width: 220, render: (_, item) => item.department?.name ?? <span className="muted">Toàn địa phương</span> },
+              { title: 'Vai trò', dataIndex: 'role', width: 160, sorter: (a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role), render: (value: Role) => <Tag color={ROLE_COLOR[value]}>{roleLabel[value]}</Tag> },
+              { title: 'Chức vụ', dataIndex: 'position', width: 220, sorter: (a, b) => (a.position ?? '').localeCompare(b.position ?? '', 'vi'), render: value => value || <span className="muted">—</span> },
+              { title: 'Phòng ban', key: 'dept', width: 220, sorter: (a, b) => (a.department?.name ?? 'Toàn địa phương').localeCompare(b.department?.name ?? 'Toàn địa phương', 'vi'), render: (_, item) => item.department?.name ?? <span className="muted">Toàn địa phương</span> },
               {
                 title: 'Đăng nhập gần nhất',
                 dataIndex: 'lastLoginAt',
-                width: 160,
+                width: 190,
+                sorter: (a, b) => (a.lastLoginAt ?? '').localeCompare(b.lastLoginAt ?? ''),
                 render: value => (value ? <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> : <span className="muted">Chưa đăng nhập</span>),
               },
-              { title: 'Trạng thái', dataIndex: 'isActive', width: 120, render: value => (value ? <Badge status="success" text="Hoạt động" /> : <Badge status="default" text="Đã khoá" />) },
+              { title: 'Trạng thái', dataIndex: 'isActive', width: 120, sorter: (a, b) => Number(b.isActive) - Number(a.isActive), render: value => (value ? <Badge status="success" text="Hoạt động" /> : <Badge status="default" text="Đã khoá" />) },
               { key: 'edit', width: 56, fixed: 'right', render: (_, item) => <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(item)} aria-label="Sửa" /> },
             ]}
           />

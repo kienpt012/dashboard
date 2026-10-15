@@ -16,6 +16,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { localityInitials, useLocality } from '@/app/locality';
 import { useMe } from '@/app/session';
 import { useThemeMode, type ThemeChoice } from '@/app/theme';
+import { BackToTop } from '@/components/Scroll';
 import { ErrorBoundary, PageSkeleton } from '@/components/States';
 import { useApi } from '@/hooks/useApi';
 import { session } from '@/lib/api';
@@ -295,6 +296,7 @@ export default function AdminLayout() {
         onLogout={logout}
       />
       <Copilot open={copilot} onClose={() => setCopilot(false)} />
+      <BackToTop />
     </Layout>
   );
 }

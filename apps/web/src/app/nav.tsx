@@ -73,7 +73,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Người dân',
     items: [
-      { path: '/admin/feedback', label: 'Phản ánh người dân', scopedLabel: 'Phản ánh của phòng', icon: <MessageOutlined />, roles: ALL, screen: 'ND-01', keywords: 'phan anh kien nghi' },
+      { path: '/admin/feedback', label: 'Phản ánh', scopedLabel: 'Phản ánh của phòng', icon: <MessageOutlined />, roles: ALL, screen: 'ND-01', keywords: 'phan anh kien nghi' },
       { path: '/admin/public-dashboard', label: 'Trang công khai', icon: <GlobalOutlined />, roles: ADMINS, screen: 'ND-02', keywords: 'trang cong khai cong thong tin' },
     ],
   },

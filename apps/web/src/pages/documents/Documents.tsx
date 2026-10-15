@@ -205,12 +205,14 @@ export default function Documents() {
               {
                 title: 'Văn bản',
                 key: 'title',
+                sorter: (a, b) => a.title.localeCompare(b.title, 'vi'),
                 render: (_, item) => <TitleCell title={item.title} sub={[item.code, item.docNumber, item.originalName].filter(Boolean).join(' · ')} to={`/admin/documents/${item.id}`} />,
               },
-              { title: 'Loại', dataIndex: 'docType', width: 120, render: (value: DocumentType) => <Tag>{documentTypeLabels[value] ?? value}</Tag> },
+              { title: 'Loại', dataIndex: 'docType', width: 120, sorter: (a, b) => (documentTypeLabels[a.docType] ?? '').localeCompare(documentTypeLabels[b.docType] ?? '', 'vi'), render: (value: DocumentType) => <Tag>{documentTypeLabels[value] ?? value}</Tag> },
               {
                 title: 'Ban hành',
                 key: 'issued',
+                sorter: (a, b) => (a.issuedDate ?? '').localeCompare(b.issuedDate ?? '') || (a.issuedBy ?? '').localeCompare(b.issuedBy ?? '', 'vi'),
                 width: 190,
                 render: (_, item) => (
                   <div className="cell-title">
@@ -222,6 +224,7 @@ export default function Documents() {
               {
                 title: 'Trạng thái',
                 dataIndex: 'status',
+                sorter: (a, b) => ['FAILED', 'UPLOADED', 'PROCESSING', 'PROCESSED'].indexOf(a.status) - ['FAILED', 'UPLOADED', 'PROCESSING', 'PROCESSED'].indexOf(b.status),
                 width: 150,
                 render: (value: DocumentStatus, item) => (
                   <Tooltip title={item.processingError || undefined}>
@@ -229,10 +232,12 @@ export default function Documents() {
                   </Tooltip>
                 ),
               },
-              { title: 'Đề xuất', dataIndex: 'candidateCount', width: 90, align: 'right', render: value => (value ? <Tag color="purple">{value}</Tag> : <span className="muted">0</span>) },
+              { title: 'Đề xuất', dataIndex: 'candidateCount', width: 108, align: 'center', sorter: (a, b) => a.candidateCount - b.candidateCount, sortDirections: ['descend', 'ascend'], render: value => (value ? <Tag color="purple">{value}</Tag> : <span className="muted">0</span>) },
               {
                 title: 'Tải lên',
                 key: 'uploaded',
+                sorter: (a, b) => a.createdAt.localeCompare(b.createdAt) || a.uploadedBy.fullName.localeCompare(b.uploadedBy.fullName, 'vi'),
+                defaultSortOrder: 'descend',
                 width: 170,
                 render: (_, item) => (
                   <Tooltip title={`${dateTime(item.createdAt)} · ${fileSize(item.size)}`}>

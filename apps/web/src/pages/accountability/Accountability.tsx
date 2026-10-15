@@ -70,6 +70,7 @@ function numCol(key: NumKey, title: string, defaultSort?: boolean) {
     dataIndex: key,
     width: 84,
     align: 'center' as const,
+    className: 'col-stack',
     render: cell(key),
     sorter: (a: Row, b: Row) => a[key] - b[key],
     sortDirections: ['descend', 'ascend'] as ('descend' | 'ascend')[],
@@ -180,7 +181,7 @@ function Content({ data }: { data: Data }) {
         </div>
       ),
     },
-    { title: 'Chỉ tiêu', dataIndex: 'targets', width: 76, align: 'center', render: value => <span className="num">{num(value)}</span>, sorter: (a, b) => a.targets - b.targets, sortDirections: ['descend', 'ascend'] },
+    { title: 'Chỉ tiêu', dataIndex: 'targets', width: 76, align: 'center', className: 'col-stack', render: value => <span className="num">{num(value)}</span>, sorter: (a, b) => a.targets - b.targets, sortDirections: ['descend', 'ascend'] },
     { title: 'Duyệt báo cáo', align: 'center', children: [numCol('pendingReports', 'Đang chờ'), numCol('oldestPendingDays', 'Lâu nhất (ngày)'), numCol('autoApprovedReports', 'Tự thông qua', true)] },
     { title: 'Đề xuất chỉ tiêu', align: 'center', children: [numCol('rejectedProposals', 'Bị từ chối'), numCol('autoApprovedProposals', 'Tự thông qua')] },
     { title: 'Giao việc', align: 'center', children: [numCol('unassigned', 'Chưa giao'), numCol('bounces', 'Chuyển, trả'), numCol('escalations', 'Báo lãnh đạo')] },

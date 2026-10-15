@@ -12,6 +12,7 @@ import { departmentOptions, useDepartments } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
 import { currentYear, dateTime, fromNow, num } from '@/lib/format';
 import { can, isGlobal, LEADERSHIP } from '@/lib/roles';
+import { byDate, byNumber, byRank, byText, NUMBER_FIRST } from '@/lib/sort';
 
 type RowError = { row: number; code: string; field?: string; message: string };
 type Change = { row: number; targetId: string; code: string; departmentId: string; baseVersion: number; oldValue: number; newValue: number; note?: string | null };
@@ -61,10 +62,10 @@ function BatchUpdates({ id }: { id: string }) {
       dataSource={detail.data?.updates ?? []}
       locale={{ emptyText: 'Không có dòng cập nhật' }}
       columns={[
-        { title: 'Chỉ tiêu', key: 'target', render: (_, row) => <Link to={`/admin/targets/${row.target.id}`}>{row.target.code} · {row.target.title}</Link> },
-        { title: 'Giá trị', key: 'value', width: 140, align: 'right', render: (_, row) => `${num(row.value)} ${row.target.unit}` },
-        { title: 'Kết quả', key: 'status', width: 120, render: (_, row) => <ReviewTag status={row.reviewStatus} /> },
-        { title: 'Người duyệt', key: 'reviewer', width: 200, render: (_, row) => (row.reviewer ? `${row.reviewer.fullName}${row.reviewedAt ? ` · ${fromNow(row.reviewedAt)}` : ''}` : '—') },
+        { title: 'Chỉ tiêu', key: 'target', sorter: byText(row => row.target.code), render: (_, row) => <Link to={`/admin/targets/${row.target.id}`}>{row.target.code} · {row.target.title}</Link> },
+        { title: 'Giá trị', key: 'value', width: 140, align: 'right', sorter: byNumber(row => row.value), sortDirections: NUMBER_FIRST, render: (_, row) => `${num(row.value)} ${row.target.unit}` },
+        { title: 'Kết quả', key: 'status', width: 120, sorter: byRank(['REJECTED', 'PENDING', 'APPROVED'], row => row.reviewStatus), render: (_, row) => <ReviewTag status={row.reviewStatus} /> },
+        { title: 'Người duyệt', key: 'reviewer', width: 200, sorter: byText(row => row.reviewer?.fullName), render: (_, row) => (row.reviewer ? `${row.reviewer.fullName}${row.reviewedAt ? ` · ${fromNow(row.reviewedAt)}` : ''}` : '—') },
         { title: 'Ghi chú', dataIndex: 'reviewNote', render: value => value || '—' },
       ]}
     />
@@ -228,15 +229,18 @@ export default function Imports() {
                   dataSource={rows}
                   scroll={{ x: 640, y: 480 }}
                   columns={[
-                    { title: 'Dòng', dataIndex: 'row', width: 70, align: 'center' },
+                    { title: 'Dòng', dataIndex: 'row', width: 76, align: 'center', sorter: byNumber(item => item.row), defaultSortOrder: 'ascend' },
                     {
                       title: 'Chỉ tiêu',
                       key: 'code',
+                      sorter: byText(item => (item.kind === 'change' ? item.change.code : item.error.code)),
                       render: (_, item) => (item.kind === 'change' ? <Link to={`/admin/targets/${item.change.targetId}`}>{item.change.code}</Link> : item.error.code || '—'),
                     },
                     {
                       title: 'Thay đổi',
                       key: 'value',
+                      sorter: byNumber(item => (item.kind === 'change' ? item.change.newValue - item.change.oldValue : null)),
+                      sortDirections: NUMBER_FIRST,
                       render: (_, item) =>
                         item.kind === 'change' ? (
                           <span className="num">
@@ -273,13 +277,14 @@ export default function Imports() {
             locale={{ emptyText: 'Chưa có lượt nhập' }}
             expandable={{ expandedRowRender: batch => <BatchUpdates id={batch.id} />, rowExpandable: batch => batch.status !== 'PREVIEWED' }}
             columns={[
-              { title: 'Tệp', key: 'file', render: (_, batch) => <Tooltip title={dateTime(batch.createdAt)}>{batch.fileName}</Tooltip> },
-              { title: 'Phòng', key: 'dept', width: 220, render: (_, batch) => batch.department?.name ?? '—' },
-              { title: 'Dòng', key: 'rows', width: 150, render: (_, batch) => `${num(batch.successRows)} hợp lệ · ${num(batch.errorRows)} lỗi` },
+              { title: 'Tệp', key: 'file', sorter: byText(batch => batch.fileName), render: (_, batch) => <Tooltip title={dateTime(batch.createdAt)}>{batch.fileName}</Tooltip> },
+              { title: 'Phòng', key: 'dept', width: 220, sorter: byText(batch => batch.department?.name), render: (_, batch) => batch.department?.name ?? '—' },
+              { title: 'Dòng', key: 'rows', width: 150, sorter: byNumber(batch => batch.errorRows), sortDirections: NUMBER_FIRST, render: (_, batch) => `${num(batch.successRows)} hợp lệ · ${num(batch.errorRows)} lỗi` },
               {
                 title: 'Trạng thái',
                 key: 'status',
                 width: 220,
+                sorter: byRank(Object.keys(STATUS), batch => batch.status),
                 render: (_, batch) => (
                   <Flex gap={6} wrap>
                     <Tag color={STATUS[batch.status].color}>{STATUS[batch.status].label}</Tag>
@@ -287,7 +292,7 @@ export default function Imports() {
                   </Flex>
                 ),
               },
-              { title: 'Thời gian', dataIndex: 'createdAt', width: 150, render: value => fromNow(value) },
+              { title: 'Thời gian', dataIndex: 'createdAt', width: 150, sorter: byDate(batch => batch.createdAt), defaultSortOrder: 'descend', render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
             ]}
           />
         )}

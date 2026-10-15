@@ -160,8 +160,9 @@ export default function AuditLogs() {
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const list = useApi<Response>(
-    `/audit-logs${query({ page, pageSize, search: search || undefined, action, entityType, departmentId, fromDate: range?.[0]?.format('YYYY-MM-DD'), toDate: range?.[1]?.format('YYYY-MM-DD') })}`,
+    `/audit-logs${query({ page, pageSize, order, search: search || undefined, action, entityType, departmentId, fromDate: range?.[0]?.format('YYYY-MM-DD'), toDate: range?.[1]?.format('YYYY-MM-DD') })}`,
     { keepPrevious: true },
   );
   const reset = () => setPage(1);
@@ -233,8 +234,22 @@ export default function AuditLogs() {
                 />
               ),
             }}
+            onChange={(_pagination, _filters, sorter, extra) => {
+              if (extra.action !== 'sort') return;
+              const next = Array.isArray(sorter) ? sorter[0] : sorter;
+              setOrder(next?.order === 'ascend' ? 'asc' : 'desc');
+              setPage(1);
+            }}
             columns={[
-              { title: 'Thời điểm', dataIndex: 'createdAt', width: 160, render: value => <span className="num">{dateTime(value)}</span> },
+              {
+                title: 'Thời điểm',
+                key: 'createdAt',
+                dataIndex: 'createdAt',
+                width: 160,
+                sorter: true,
+                sortOrder: order === 'asc' ? 'ascend' : 'descend',
+                sortDirections: ['descend', 'ascend', 'descend'],
+                render: value => <span className="num">{dateTime(value)}</span> },
               {
                 title: 'Người thực hiện',
                 key: 'actor',

@@ -11,7 +11,7 @@ import {
   SearchOutlined,
   UndoOutlined,
 } from '@ant-design/icons';
-import { App, Badge, Button, Card, Descriptions, Dropdown, Input, Segmented, Select, Space, Table, Tag, Tooltip, Typography, type MenuProps, type TableColumnsType } from 'antd';
+import { App, Badge, Button, Card, Descriptions, Dropdown, Input, Segmented, Select, Space, Table, Tag, Tooltip, type MenuProps, type TableColumnsType } from 'antd';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
@@ -25,26 +25,38 @@ import { departmentOptions, frameworkOptions, useDepartments, useFrameworks } fr
 import { errorText, http, query, saveBlob } from '@/lib/api';
 import { currentYear, date, dateTime, fromNow, num } from '@/lib/format';
 import { frequencyLabel, periodLabel } from '@/lib/periods';
-import { can, IMPORTERS, isGlobal, LEADERSHIP } from '@/lib/roles';
+import { can, IMPORTERS, isGlobal, LEADERSHIP, REPORTERS } from '@/lib/roles';
 import type { Target } from '@/types/core';
 import type { FrameworkKind, TargetStatusKey } from '@/types/domain';
 import { KIND_OPTIONS, TargetForm } from './TargetForm';
 
 const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE: 'Tỉnh/Thành phố giao', LOCAL: 'Địa phương tự đặt' };
+const STATUS_SORT: TargetStatusKey[] = ['OVERDUE', 'AT_RISK', 'NOT_STARTED', 'ON_TRACK', 'COMPLETED'];
 
 function planText(target: Target) {
   return target.targetText || `${num(target.targetValue)} ${target.unit}`;
 }
 
 function inSync(target: Target) {
-  if (!target.isPublic || !target.publishedAt) return true;
+  if (!target.isPublic || !target.publishedAt) return false;
   return (
     target.publishedValue === target.currentValue &&
     target.publishedTargetValue === target.targetValue &&
+    target.publishedDirection === target.direction &&
     target.publishedStatus === target.status &&
+    target.publishedCode === target.code &&
     target.publishedTitle === target.title &&
+    (target.publishedDescription ?? '') === (target.description ?? '') &&
     target.publishedUnit === target.unit &&
-    target.publishedDepartmentName === target.department.name
+    target.publishedWeight === target.weight &&
+    target.publishedYear === target.year &&
+    target.publishedFrequency === target.frequency &&
+    Boolean(target.publishedDueDate) &&
+    new Date(target.publishedDueDate!).getTime() === new Date(target.dueDate).getTime() &&
+    target.publishedDepartmentName === target.department.name &&
+    target.publishedDepartmentColor === target.department.color &&
+    target.publishedHighlighted === target.isHighlighted &&
+    (target.publishedOrder ?? null) === (target.publicOrder ?? null)
   );
 }
 
@@ -64,6 +76,11 @@ export default function Targets() {
   const status = params.get('status') ?? '';
   const assignee = params.get('assignee') ?? '';
   const archived = params.get('archived') === '1';
+  const formDefaults = useMemo(() => ({
+    year,
+    departmentId: departmentId || undefined,
+    frameworkId: frameworkId && frameworkId !== 'none' ? frameworkId : undefined,
+  }), [year, departmentId, frameworkId]);
 
   const [text, setText] = useState(search);
   const [editing, setEditing] = useState<Target | null>(null);
@@ -92,7 +109,7 @@ export default function Targets() {
     const needle = search.trim().toLocaleLowerCase('vi');
     return (list.data ?? []).filter(target => {
       if (status && target.status !== status) return false;
-      if (assignee === 'none' && (target.assigneeId || target.valueSource === 'COMPUTED')) return false;
+      if (assignee === 'none' && (target.assigneeId || target.valueSource === 'COMPUTED' || target.valueSource === 'CHILDREN')) return false;
       if (!needle) return true;
       return `${target.code} ${target.standardCode ?? ''} ${target.title} ${target.groupName ?? ''} ${target.assignee?.fullName ?? ''}`.toLocaleLowerCase('vi').includes(needle);
     });
@@ -136,6 +153,9 @@ export default function Targets() {
 
   function rowMenu(target: Target): MenuProps['items'] {
     const items: MenuProps['items'] = [{ key: 'open', icon: <FolderOpenOutlined />, label: 'Mở hồ sơ', onClick: () => navigate(`/admin/targets/${target.id}`) }];
+    if (can(user, REPORTERS) && target.valueSource === 'MANUAL' && !target.isArchived) {
+      items.push({ key: 'report', icon: <EditOutlined />, label: 'Báo cáo số liệu', onClick: () => navigate(`/admin/targets/${target.id}?bao-cao=1`) });
+    }
     if (!leader) return items;
     if (!target.isArchived) {
       items.push({ key: 'edit', icon: <EditOutlined />, label: 'Sửa', onClick: () => setEditing(target) });
@@ -143,7 +163,7 @@ export default function Targets() {
       items.push(
         target.isPublic
           ? { key: 'hide', icon: <EyeInvisibleOutlined />, label: 'Ẩn khỏi trang công khai', onClick: () => visibility.mutate({ target, isPublic: false }) }
-          : { key: 'show', icon: <EyeOutlined />, label: 'Hiển thị trên trang công khai', onClick: () => visibility.mutate({ target, isPublic: true }) },
+          : { key: 'show', icon: <EyeOutlined />, label: target.lastReportedAt ? 'Hiển thị trên trang công khai' : 'Chưa có số liệu chính thức', disabled: !target.lastReportedAt, onClick: () => visibility.mutate({ target, isPublic: true }) },
       );
       if (target.isPublic && !inSync(target)) {
         items.push({ key: 'publish', icon: <CloudUploadOutlined />, label: 'Cập nhật bản công khai', onClick: () => visibility.mutate({ target, isPublic: true, publish: true }) });
@@ -164,7 +184,7 @@ export default function Targets() {
     {
       title: 'Chỉ tiêu',
       key: 'title',
-      sorter: (a, b) => a.code.localeCompare(b.code, 'vi'),
+      sorter: (a, b) => a.title.localeCompare(b.title, 'vi'),
       render: (_, target) => (
         <TitleCell
           title={target.title}
@@ -177,10 +197,11 @@ export default function Targets() {
       title: 'Phụ trách',
       key: 'owner',
       width: 200,
+      sorter: (a, b) => a.department.name.localeCompare(b.department.name, 'vi') || (a.assignee?.fullName ?? '').localeCompare(b.assignee?.fullName ?? '', 'vi'),
       render: (_, target) => (
         <div className="cell-title">
           <DeptTag name={target.department.name} color={target.department.color} />
-          {target.assignee ? <span>{target.assignee.fullName}</span> : target.valueSource === 'COMPUTED' ? <span>Tự tính từ dữ liệu</span> : <span className="tone-warn">Chưa giao người</span>}
+          {target.valueSource === 'COMPUTED' ? <span>Tự tính từ dữ liệu</span> : target.valueSource === 'CHILDREN' ? <span>Tổng hợp từ chỉ tiêu con</span> : target.assignee ? <span>{target.assignee.fullName}</span> : <span className="tone-warn">Chưa giao người</span>}
         </div>
       ),
     },
@@ -189,6 +210,8 @@ export default function Targets() {
       key: 'plan',
       width: 130,
       align: 'right',
+      sorter: (a, b) => a.targetValue - b.targetValue,
+      sortDirections: ['descend', 'ascend'],
       render: (_, target) => <span className="num">{planText(target)}</span>,
     },
     {
@@ -196,6 +219,8 @@ export default function Targets() {
       key: 'current',
       width: 140,
       align: 'right',
+      sorter: (a, b) => (a.lastReportedAt ? a.currentValue : -Infinity) - (b.lastReportedAt ? b.currentValue : -Infinity),
+      sortDirections: ['descend', 'ascend'],
       render: (_, target) =>
         target.lastReportedAt ? (
           <Tooltip title={`Cập nhật ${dateTime(target.lastReportedAt)}`}>
@@ -215,13 +240,14 @@ export default function Targets() {
       key: 'progress',
       width: 150,
       sorter: (a, b) => (a.progress ?? 0) - (b.progress ?? 0),
+      sortDirections: ['descend', 'ascend'],
       render: (_, target) => (target.kind === 'STAT' ? <span className="muted">—</span> : <ProgressCell value={target.progress ?? 0} status={target.status} />),
     },
     {
       title: 'Tình trạng',
       key: 'status',
       width: 128,
-      sorter: (a, b) => STATUS_ORDER.indexOf(a.status as TargetStatusKey) - STATUS_ORDER.indexOf(b.status as TargetStatusKey),
+      sorter: (a, b) => STATUS_SORT.indexOf(a.status as TargetStatusKey) - STATUS_SORT.indexOf(b.status as TargetStatusKey),
       render: (_, target) => (
         <Space size={4} wrap>
           <StatusTag status={target.status} />
@@ -232,6 +258,14 @@ export default function Targets() {
           )}
         </Space>
       ),
+    },
+    {
+      title: 'Hạn',
+      dataIndex: 'dueDate',
+      width: 120,
+      sorter: (a, b) => a.dueDate.localeCompare(b.dueDate),
+      defaultSortOrder: 'ascend',
+      render: value => date(value),
     },
     {
       key: 'actions',
@@ -366,7 +400,7 @@ export default function Targets() {
             columns={columns}
             dataSource={rows}
             loading={list.isLoading || (list.isFetching && !list.data)}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1220 }}
             onRow={target => ({ onDoubleClick: () => navigate(`/admin/targets/${target.id}`) })}
             pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: total => `${num(total)} chỉ tiêu`, hideOnSinglePage: false }}
             expandable={{
@@ -380,7 +414,7 @@ export default function Targets() {
       <TargetForm
         open={creating || Boolean(editing)}
         target={editing}
-        defaults={{ year, departmentId: departmentId || undefined, frameworkId: frameworkId && frameworkId !== 'none' ? frameworkId : undefined }}
+        defaults={formDefaults}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -394,13 +428,6 @@ export default function Targets() {
         danger={!archiving?.isArchived}
         initial={archiving?.isArchived ? 'Khôi phục để tiếp tục kỳ kế hoạch' : 'Kết thúc kỳ kế hoạch'}
         loading={archive.isPending}
-        extra={
-          !archiving?.isArchived && (
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-              Chỉ tiêu ngừng nhận báo cáo và được gỡ khỏi trang công khai. Lịch sử giữ nguyên.
-            </Typography.Paragraph>
-          )
-        }
         onCancel={() => setArchiving(null)}
         onSubmit={reason => archiving && archive.mutate({ target: archiving, reason })}
       />

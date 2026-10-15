@@ -1,7 +1,8 @@
 import { CheckOutlined, CloseOutlined, EditOutlined, PlusOutlined, RobotOutlined, SearchOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
 import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Flex, Form, Input, InputNumber, Modal, Segmented, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { TitleCell } from '@/components/Data';
@@ -10,16 +11,16 @@ import { ReasonModal } from '@/components/ReasonModal';
 import { LoadError } from '@/components/States';
 import { DocumentLink, LegalBasis } from '@/components/LegalBasis';
 import { KindTag } from '@/components/Tags';
-import { useAction, useApi } from '@/hooks/useApi';
+import { invalidate, useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, frameworkOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
-import { http, query } from '@/lib/api';
+import { ApiError, http, query } from '@/lib/api';
 import { currentYear, date, dateTime, fromNow, msUntil, num, pct, until } from '@/lib/format';
 import { frequencyLabel } from '@/lib/periods';
 import { can, isGlobal, WORKING } from '@/lib/roles';
 import type { FrameworkKind, Frequency, IssuingLevel, Proposal as BaseProposal } from '@/types/domain';
 import { DIRECTION_OPTIONS, FREQUENCY_OPTIONS, KIND_OPTIONS } from '../targets/TargetForm';
 
-export type Proposal = BaseProposal & { targetKind?: FrameworkKind; issuingLevel?: IssuingLevel | null; standardCode?: string | null };
+export type Proposal = BaseProposal & { targetKind?: FrameworkKind; issuingLevel?: IssuingLevel | null; standardCode?: string | null; proposedById?: string | null };
 
 const STATUS: Record<Proposal['status'], { label: string; color: string }> = {
   PROPOSED: { label: 'Chưa trình', color: 'default' },
@@ -35,6 +36,13 @@ const ISSUING_OPTIONS = [
 ];
 
 const DAY = 86_400_000;
+const STATUS_ORDER: Proposal['status'][] = ['SUBMITTED', 'PROPOSED', 'REJECTED', 'APPROVED'];
+
+function compareStatus(a: Proposal, b: Proposal) {
+  return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
+    || (a.status === 'SUBMITTED' ? (a.autoApproveAt ?? '9999').localeCompare(b.autoApproveAt ?? '9999') : 0)
+    || b.createdAt.localeCompare(a.createdAt);
+}
 
 function targetOf(item: Proposal) {
   if (item.targetText) return item.targetText;
@@ -63,13 +71,28 @@ type FormValues = {
 
 export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Proposal | null; onClose: () => void }) {
   const user = useMe();
+  const client = useQueryClient();
   const [form] = Form.useForm<FormValues>();
   const departments = useDepartments();
   const frameworks = useFrameworks();
   const [submitMode, setSubmitMode] = useState(false);
+  const submitIntent = useRef(false);
+  const version = useRef(item?.version);
+  const initialized = useRef<string | null>(null);
+  const departmentLocked = Boolean(item && !isGlobal(user) && item.proposedById !== user.id);
+  const requiredForSubmit = { validator: (_: unknown, value: unknown) => submitIntent.current && (value === null || value === undefined || (typeof value === 'string' && !value.trim())) ? Promise.reject(new Error('Cần bổ sung trước khi trình')) : Promise.resolve() };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initialized.current = null;
+      return;
+    }
+    const key = item?.id ?? 'new';
+    if (initialized.current === key) return;
+    initialized.current = key;
+    version.current = item?.version;
+    submitIntent.current = false;
+    setSubmitMode(false);
     form.resetFields();
     if (item) {
       form.setFieldsValue({
@@ -122,10 +145,14 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         legalBasis: values.legalBasis?.trim() || undefined,
       };
       if (item) {
-        await http.patch(`/candidates/${item.id}`, { ...body, expectedVersion: item.version });
-        if (submit && item.status === 'PROPOSED') {
-          const fresh = await http.get<Proposal>(`/candidates/${item.id}`);
-          await http.post(`/candidates/${item.id}/submit`, { expectedVersion: fresh.version });
+        const saved = await http.patch<Pick<Proposal, 'version' | 'status'>>(`/candidates/${item.id}`, { ...body, expectedVersion: version.current ?? item.version });
+        version.current = saved.version;
+        try {
+          if (submit && saved.status === 'PROPOSED') {
+            await http.post(`/candidates/${item.id}/submit`, { expectedVersion: saved.version });
+          }
+        } finally {
+          await invalidate(client, ['/candidates', '/my-work', '/ioc']);
         }
         return;
       }
@@ -153,9 +180,11 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
           <Button onClick={onClose}>Huỷ</Button>
           <Button
             loading={save.isPending && !submitMode}
+            disabled={save.isPending}
             onClick={() => {
+              submitIntent.current = false;
               setSubmitMode(false);
-              form.validateFields().then(values => save.mutate({ values, submit: false }));
+              void form.validateFields().then(values => save.mutate({ values, submit: false })).catch(() => undefined);
             }}
           >
             Lưu
@@ -165,9 +194,11 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
               type="primary"
               icon={<SendOutlined />}
               loading={save.isPending && submitMode}
+              disabled={save.isPending}
               onClick={() => {
+                submitIntent.current = true;
                 setSubmitMode(true);
-                form.validateFields().then(values => save.mutate({ values, submit: true }));
+                void form.validateFields().then(values => save.mutate({ values, submit: true })).catch(() => undefined);
               }}
             >
               Lưu và trình
@@ -189,10 +220,10 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         <Form.Item name="frameworkId" label="Bộ chỉ tiêu">
           <Select allowClear options={frameworkOptions(frameworks.data)} showSearch={{ optionFilterProp: 'label' }} />
         </Form.Item>
-        <Form.Item name="targetValue" label="Giá trị mục tiêu">
+        <Form.Item name="targetValue" label="Giá trị mục tiêu" rules={[requiredForSubmit, { type: 'number', min: 0 }]}>
           <InputNumber min={0} style={{ width: '100%' }} decimalSeparator="," />
         </Form.Item>
-        <Form.Item name="unit" label="Đơn vị tính">
+        <Form.Item name="unit" label="Đơn vị tính" rules={[requiredForSubmit, { max: 50 }]}>
           <Input maxLength={50} />
         </Form.Item>
         <Form.Item name="targetText" label="Mục tiêu ghi bằng chữ">
@@ -201,17 +232,17 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         <Form.Item name="direction" label="Chiều đánh giá">
           <Select options={DIRECTION_OPTIONS} />
         </Form.Item>
-        <Form.Item name="targetYear" label="Năm">
+        <Form.Item name="targetYear" label="Năm" rules={[requiredForSubmit, { type: 'integer', min: 2000, max: 2100 }]}>
           <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
         </Form.Item>
-        <Form.Item name="frequency" label="Kỳ báo cáo">
+        <Form.Item name="frequency" label="Kỳ báo cáo" rules={[requiredForSubmit]}>
           <Select allowClear options={FREQUENCY_OPTIONS} />
         </Form.Item>
-        <Form.Item name="deadline" label="Hạn hoàn thành">
+        <Form.Item name="deadline" label="Hạn hoàn thành" rules={[requiredForSubmit]}>
           <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
         </Form.Item>
-        <Form.Item name="responsibleDepartmentId" label="Phòng chủ trì">
-          <Select allowClear options={departmentOptions(departments.data)} showSearch={{ optionFilterProp: 'label' }} />
+        <Form.Item name="responsibleDepartmentId" label="Phòng chủ trì" rules={[requiredForSubmit]}>
+          <Select allowClear disabled={departmentLocked} options={departmentOptions(departments.data)} showSearch={{ optionFilterProp: 'label' }} />
         </Form.Item>
         <Form.Item name="issuingLevel" label="Cấp giao">
           <Select allowClear options={ISSUING_OPTIONS} />
@@ -232,9 +263,11 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
   );
 }
 
-export function ApproveModal({ item, onClose }: { item: Proposal | null; onClose: () => void }) {
+export function ApproveModal({ item, onClose, onMissing }: { item: Proposal | null; onClose: () => void; onMissing?: (item: Proposal) => void }) {
   const { modal } = App.useApp();
   const [weight, setWeight] = useState<number | null>(1);
+  const [editing, setEditing] = useState<Proposal | null>(null);
+  useEffect(() => { setWeight(1); }, [item?.id]);
   const approve = useAction((target: Proposal) => http.post<{ target?: { id: string; code: string } }>(`/candidates/${target.id}/approve`, { expectedVersion: target.version, weight: weight ?? undefined }), {
     refresh: ['/candidates', '/targets', '/my-work', '/ioc', '/frameworks'],
     onDone: result => {
@@ -247,7 +280,14 @@ export function ApproveModal({ item, onClose }: { item: Proposal | null; onClose
     },
   });
   return (
-    <Modal title="Duyệt thành chỉ tiêu" open={Boolean(item)} onCancel={onClose} onOk={() => item && approve.mutate(item)} okText="Duyệt" confirmLoading={approve.isPending} width={480} destroyOnHidden>
+    <>
+    <Modal title="Duyệt thành chỉ tiêu" open={Boolean(item)} onCancel={onClose} onOk={() => item && approve.mutate(item, { onError: error => {
+      if (error instanceof ApiError && error.status === 400 && item.canEdit) {
+        onClose();
+        if (onMissing) onMissing(item);
+        else setEditing(item);
+      }
+    } })} okText="Duyệt" confirmLoading={approve.isPending} width={480} destroyOnHidden>
       {item && (
         <Flex vertical gap={16}>
           <Typography.Text strong>{item.name}</Typography.Text>
@@ -258,16 +298,20 @@ export function ApproveModal({ item, onClose }: { item: Proposal | null; onClose
         </Flex>
       )}
     </Modal>
+    <ProposalForm open={Boolean(editing)} item={editing} onClose={() => setEditing(null)} />
+    </>
   );
 }
 
 function ProposalDrawer({ item, onClose, onEdit, onApprove, onReject }: { item: Proposal | null; onClose: () => void; onEdit: () => void; onApprove: () => void; onReject: () => void }) {
+  const user = useMe();
   const submit = useAction((target: Proposal) => http.post(`/candidates/${target.id}/submit`, { expectedVersion: target.version }), {
     success: 'Đã trình đề xuất',
     refresh: ['/candidates', '/my-work'],
   });
   if (!item) return null;
-  const actions = item.canEdit || item.canDecide;
+  const canReject = item.canDecide || (user.role === 'CLERK' && item.origin === 'AI' && item.status === 'PROPOSED');
+  const actions = item.canEdit || item.canDecide || canReject;
   return (
     <Drawer
       title="Đề xuất chỉ tiêu"
@@ -283,13 +327,15 @@ function ProposalDrawer({ item, onClose, onEdit, onApprove, onReject }: { item: 
               </Button>
             )}
             {item.canEdit && item.status === 'PROPOSED' && (
-              <Button icon={<SendOutlined />} loading={submit.isPending} onClick={() => submit.mutate(item)}>
+              <Button icon={<SendOutlined />} loading={submit.isPending} onClick={() => submit.mutate(item, { onError: error => {
+                if (error instanceof ApiError && error.status === 400 && item.canEdit) onEdit();
+              } })}>
                 Trình lãnh đạo
               </Button>
             )}
-            {item.canDecide && (
+            {canReject && (
               <Button danger icon={<CloseOutlined />} onClick={onReject}>
-                Từ chối
+                {user.role === 'CLERK' ? 'Loại' : 'Từ chối'}
               </Button>
             )}
             {item.canDecide && (
@@ -408,7 +454,7 @@ export default function Proposals() {
     return (list.data ?? []).filter(item => {
       if (status === 'OPEN' && item.status !== 'PROPOSED' && item.status !== 'SUBMITTED') return false;
       if (status !== 'OPEN' && status !== 'ALL' && item.status !== status) return false;
-      return !needle || `${item.name} ${item.document?.code ?? ''} ${item.legalBasis ?? ''}`.toLocaleLowerCase('vi').includes(needle);
+      return !needle || [item.name, item.document?.code, item.document?.docNumber, item.document?.title, item.legalBasis, item.description, item.responsibleDepartment?.name ?? item.responsibleDepartmentName, item.proposedByName].filter(Boolean).join(' ').toLocaleLowerCase('vi').includes(needle);
     });
   }, [list.data, status, text]);
 
@@ -444,10 +490,13 @@ export default function Proposals() {
             filters={
               <>
                 <Segmented
+                  style={{ maxWidth: '100%', overflowX: 'auto' }}
                   value={status}
                   onChange={value => update({ status: value === 'OPEN' ? null : String(value) })}
                   options={[
                     { value: 'OPEN', label: `Đang xử lý ${counts.OPEN}` },
+                    { value: 'SUBMITTED', label: `Chờ duyệt ${counts.SUBMITTED}` },
+                    { value: 'PROPOSED', label: `Chưa trình ${counts.PROPOSED}` },
                     { value: 'APPROVED', label: `Đã duyệt ${counts.APPROVED}` },
                     { value: 'REJECTED', label: `Từ chối ${counts.REJECTED}` },
                     { value: 'ALL', label: 'Tất cả' },
@@ -486,10 +535,11 @@ export default function Proposals() {
               {
                 title: 'Đề xuất',
                 key: 'name',
+                sorter: (a, b) => a.name.localeCompare(b.name, 'vi'),
                 render: (_, item) => (
                   <TitleCell
                     title={
-                      <Space size={6}>
+                      <Space size={6} wrap style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                         {item.name}
                         {item.isDuplicateSuspect && (
                           <Tooltip title="Có thể trùng chỉ tiêu đã có">
@@ -505,6 +555,7 @@ export default function Proposals() {
               {
                 title: 'Nguồn',
                 key: 'origin',
+                sorter: (a, b) => (a.origin === 'AI' ? 'AI' : a.proposedByName ?? 'Cán bộ').localeCompare(b.origin === 'AI' ? 'AI' : b.proposedByName ?? 'Cán bộ', 'vi'),
                 width: 170,
                 render: (_, item) =>
                   item.origin === 'AI' ? (
@@ -517,11 +568,13 @@ export default function Proposals() {
                     <span className="secondary">{item.proposedByName ?? 'Cán bộ'}</span>
                   ),
               },
-              { title: 'Mục tiêu', key: 'target', width: 170, render: (_, item) => <span className="num">{targetOf(item)}</span> },
-              { title: 'Phòng chủ trì', key: 'dept', width: 200, render: (_, item) => item.responsibleDepartment?.name ?? item.responsibleDepartmentName ?? <span className="muted">—</span> },
+              { title: 'Mục tiêu', key: 'target', width: 170, align: 'right', sorter: (a, b) => !a.targetText && !b.targetText ? (a.targetValue ?? -1) - (b.targetValue ?? -1) : targetOf(a).localeCompare(targetOf(b), 'vi'), sortDirections: ['descend', 'ascend'], render: (_, item) => <span className="num">{targetOf(item)}</span> },
+              { title: 'Phòng chủ trì', key: 'dept', width: 200, sorter: (a, b) => (a.responsibleDepartment?.name ?? a.responsibleDepartmentName ?? '').localeCompare(b.responsibleDepartment?.name ?? b.responsibleDepartmentName ?? '', 'vi'), render: (_, item) => item.responsibleDepartment?.name ?? item.responsibleDepartmentName ?? <span className="muted">—</span> },
               {
                 title: 'Trạng thái',
                 key: 'status',
+                sorter: compareStatus,
+                defaultSortOrder: 'ascend',
                 width: 170,
                 render: (_, item) => (
                   <Flex vertical gap={2} align="flex-start">
@@ -532,7 +585,7 @@ export default function Proposals() {
                   </Flex>
                 ),
               },
-              { title: 'Tạo', dataIndex: 'createdAt', width: 120, render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
+              { title: 'Tạo', dataIndex: 'createdAt', width: 120, sorter: (a, b) => a.createdAt.localeCompare(b.createdAt), render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
             ]}
           />
         )}
@@ -546,7 +599,7 @@ export default function Proposals() {
         onReject={() => setRejecting(drawerItem)}
       />
       <ProposalForm open={editing !== undefined} item={editing} onClose={() => setEditing(undefined)} />
-      <ApproveModal item={approving} onClose={() => setApproving(null)} />
+      <ApproveModal item={approving} onClose={() => setApproving(null)} onMissing={item => setEditing(item)} />
       <ReasonModal
         open={Boolean(rejecting)}
         title="Từ chối đề xuất"

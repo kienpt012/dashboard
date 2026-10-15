@@ -15,6 +15,7 @@ import { currentYear, num, pct } from '@/lib/format';
 import { can, FRAMEWORK_EDITORS, LEADERSHIP } from '@/lib/roles';
 import { fold } from '@/app/nav';
 import type { Framework, FrameworkKind, FrameworkTemplate, IssuingLevel } from '@/types/domain';
+import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
 
 type ApplyResult = { frameworkId: string; code: string; name: string; createdTargets: number; createdDatasets: string[]; computedTargets: number; needsPlanValue: number };
 type Outcome = { targetId: string; code: string; title: string; previousValue: number; value: number | null; changed: boolean; warnings: string[] };
@@ -230,10 +231,10 @@ function RecomputeResult({ data, onClose }: { data: { framework: Framework; outc
           pagination={false}
           dataSource={data?.outcomes ?? []}
           columns={[
-            { title: 'Chỉ tiêu', key: 'title', render: (_, row) => <Link to={`/admin/targets/${row.targetId}`}>{row.code} · {row.title}</Link> },
-            { title: 'Trước', dataIndex: 'previousValue', width: 90, align: 'right', render: value => num(value) },
-            { title: 'Sau', dataIndex: 'value', width: 90, align: 'right', render: (value, row) => <b className={row.changed ? 'tone-info' : undefined}>{num(value)}</b> },
-            { title: 'Lưu ý', dataIndex: 'warnings', width: 220, render: (warnings: string[]) => (warnings.length ? <span className="tone-warn">{warnings.join('; ')}</span> : '') },
+            { title: 'Chỉ tiêu', key: 'title', sorter: byText(row => row.code), render: (_, row) => <Link to={`/admin/targets/${row.targetId}`}>{row.code} · {row.title}</Link> },
+            { title: 'Trước', dataIndex: 'previousValue', width: 90, align: 'right', sorter: byNumber(row => row.previousValue), sortDirections: NUMBER_FIRST, render: value => num(value) },
+            { title: 'Sau', dataIndex: 'value', width: 90, align: 'right', sorter: byNumber(row => row.value), sortDirections: NUMBER_FIRST, render: (value, row) => <b className={row.changed ? 'tone-info' : undefined}>{num(value)}</b> },
+            { title: 'Lưu ý', dataIndex: 'warnings', width: 220, sorter: byNumber(row => row.warnings.length), sortDirections: NUMBER_FIRST, render: (warnings: string[]) => (warnings.length ? <span className="tone-warn">{warnings.join('; ')}</span> : '') },
           ]}
         />
       )}

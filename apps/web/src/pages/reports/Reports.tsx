@@ -18,6 +18,7 @@ import { currentYear, dateTime, num, pct, vn } from '@/lib/format';
 import { isGlobal } from '@/lib/roles';
 import type { Target } from '@/types/core';
 import type { TargetStatusKey } from '@/types/domain';
+import { byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
 
 function planText(target: Target) {
   if (target.kind === 'STAT') return '—';
@@ -190,11 +191,13 @@ export default function Reports() {
   }
 
   const statOnly = rows.length > 0 && rows.every(row => row.kind === 'STAT');
+  const order = new Map(rows.map((row, index) => [row.id, index + 1]));
   const allColumns: (TableColumnsType<Target>[number] & { hideForStat?: boolean })[] = [
-    { title: 'STT', key: 'stt', width: 64, align: 'center', render: (_, row, index) => <span className="muted">{row.ordinal || index + 1}</span> },
+    { title: 'STT', key: 'stt', width: 72, align: 'center', sorter: byNumber(row => order.get(row.id)), defaultSortOrder: 'ascend', render: (_, row) => <span className="muted">{row.ordinal || order.get(row.id)}</span> },
     {
       title: 'Chỉ tiêu',
       key: 'title',
+      sorter: byText(row => row.title),
       render: (_, row) => (
         <div className="cell-title">
           <Link to={`/admin/targets/${row.id}`}>{row.title}</Link>
@@ -205,12 +208,12 @@ export default function Reports() {
         </div>
       ),
     },
-    { title: 'ĐVT', dataIndex: 'unit', width: 110 },
-    { title: 'Kế hoạch', key: 'plan', width: 130, align: 'right', hideForStat: true, render: (_, row) => <span className="num">{planText(row)}</span> },
-    { title: statOnly ? 'Số liệu' : 'Thực hiện', key: 'current', width: 120, align: 'right', render: (_, row) => (row.lastReportedAt ? <span className="num">{num(row.currentValue)}</span> : <span className="muted">—</span>) },
-    { title: 'Tỷ lệ', key: 'progress', width: 150, hideForStat: true, render: (_, row) => (row.kind === 'STAT' ? <span className="muted">—</span> : <ProgressCell value={row.progress ?? 0} status={row.status} />) },
-    { title: 'Đánh giá', key: 'status', width: 130, render: (_, row) => (row.kind === 'STAT' ? <span className={row.lastReportedAt ? 'tone-ok' : 'muted'}>{statusText(row)}</span> : <StatusTag status={row.status} />) },
-    { title: 'Phòng chủ trì', key: 'dept', width: 200, render: (_, row) => row.department.name },
+    { title: 'ĐVT', dataIndex: 'unit', width: 110, sorter: byText(row => row.unit) },
+    { title: 'Kế hoạch', key: 'plan', width: 130, align: 'right', hideForStat: true, sorter: byNumber(row => row.targetValue), sortDirections: NUMBER_FIRST, render: (_, row) => <span className="num">{planText(row)}</span> },
+    { title: statOnly ? 'Số liệu' : 'Thực hiện', key: 'current', width: 120, align: 'right', sorter: byNumber(row => (row.lastReportedAt ? row.currentValue : null)), sortDirections: NUMBER_FIRST, render: (_, row) => (row.lastReportedAt ? <span className="num">{num(row.currentValue)}</span> : <span className="muted">—</span>) },
+    { title: 'Tỷ lệ', key: 'progress', width: 150, hideForStat: true, sorter: byNumber(row => (row.kind === 'STAT' ? null : row.progress)), sortDirections: NUMBER_FIRST, render: (_, row) => (row.kind === 'STAT' ? <span className="muted">—</span> : <ProgressCell value={row.progress ?? 0} status={row.status} />) },
+    { title: 'Đánh giá', key: 'status', width: 130, sorter: byRank(TARGET_STATUS_RANK, row => row.status), render: (_, row) => (row.kind === 'STAT' ? <span className={row.lastReportedAt ? 'tone-ok' : 'muted'}>{statusText(row)}</span> : <StatusTag status={row.status} />) },
+    { title: 'Phòng chủ trì', key: 'dept', width: 200, sorter: byText(row => row.department.name), render: (_, row) => row.department.name },
   ];
   const columns = allColumns.filter(column => !(statOnly && column.hideForStat)).map(({ hideForStat: _hide, ...column }) => column) as TableColumnsType<Target>;
 
@@ -250,7 +253,7 @@ export default function Reports() {
                   placeholder="Bộ chỉ tiêu"
                   onChange={value => update({ frameworkId: value })}
                   options={[...yearFrameworks.map(item => ({ value: item.id, label: item.name })), { value: 'none', label: 'Chỉ tiêu ngoài bộ' }]}
-                  style={{ width: 420 }}
+                  style={{ width: 480, maxWidth: '100%' }}
                   popupMatchSelectWidth={false}
                 />
                 {global && (

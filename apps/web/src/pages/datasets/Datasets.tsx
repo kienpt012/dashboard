@@ -69,21 +69,24 @@ export default function Datasets() {
             pagination={false}
             onRow={item => ({ onClick: () => navigate(`/admin/kho-du-lieu/${item.code}`), className: 'link-row' })}
             columns={[
-              { title: 'Bảng dữ liệu', key: 'name', render: (_, item) => <TitleCell title={item.name} sub={item.code} to={`/admin/kho-du-lieu/${item.code}`} /> },
-              { title: 'Phòng quản lý', key: 'owner', width: 220, render: (_, item) => item.ownerDepartment?.name ?? <span className="muted">—</span> },
-              { title: 'Số dòng', dataIndex: 'rowCount', width: 100, align: 'right', render: value => (value === null ? <span className="muted">—</span> : <span className="num">{num(value)}</span>) },
+              { title: 'Bảng dữ liệu', key: 'name', sorter: (a, b) => a.name.localeCompare(b.name, 'vi'), defaultSortOrder: 'ascend', render: (_, item) => <TitleCell title={item.name} sub={item.code} to={`/admin/kho-du-lieu/${item.code}`} /> },
+              { title: 'Phòng quản lý', key: 'owner', width: 220, sorter: (a, b) => (a.ownerDepartment?.name ?? '').localeCompare(b.ownerDepartment?.name ?? '', 'vi'), render: (_, item) => item.ownerDepartment?.name ?? <span className="muted">—</span> },
+              { title: 'Số dòng', dataIndex: 'rowCount', width: 112, align: 'center', sorter: (a, b) => (a.rowCount ?? -1) - (b.rowCount ?? -1), sortDirections: ['descend', 'ascend'], render: value => (value === null ? <span className="muted">—</span> : <span className="num">{num(value)}</span>) },
               {
                 title: 'Dữ liệu mới nhất',
                 dataIndex: 'lastDataAt',
-                width: 150,
+                width: 176,
+                sorter: (a, b) => (a.lastDataAt ?? '').localeCompare(b.lastDataAt ?? ''),
                 render: value => (value ? <span title={dateTime(value)}>{fromNow(value)}</span> : <span className="muted">Chưa có</span>),
               },
-              { title: 'Chu kỳ', dataIndex: 'updateCycle', width: 130, render: value => value || <span className="muted">—</span> },
+              { title: 'Chu kỳ', dataIndex: 'updateCycle', width: 130, sorter: (a, b) => (a.updateCycle ?? '').localeCompare(b.updateCycle ?? '', 'vi'), render: value => value || <span className="muted">—</span> },
               {
                 title: 'Chỉ tiêu dùng',
                 key: 'used',
-                width: 130,
-                align: 'right',
+                width: 150,
+                align: 'center',
+                sorter: (a, b) => a.usedBy.length - b.usedBy.length,
+                sortDirections: ['descend', 'ascend'],
                 render: (_, item) =>
                   item.usedBy.length ? (
                     <Popover
@@ -109,7 +112,7 @@ export default function Datasets() {
                     <span className="muted">—</span>
                   ),
               },
-              { title: 'Loại', key: 'kind', width: 110, render: (_, item) => (item.builtin ? <Tag>Hệ thống</Tag> : <Tag color="blue">Tự khai báo</Tag>) },
+              { title: 'Loại', key: 'kind', width: 110, sorter: (a, b) => (a.builtin ? 'Hệ thống' : 'Tự khai báo').localeCompare(b.builtin ? 'Hệ thống' : 'Tự khai báo', 'vi'), render: (_, item) => (item.builtin ? <Tag>Hệ thống</Tag> : <Tag color="blue">Tự khai báo</Tag>) },
             ]}
           />
         )}

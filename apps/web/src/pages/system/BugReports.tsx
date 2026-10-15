@@ -6,8 +6,10 @@ import { LoadError } from '@/components/States';
 import { useAction, useApi } from '@/hooks/useApi';
 import { errorText, http } from '@/lib/api';
 import { dateTime, fromNow, num } from '@/lib/format';
+import { byDate, byRank, byText } from '@/lib/sort';
 
 type Status = 'NEW' | 'IN_PROGRESS' | 'RESOLVED' | 'WONT_FIX';
+const STATUS_RANK: Status[] = ['NEW', 'IN_PROGRESS', 'RESOLVED', 'WONT_FIX'];
 type Report = {
   id: string;
   reporterName: string;
@@ -152,11 +154,11 @@ export default function BugReports() {
             locale={{ emptyText: 'Chưa có báo lỗi' }}
             columns={[
               { title: 'Mô tả', dataIndex: 'description', render: value => <span className="clamp-2">{value}</span> },
-              { title: 'Màn hình', dataIndex: 'screenCode', width: 110, render: (value, item) => <Tooltip title={item.url}>{value ?? '—'}</Tooltip> },
-              { title: 'Người gửi', dataIndex: 'reporterName', width: 180 },
+              { title: 'Màn hình', dataIndex: 'screenCode', width: 128, sorter: byText(item => item.screenCode), render: (value, item) => <Tooltip title={item.url}>{value ?? '—'}</Tooltip> },
+              { title: 'Người gửi', dataIndex: 'reporterName', width: 180, sorter: byText(item => item.reporterName) },
               { title: 'Ảnh', dataIndex: 'hasScreenshot', width: 70, align: 'center', render: value => (value ? <PictureOutlined /> : null) },
-              { title: 'Trạng thái', dataIndex: 'status', width: 130, render: (value: Status) => <Tag color={STATUS[value].color}>{STATUS[value].label}</Tag> },
-              { title: 'Gửi lúc', dataIndex: 'createdAt', width: 130, render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
+              { title: 'Trạng thái', dataIndex: 'status', width: 130, sorter: byRank(STATUS_RANK, item => item.status), render: (value: Status) => <Tag color={STATUS[value].color}>{STATUS[value].label}</Tag> },
+              { title: 'Gửi lúc', dataIndex: 'createdAt', width: 130, sorter: byDate(item => item.createdAt), defaultSortOrder: 'descend', render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
             ]}
           />
         )}

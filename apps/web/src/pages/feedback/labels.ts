@@ -52,7 +52,7 @@ export const FEEDBACK_EVENT: Record<string, string> = {
   FEEDBACK_PUBLISHED: 'Công khai kết quả',
   FEEDBACK_UNPUBLISHED: 'Gỡ công khai',
   CONTACT_ATTEMPT_LOGGED: 'Ghi nhận liên hệ người dân',
-  ATTACHMENT_ADDED: 'Bổ sung tệp',
+  CITIZEN_ATTACHMENTS_ADDED: 'Người dân bổ sung tệp',
 };
 
 export function options<T extends string>(map: Record<T, string | { label: string }>) {

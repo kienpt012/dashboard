@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
 import { ReasonModal } from '@/components/ReasonModal';
+import { ScrollBox } from '@/components/Scroll';
 import { LoadError, PageSkeleton } from '@/components/States';
 import { invalidate, useAction, useApi } from '@/hooks/useApi';
 import { ApiError, errorText, http, saveBlob } from '@/lib/api';
@@ -309,14 +310,14 @@ export default function DocumentReview() {
             {text.isLoading ? (
               <PageSkeleton />
             ) : current ? (
-              <div className="doc-text" ref={textRef}>
+              <ScrollBox bodyClassName="doc-text" ref={textRef} label="Về đầu văn bản">
                 {current.ocrUsed && (
                   <Tag style={{ marginBottom: 8 }}>
                     Nhận dạng ảnh{current.ocrConfidence ? ` · độ tin cậy ${pct(current.ocrConfidence)}` : ''}
                   </Tag>
                 )}
                 <Highlighted text={current.text} quote={selected && selected.pageNumber === current.pageNumber ? selected.sourceQuote : selected?.pageNumber ? null : selected?.sourceQuote} />
-              </div>
+              </ScrollBox>
             ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={processing ? 'Đang đọc văn bản' : 'Chưa có nội dung'} style={{ padding: 32 }} />
             )}
@@ -340,7 +341,7 @@ export default function DocumentReview() {
                 ]}
               />
             </div>
-            <div className="candidate-list">
+            <ScrollBox bodyClassName="candidate-list">
               {candidates.error && !candidates.data ? (
                 <LoadError error={candidates.error} retry={() => void candidates.refetch()} />
               ) : list.length ? (
@@ -359,7 +360,7 @@ export default function DocumentReview() {
               ) : (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={processing ? 'Đang trích xuất' : 'Không có đề xuất'} style={{ padding: 32 }} />
               )}
-            </div>
+            </ScrollBox>
           </Card>
           {detail.jobs.length > 0 && (
             <Card size="small" title="Lượt xử lý" style={{ marginTop: 16 }}>

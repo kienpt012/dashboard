@@ -3,6 +3,7 @@ import { App, Button, Descriptions, Drawer, Empty, Flex, Grid, Image, Spin, Tag,
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApi } from '@/hooks/useApi';
+import { ScrollBox } from './Scroll';
 import { errorText, http, saveBlob } from '@/lib/api';
 import { date, fileSize } from '@/lib/format';
 import { documentTypeLabels, type DocumentTextResponse, type SourceDocumentDetail } from '@/types/core';
@@ -104,7 +105,9 @@ export function DocumentViewer({ id, onClose }: { id: string | null; onClose: ()
                 </Flex>
               )
             ) : text.data?.pages.length ? (
-              <div className="doc-text">{text.data.pages.map(page => page.text).join('\n\n')}</div>
+              <ScrollBox bodyClassName="doc-text" label="Về đầu văn bản">
+                {text.data.pages.map(page => page.text).join('\n\n')}
+              </ScrollBox>
             ) : (
               <Empty image={<FileTextOutlined style={{ fontSize: 40 }} />} description={d.status === 'PROCESSED' ? 'Không đọc được nội dung tệp' : 'Văn bản đang được xử lý'} style={{ padding: 48 }} />
             )}
