@@ -1,6 +1,6 @@
 import { LoginOutlined, MenuOutlined } from '@ant-design/icons';
 import { Button, Drawer, Grid } from 'antd';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { agencyLines, localityInitials, localityTitle, useLocality } from '@/app/locality';
 import { BackToTop } from '@/components/Scroll';
@@ -13,7 +13,7 @@ const LINKS = [
 ];
 
 /** Khung chung của khu vực dành cho người dân: đầu trang, điều hướng, chân trang. */
-export function PublicShell({ children, title }: { children: ReactNode; title?: string }) {
+export function PublicShell({ children, title, width, footer = true }: { children: ReactNode; title?: string; width?: number; footer?: boolean }) {
   const locality = useLocality();
   const screens = Grid.useBreakpoint();
   const location = useLocation();
@@ -32,7 +32,7 @@ export function PublicShell({ children, title }: { children: ReactNode; title?: 
   ));
 
   return (
-    <div className="pub">
+    <div className="pub" style={width ? ({ '--pub-width': `${width}px` } as CSSProperties) : undefined}>
       <header className="pub-header">
         <div className="pub-container pub-header-inner">
           <Link to="/" className="pub-brand">
@@ -67,6 +67,7 @@ export function PublicShell({ children, title }: { children: ReactNode; title?: 
         </Link>
       </Drawer>
       <main className="pub-main">{children}</main>
+      {footer && (
       <footer className="pub-footer">
         <div className="pub-container pub-footer-inner">
           <div>
@@ -90,6 +91,7 @@ export function PublicShell({ children, title }: { children: ReactNode; title?: 
           </div>
         </div>
       </footer>
+      )}
       <BackToTop />
     </div>
   );

@@ -233,7 +233,7 @@ export class MailService {
 
   private async sendFeedbackProgress(message: FeedbackProgressMail, feedbackEventId: string): Promise<void> {
     if (!this.transporter) return;
-    const trackingUrl = `${this.appUrl}/phan-anh`;
+    const trackingUrl = `${this.appUrl}/phan-anh?tab=tra-cuu&ma=${encodeURIComponent(message.code)}`;
     const status = STATUS_LABELS[message.status] || 'Đang được cập nhật';
     const description = ACTION_DESCRIPTIONS[message.action] || 'Phản ánh có cập nhật mới trong quá trình xử lý.';
     const department = message.departmentName?.trim()

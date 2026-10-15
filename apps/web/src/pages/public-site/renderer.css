@@ -1,0 +1,482 @@
+/* Trang công khai do quản trị viên dựng. Màu lấy từ --pd-* (cấu hình), khoảng cách theo lưới 40px + 16px. */
+
+.pd {
+  --pd-muted: color-mix(in srgb, var(--pd-text) 62%, var(--pd-surface));
+  --pd-line: color-mix(in srgb, var(--pd-text) 12%, var(--pd-surface));
+  --pd-soft: color-mix(in srgb, var(--pd-accent) 8%, var(--pd-surface));
+  color: var(--pd-text);
+  min-width: 0;
+}
+
+.pd-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-auto-rows: minmax(var(--pd-row), auto);
+  gap: var(--pd-gap);
+}
+
+.pd-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px 22px;
+  border: 1px solid var(--pd-line);
+  border-radius: var(--pd-radius);
+  background: var(--pd-surface);
+  color: var(--pd-text);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pd-card.pd-w-cta {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.pd-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.pd-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--pd-text);
+  text-wrap: balance;
+}
+
+.pd-meta {
+  font-size: 13px;
+  color: var(--pd-muted);
+}
+
+.pd-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pd-accent);
+}
+
+.pd-link:hover {
+  color: var(--pd-accent);
+  text-decoration: underline;
+}
+
+.pd-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px dashed var(--pd-line);
+  border-radius: calc(var(--pd-radius) * 0.6);
+  color: var(--pd-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.pd-empty .anticon {
+  font-size: 22px;
+  opacity: 0.7;
+}
+
+/* Số liệu tổng quan */
+.pd-metrics {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.pd-metric {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: calc(var(--pd-radius) * 0.7);
+  background: var(--pd-soft);
+}
+
+.pd-metric-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: var(--pd-surface);
+  color: var(--pd-accent);
+  font-size: 17px;
+}
+
+.pd-metric strong {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--pd-text);
+}
+
+.pd-metric strong small {
+  margin-inline-start: 2px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pd-metric > span:last-child {
+  font-size: 13.5px;
+  color: var(--pd-muted);
+}
+
+/* Chỉ tiêu */
+.pd-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.pd-target {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--pd-line);
+  border-radius: calc(var(--pd-radius) * 0.7);
+}
+
+.pd-target-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pd-code {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pd-status {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pd-status.ok {
+  color: #157f3b;
+  background: #e7f6ec;
+}
+
+.pd-status.info {
+  color: #1d5fd1;
+  background: #e8f0fe;
+}
+
+.pd-status.warn {
+  color: #a35a00;
+  background: #fff4e0;
+}
+
+.pd-status.bad {
+  color: #c62828;
+  background: #fdecec;
+}
+
+.pd-status.muted {
+  color: var(--pd-muted);
+  background: color-mix(in srgb, var(--pd-text) 6%, var(--pd-surface));
+}
+
+.pd-target h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.pd-dept {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--pd-muted);
+}
+
+.pd-dept i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pd-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.pd-value strong {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.pd-value span {
+  font-size: 13px;
+  color: var(--pd-muted);
+}
+
+.pd-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pd-text) 9%, var(--pd-surface));
+  overflow: hidden;
+}
+
+.pd-bar.thin {
+  height: 6px;
+}
+
+.pd-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pd-accent);
+}
+
+.pd-target-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--pd-muted);
+}
+
+.pd-target-foot b {
+  color: var(--pd-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tiến độ theo đơn vị */
+.pd-depts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pd-depts li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pd-dept-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pd-dept-name {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.pd-dept-row b {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Danh sách: phản ánh, văn bản */
+.pd-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -10px;
+  padding: 0;
+  list-style: none;
+}
+
+.pd-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 8px;
+  color: var(--pd-text);
+}
+
+a.pd-list-item:hover {
+  color: var(--pd-text);
+  background: var(--pd-soft);
+}
+
+.pd-list li + li {
+  border-top: 1px solid var(--pd-line);
+}
+
+.pd-list-item strong {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.pd-list-meta {
+  font-size: 12.5px;
+  color: var(--pd-muted);
+}
+
+.pd-clamp {
+  font-size: 13.5px;
+  color: var(--pd-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pd-doc {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pd-doc-icon {
+  margin-top: 3px;
+  font-size: 20px;
+  color: var(--pd-accent);
+}
+
+.pd-doc-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pd-doc-action {
+  margin-top: 4px;
+  color: var(--pd-muted);
+}
+
+a.pd-doc:hover .pd-doc-action {
+  color: var(--pd-accent);
+}
+
+/* Văn bản, HTML */
+.pd-text {
+  white-space: pre-line;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--pd-text);
+}
+
+.pd-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 80px;
+  border: 0;
+  background: transparent;
+}
+
+/* Nút điều hướng */
+.pd-cta {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 24px 28px;
+  border-radius: var(--pd-radius);
+  background: var(--pd-accent);
+  color: #fff;
+}
+
+.pd-cta:hover {
+  color: #fff;
+  filter: brightness(1.05);
+}
+
+.pd-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.pd-cta-text strong {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pd-cta-text span {
+  font-size: 14.5px;
+  opacity: 0.92;
+}
+
+.pd-cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pd-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pd-card {
+    animation: pd-in 0.35s ease-out both;
+  }
+}
+
+@keyframes pd-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (max-width: 639px) {
+  .pd-card {
+    padding: 16px;
+  }
+  .pd-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pd-metric strong {
+    font-size: 24px;
+  }
+  .pd-cta {
+    padding: 20px;
+  }
+}

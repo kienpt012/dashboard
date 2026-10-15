@@ -10,7 +10,7 @@
 
 .pub-container {
   width: 100%;
-  max-width: 1200px;
+  max-width: var(--pub-width, 1200px);
   margin: 0 auto;
   padding: 0 24px;
 }
@@ -181,5 +181,103 @@
   }
   .pub-footer-meta {
     align-items: flex-start;
+  }
+}
+
+/* Trang chủ công khai */
+.pd-page {
+  background: var(--pd-bg, var(--ioc-color-bg-layout));
+  min-height: 60vh;
+}
+
+.pd-page-body {
+  padding-block: 28px 40px;
+}
+
+.pd-hero {
+  background: linear-gradient(120deg, var(--ioc-color-primary), color-mix(in srgb, var(--ioc-color-primary) 62%, #0b1220));
+  color: #fff;
+}
+
+.pd-hero-inner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-block: 36px 34px;
+}
+
+.pd-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 420px;
+}
+
+.pd-hero-unit {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.pd-hero h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.pd-hero-meta {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.pd-hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pd-hero-actions .pd-hero-primary.ant-btn {
+  border-color: #fff;
+  background: #fff;
+  color: var(--ioc-color-primary);
+  font-weight: 600;
+}
+
+.pd-hero-actions .ant-btn-background-ghost {
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #fff;
+}
+
+.pd-skeleton {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pd-skeleton > div {
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--ioc-color-bg-container);
+}
+
+@media (max-width: 767px) {
+  .pd-hero-inner {
+    padding-block: 26px 24px;
+  }
+  .pd-hero-actions,
+  .pd-hero-actions > a,
+  .pd-hero-actions .ant-btn {
+    width: 100%;
+  }
+  .pd-skeleton > div {
+    grid-column: span 12 !important;
   }
 }

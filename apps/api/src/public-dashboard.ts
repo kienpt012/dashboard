@@ -192,12 +192,12 @@ function defaultLayout(
 export const DEFAULT_PUBLIC_DASHBOARD_CONFIG: PublicDashboardConfig = {
   schemaVersion: 1,
   theme: {
-    accent: '#0f8378',
-    background: '#f3f8f7',
+    accent: '#1d4ed8',
+    background: '#f4f6fb',
     surface: '#ffffff',
-    text: '#173633',
+    text: '#172033',
     contentWidth: 1440,
-    radius: 18,
+    radius: 14,
   },
   settings: { showHeader: true, showFooter: true },
   widgets: [

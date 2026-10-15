@@ -19,6 +19,8 @@ body {
   color: var(--ioc-color-text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* tránh dòng cuối chỉ còn một chữ */
+  text-wrap: pretty;
 }
 
 a {
