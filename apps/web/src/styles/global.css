@@ -420,9 +420,7 @@ a {
   display: flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
 .metric-value {
@@ -993,4 +991,11 @@ a.donut-row:hover {
 
 .filter-chip.ant-tag-checkable-checked {
   border-color: var(--ioc-color-primary);
+}
+
+/* Tiêu đề thẻ dài được xuống dòng thay vì cắt */
+.ant-card .ant-card-head-title {
+  white-space: normal;
+  line-height: 1.4;
+  padding-block: 12px;
 }

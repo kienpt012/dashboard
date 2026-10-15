@@ -368,7 +368,16 @@ function Recent({ data }: { data: Overview }) {
                 <span>
                   <b>{event.actorName}</b> <span className="secondary">{event.label.toLocaleLowerCase('vi')}</span>
                 </span>
-                {subject && (to ? <Link to={to} className="ellipsis">{subject}</Link> : <span className="ellipsis">{subject}</span>)}
+                {subject &&
+                  (to ? (
+                    <Link to={to} className="clamp-2" title={subject}>
+                      {subject}
+                    </Link>
+                  ) : (
+                    <span className="clamp-2" title={subject}>
+                      {subject}
+                    </span>
+                  ))}
                 <Tooltip title={dateTime(event.createdAt)}>
                   <span className="feed-meta">
                     {fromNow(event.createdAt)}
