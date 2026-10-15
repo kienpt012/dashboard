@@ -731,7 +731,7 @@ a.donut-row:hover {
 
 /* Thẻ bộ chỉ tiêu */
 .fw-card {
-  height: 100%;
+  width: 100%;
 }
 
 .fw-card.inactive {
@@ -972,4 +972,25 @@ a.donut-row:hover {
 .card-selected.ant-card {
   border-color: var(--ioc-color-primary);
   background: var(--ioc-color-primary-bg);
+}
+
+.feed.free {
+  max-height: none;
+}
+
+.filter-chip.ant-tag-checkable {
+  margin: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+.filter-chip.ant-tag-checkable b {
+  margin-inline-start: 4px;
+  font-weight: 600;
+}
+
+.filter-chip.ant-tag-checkable-checked {
+  border-color: var(--ioc-color-primary);
 }

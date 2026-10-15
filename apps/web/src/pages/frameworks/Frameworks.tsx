@@ -369,7 +369,7 @@ export default function Frameworks() {
       ) : rows.length ? (
         <Row gutter={[16, 16]} align="stretch">
           {rows.map(framework => (
-            <Col key={framework.id} xs={24} lg={12} xxl={8}>
+            <Col key={framework.id} xs={24} lg={12} xxl={8} style={{ display: 'flex' }}>
               <FrameworkCard
                 framework={framework}
                 onEdit={() => setEditing(framework)}

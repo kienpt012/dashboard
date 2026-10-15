@@ -1,5 +1,5 @@
 import { FundProjectionScreenOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, Descriptions, Flex, Row, Segmented, Table, Tabs, Tooltip } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Flex, Row, Table, Tabs, Tag, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocality } from '@/app/locality';
@@ -299,15 +299,16 @@ function Alerts({ data }: { data: Overview }) {
     <>
       {kinds.length > 1 && (
         <div className="card-filter">
-          <Segmented
-            size="small"
-            value={kind}
-            onChange={value => setKind(String(value))}
-            options={[
-              { value: 'ALL', label: `Tất cả ${data.alerts.length}` },
-              ...kinds.map(item => ({ value: item, label: `${ALERT_KINDS[item] ?? item} ${data.alerts.filter(alert => alert.kind === item).length}` })),
-            ]}
-          />
+          <Flex gap={6} wrap>
+            {['ALL', ...kinds].map(item => {
+              const count = item === 'ALL' ? data.alerts.length : data.alerts.filter(alert => alert.kind === item).length;
+              return (
+                <Tag.CheckableTag key={item} checked={kind === item} onChange={() => setKind(item)} className="filter-chip">
+                  {item === 'ALL' ? 'Tất cả' : ALERT_KINDS[item] ?? item} <b>{count}</b>
+                </Tag.CheckableTag>
+              );
+            })}
+          </Flex>
         </div>
       )}
       {list.length ? (
@@ -357,7 +358,7 @@ function Recent({ data }: { data: Overview }) {
   const list = all ? data.recent : data.recent.slice(0, 8);
   return (
     <>
-      <div className="feed">
+      <div className="feed free">
         {list.map(event => {
           const to = event.target ? `/admin/targets/${event.target.id}` : event.candidate ? `/admin/proposals?id=${event.candidate.id}` : undefined;
           const subject = event.target ? `${event.target.code} · ${event.target.title}` : event.candidate?.name;

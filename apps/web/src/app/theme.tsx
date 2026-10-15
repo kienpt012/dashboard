@@ -50,7 +50,20 @@ const ThemeContext = createContext<ThemeState>({ choice: 'system', dark: false, 
 
 export const useThemeMode = () => useContext(ThemeContext);
 
-function tokens(dark: boolean, primary: string): ThemeConfig {
+/** Pha màu với trắng để màu chủ đạo đủ sáng trên nền tối. */
+function lighten(hex: string, amount: number) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return hex;
+  const value = parseInt(match[1], 16);
+  const channel = (shift: number) => {
+    const c = (value >> shift) & 255;
+    return Math.round(c + (255 - c) * amount);
+  };
+  return `#${[16, 8, 0].map(shift => channel(shift).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function tokens(dark: boolean, seed: string): ThemeConfig {
+  const primary = dark ? lighten(seed, 0.28) : seed;
   return {
     algorithm: dark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
     token: {
