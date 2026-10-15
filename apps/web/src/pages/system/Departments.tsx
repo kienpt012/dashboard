@@ -45,7 +45,7 @@ function DepartmentForm({ open, item, onClose }: { open: boolean; item?: Departm
 
   return (
     <Modal title={item ? `Sửa ${item.name}` : 'Thêm phòng ban'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={680} destroyOnHidden>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => save.mutate(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
         <Form.Item name="code" label="Mã" rules={[{ required: true, max: 30, pattern: /^[A-Za-z0-9_-]+$/, message: 'Chữ, số, gạch ngang, gạch dưới' }]}>
           <Input />
         </Form.Item>

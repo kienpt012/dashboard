@@ -149,7 +149,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
       destroyOnHidden
       mask={{ closable: false }}
     >
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => save.mutate(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
         <Form.Item name="title" label="Tên chỉ tiêu" className="span-2" rules={[{ required: true, min: 3, max: 300, message: 'Nhập tên chỉ tiêu (3–300 ký tự)' }]}>
           <Input />
         </Form.Item>

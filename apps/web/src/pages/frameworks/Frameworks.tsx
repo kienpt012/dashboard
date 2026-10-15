@@ -80,7 +80,7 @@ function FrameworkForm({ open, framework, year, onClose }: { open: boolean; fram
 
   return (
     <Modal title={framework ? 'Sửa bộ chỉ tiêu' : 'Tạo bộ chỉ tiêu'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={640} destroyOnHidden>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => save.mutate(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
         {!framework && (
           <Form.Item name="code" label="Mã bộ" rules={[{ required: true, pattern: /^[A-Z0-9][A-Z0-9_-]{1,39}$/, message: 'Chữ in hoa không dấu, số, gạch ngang (2–40 ký tự)' }]}>
             <Input placeholder="KH-2026" />

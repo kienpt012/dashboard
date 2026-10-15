@@ -71,7 +71,7 @@ export function ExplanationRequestModal({ open, onClose }: { open: boolean; onCl
       <Form
         form={form}
         layout="vertical"
-        requiredMark="optional"
+       
         onFinish={async values => {
           setSaving(true);
           const done = await run(() => http.post(`/targets/${d.id}/explanations`, { message: values.message.trim(), dueDays: values.dueDays ?? undefined }), 'Đã gửi yêu cầu giải trình');

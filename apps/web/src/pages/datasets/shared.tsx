@@ -95,7 +95,7 @@ export function DatasetForm({ open, item, onClose, onSaved }: { open: boolean; i
 
   return (
     <Modal title={item ? 'Sửa bảng dữ liệu' : 'Tạo bảng dữ liệu'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={900} destroyOnHidden mask={{ closable: false }}>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => save.mutate(values)}>
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)}>
         <div className="form-grid">
           <Form.Item name="code" label="Mã bảng" rules={[{ required: true, pattern: /^[a-z][a-z0-9_]{2,47}$/, message: 'Chữ thường không dấu, số, gạch dưới; 3–48 ký tự' }]}>
             <Input disabled={Boolean(item)} placeholder="ho_so_dat_dai" />

@@ -100,7 +100,7 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         <p className="ant-upload-text">Kéo tệp vào đây hoặc bấm để chọn</p>
         <p className="ant-upload-hint">PDF, Word, Excel hoặc ảnh chụp; tối đa 25MB</p>
       </Upload.Dragger>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => upload.mutate(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={values => upload.mutate(values)} className="form-grid">
         <Form.Item name="title" label="Trích yếu" className="span-2" rules={[{ max: 300 }]}>
           <Input />
         </Form.Item>

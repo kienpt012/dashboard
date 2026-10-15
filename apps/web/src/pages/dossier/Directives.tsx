@@ -52,7 +52,7 @@ function DirectiveModal({ open, onClose }: { open: boolean; onClose: () => void 
 
   return (
     <Modal title="Thêm văn bản chỉ đạo" open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={saving} width={700} destroyOnHidden mask={{ closable: false }}>
-      <Form form={form} layout="vertical" requiredMark="optional" initialValues={{ kind: 'KE_HOACH' }} onFinish={values => void submit(values)} className="form-grid">
+      <Form form={form} layout="vertical" initialValues={{ kind: 'KE_HOACH' }} onFinish={values => void submit(values)} className="form-grid">
         <Form.Item name="kind" label="Loại văn bản" rules={[{ required: true }]}>
           <Select options={(Object.keys(directiveKindLabels) as DirectiveKind[]).map(key => ({ value: key, label: directiveKindLabels[key] }))} />
         </Form.Item>

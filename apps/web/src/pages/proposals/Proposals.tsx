@@ -175,7 +175,7 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         </Space>
       }
     >
-      <Form form={form} layout="vertical" requiredMark="optional" className="form-grid">
+      <Form form={form} layout="vertical" className="form-grid">
         <Form.Item name="name" label="Tên chỉ tiêu" className="span-2" rules={[{ required: true, min: 3, max: 300, message: '3–300 ký tự' }]}>
           <Input />
         </Form.Item>

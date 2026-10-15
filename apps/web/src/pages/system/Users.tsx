@@ -46,7 +46,7 @@ function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; 
 
   return (
     <Modal title={item ? `Sửa tài khoản ${item.username}` : 'Tạo tài khoản'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={680} destroyOnHidden>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => save.mutate(values)} className="form-grid" autoComplete="off">
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid" autoComplete="off">
         {!item && (
           <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, min: 3, max: 50, pattern: /^[A-Za-z0-9._-]+$/, message: 'Chữ, số, dấu chấm, gạch ngang, gạch dưới' }]}>
             <Input autoComplete="off" />

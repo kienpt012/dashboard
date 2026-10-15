@@ -60,7 +60,7 @@ export function EvaluationModal({ open, presetPeriod, onClose }: { open: boolean
 
   return (
     <Modal title={existing ? 'Sửa đánh giá' : 'Đánh giá kết quả'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu đánh giá" confirmLoading={saving} width={620} destroyOnHidden mask={{ closable: false }}>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => void submit(values)}>
+      <Form form={form} layout="vertical" onFinish={values => void submit(values)}>
         <div className="form-grid">
           <Form.Item name="periodKey" label="Kỳ đánh giá" rules={[{ required: true }]}>
             <Select onChange={value => fill(value)} options={periods.map(key => ({ value: key, label: `${periodLabel(key)}${d.evaluations.some(item => item.periodKey === key) ? ' · đã đánh giá' : ''}` }))} />

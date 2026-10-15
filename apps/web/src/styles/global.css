@@ -968,3 +968,8 @@ a.donut-row:hover {
 .fb-msg.internal {
   background: var(--ioc-color-fill-quaternary);
 }
+
+.card-selected.ant-card {
+  border-color: var(--ioc-color-primary);
+  background: var(--ioc-color-primary-bg);
+}

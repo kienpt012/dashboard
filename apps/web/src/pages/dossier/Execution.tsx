@@ -92,7 +92,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         {d.code} · {d.title}
       </Typography.Paragraph>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => void submit(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={values => void submit(values)} className="form-grid">
         <Form.Item name="periodKey" label="Kỳ báo cáo" rules={[{ required: true, message: 'Chọn kỳ' }]}>
           <Select
             options={d.periods.map(item => ({
@@ -372,7 +372,7 @@ function LinkEvidenceModal({ open, onClose }: { open: boolean; onClose: () => vo
       <Form
         form={form}
         layout="vertical"
-        requiredMark="optional"
+       
         onFinish={async values => {
           setBusy(true);
           const done = await run(() => http.post(`/targets/${d.id}/evidence`, { kind: 'LINK', title: values.title.trim(), url: values.url.trim(), note: values.note?.trim() || undefined }), 'Đã thêm minh chứng');

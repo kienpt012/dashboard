@@ -69,7 +69,7 @@ function RowModal({ dataset, row, open, onClose }: { dataset: Detail; row: Row |
 
   return (
     <Modal title={row ? 'Sửa dòng dữ liệu' : 'Thêm dòng dữ liệu'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={dataset.columns.length > 6 ? 760 : 560} destroyOnHidden>
-      <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => save.mutate(values)} className={dataset.columns.length > 6 ? 'form-grid' : undefined}>
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className={dataset.columns.length > 6 ? 'form-grid' : undefined}>
         {dataset.columns.map(column => (
           <Form.Item key={column.key} name={column.key} label={column.label} valuePropName={column.type === 'boolean' ? 'checked' : 'value'} rules={column.required ? [{ required: true, message: 'Bắt buộc' }] : []}>
             {fieldFor(column)}
