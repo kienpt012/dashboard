@@ -5,13 +5,12 @@ import {
   MenuOutlined,
   MenuUnfoldOutlined,
   MoonOutlined,
-  RobotOutlined,
   SearchOutlined,
   SunOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Avatar, Badge, Button, Drawer, Dropdown, Grid, Layout, Menu, Tooltip, type MenuProps } from 'antd';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { localityInitials, useLocality } from '@/app/locality';
 import { useMe } from '@/app/session';
@@ -25,7 +24,7 @@ import { APPROVERS, can, initials, isGlobal, roleLabel } from '@/lib/roles';
 import { navGroups, routeInfo } from '../nav';
 import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
-import { Copilot } from './Copilot';
+import { Jarvis, JarvisMark, type JarvisVoiceState } from './Jarvis';
 import { Notifications } from './Notifications';
 import './layout.css';
 
@@ -137,6 +136,9 @@ export default function AdminLayout() {
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
   const [copilot, setCopilot] = useState(false);
+  const [voice, setVoice] = useState<JarvisVoiceState>('off');
+  const openJarvis = useCallback(() => setCopilot(true), []);
+  const closeJarvis = useCallback(() => setCopilot(false), []);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const info = routeInfo(location.pathname, !isGlobal(user));
 
@@ -146,7 +148,7 @@ export default function AdminLayout() {
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
 
-  // Liên kết cũ /admin/copilot: mở sẵn Trợ lý.
+  // Liên kết cũ /admin/copilot: mở sẵn Jarvis.
   useEffect(() => {
     if ((location.state as { copilot?: boolean } | null)?.copilot) setCopilot(true);
   }, [location.state]);
@@ -255,8 +257,14 @@ export default function AdminLayout() {
             <kbd>Ctrl K</kbd>
           </button>
           <div className="head-actions">
-            <Tooltip title="Trợ lý (Ctrl J)">
-              <Button type="text" className={`head-btn${copilot ? ' on' : ''}`} icon={<RobotOutlined />} onClick={() => setCopilot(value => !value)} aria-label="Trợ lý" />
+            <Tooltip title={voice === 'idle' ? 'Jarvis đang chờ gọi tên (Ctrl J)' : 'Jarvis (Ctrl J)'}>
+              <Button
+                type="text"
+                className={`head-btn jarvis-btn voice-${voice}${copilot ? ' on' : ''}`}
+                icon={<JarvisMark size={20} state={voice} />}
+                onClick={() => setCopilot(value => !value)}
+                aria-label="Jarvis"
+              />
             </Tooltip>
             <BugReport />
             <Notifications />
@@ -295,7 +303,7 @@ export default function AdminLayout() {
         onTheme={() => theme.setChoice(theme.dark ? 'light' : 'dark')}
         onLogout={logout}
       />
-      <Copilot open={copilot} onClose={() => setCopilot(false)} />
+      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} />
       <BackToTop />
     </Layout>
   );

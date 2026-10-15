@@ -477,3 +477,216 @@
   text-transform: uppercase;
   color: var(--ioc-color-text-tertiary);
 }
+
+/* Jarvis: biểu tượng lò phản ứng, trạng thái giọng nói */
+.jarvis-mark {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--ioc-color-primary);
+}
+
+.jarvis-mark svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.jarvis-mark svg * {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  fill: none;
+  stroke: currentColor;
+}
+
+.jarvis-mark .jm-outer {
+  stroke-width: 1.4;
+  opacity: 0.35;
+}
+
+.jarvis-mark .jm-arc {
+  stroke-width: 3;
+  stroke-linecap: round;
+  animation: jm-spin 6s linear infinite;
+}
+
+.jarvis-mark .jm-ring {
+  stroke-width: 2;
+  stroke-dasharray: 3 2.5;
+  opacity: 0.8;
+  animation: jm-spin 9s linear infinite reverse;
+}
+
+.jarvis-mark .jm-core {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.9;
+}
+
+.jarvis-mark.idle .jm-core {
+  animation: jm-breathe 2.4s ease-in-out infinite;
+}
+
+.jarvis-mark.listening {
+  color: #0ea5e9;
+  filter: drop-shadow(0 0 4px rgba(14, 165, 233, 0.75));
+}
+
+.jarvis-mark.listening .jm-arc {
+  animation-duration: 1.1s;
+}
+
+.jarvis-mark.listening .jm-core {
+  animation: jm-breathe 0.8s ease-in-out infinite;
+}
+
+.jarvis-mark.thinking .jm-arc {
+  animation-duration: 0.7s;
+}
+
+.jarvis-mark.speaking .jm-core {
+  animation: jm-talk 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes jm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes jm-breathe {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes jm-talk {
+  to {
+    transform: scale(1.35);
+  }
+}
+
+.jarvis-name {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.jarvis-status {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.jarvis-status.listening,
+.jarvis-status.thinking,
+.jarvis-status.speaking {
+  color: #0ea5e9;
+}
+
+/* Nút Jarvis trên thanh đầu trang: chấm xanh khi micro đang chờ gọi tên */
+.jarvis-btn {
+  position: relative;
+}
+
+.jarvis-btn.voice-idle::after,
+.jarvis-btn.voice-listening::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px var(--ioc-color-bg-container);
+}
+
+.jarvis-btn.voice-listening::after {
+  background: #0ea5e9;
+  animation: jm-breathe 0.8s ease-in-out infinite;
+}
+
+.jarvis-mic.on.ant-btn {
+  color: #fff;
+  border-color: #0ea5e9;
+  background: #0ea5e9;
+  animation: jarvis-pulse 1.2s ease-out infinite;
+}
+
+@keyframes jarvis-pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.5);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgba(14, 165, 233, 0);
+  }
+}
+
+.jarvis-heard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(14, 165, 233, 0.6);
+  color: var(--ioc-color-text-secondary);
+  font-size: 13.5px;
+}
+
+.jarvis-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+
+.jarvis-wave i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: #0ea5e9;
+  animation: jarvis-wave 0.9s ease-in-out infinite;
+}
+
+.jarvis-wave i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.jarvis-wave i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.jarvis-wave i:nth-child(4) {
+  animation-delay: 0.45s;
+}
+
+.jarvis-wave i:nth-child(5) {
+  animation-delay: 0.6s;
+}
+
+@keyframes jarvis-wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.bubble-voice {
+  margin-inline-end: 6px;
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-mark *,
+  .jarvis-wave i,
+  .jarvis-mic.on.ant-btn {
+    animation: none !important;
+  }
+}

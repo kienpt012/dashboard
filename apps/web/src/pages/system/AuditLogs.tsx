@@ -25,9 +25,9 @@ type Log = {
 type Response = { items: Log[]; total: number; page: number; pageSize: number; totalPages: number; filters: { actions: string[]; entityTypes: string[] } };
 
 const ACTION: Record<string, string> = {
-  AGENT_ACTION_CANCELLED: 'Huỷ thao tác của trợ lý',
-  AGENT_ACTION_EXECUTED: 'Thực hiện thao tác của trợ lý',
-  AGENT_ACTION_PROPOSED: 'Trợ lý đề xuất thao tác',
+  AGENT_ACTION_CANCELLED: 'Huỷ thao tác của Jarvis',
+  AGENT_ACTION_EXECUTED: 'Thực hiện thao tác của Jarvis',
+  AGENT_ACTION_PROPOSED: 'Jarvis đề xuất thao tác',
   AI_CANDIDATE_EDITED: 'Hiệu chỉnh đề xuất AI',
   AI_CANDIDATE_REJECTED: 'Từ chối đề xuất AI',
   ASSIGNED: 'Giao việc',
@@ -39,7 +39,7 @@ const ACTION: Record<string, string> = {
   CITIZEN_REOPEN_REQUEST_REJECTED: 'Từ chối đề nghị xem xét lại',
   COMPUTED_UPDATE: 'Tự tính lại số liệu',
   CONTACT_ATTEMPT_LOGGED: 'Ghi nhận liên hệ người dân',
-  COPILOT_QUERY: 'Hỏi trợ lý',
+  COPILOT_QUERY: 'Hỏi Jarvis',
   CREATED: 'Tạo mới',
   DATASET_CREATED: 'Tạo bảng dữ liệu',
   DATASET_IMPORTED: 'Nhập Excel vào bảng dữ liệu',
@@ -146,7 +146,8 @@ const ENTITY: Record<string, string> = {
   ExplanationRequest: 'Giải trình',
   BugReport: 'Báo lỗi',
   LocalityProfile: 'Địa phương',
-  AgentAction: 'Trợ lý',
+  AgentAction: 'Thao tác của Jarvis',
+  Copilot: 'Jarvis',
   ExtractionJob: 'Lượt trích xuất',
 };
 

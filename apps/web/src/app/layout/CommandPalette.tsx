@@ -1,4 +1,4 @@
-import { AimOutlined, BgColorsOutlined, EnterOutlined, LogoutOutlined, RobotOutlined, SearchOutlined } from '@ant-design/icons';
+import { AimOutlined, BgColorsOutlined, EnterOutlined, LogoutOutlined, SearchOutlined } from '@ant-design/icons';
 import { Empty, Input, Modal, Spin, Tag } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { query } from '@/lib/api';
 import { can } from '@/lib/roles';
 import type { Target } from '@/types/core';
 import { fold, navItems } from '../nav';
+import { JarvisMark } from './Jarvis';
 
 type Entry = { key: string; icon: React.ReactNode; label: string; hint?: string; to?: string; run?: () => void; group: 'target' | 'page' | 'action' };
 
@@ -56,7 +57,7 @@ export function CommandPalette({ open, onClose, onCopilot, onTheme, onLogout }: 
           }))
         : [];
     const actions: Entry[] = [
-      { key: 'act-copilot', icon: <RobotOutlined />, label: 'Mở Trợ lý', hint: 'Ctrl J', run: onCopilot, group: 'action' as const },
+      { key: 'act-copilot', icon: <JarvisMark size={16} />, label: 'Mở Jarvis', hint: 'Ctrl J', run: onCopilot, group: 'action' as const },
       { key: 'act-theme', icon: <BgColorsOutlined />, label: 'Đổi giao diện sáng/tối', run: onTheme, group: 'action' as const },
       { key: 'act-logout', icon: <LogoutOutlined />, label: 'Đăng xuất', run: onLogout, group: 'action' as const },
     ].filter(item => match(`${item.label} tro ly giao dien sang toi dang xuat`));
