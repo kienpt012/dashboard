@@ -55,7 +55,7 @@ export function BugReport() {
     }
   }
 
-  if (!user || user.role === 'VIEWER') return null;
+  if (!user) return null;
 
   return (
     <>

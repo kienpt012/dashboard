@@ -52,7 +52,7 @@ function RowModal({ dataset, row, open, onClose }: { dataset: Detail; row: Row |
       const data: Record<string, unknown> = {};
       for (const column of dataset.columns) {
         const value = values[column.key];
-        data[column.key] = dayjs.isDayjs(value) ? value.format('YYYY-MM-DD') : value === undefined ? null : value;
+        data[column.key] = column.type === 'boolean' ? Boolean(value) : dayjs.isDayjs(value) ? value.format('YYYY-MM-DD') : value === undefined || value === '' ? null : value;
       }
       const path = `/datasets/${encodeURIComponent(dataset.code)}/rows${row ? `/${row.id}` : ''}`;
       return row ? http.patch<{ recomputed?: Recomputed[] }>(path, { data, expectedVersion: row.version }) : http.post<{ recomputed?: Recomputed[] }>(path, { data });
@@ -71,7 +71,14 @@ function RowModal({ dataset, row, open, onClose }: { dataset: Detail; row: Row |
     <Modal title={row ? 'Sửa dòng dữ liệu' : 'Thêm dòng dữ liệu'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={dataset.columns.length > 6 ? 760 : 560} destroyOnHidden>
       <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className={dataset.columns.length > 6 ? 'form-grid' : undefined}>
         {dataset.columns.map(column => (
-          <Form.Item key={column.key} name={column.key} label={column.label} valuePropName={column.type === 'boolean' ? 'checked' : 'value'} rules={column.required ? [{ required: true, message: 'Bắt buộc' }] : []}>
+          <Form.Item
+            key={column.key}
+            name={column.key}
+            label={column.label}
+            valuePropName={column.type === 'boolean' ? 'checked' : 'value'}
+            initialValue={column.type === 'boolean' ? false : undefined}
+            rules={column.required && column.type !== 'boolean' ? [{ required: true, message: 'Bắt buộc' }] : []}
+          >
             {fieldFor(column)}
           </Form.Item>
         ))}
@@ -170,9 +177,9 @@ export default function DatasetDetail() {
         </>
       }
       extra={
-        editable && (
+        (editable || !dataset.builtin) && (
           <>
-            {can(user, DATASET_ADMINS) && (
+            {editable && can(user, DATASET_ADMINS) && (
               <Button icon={<EditOutlined />} onClick={() => setEditingDataset(true)}>
                 Sửa cấu trúc
               </Button>
@@ -180,12 +187,16 @@ export default function DatasetDetail() {
             <Button icon={<DownloadOutlined />} onClick={() => void downloadTemplate(dataset.code, dataset.name, text => message.error(text))}>
               Tải mẫu Excel
             </Button>
-            <Button icon={<FileExcelOutlined />} onClick={() => setImporting(true)}>
-              Nhập Excel
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditing(null)}>
-              Thêm dòng
-            </Button>
+            {editable && (
+              <Button icon={<FileExcelOutlined />} onClick={() => setImporting(true)}>
+                Nhập Excel
+              </Button>
+            )}
+            {editable && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditing(null)}>
+                Thêm dòng
+              </Button>
+            )}
           </>
         )
       }

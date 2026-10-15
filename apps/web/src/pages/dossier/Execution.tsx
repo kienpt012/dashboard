@@ -148,7 +148,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
   );
 }
 
-function PeriodStrip({ onPick }: { onPick: (key: string) => void }) {
+function PeriodStrip({ onPick, canReport }: { onPick: (key: string) => void; canReport: boolean }) {
   const { d } = useDossier();
   const missing = d.periods.filter(period => period.overdue && !period.reported).length;
   return (
@@ -157,7 +157,7 @@ function PeriodStrip({ onPick }: { onPick: (key: string) => void }) {
         {d.periods.map(period => {
           const state = period.reported ? 'reported' : period.overdue ? 'overdue' : period.key === d.currentPeriodKey ? 'current' : 'future';
           const tip = `${period.label}: ${period.reported ? 'đã báo cáo' : period.overdue ? `quá hạn từ ${date(period.deadline)}` : `hạn ${date(period.deadline)}`}`;
-          const clickable = d.permissions.canReport && !period.reported && d.valueSource === 'MANUAL' && !d.isArchived;
+          const clickable = canReport && !period.reported;
           return (
             <Tooltip key={period.key} title={clickable ? `${tip} · bấm để báo cáo` : tip}>
               <button type="button" className={`period ${state}`} disabled={!clickable} onClick={() => onPick(period.key)}>
@@ -394,13 +394,13 @@ function LinkEvidenceModal({ open, onClose }: { open: boolean; onClose: () => vo
   );
 }
 
-export function ExecutionTab({ onReport }: { onReport: (periodKey?: string) => void }) {
+export function ExecutionTab({ onReport, canReport }: { onReport: (periodKey?: string) => void; canReport: boolean }) {
   const { d } = useDossier();
   const [linking, setLinking] = useState(false);
   const manual = d.valueSource === 'MANUAL';
   return (
     <div className="tab-body">
-      {manual && d.periods.length > 0 && <PeriodStrip onPick={onReport} />}
+      {manual && d.periods.length > 0 && <PeriodStrip onPick={onReport} canReport={canReport} />}
       {d.valueSource === 'COMPUTED' && <Formula />}
       {d.valueSource === 'CHILDREN' && (
         <Alert type="info" showIcon title="Số liệu tổng hợp từ các chỉ tiêu con" style={{ marginBottom: 16 }} />
@@ -409,7 +409,7 @@ export function ExecutionTab({ onReport }: { onReport: (periodKey?: string) => v
 
       <Flex justify="space-between" align="center" className="tab-section-head">
         <Typography.Text strong>Báo cáo số liệu ({d.reports.length})</Typography.Text>
-        {manual && d.permissions.canReport && !d.isArchived && (
+        {canReport && (
           <Button size="small" icon={<PlusOutlined />} onClick={() => onReport()}>
             Báo cáo
           </Button>

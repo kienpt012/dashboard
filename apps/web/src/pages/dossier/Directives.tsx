@@ -2,7 +2,7 @@ import { DeleteOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icon
 import { Alert, App, Button, DatePicker, Flex, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tooltip, Typography } from 'antd';
 import type { Dayjs } from 'dayjs';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { DocumentLink } from '@/components/LegalBasis';
 import { NoData } from '@/components/States';
 import { useApi } from '@/hooks/useApi';
 import { http } from '@/lib/api';
@@ -103,7 +103,7 @@ export function DirectivesTab() {
           style={{ marginBottom: 16 }}
           title={
             <span>
-              Giao theo văn bản <Link to={`/admin/documents/${d.sourceDocument.id}`}>{d.sourceDocument.docNumber || d.sourceDocument.code}</Link> — {d.sourceDocument.title}
+              Giao theo văn bản <DocumentLink id={d.sourceDocument.id}>{d.sourceDocument.docNumber || d.sourceDocument.code}</DocumentLink> — {d.sourceDocument.title}
             </span>
           }
         />
@@ -155,9 +155,9 @@ export function DirectivesTab() {
             {item.sourceDocument && (
               <div className="entry-line">
                 <span className="entry-label">Trong kho</span>
-                <Link to={`/admin/documents/${item.sourceDocument.id}`}>
+                <DocumentLink id={item.sourceDocument.id}>
                   {item.sourceDocument.code} — {item.sourceDocument.title}
-                </Link>
+                </DocumentLink>
               </div>
             )}
             <EvidenceList targetId={d.id} items={item.evidences} />

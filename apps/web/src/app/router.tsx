@@ -118,7 +118,7 @@ const router = createBrowserRouter([
       { path: 'audit-logs', element: guarded(pages.AuditLogs, ADMINS) },
       { path: 'bao-loi', element: guarded(pages.BugReports, ADMINS) },
       { path: 'profile', element: guarded(pages.Profile) },
-      { path: 'copilot', element: <Navigate to="/admin" replace /> },
+      { path: 'copilot', element: <Navigate to="/admin" replace state={{ copilot: true }} /> },
       { path: '*', element: <Navigate to="/admin" replace /> },
     ],
   },

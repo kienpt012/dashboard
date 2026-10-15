@@ -64,8 +64,17 @@ function login(person: Person) {
   return <span className={days > 7 ? 'tone-warn' : 'muted'}>đăng nhập {fromNow(person.lastLoginAt)}</span>;
 }
 
-function numCol(key: NumKey, title: string) {
-  return { title, dataIndex: key, width: 80, align: 'center' as const, render: cell(key) };
+function numCol(key: NumKey, title: string, defaultSort?: boolean) {
+  return {
+    title,
+    dataIndex: key,
+    width: 84,
+    align: 'center' as const,
+    render: cell(key),
+    sorter: (a: Row, b: Row) => a[key] - b[key],
+    sortDirections: ['descend', 'ascend'] as ('descend' | 'ascend')[],
+    ...(defaultSort ? { defaultSortOrder: 'descend' as const } : {}),
+  };
 }
 
 function PrintAppendix({ data }: { data: Data }) {
@@ -171,8 +180,8 @@ function Content({ data }: { data: Data }) {
         </div>
       ),
     },
-    { title: 'Chỉ tiêu', dataIndex: 'targets', width: 72, align: 'center', render: value => <span className="num">{num(value)}</span> },
-    { title: 'Duyệt báo cáo', align: 'center', children: [numCol('pendingReports', 'Đang chờ'), numCol('oldestPendingDays', 'Lâu nhất (ngày)'), numCol('autoApprovedReports', 'Tự thông qua')] },
+    { title: 'Chỉ tiêu', dataIndex: 'targets', width: 76, align: 'center', render: value => <span className="num">{num(value)}</span>, sorter: (a, b) => a.targets - b.targets, sortDirections: ['descend', 'ascend'] },
+    { title: 'Duyệt báo cáo', align: 'center', children: [numCol('pendingReports', 'Đang chờ'), numCol('oldestPendingDays', 'Lâu nhất (ngày)'), numCol('autoApprovedReports', 'Tự thông qua', true)] },
     { title: 'Đề xuất chỉ tiêu', align: 'center', children: [numCol('rejectedProposals', 'Bị từ chối'), numCol('autoApprovedProposals', 'Tự thông qua')] },
     { title: 'Giao việc', align: 'center', children: [numCol('unassigned', 'Chưa giao'), numCol('bounces', 'Chuyển, trả'), numCol('escalations', 'Báo lãnh đạo')] },
     numCol('missingReports', 'Thiếu báo cáo'),
@@ -199,7 +208,7 @@ function Content({ data }: { data: Data }) {
           columns={columns}
           dataSource={data.departments}
           pagination={false}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1180 }}
           expandable={{
             expandedRowRender: row => (
               <Descriptions

@@ -8,6 +8,7 @@ import { Chart, type ChartOption } from '@/components/Chart';
 import { DistBar, Metric, ProgressCell, TitleCell, YearSelect } from '@/components/Data';
 import { Page } from '@/components/Page';
 import { NoData, PageSkeleton, Query } from '@/components/States';
+import { LegalBasis } from '@/components/LegalBasis';
 import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
 import { useApi } from '@/hooks/useApi';
 import { currentYear, date, dateTime, fromNow, num, pct } from '@/lib/format';
@@ -24,6 +25,9 @@ const ALERT_KINDS: Record<string, string> = {
   REPORT_PENDING: 'Báo cáo chờ duyệt',
   EXPLANATION_OVERDUE: 'Giải trình quá hạn',
 };
+
+/** Chỉ các loại cảnh báo này có detail là tên chỉ tiêu/nội dung; loại khác detail là câu giải thích của máy chủ. */
+const DETAIL_KINDS = new Set(['OVERDUE', 'AT_RISK', 'MISSING_REPORT', 'EXPLANATION_OVERDUE', 'STALLED']);
 
 function alertLink(alert: AlertItem, departments: OverviewDepartment[]) {
   if (alert.targetId) return `/admin/targets/${alert.targetId}`;
@@ -125,7 +129,7 @@ function Frameworks({ data }: { data: Overview }) {
             size="small"
             column={{ xs: 1, md: 2, xl: 3 }}
             items={[
-              { label: 'Căn cứ', children: framework.legalBasis || '—', span: { xs: 1, md: 2, xl: 3 } },
+              { label: 'Căn cứ', children: framework.legalBasis ? <LegalBasis text={framework.legalBasis} /> : '—', span: { xs: 1, md: 2, xl: 3 } },
               { label: 'Cấp giao', children: framework.issuingLevelLabel },
               { label: 'Đã có số liệu', children: `${num(framework.summary.reported)}/${num(framework.summary.total)}` },
               { label: 'Có văn bản chỉ đạo', children: `${num(framework.summary.withDirective)}/${num(framework.summary.total)}` },
@@ -139,10 +143,11 @@ function Frameworks({ data }: { data: Overview }) {
         {
           title: 'Bộ chỉ tiêu',
           key: 'name',
+          sorter: (a, b) => a.name.localeCompare(b.name, 'vi'),
           render: (_, framework) => <TitleCell title={framework.name} sub={framework.issuingLevelLabel} to={`/admin/targets?frameworkId=${framework.id}&year=${data.year}`} />,
         },
-        { title: 'Loại', key: 'kind', width: 110, render: (_, framework) => <KindTag kind={framework.kind} /> },
-        { title: 'Chỉ tiêu', key: 'total', width: 90, align: 'right', render: (_, framework) => <span className="num">{num(framework.summary.total)}</span> },
+        { title: 'Loại', key: 'kind', width: 120, sorter: (a, b) => a.kind.localeCompare(b.kind), render: (_, framework) => <KindTag kind={framework.kind} /> },
+        { title: 'Chỉ tiêu', key: 'total', width: 96, align: 'center', sorter: (a, b) => a.summary.total - b.summary.total, render: (_, framework) => <span className="num">{num(framework.summary.total)}</span> },
         {
           title: 'Kết quả',
           key: 'result',
@@ -166,8 +171,9 @@ function Frameworks({ data }: { data: Overview }) {
         {
           title: 'Thiếu báo cáo',
           key: 'missing',
-          width: 120,
-          align: 'right',
+          width: 130,
+          align: 'center',
+          sorter: (a, b) => a.missingReports - b.missingReports,
           render: (_, framework) => <span className={`num${framework.missingReports ? ' tone-warn' : ' muted'}`}>{num(framework.missingReports)}</span>,
         },
       ]}
@@ -212,6 +218,7 @@ function Departments({ data }: { data: Overview }) {
         {
           title: 'Phòng ban',
           key: 'name',
+          sorter: (a, b) => a.name.localeCompare(b.name, 'vi'),
           render: (_, department) => {
             const manager = department.managers[0];
             return (
@@ -228,7 +235,7 @@ function Departments({ data }: { data: Overview }) {
             );
           },
         },
-        { title: 'Chỉ tiêu', dataIndex: 'total', width: 84, align: 'right', render: value => <span className="num">{num(value)}</span> },
+        { title: 'Chỉ tiêu', dataIndex: 'total', width: 96, align: 'center', sorter: (a, b) => a.total - b.total, render: value => <span className="num">{num(value)}</span> },
         {
           title: 'Tình trạng',
           key: 'dist',
@@ -245,15 +252,15 @@ function Departments({ data }: { data: Overview }) {
           title: 'Thiếu báo cáo',
           dataIndex: 'missingReports',
           width: 136,
-          align: 'right',
+          align: 'center',
           sorter: (a, b) => a.missingReports - b.missingReports,
           render: value => <span className={`num${value ? ' tone-warn' : ' muted'}`}>{num(value)}</span>,
         },
         {
           title: 'Chưa giao',
           dataIndex: 'unassigned',
-          width: 112,
-          align: 'right',
+          width: 116,
+          align: 'center',
           sorter: (a, b) => a.unassigned - b.unassigned,
           render: (value, department) =>
             value ? (
@@ -267,8 +274,9 @@ function Departments({ data }: { data: Overview }) {
         {
           title: 'Chờ duyệt',
           dataIndex: 'pendingReports',
-          width: 100,
-          align: 'right',
+          width: 112,
+          align: 'center',
+          sorter: (a, b) => a.pendingReports - b.pendingReports || a.oldestPendingDays - b.oldestPendingDays,
           render: (value, department) => (
             <Tooltip title={value ? `Lâu nhất ${department.oldestPendingDays} ngày` : undefined}>
               <span className={`num${department.oldestPendingDays >= 3 ? ' tone-bad' : value ? ' tone-warn' : ' muted'}`}>{num(value)}</span>
@@ -280,8 +288,9 @@ function Departments({ data }: { data: Overview }) {
               {
                 title: 'Giải trình',
                 dataIndex: 'openExplanations',
-                width: 96,
-                align: 'right' as const,
+                width: 108,
+                align: 'center' as const,
+                sorter: (a: OverviewDepartment, b: OverviewDepartment) => a.openExplanations - b.openExplanations,
                 render: (value: number) => <span className={`num${value ? ' tone-warn' : ' muted'}`}>{num(value)}</span>,
               },
             ]
@@ -320,7 +329,7 @@ function Alerts({ data }: { data: Overview }) {
                 <i className={`sev ${alert.severity}`} />
                 <div className="feed-body">
                   {to ? <Link to={to}>{alert.title}</Link> : <span>{alert.title}</span>}
-                  <span className="feed-meta">{[alert.detail, alert.departmentName, alertWhen(alert)].filter(Boolean).join(' · ')}</span>
+                  <span className="feed-meta">{[DETAIL_KINDS.has(alert.kind) ? alert.detail : null, alert.departmentName, alertWhen(alert)].filter(Boolean).join(' · ')}</span>
                 </div>
               </div>
             );

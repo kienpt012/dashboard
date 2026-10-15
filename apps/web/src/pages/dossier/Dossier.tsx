@@ -8,6 +8,7 @@ import { LoadError, PageSkeleton } from '@/components/States';
 import { DeptTag, KindTag, StatusTag, STATUS } from '@/components/Tags';
 import { useApi } from '@/hooks/useApi';
 import { ApiError, http } from '@/lib/api';
+import { can, LEADERSHIP, REPORTERS } from '@/lib/roles';
 import { date, dateTime, num, until } from '@/lib/format';
 import { frequencyLabel, periodLabel } from '@/lib/periods';
 import type { TargetStatusKey } from '@/types/domain';
@@ -34,7 +35,9 @@ function Figures() {
         <div className="figure">
           <span className="figure-label">Chỉ tiêu giao</span>
           <span className="figure-value">{stat ? 'Theo dõi số liệu' : d.targetText || valueText(d.targetValue, d.unit)}</span>
-          <span className="figure-foot">{stat ? 'Chỉ tiêu thống kê' : d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}</span>
+          <span className="figure-foot">
+            {stat ? 'Chỉ tiêu thống kê' : `${d.targetText ? `Quy đổi ${valueText(d.targetValue, d.unit)} · ` : ''}${d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}`}
+          </span>
         </div>
         <div className="figure">
           <span className="figure-label">Thực hiện</span>
@@ -85,7 +88,9 @@ function DossierView({ d }: { d: DossierData }) {
   const [people, setPeople] = useState<PeopleAction | null>(null);
   const [explaining, setExplaining] = useState(false);
   const p = d.permissions;
-  const canReport = d.valueSource === 'MANUAL' && p.canReport && !d.isArchived;
+  const { me } = useDossier();
+  const myPending = !can(me, LEADERSHIP) && d.reports.some(report => report.user.id === me.id && report.reviewStatus === 'PENDING');
+  const canReport = d.valueSource === 'MANUAL' && p.canReport && can(me, REPORTERS) && !d.isArchived;
   const [params, setParams] = useSearchParams();
 
   // Mở sẵn biểu mẫu báo cáo khi đi từ "Việc của tôi" (?bao-cao=kỳ).
@@ -117,6 +122,7 @@ function DossierView({ d }: { d: DossierData }) {
   const crumbs = [
     { label: 'Danh mục chỉ tiêu', to: '/admin/targets' },
     ...(d.framework ? [{ label: d.framework.name, to: `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
+    ...(d.groupName ? [{ label: d.groupName }] : []),
     ...(d.parent ? [{ label: d.parent.code, to: `/admin/targets/${d.parent.id}` }] : []),
     { label: d.code },
   ];
@@ -159,11 +165,18 @@ function DossierView({ d }: { d: DossierData }) {
               Đánh giá
             </Button>
           )}
-          {canReport && (
-            <Button type="primary" icon={<SendOutlined />} onClick={() => setReporting({})}>
-              Báo cáo số liệu
-            </Button>
-          )}
+          {canReport &&
+            (myPending ? (
+              <Tooltip title="Báo cáo trước của bạn đang chờ duyệt">
+                <Button type="primary" icon={<SendOutlined />} disabled>
+                  Đang chờ duyệt
+                </Button>
+              </Tooltip>
+            ) : (
+              <Button type="primary" icon={<SendOutlined />} onClick={() => setReporting({})}>
+                Báo cáo số liệu
+              </Button>
+            ))}
         </>
       }
     >
@@ -190,7 +203,7 @@ function DossierView({ d }: { d: DossierData }) {
                       {done(d.completeness.execution)}Thực hiện
                     </Space>
                   ),
-                  children: <ExecutionTab onReport={period => setReporting({ period })} />,
+                  children: <ExecutionTab canReport={canReport && !myPending} onReport={period => setReporting({ period })} />,
                 },
                 {
                   key: 'chi-dao',

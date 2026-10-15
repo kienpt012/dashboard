@@ -1,7 +1,7 @@
 import { FileTextOutlined, LinkOutlined, PaperClipOutlined, UploadOutlined } from '@ant-design/icons';
 import { App, Button, Flex, Upload, type UploadFile } from 'antd';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { DocumentViewer } from '@/components/DocumentViewer';
 import { errorText, http } from '@/lib/api';
 import { fileSize } from '@/lib/format';
 import type { Evidence } from '@/types/domain';
@@ -54,6 +54,7 @@ async function openFile(targetId: string, item: Evidence) {
 export function EvidenceList({ targetId, items }: { targetId: string; items: Evidence[] }) {
   const { message } = App.useApp();
   const [busy, setBusy] = useState('');
+  const [viewing, setViewing] = useState<string | null>(null);
   if (!items.length) return null;
   return (
     <Flex gap={6} wrap className="evidence-list">
@@ -68,10 +69,10 @@ export function EvidenceList({ targetId, items }: { targetId: string; items: Evi
         }
         if (item.kind === 'DOCUMENT') {
           return item.sourceDocumentId ? (
-            <Link key={item.id} className="evidence" to={`/admin/documents/${item.sourceDocumentId}`}>
+            <button key={item.id} type="button" className="evidence" onClick={() => setViewing(item.sourceDocumentId!)}>
               <FileTextOutlined />
               <span>{item.title}</span>
-            </Link>
+            </button>
           ) : (
             <span key={item.id} className="evidence">
               <FileTextOutlined />
@@ -103,6 +104,7 @@ export function EvidenceList({ targetId, items }: { targetId: string; items: Evi
           </button>
         );
       })}
+      <DocumentViewer id={viewing} onClose={() => setViewing(null)} />
     </Flex>
   );
 }
@@ -116,16 +118,22 @@ export function EvidencePicker({ files, onChange, label = 'Đính kèm minh ch�
       multiple
       accept={EVIDENCE_ACCEPT}
       fileList={list}
-      beforeUpload={file => {
-        if (file.size > MAX_BYTES) {
-          message.warning(`${file.name} vượt quá 10MB`);
-          return Upload.LIST_IGNORE;
-        }
-        if (file.type && !VIEWABLE.test(file.type)) {
-          message.warning(`${file.name}: chỉ nhận ảnh JPEG, PNG, WEBP hoặc PDF`);
-          return Upload.LIST_IGNORE;
-        }
-        onChange([...files, file].slice(0, 10));
+      beforeUpload={(file, batch) => {
+        // antd gọi hàm này cho từng tệp trong một lượt chọn; gom cả lượt ở tệp cuối để không mất tệp.
+        if (file !== batch[batch.length - 1]) return false;
+        const accepted = batch.filter(item => {
+          if (item.size > MAX_BYTES) {
+            message.warning(`${item.name} vượt quá 10MB`);
+            return false;
+          }
+          if (item.type && !VIEWABLE.test(item.type)) {
+            message.warning(`${item.name}: chỉ nhận ảnh JPEG, PNG, WEBP hoặc PDF`);
+            return false;
+          }
+          return true;
+        });
+        if (files.length + accepted.length > 10) message.warning('Tối đa 10 tệp mỗi lần');
+        onChange([...files, ...accepted].slice(0, 10));
         return false;
       }}
       onRemove={item => onChange(files.filter((_, index) => String(index) !== item.uid))}

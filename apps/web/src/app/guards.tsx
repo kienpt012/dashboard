@@ -17,7 +17,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   const token = session.token;
   const me = useQuery({
-    queryKey: ['/auth/me'],
+    queryKey: ['/auth/me', token],
     queryFn: () => http.get<MeResponse>('/auth/me'),
     enabled: Boolean(token),
     staleTime: 5 * 60_000,

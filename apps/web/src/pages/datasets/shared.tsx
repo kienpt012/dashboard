@@ -64,13 +64,15 @@ export function DatasetForm({ open, item, onClose, onSaved }: { open: boolean; i
 
   const save = useAction(
     async (values: { code: string; name: string; description?: string; ownerDepartmentId?: string; updateCycle?: string; sourceSystem?: string; collectionGuide?: string; columns: ColumnDraft[] }) => {
+      // Khi sửa, gửi chuỗi rỗng để xoá được giá trị cũ; khi tạo thì bỏ trường trống.
+      const optional = (value?: string) => value?.trim() || (item ? '' : undefined);
       const body = {
         name: values.name.trim(),
-        description: values.description?.trim() || undefined,
+        description: optional(values.description),
         ownerDepartmentId: values.ownerDepartmentId || undefined,
-        updateCycle: values.updateCycle?.trim() || undefined,
-        sourceSystem: values.sourceSystem?.trim() || undefined,
-        collectionGuide: values.collectionGuide?.trim() || undefined,
+        updateCycle: optional(values.updateCycle),
+        sourceSystem: optional(values.sourceSystem),
+        collectionGuide: optional(values.collectionGuide),
         columns: values.columns.map(column => ({
           key: column.key,
           label: column.label.trim(),
@@ -104,7 +106,7 @@ export function DatasetForm({ open, item, onClose, onSaved }: { open: boolean; i
             <Input />
           </Form.Item>
           <Form.Item name="ownerDepartmentId" label="Phòng quản lý">
-            <Select allowClear options={departmentOptions(departments.data)} />
+            <Select allowClear={!item} options={departmentOptions(departments.data)} />
           </Form.Item>
           <Form.Item name="updateCycle" label="Chu kỳ cập nhật">
             <Input placeholder="Hằng tháng" maxLength={80} />
@@ -257,7 +259,7 @@ export function ImportModal({ dataset, open, onClose }: { dataset: DatasetDetail
           <Alert
             type={preview.errors.length ? 'warning' : 'success'}
             showIcon
-            title={`${num(preview.valid)}/${num(preview.total)} dòng hợp lệ${preview.errors.length ? ` · ${preview.errors.length} dòng lỗi` : ''}`}
+            title={`${num(preview.valid)}/${num(preview.total)} dòng hợp lệ${preview.total - preview.valid ? ` · ${num(preview.total - preview.valid)} dòng lỗi` : ''}${preview.total - preview.valid > preview.errors.length ? ` (hiển thị ${preview.errors.length} lỗi đầu)` : ''}`}
             description={
               preview.errors.length > 0 && (
                 <ul className="plain-list" style={{ maxHeight: 200, overflowY: 'auto' }}>

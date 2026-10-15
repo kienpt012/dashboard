@@ -1,7 +1,7 @@
 import { CloudUploadOutlined, DeleteOutlined, DownloadOutlined, FileSearchOutlined, InboxOutlined, MoreOutlined, SearchOutlined } from '@ant-design/icons';
 import { App, Badge, Button, Card, DatePicker, Dropdown, Form, Input, InputNumber, Modal, Select, Table, Tag, Tooltip, Upload, type UploadFile } from 'antd';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { TitleCell } from '@/components/Data';
 import { FilterBar, Page } from '@/components/Page';
@@ -23,7 +23,7 @@ export const DOC_STATUS: Record<DocumentStatus, { label: string; badge: 'default
 const ACCEPT = '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp';
 const MAX = 25 * 1024 * 1024;
 
-function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function UploadModal({ open, onClose, docNumber }: { open: boolean; onClose: () => void; docNumber?: string }) {
   const user = useMe();
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -33,10 +33,10 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   useEffect(() => {
     if (open) {
       form.resetFields();
-      form.setFieldsValue({ docType: 'KE_HOACH', year: currentYear(), departmentId: user.departmentId ?? undefined });
+      form.setFieldsValue({ year: currentYear(), departmentId: user.departmentId ?? undefined, docNumber });
       setFile(null);
     }
-  }, [open, form, user.departmentId]);
+  }, [open, form, user.departmentId, docNumber]);
 
   const upload = useAction(
     (values: Record<string, unknown>) => {
@@ -88,7 +88,8 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             return Upload.LIST_IGNORE;
           }
           setFile(value);
-          if (!form.getFieldValue('title')) form.setFieldValue('title', value.name.replace(/\.[^.]+$/, ''));
+          const name = value.name.replace(/\.[^.]+$/, '').trim();
+          if (!form.getFieldValue('title') && name.length >= 3) form.setFieldValue('title', name);
           return false;
         }}
         onRemove={() => setFile(null)}
@@ -101,11 +102,11 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         <p className="ant-upload-hint">PDF, Word, Excel hoặc ảnh chụp; tối đa 25MB</p>
       </Upload.Dragger>
       <Form form={form} layout="vertical" onFinish={values => upload.mutate(values)} className="form-grid">
-        <Form.Item name="title" label="Trích yếu" className="span-2" rules={[{ max: 300 }]}>
+        <Form.Item name="title" label="Trích yếu" className="span-2" rules={[{ min: 3, max: 300, whitespace: true, message: 'Từ 3 đến 300 ký tự' }]}>
           <Input />
         </Form.Item>
         <Form.Item name="docType" label="Loại văn bản">
-          <Select options={(Object.keys(documentTypeLabels) as DocumentType[]).map(key => ({ value: key, label: documentTypeLabels[key] }))} />
+          <Select allowClear placeholder="Chưa phân loại" options={(Object.keys(documentTypeLabels) as DocumentType[]).map(key => ({ value: key, label: documentTypeLabels[key] }))} />
         </Form.Item>
         <Form.Item name="docNumber" label="Số hiệu">
           <Input maxLength={80} placeholder="125/KH-UBND" />
@@ -134,11 +135,13 @@ export default function Documents() {
   const user = useMe();
   const navigate = useNavigate();
   const { message, modal } = App.useApp();
-  const [text, setText] = useState('');
-  const [search, setSearch] = useState('');
+  const [params, setParams] = useSearchParams();
+  const [text, setText] = useState(params.get('q') ?? '');
+  const [search, setSearch] = useState(params.get('q') ?? '');
   const [status, setStatus] = useState<string>();
   const [departmentId, setDepartmentId] = useState<string>();
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(params.get('tai-len') === '1');
+  const presetNumber = params.get('so') ?? undefined;
   const departments = useDepartments();
 
   useEffect(() => {
@@ -282,7 +285,14 @@ export default function Documents() {
           />
         )}
       </Card>
-      <UploadModal open={uploading} onClose={() => setUploading(false)} />
+      <UploadModal
+        open={uploading}
+        docNumber={presetNumber}
+        onClose={() => {
+          setUploading(false);
+          if (params.has('tai-len')) setParams({}, { replace: true });
+        }}
+      />
     </Page>
   );
 }

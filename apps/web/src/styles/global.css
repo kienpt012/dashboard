@@ -1021,3 +1021,68 @@ a.donut-row:hover {
   gap: 2px;
   font-size: 13.5px;
 }
+
+.tab-body {
+  padding: 16px 20px 20px;
+}
+
+/* Số hiệu văn bản bấm được trong câu căn cứ */
+.doc-ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ioc-color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ioc-color-primary) 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.doc-ref:hover {
+  text-decoration-color: currentColor;
+}
+
+.doc-ref.missing {
+  color: inherit;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--ioc-color-text-tertiary);
+}
+
+.doc-ref .anticon {
+  font-size: 0.85em;
+}
+
+.doc-preview {
+  flex: 1;
+  min-height: 60vh;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.doc-preview iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 70vh;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+
+.doc-preview .doc-text {
+  max-height: none;
+  height: 100%;
+}
+
+.fw-basis {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ioc-color-text-secondary);
+  line-height: 1.55;
+}

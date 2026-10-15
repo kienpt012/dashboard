@@ -145,6 +145,11 @@ export default function AdminLayout() {
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
 
+  // Liên kết cũ /admin/copilot: mở sẵn Trợ lý.
+  useEffect(() => {
+    if ((location.state as { copilot?: boolean } | null)?.copilot) setCopilot(true);
+  }, [location.state]);
+
   useEffect(() => {
     document.title = `${info.label} · ${locality.brandName}`;
   }, [info.label, locality.brandName]);
@@ -282,7 +287,13 @@ export default function AdminLayout() {
           <span>{dateTime(loadedAt)}</span>
         </footer>
       </Layout>
-      <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      <CommandPalette
+        open={palette}
+        onClose={() => setPalette(false)}
+        onCopilot={() => setCopilot(true)}
+        onTheme={() => theme.setChoice(theme.dark ? 'light' : 'dark')}
+        onLogout={logout}
+      />
       <Copilot open={copilot} onClose={() => setCopilot(false)} />
     </Layout>
   );

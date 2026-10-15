@@ -8,6 +8,7 @@ import { TitleCell } from '@/components/Data';
 import { FilterBar, Page } from '@/components/Page';
 import { ReasonModal } from '@/components/ReasonModal';
 import { LoadError } from '@/components/States';
+import { DocumentLink, LegalBasis } from '@/components/LegalBasis';
 import { KindTag } from '@/components/Tags';
 import { useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, frameworkOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
@@ -332,13 +333,17 @@ function ProposalDrawer({ item, onClose, onEdit, onApprove, onReject }: { item: 
             { label: 'Hạn', children: item.deadline ? date(item.deadline) : '—' },
             { label: 'Phòng chủ trì', children: item.responsibleDepartment?.name ?? item.responsibleDepartmentName ?? '—' },
             { label: 'Bộ chỉ tiêu', children: item.framework?.name ?? '—' },
-            { label: 'Căn cứ', children: item.legalBasis ?? '—' },
+            { label: 'Căn cứ', children: item.legalBasis ? <LegalBasis text={item.legalBasis} /> : '—' },
             ...(item.description ? [{ label: 'Mô tả', children: <span className="pre-line">{item.description}</span> }] : []),
             ...(item.document
               ? [
                   {
                     label: 'Văn bản nguồn',
-                    children: <Link to={`/admin/documents/${item.document.id}`}>{item.document.docNumber || item.document.code} — {item.document.title}</Link>,
+                    children: (
+                      <DocumentLink id={item.document.id}>
+                        {item.document.docNumber || item.document.code} — {item.document.title}
+                      </DocumentLink>
+                    ),
                   },
                 ]
               : []),

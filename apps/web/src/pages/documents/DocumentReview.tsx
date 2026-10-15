@@ -1,19 +1,21 @@
 import { CheckOutlined, CloseOutlined, DownloadOutlined, EditOutlined, PauseCircleOutlined, RedoOutlined, RobotOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
 import { Alert, App, Badge, Button, Card, Col, Descriptions, Empty, Flex, Pagination, Progress, Result, Row, Segmented, Space, Tag, Tooltip, Typography } from 'antd';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
 import { ReasonModal } from '@/components/ReasonModal';
 import { LoadError, PageSkeleton } from '@/components/States';
-import { useAction, useApi } from '@/hooks/useApi';
+import { invalidate, useAction, useApi } from '@/hooks/useApi';
 import { ApiError, errorText, http, saveBlob } from '@/lib/api';
-import { date, dateTime, fileSize, fromNow, num, pct } from '@/lib/format';
+import { date, dateTime, fileSize, fromNow, msUntil, num, pct, until } from '@/lib/format';
 import { frequencyLabel } from '@/lib/periods';
 import { can, WORKING } from '@/lib/roles';
 import { documentTypeLabels, type DocumentTextResponse, type IndicatorCandidate, type SourceDocumentDetail } from '@/types/core';
 import { ApproveModal, ProposalForm, type Proposal } from '../proposals/Proposals';
 import { DOC_STATUS } from './Documents';
+import { LegalBasis } from '@/components/LegalBasis';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   PROPOSED: { label: 'Chưa trình', color: 'default' },
@@ -25,23 +27,18 @@ const STATUS: Record<string, { label: string; color: string }> = {
 const JOB_LABEL: Record<string, string> = { DOCUMENT_PARSE: 'Đọc văn bản', INDICATOR_EXTRACT: 'Trích xuất chỉ tiêu' };
 const JOB_STATUS: Record<string, string> = { PENDING: 'đang chờ', PROCESSING: 'đang chạy', COMPLETED: 'hoàn tất', FAILED: 'lỗi', DEAD_LETTER: 'lỗi, đã dừng thử lại', CANCELLED: 'đã dừng' };
 
-function squash(text: string) {
-  return text.replace(/\s+/g, ' ').trim();
-}
-
-/** Tô sáng đoạn trích dẫn trong nội dung trang (so khớp bỏ qua khoảng trắng thừa). */
+/** Tô sáng đoạn trích dẫn ngay trên văn bản gốc (khoảng trắng/xuống dòng khác nhau vẫn khớp), giữ nguyên cách xuống dòng. */
 function Highlighted({ text, quote }: { text: string; quote?: string | null }) {
-  const normalized = squash(text);
-  const needle = quote ? squash(quote).slice(0, 160) : '';
-  const index = needle.length >= 8 ? normalized.toLocaleLowerCase('vi').indexOf(needle.toLocaleLowerCase('vi')) : -1;
-  if (index < 0) return <>{text}</>;
-  const full = quote ? squash(quote) : needle;
-  const end = Math.min(normalized.length, index + full.length);
+  const words = (quote ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.join(' ').length < 8) return <>{text}</>;
+  const pattern = new RegExp(words.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'), 'iu');
+  const match = pattern.exec(text);
+  if (!match) return <>{text}</>;
   return (
     <>
-      {normalized.slice(0, index)}
-      <mark className="quote-mark">{normalized.slice(index, end)}</mark>
-      {normalized.slice(end)}
+      {text.slice(0, match.index)}
+      <mark className="quote-mark">{match[0]}</mark>
+      {text.slice(match.index + match[0].length)}
     </>
   );
 }
@@ -50,7 +47,7 @@ function confidenceColor(value: number) {
   return value >= 0.8 ? 'green' : value >= 0.6 ? 'gold' : 'red';
 }
 
-function CandidateCard({ item, active, onSelect, onEdit, onApprove, onReject }: { item: IndicatorCandidate; active: boolean; onSelect: () => void; onEdit: () => void; onApprove: () => void; onReject: () => void }) {
+function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onReject }: { item: IndicatorCandidate; active: boolean; screen: boolean; onSelect: () => void; onEdit: () => void; onApprove: () => void; onReject: () => void }) {
   const submit = useAction(() => http.post(`/candidates/${item.id}/submit`, { expectedVersion: item.version }), { success: 'Đã trình đề xuất', refresh: ['/candidates', '/my-work', '/documents'] });
   const target = item.targetValue !== null && item.targetValue !== undefined ? `${num(item.targetValue)}${item.unit ? ` ${item.unit}` : ''}` : item.unit || '—';
   return (
@@ -67,6 +64,7 @@ function CandidateCard({ item, active, onSelect, onEdit, onApprove, onReject }: 
             Tin cậy {pct(item.confidence * 100)}
           </Tag>
         </Tooltip>
+        <Tag color={item.kind === 'PROGRESS_UPDATE' ? 'cyan' : 'geekblue'}>{item.kind === 'PROGRESS_UPDATE' ? 'Cập nhật số liệu' : 'Chỉ tiêu mới'}</Tag>
         {item.pageNumber && <Tag>Trang {item.pageNumber}</Tag>}
         {item.humanEdited && <Tag color="blue">Đã hiệu chỉnh</Tag>}
         {item.isDuplicateSuspect && (
@@ -83,9 +81,11 @@ function CandidateCard({ item, active, onSelect, onEdit, onApprove, onReject }: 
         items={[
           { label: 'Mục tiêu', children: target },
           { label: 'Năm', children: item.targetYear ?? '—' },
+          ...(item.actualValue !== null && item.actualValue !== undefined ? [{ label: 'Thực hiện', children: `${num(item.actualValue)}${item.unit ? ` ${item.unit}` : ''}`, span: 2 }] : []),
           { label: 'Kỳ báo cáo', children: item.frequency ? frequencyLabel[item.frequency] : '—' },
           { label: 'Hạn', children: item.deadline ? date(item.deadline) : '—' },
           { label: 'Phòng chủ trì', children: item.responsibleDepartment?.name ?? item.responsibleDepartmentName ?? '—', span: 2 },
+          ...(item.legalBasis ? [{ label: 'Căn cứ', children: <LegalBasis text={item.legalBasis} />, span: 2 }] : []),
         ]}
       />
       {item.warnings?.length ? <Alert type="warning" showIcon title={item.warnings.join('; ')} style={{ marginTop: 6 }} /> : null}
@@ -99,8 +99,19 @@ function CandidateCard({ item, active, onSelect, onEdit, onApprove, onReject }: 
           Đã tạo chỉ tiêu <Link to={`/admin/targets/${item.createdTarget.id}`}>{item.createdTarget.code}</Link>
         </div>
       )}
+      {item.status === 'SUBMITTED' && item.autoApproveAt && (
+        <div className={`entry-meta${msUntil(item.autoApproveAt) <= 86_400_000 ? ' tone-bad' : ''}`} style={{ marginTop: 6 }}>
+          Đã trình · tự thông qua {until(item.autoApproveAt)}
+        </div>
+      )}
+      {(item.status === 'APPROVED' || item.status === 'REJECTED') && (item.reviewedBy || item.autoApproved) && (
+        <div className="entry-meta" style={{ marginTop: 6 }}>
+          {item.autoApproved ? 'Hệ thống tự thông qua' : `${item.status === 'APPROVED' ? 'Duyệt' : 'Từ chối'} bởi ${item.reviewedBy?.fullName}`}
+          {item.reviewedAt ? ` · ${fromNow(item.reviewedAt)}` : ''}
+        </div>
+      )}
       {item.reviewNote && item.status === 'REJECTED' && <div className="entry-meta tone-bad" style={{ marginTop: 6 }}>{item.reviewNote}</div>}
-      {(item.canEdit || item.canDecide) && (
+      {(item.canEdit || item.canDecide || screen) && (
         <Flex gap={6} wrap justify="flex-end" style={{ marginTop: 10 }} onClick={event => event.stopPropagation()}>
           {item.canEdit && (
             <Button size="small" icon={<EditOutlined />} onClick={onEdit}>
@@ -112,9 +123,9 @@ function CandidateCard({ item, active, onSelect, onEdit, onApprove, onReject }: 
               Trình
             </Button>
           )}
-          {item.canDecide && (
+          {(item.canDecide || screen) && (
             <Button size="small" danger icon={<CloseOutlined />} onClick={onReject}>
-              Từ chối
+              {item.canDecide ? 'Từ chối' : 'Loại'}
             </Button>
           )}
           {item.canDecide && (
@@ -132,11 +143,20 @@ export default function DocumentReview() {
   const { id = '' } = useParams();
   const user = useMe();
   const { message, modal } = App.useApp();
-  const doc = useApi<SourceDocumentDetail>(`/documents/${id}`);
-  const processing = doc.data ? doc.data.status === 'PROCESSING' || doc.data.status === 'UPLOADED' || doc.data.jobs.some(job => job.status === 'PENDING' || job.status === 'PROCESSING') : false;
-  const live = useApi<SourceDocumentDetail>(processing ? `/documents/${id}?live=1` : null, { refetchInterval: 4000 });
-  const detail = live.data ?? doc.data;
-  const text = useApi<DocumentTextResponse>(detail && detail.status !== 'UPLOADED' ? `/documents/${id}/text` : null);
+  const client = useQueryClient();
+  const [watching, setWatching] = useState(false);
+  const doc = useApi<SourceDocumentDetail>(`/documents/${id}`, { refetchInterval: watching ? 4000 : false });
+  const detail = doc.data;
+  const processing = detail ? detail.status === 'PROCESSING' || detail.status === 'UPLOADED' || detail.jobs.some(job => job.status === 'PENDING' || job.status === 'PROCESSING') : false;
+  useEffect(() => {
+    // Đang xử lý thì theo dõi; vừa xử lý xong thì tải lại nội dung và đề xuất.
+    if (processing) setWatching(true);
+    else if (watching) {
+      setWatching(false);
+      void invalidate(client, [`/documents/${id}/text`, '/candidates', '/documents']);
+    }
+  }, [processing, watching, client, id]);
+  const text = useApi<DocumentTextResponse>(detail && detail.status === 'PROCESSED' ? `/documents/${id}/text` : null);
   const candidates = useApi<IndicatorCandidate[]>(`/candidates?documentId=${id}`, { refetchInterval: processing ? 5000 : false });
   const [filter, setFilter] = useState('OPEN');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -191,7 +211,9 @@ export default function DocumentReview() {
   if (!detail) return <PageSkeleton />;
 
   const activeJob = detail.jobs.find(job => job.status === 'PENDING' || job.status === 'PROCESSING');
-  const counts = detail.counts.candidatesByStatus;
+  const extractJob = detail.jobs.find(job => job.kind === 'INDICATOR_EXTRACT' && (job.status === 'PENDING' || job.status === 'PROCESSING'));
+  const counts = (candidates.data ?? []).reduce<Partial<Record<string, number>>>((acc, item) => ({ ...acc, [item.status]: (acc[item.status] ?? 0) + 1 }), {});
+  const clerk = user.role === 'CLERK';
 
   async function download() {
     try {
@@ -227,12 +249,24 @@ export default function DocumentReview() {
           <Button icon={<DownloadOutlined />} onClick={() => void download()}>
             Tệp gốc
           </Button>
-          {can(user, WORKING) && activeJob && (
-            <Button icon={<PauseCircleOutlined />} loading={cancel.isPending} onClick={() => cancel.mutate(activeJob.id)}>
+          {can(user, WORKING) && extractJob && (
+            <Button
+              icon={<PauseCircleOutlined />}
+              loading={cancel.isPending}
+              onClick={() =>
+                modal.confirm({
+                  title: 'Dừng trích xuất?',
+                  content: 'Kết quả chưa hoàn tất sẽ không được áp dụng.',
+                  okText: 'Dừng',
+                  okButtonProps: { danger: true },
+                  onOk: () => cancel.mutateAsync(extractJob.id),
+                })
+              }
+            >
               Dừng trích xuất
             </Button>
           )}
-          {can(user, WORKING) && !activeJob && detail.status !== 'UPLOADED' && (
+          {can(user, WORKING) && !activeJob && detail.status === 'PROCESSED' && (
             <Button
               icon={<RedoOutlined />}
               loading={reextract.isPending}
@@ -291,7 +325,7 @@ export default function DocumentReview() {
         <Col xs={24} xl={11}>
           <Card
             className="card-flush"
-            title={`Đề xuất trích xuất (${num(detail.counts.candidates)})`}
+            title={`Đề xuất trích xuất (${num(candidates.data?.length ?? detail.counts.candidates)})`}
           >
             <div className="card-filter">
               <Segmented
@@ -315,6 +349,7 @@ export default function DocumentReview() {
                     key={item.id}
                     item={item}
                     active={item.id === selectedId}
+                    screen={clerk && item.origin === 'AI' && item.status === 'PROPOSED'}
                     onSelect={() => setSelectedId(item.id)}
                     onEdit={() => setEditing(item as unknown as Proposal)}
                     onApprove={() => setApproving(item as unknown as Proposal)}

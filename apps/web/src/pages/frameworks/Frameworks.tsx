@@ -7,6 +7,7 @@ import { useMe } from '@/app/session';
 import { DistBar, YearSelect } from '@/components/Data';
 import { Page } from '@/components/Page';
 import { LoadError, PageSkeleton } from '@/components/States';
+import { LegalBasis } from '@/components/LegalBasis';
 import { KindTag } from '@/components/Tags';
 import { useAction, useApi } from '@/hooks/useApi';
 import { http } from '@/lib/api';
@@ -170,9 +171,9 @@ function TemplateLibrary({ open, frameworks, onClose }: { open: boolean; framewo
                     <Typography.Text strong>{nameForYear(template, year)}</Typography.Text>
                     <KindTag kind={template.kind} />
                   </Flex>
-                  <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                    {template.legalBasis}
-                  </Typography.Text>
+                  <span className="fw-basis">
+                    <LegalBasis text={template.legalBasis} />
+                  </span>
                   <Space size={[6, 6]} wrap>
                     <Tag>{ISSUING.find(item => item.value === template.issuingLevel)?.label}</Tag>
                     <Tag color={fit === false ? 'orange' : fit ? 'green' : 'default'}>{scopeText(template)}</Tag>
@@ -284,9 +285,9 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
         {!framework.showOnWallboard && <Tag>Không trình chiếu</Tag>}
       </Space>
       {framework.legalBasis && (
-        <Typography.Paragraph type="secondary" ellipsis={{ rows: 2, tooltip: framework.legalBasis }} style={{ fontSize: 13, marginBottom: 14 }}>
-          {framework.legalBasis}
-        </Typography.Paragraph>
+        <div className="fw-basis">
+          <LegalBasis text={framework.legalBasis} />
+        </div>
       )}
       <div className="fw-stats">
         <div>

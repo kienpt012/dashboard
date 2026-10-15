@@ -3,14 +3,14 @@ import { App, Button, Drawer, Flex, Input, Space, Table, Tag, Typography } from 
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { errorText, http } from '@/lib/api';
-import { num, pct } from '@/lib/format';
+import { dateTime, num, pct } from '@/lib/format';
 import type { CopilotResponse } from '@/types/core';
 
 const SUGGESTIONS = ['Tình hình thực hiện năm nay', 'Chỉ tiêu nào sắp trễ hạn?', 'Chỉ tiêu nào chưa có số liệu?', 'Đề xuất nào đang chờ xác minh?'];
 
 type Bubble =
   | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'assistant'; answer?: CopilotResponse; error?: string; action?: 'pending' | 'done' | 'cancelled' };
+  | { id: number; role: 'assistant'; answer?: CopilotResponse; error?: string; action?: 'pending' | 'busy' | 'done' | 'cancelled' };
 
 function Rows({ answer }: { answer: CopilotResponse }) {
   if (!answer.rowType || !answer.rows?.length) return null;
@@ -42,15 +42,29 @@ function Rows({ answer }: { answer: CopilotResponse }) {
         />
       );
     case 'candidates':
+      return (
+        <Table
+          {...common}
+          rowKey={(_, index) => String(index)}
+          dataSource={answer.rows}
+          columns={[
+            { title: 'Đề xuất', dataIndex: 'name' },
+            { title: 'Văn bản', dataIndex: 'documentCode', width: 110, render: (value, row) => <Link to={`/admin/documents/${row.documentId}`}>{value}</Link> },
+            { title: 'Cách đọc', dataIndex: 'method', width: 80, render: value => (value === 'LLM' ? 'AI' : 'Quy tắc') },
+            { title: 'Tin cậy', dataIndex: 'confidence', width: 70, align: 'right', render: value => pct(value * 100) },
+          ]}
+        />
+      );
     case 'preview':
       return (
         <Table
           {...common}
           rowKey={(_, index) => String(index)}
-          dataSource={answer.rows as { name: string; value?: number | null; unit?: string | null; confidence: number }[]}
+          dataSource={answer.rows}
           columns={[
             { title: 'Chỉ tiêu', dataIndex: 'name' },
-            { title: 'Giá trị', dataIndex: 'value', width: 100, render: (value, row) => `${num(value)} ${row.unit ?? ''}` },
+            { title: 'Mục tiêu', dataIndex: 'value', width: 100, render: (value, row) => `${num(value)} ${row.unit ?? ''}` },
+            { title: 'Phòng', dataIndex: 'department', width: 120 },
             { title: 'Tin cậy', dataIndex: 'confidence', width: 70, align: 'right', render: value => pct(value * 100) },
           ]}
         />
@@ -103,6 +117,7 @@ export function Copilot({ open, onClose }: { open: boolean; onClose: () => void 
   }
 
   async function decide(bubbleId: number, actionId: string, confirm: boolean) {
+    setBubbles(list => list.map(item => (item.id === bubbleId ? { ...item, action: 'busy' as const } : item)));
     try {
       if (confirm) {
         const answer = await http.post<CopilotResponse>(`/copilot/actions/${actionId}/confirm`);
@@ -113,6 +128,7 @@ export function Copilot({ open, onClose }: { open: boolean; onClose: () => void 
       }
     } catch (error) {
       message.error(errorText(error));
+      setBubbles(list => list.map(item => (item.id === bubbleId ? { ...item, action: 'pending' as const } : item)));
     }
   }
 
@@ -174,14 +190,17 @@ export function Copilot({ open, onClose }: { open: boolean; onClose: () => void 
                   <Rows answer={bubble.answer} />
                   {bubble.answer.pendingAction && (
                     <Flex gap={8} style={{ marginTop: 10 }}>
-                      {bubble.action === 'pending' ? (
+                      {bubble.action === 'pending' || bubble.action === 'busy' ? (
                         <>
-                          <Button type="primary" size="small" onClick={() => void decide(bubble.id, bubble.answer!.pendingAction!.id, true)}>
+                          <Button type="primary" size="small" loading={bubble.action === 'busy'} onClick={() => void decide(bubble.id, bubble.answer!.pendingAction!.id, true)}>
                             Xác nhận duyệt {bubble.answer.pendingAction.approveCount}
                           </Button>
-                          <Button size="small" onClick={() => void decide(bubble.id, bubble.answer!.pendingAction!.id, false)}>
+                          <Button size="small" disabled={bubble.action === 'busy'} onClick={() => void decide(bubble.id, bubble.answer!.pendingAction!.id, false)}>
                             Huỷ
                           </Button>
+                          <span className="entry-meta" style={{ alignSelf: 'center' }}>
+                            Hết hạn {dateTime(bubble.answer.pendingAction.expiresAt)}
+                          </span>
                         </>
                       ) : (
                         <Tag>{bubble.action === 'done' ? 'Đã thực hiện' : 'Đã huỷ'}</Tag>

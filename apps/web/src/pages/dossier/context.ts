@@ -41,7 +41,7 @@ export function useDossierRun() {
       return result;
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        message.warning('Hồ sơ vừa được người khác cập nhật, đã tải lại bản mới');
+        message.warning(errorText(error, 'Hồ sơ vừa được người khác cập nhật, đã tải lại bản mới'));
         await refresh();
       } else {
         message.error(errorText(error));

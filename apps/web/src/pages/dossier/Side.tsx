@@ -2,6 +2,7 @@ import { EditOutlined } from '@ant-design/icons';
 import { Avatar, Button, Card, Descriptions, Flex, Form, Input, InputNumber, Modal, Select, Space, Tag, Timeline, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { NoData } from '@/components/States';
+import { LegalBasis } from '@/components/LegalBasis';
 import { DeptTag } from '@/components/Tags';
 import { http } from '@/lib/api';
 import { dateTime, fromNow, msUntil, until } from '@/lib/format';
@@ -148,7 +149,7 @@ function SourceModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         layout="vertical"
         onFinish={async values => {
           setSaving(true);
-          const done = await run(() => http.patch(`/targets/${d.id}/source-card`, { ...values, reportDueDay: values.reportDueDay ?? undefined, expectedVersion: d.version }), 'Đã lưu nguồn số liệu');
+          const done = await run(() => http.patch(`/targets/${d.id}/source-card`, { ...values, reportDueDay: values.reportDueDay ?? null, expectedVersion: d.version }), 'Đã lưu nguồn số liệu');
           setSaving(false);
           if (done !== undefined) onClose();
         }}
@@ -375,7 +376,7 @@ export function BasisCard() {
         column={1}
         className="side-desc" colon={false}
         items={[
-          ...(legal ? [{ label: 'Căn cứ pháp lý', children: legal }] : []),
+          ...(legal ? [{ label: 'Căn cứ pháp lý', children: <LegalBasis text={legal} /> }] : []),
           ...(d.scoringRule ? [{ label: 'Thang chấm', children: <span className="pre-line">{d.scoringRule}</span> }] : []),
           ...(d.description ? [{ label: 'Mô tả', children: <span className="pre-line">{d.description}</span> }] : []),
         ]}

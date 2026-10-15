@@ -1,5 +1,5 @@
 import { Typography } from 'antd';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { agencyLines, localityInitials, useLocality } from '@/app/locality';
 import { currentYear } from '@/lib/format';
@@ -9,6 +9,9 @@ import './auth.css';
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
   const locality = useLocality();
   const lines = agencyLines(locality);
+  useEffect(() => {
+    document.title = `${title} · ${locality.brandName}`;
+  }, [title, locality.brandName]);
   return (
     <div className="auth">
       <aside className="auth-side">
