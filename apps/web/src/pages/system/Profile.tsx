@@ -1,5 +1,6 @@
 import { LockOutlined } from '@ant-design/icons';
 import { App, Avatar, Button, Card, Col, Descriptions, Form, Input, Row, Typography } from 'antd';
+import { useRef, useState } from 'react';
 import { localityTitle, useLocality } from '@/app/locality';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
@@ -14,8 +15,13 @@ export default function Profile() {
   const locality = useLocality();
   const { message } = App.useApp();
   const [form] = Form.useForm<{ currentPassword: string; newPassword: string; confirm: string }>();
+  const [saving, setSaving] = useState(false);
+  const submitting = useRef(false);
 
   async function change(values: { currentPassword: string; newPassword: string }) {
+    if (submitting.current) return;
+    submitting.current = true;
+    setSaving(true);
     try {
       const result = await http.post<{ accessToken: string; user: CurrentUser }>('/auth/change-password', { currentPassword: values.currentPassword, newPassword: values.newPassword });
       session.set(result.accessToken, result.user);
@@ -23,6 +29,9 @@ export default function Profile() {
       message.success('Đã đổi mật khẩu; các phiên đăng nhập khác đã bị thu hồi');
     } catch (error) {
       message.error(errorText(error, 'Không đổi được mật khẩu'));
+    } finally {
+      submitting.current = false;
+      setSaving(false);
     }
   }
 
@@ -89,7 +98,7 @@ export default function Profile() {
               >
                 <Input.Password autoComplete="new-password" />
               </Form.Item>
-              <Button type="primary" htmlType="submit">
+              <Button type="primary" htmlType="submit" loading={saving}>
                 Đổi mật khẩu
               </Button>
             </Form>

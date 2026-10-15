@@ -1,5 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons';
-import { Card, DatePicker, Descriptions, Input, Select, Table, Tag } from 'antd';
+import { Card, DatePicker, Descriptions, Input, Select, Table, Tag, Typography } from 'antd';
 import type { Dayjs } from 'dayjs';
 import { useState } from 'react';
 import { FilterBar, Page } from '@/components/Page';
@@ -7,7 +7,7 @@ import { LoadError } from '@/components/States';
 import { useApi } from '@/hooks/useApi';
 import { departmentOptions, useDepartments } from '@/hooks/useRefs';
 import { query } from '@/lib/api';
-import { dateTime, num } from '@/lib/format';
+import { dateTime, num, vn } from '@/lib/format';
 import { roleLabel } from '@/lib/roles';
 import type { Role } from '@/types/core';
 
@@ -150,6 +150,121 @@ const ENTITY: Record<string, string> = {
   ExtractionJob: 'Lượt trích xuất',
 };
 
+// Bao phủ SAFE_METADATA_KEYS và các khóa metadata được backend ghi vào nhật ký.
+const METADATA_NAMES: Record<string, string> = {
+  after: 'Sau thay đổi',
+  aiModel: 'Mô hình AI',
+  anonymizationConfirmed: 'Đã ẩn thông tin cá nhân',
+  approved: 'Đã duyệt',
+  assignedToId: 'Mã người được giao',
+  assignedToName: 'Người được giao',
+  baseVersion: 'Phiên bản gốc',
+  before: 'Trước thay đổi',
+  bounceCount: 'Số lần chuyển, trả',
+  candidateName: 'Tên đề xuất',
+  category: 'Lĩnh vực',
+  changedFields: 'Trường thay đổi',
+  changedRows: 'Số dòng thay đổi',
+  channel: 'Kênh liên hệ',
+  citizenRequested: 'Người dân yêu cầu',
+  citizenResponseDueAt: 'Hạn người dân bổ sung',
+  code: 'Mã',
+  codeGeneratedBySystem: 'Mã do hệ thống tạo',
+  comment: 'Nhận xét',
+  confidence: 'Độ tin cậy',
+  count: 'Số lượng',
+  currentActive: 'Đang hoạt động',
+  currentRole: 'Vai trò hiện tại',
+  dashboardId: 'Mã trang công khai',
+  documentCode: 'Mã văn bản',
+  documentCount: 'Số lượng hồ sơ',
+  dueAt: 'Hạn xử lý',
+  emailPublicNote: 'Nội dung gửi người dân',
+  errorRows: 'Số dòng lỗi',
+  extractionMethod: 'Phương thức trích xuất',
+  failed: 'Thất bại',
+  frameworkId: 'Mã bộ chỉ tiêu',
+  fromCandidate: 'Từ đề xuất',
+  fromStatus: 'Trạng thái trước',
+  historyCount: 'Số bản ghi lịch sử',
+  humanEdited: 'Đã hiệu chỉnh',
+  intent: 'Yêu cầu',
+  isPublic: 'Công khai',
+  mimeType: 'Định dạng tệp',
+  name: 'Tên',
+  outcome: 'Kết quả',
+  passwordReset: 'Đặt lại mật khẩu',
+  periodKey: 'Kỳ báo cáo',
+  planner: 'Bộ lập kế hoạch',
+  previousActive: 'Hoạt động trước thay đổi',
+  previousArchiveReason: 'Lý do lưu trữ trước',
+  previousArchivedAt: 'Thời điểm lưu trữ trước',
+  previousDepartmentId: 'Mã phòng ban trước',
+  previousDueAt: 'Hạn xử lý trước',
+  previousPriority: 'Mức ưu tiên trước',
+  previousPublicCategory: 'Lĩnh vực công khai trước',
+  previousPublicDepartmentName: 'Phòng ban công khai trước',
+  previousPublicSummary: 'Tóm tắt công khai trước',
+  previousPublicTitle: 'Tiêu đề công khai trước',
+  previousPublicationVersion: 'Phiên bản công khai trước',
+  previousRating: 'Đánh giá trước',
+  previousRatingComment: 'Nhận xét trước',
+  previousRejectionReason: 'Lý do từ chối trước',
+  previousResolutionSummary: 'Kết quả xử lý trước',
+  previousRole: 'Vai trò trước',
+  previousStatus: 'Trạng thái trước',
+  previousValue: 'Giá trị trước',
+  previousVersion: 'Phiên bản trước',
+  priority: 'Mức ưu tiên',
+  progressUpdateId: 'Mã báo cáo số liệu',
+  publicCategory: 'Lĩnh vực công khai',
+  publicCode: 'Mã công khai',
+  publicDepartmentName: 'Phòng ban công khai',
+  publicResolutionSummary: 'Kết quả xử lý công khai',
+  publicResolvedAt: 'Thời điểm xử lý công khai',
+  publicSnapshotVersion: 'Phiên bản bản lưu công khai',
+  publicSummary: 'Tóm tắt công khai',
+  publicTitle: 'Tiêu đề công khai',
+  publicationVersion: 'Phiên bản công khai',
+  publishedValue: 'Giá trị công bố',
+  rating: 'Đánh giá',
+  reason: 'Lý do',
+  result: 'Kết quả',
+  reviewNote: 'Ý kiến duyệt',
+  reviewStatus: 'Trạng thái duyệt',
+  reviewers: 'Người duyệt',
+  revision: 'Bản sửa đổi',
+  revoked: 'Đã thu hồi',
+  role: 'Vai trò',
+  size: 'Dung lượng tệp',
+  source: 'Nguồn',
+  sourceDocumentId: 'Mã văn bản nguồn',
+  targetCode: 'Mã chỉ tiêu',
+  targetCount: 'Số chỉ tiêu',
+  targetId: 'Mã định danh chỉ tiêu',
+  templateKey: 'Mã biểu mẫu',
+  toStatus: 'Trạng thái sau',
+  tool: 'Công cụ',
+  totalRows: 'Tổng số dòng',
+  unchangedRows: 'Số dòng không đổi',
+  username: 'Tài khoản',
+  value: 'Giá trị',
+  version: 'Phiên bản',
+  visibility: 'Phạm vi hiển thị',
+  wasPublic: 'Đã từng công khai',
+  widgetCount: 'Số thành phần',
+  year: 'Năm',
+};
+
+function formatMetadata(value: NonNullable<Log['metadata']>[string]): string {
+  if (Array.isArray(value)) return value.map(item => formatMetadata(item)).join(', ');
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) && vn(value).isValid()) {
+    return vn(value).format('DD/MM/YYYY HH:mm');
+  }
+  return String(value);
+}
+
 export default function AuditLogs() {
   const departments = useDepartments();
   const [text, setText] = useState('');
@@ -211,7 +326,8 @@ export default function AuditLogs() {
             size="middle"
             loading={list.isLoading || list.isFetching}
             dataSource={list.data?.items ?? []}
-            scroll={{ x: 1000 }}
+            scroll={{ x: 1100 }}
+            tableLayout="fixed"
             pagination={{
               current: page,
               pageSize,
@@ -230,13 +346,15 @@ export default function AuditLogs() {
                 <Descriptions
                   size="small"
                   column={{ xs: 1, md: 2, xl: 3 }}
-                  items={Object.entries(row.metadata ?? {}).map(([key, value]) => ({ label: key, children: Array.isArray(value) ? value.join(', ') : String(value) }))}
+                  styles={{ label: { whiteSpace: 'normal' }, content: { minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' } }}
+                  items={Object.entries(row.metadata ?? {}).map(([key, value]) => ({ key, label: METADATA_NAMES[key] ?? key, children: formatMetadata(value) }))}
                 />
               ),
             }}
             onChange={(_pagination, _filters, sorter, extra) => {
               if (extra.action !== 'sort') return;
               const next = Array.isArray(sorter) ? sorter[0] : sorter;
+              // Bảng phân trang ở máy chủ: chỉ sắp xếp theo thời điểm (máy chủ hỗ trợ), không sắp xếp riêng trang đang xem.
               setOrder(next?.order === 'ascend' ? 'asc' : 'desc');
               setPage(1);
             }}
@@ -253,7 +371,7 @@ export default function AuditLogs() {
               {
                 title: 'Người thực hiện',
                 key: 'actor',
-                width: 220,
+                width: 180,
                 render: (_, row) => (
                   <div className="cell-title">
                     <strong>{row.actorUsername}</strong>
@@ -261,16 +379,21 @@ export default function AuditLogs() {
                   </div>
                 ),
               },
-              { title: 'Thao tác', dataIndex: 'action', render: value => ACTION[value] ?? value },
+              { title: 'Thao tác', key: 'action', dataIndex: 'action', width: 220, render: value => ACTION[value] ?? value },
               {
                 title: 'Đối tượng',
                 key: 'entity',
-                width: 240,
+                width: 260,
                 render: (_, row) => (
-                  <span>
-                    <Tag>{ENTITY[row.entityType] ?? row.entityType}</Tag>
-                    {row.metadata?.code ? <span className="secondary">{String(row.metadata.code)}</span> : null}
-                  </span>
+                  <div className="cell-title" style={{ minWidth: 0 }}>
+                    <div><Tag>{ENTITY[row.entityType] ?? row.entityType}</Tag></div>
+                    {row.metadata?.code ? <span className="secondary" style={{ overflowWrap: 'anywhere' }}>{String(row.metadata.code)}</span> : null}
+                    {row.entityId ? (
+                      <Typography.Paragraph type="secondary" copyable={{ text: row.entityId }} style={{ margin: 0, maxWidth: '100%', fontSize: 12, overflowWrap: 'anywhere' }}>
+                        {row.entityId}
+                      </Typography.Paragraph>
+                    ) : <span>Toàn hệ thống</span>}
+                  </div>
                 ),
               },
               { title: 'Phòng ban', key: 'dept', width: 200, render: (_, row) => row.department?.name ?? <span className="muted">—</span> },

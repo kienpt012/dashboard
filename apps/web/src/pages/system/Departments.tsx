@@ -1,6 +1,6 @@
 import { EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import { Badge, Button, Card, ColorPicker, Form, Input, InputNumber, Modal, Select, Switch, Table, Tag } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { App, Badge, Button, Card, ColorPicker, Form, Input, InputNumber, Modal, Select, Switch, Table, Tag } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { TitleCell } from '@/components/Data';
@@ -24,7 +24,9 @@ export const DEPARTMENT_KIND: Record<Kind, string> = {
 };
 
 function DepartmentForm({ open, item, onClose }: { open: boolean; item?: Department | null; onClose: () => void }) {
+  const { modal } = App.useApp();
   const [form] = Form.useForm();
+  const confirming = useRef(false);
   useEffect(() => {
     if (!open) return;
     form.resetFields();
@@ -44,9 +46,32 @@ function DepartmentForm({ open, item, onClose }: { open: boolean; item?: Departm
     { success: item ? 'Đã cập nhật phòng ban' : 'Đã thêm phòng ban', refresh: ['/departments', '/ioc'], onDone: onClose },
   );
 
+  function submit(values: Record<string, unknown>) {
+    if (save.isPending || confirming.current) return;
+    if (item?.isActive && values.isActive === false) {
+      confirming.current = true;
+      modal.confirm({
+        title: 'Ngừng hoạt động phòng ban?',
+        content: (
+          <div style={{ overflowWrap: 'anywhere' }}>
+            <strong>{item.name}</strong>
+            <p>Còn {num(item._count?.users ?? 0)} tài khoản, {num(item._count?.targets ?? 0)} chỉ tiêu và {num(item._count?.feedbacks ?? 0)} phản ánh gắn với phòng ban.</p>
+          </div>
+        ),
+        okText: 'Ngừng hoạt động',
+        cancelText: 'Hủy',
+        okButtonProps: { danger: true },
+        onOk: () => save.mutateAsync(values),
+        afterClose: () => { confirming.current = false; },
+      });
+      return;
+    }
+    save.mutate(values);
+  }
+
   return (
     <Modal title={item ? `Sửa ${item.name}` : 'Thêm phòng ban'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={680} destroyOnHidden>
-      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={submit} className="form-grid">
         <Form.Item name="code" label="Mã" rules={[{ required: true, max: 30, pattern: /^[A-Za-z0-9_-]+$/, message: 'Chữ, số, gạch ngang, gạch dưới' }]}>
           <Input />
         </Form.Item>
@@ -120,7 +145,12 @@ export default function Departments() {
             pagination={false}
             scroll={{ x: 900 }}
             expandable={{
-              expandedRowRender: item => <div className="expand-panel pre-line">{item.responsibilities || item.description || '—'}</div>,
+              expandedRowRender: item => (
+                <div className="expand-panel pre-line" style={{ display: 'grid', gap: 12, overflowWrap: 'anywhere' }}>
+                  {item.responsibilities && <div><strong>Lĩnh vực phụ trách</strong><div>{item.responsibilities}</div></div>}
+                  {item.description && <div><strong>Ghi chú</strong><div>{item.description}</div></div>}
+                </div>
+              ),
               rowExpandable: item => Boolean(item.responsibilities || item.description),
             }}
             columns={[
@@ -133,7 +163,7 @@ export default function Departments() {
                     title={
                       <span className="dept-tag">
                         <i style={{ background: item.color }} />
-                        {item.name}
+                        <span className="dept-name">{item.name}</span>
                       </span>
                     }
                     sub={[item.code, item.shortName].filter(Boolean).join(' · ')}

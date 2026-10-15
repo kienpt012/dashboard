@@ -1,7 +1,7 @@
 import { CheckCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { App, Button, Card, Checkbox, ColorPicker, Descriptions, Flex, Form, Input, InputNumber, Result, Segmented, Select, Space, Steps, Table, Tag, Typography } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LOCALITY_KEY } from '@/app/locality';
 import { YearSelect } from '@/components/Data';
@@ -11,6 +11,7 @@ import { KindTag } from '@/components/Tags';
 import { invalidate, useApi } from '@/hooks/useApi';
 import { errorText, http } from '@/lib/api';
 import { num } from '@/lib/format';
+import { byRank, byText } from '@/lib/sort';
 import type { FrameworkTemplate } from '@/types/domain';
 import { DEPARTMENT_KIND } from './Departments';
 
@@ -26,6 +27,7 @@ type Templates = {
   settings: SettingsShape;
 };
 type Locality = {
+  version: number;
   kind: string;
   name: string;
   agencyName: string;
@@ -41,7 +43,17 @@ type Locality = {
   primaryColor: string;
   configured?: boolean;
 };
-type ApplyResult = { departments: { created: number; updated: number }; frameworks: ({ key: string; error: string } | { key: string; created?: number; skipped?: boolean })[] };
+type TemplateApplyResult = {
+  frameworkId: string;
+  code: string;
+  name: string;
+  createdTargets: number;
+  createdDatasets: string[];
+  computedTargets: number;
+  needsPlanValue: number;
+  alreadyExisted: boolean;
+};
+type ApplyResult = { profile: Locality; departments: { created: number; updated: number }; frameworks: (TemplateApplyResult | { key: string; error: string })[] };
 type Dept = OrgDepartment & { selected: boolean };
 
 const SETTING_FIELDS: { key: keyof SettingsShape; label: string; min: number; max: number; unit: string }[] = [
@@ -71,6 +83,8 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
   const [year, setYear] = useState(templates.year);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ApplyResult | null>(null);
+  // Giữ phiên bản của bản form đang sửa; refetch không được nâng phiên bản này.
+  const localityVersion = useRef(current.version);
   const existing = useMemo(() => new Set(templates.existingDepartments.map(item => item.code.toUpperCase())), [templates]);
 
   function chooseOrg(org: OrgTemplate) {
@@ -93,6 +107,7 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
     const values = form.getFieldsValue(true);
     const color = typeof values.primaryColor === 'string' ? values.primaryColor : values.primaryColor?.toHexString?.() ?? '#1d4ed8';
     return {
+      expectedVersion: localityVersion.current,
       kind: values.kind,
       name: values.name?.trim(),
       agencyName: values.agencyName?.trim(),
@@ -109,13 +124,30 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
     };
   }
 
+  function validateDepartments() {
+    const selected = departments.filter(item => item.selected);
+    if (!selected.length) {
+      message.warning('Chọn ít nhất một phòng ban');
+      return false;
+    }
+    if (selected.some(item => item.name.trim().length < 2 || item.name.trim().length > 160)) {
+      message.warning('Tên phòng ban phải có từ 2 đến 160 ký tự');
+      return false;
+    }
+    return true;
+  }
+
+  async function refreshLocality() {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: LOCALITY_KEY }),
+      invalidate(client, ['/locality', '/setup/templates']),
+    ]);
+  }
+
   async function next() {
     try {
       if (step === 0) await form.validateFields();
-      if (step === 1 && !departments.some(item => item.selected)) {
-        message.warning('Chọn ít nhất một phòng ban');
-        return;
-      }
+      if (step === 1 && !validateDepartments()) return;
       if (step === 3) await settingsForm.validateFields();
       setStep(value => value + 1);
     } catch {
@@ -131,8 +163,9 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
     }
     setBusy(true);
     try {
-      await http.put('/locality', localityPayload());
-      await client.invalidateQueries({ queryKey: LOCALITY_KEY });
+      const saved = await http.put<Locality>('/locality', localityPayload());
+      localityVersion.current = saved.version;
+      await refreshLocality();
       message.success('Đã lưu thông tin địa phương');
     } catch (error) {
       message.error(errorText(error));
@@ -142,6 +175,22 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
   }
 
   async function apply() {
+    try {
+      await form.validateFields();
+    } catch {
+      setStep(0);
+      return;
+    }
+    if (!validateDepartments()) {
+      setStep(1);
+      return;
+    }
+    try {
+      await settingsForm.validateFields();
+    } catch {
+      setStep(3);
+      return;
+    }
     setBusy(true);
     try {
       const response = await http.post<ApplyResult>('/setup/apply', {
@@ -153,8 +202,9 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
         year,
         settings: settingsForm.getFieldsValue(true),
       });
+      localityVersion.current = response.profile.version;
       setResult(response);
-      await Promise.all([client.invalidateQueries({ queryKey: LOCALITY_KEY }), invalidate(client, ['/departments', '/frameworks', '/targets', '/ioc', '/settings'])]);
+      await Promise.all([refreshLocality(), invalidate(client, ['/departments', '/frameworks', '/targets', '/ioc', '/settings'])]);
     } catch (error) {
       message.error(errorText(error, 'Không áp dụng được thiết lập'));
     } finally {
@@ -171,7 +221,7 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
           title="Đã thiết lập địa phương"
           subTitle={`Phòng ban: tạo mới ${result.departments.created}, cập nhật ${result.departments.updated}`}
           extra={
-            <Space>
+            <Space wrap>
               <Link to="/admin">
                 <Button type="primary">Về trung tâm điều hành</Button>
               </Link>
@@ -184,8 +234,8 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
           {result.frameworks.length > 0 && (
             <ul className="plain-list">
               {result.frameworks.map(item => (
-                <li key={item.key} className={'error' in item ? 'tone-bad' : undefined}>
-                  {name(item.key)}: {'error' in item ? item.error : `đã nạp cho năm ${year}`}
+                <li key={'error' in item ? `error-${item.key}` : item.code} className={'error' in item ? 'tone-bad' : undefined} style={{ overflowWrap: 'anywhere' }}>
+                  {'error' in item ? `${name(item.key)}: ${item.error}` : `${item.name}: ${item.alreadyExisted ? 'đã có sẵn, bỏ qua' : `đã tạo ${num(item.createdTargets)} chỉ tiêu`}`}
                 </li>
               ))}
             </ul>
@@ -199,7 +249,7 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
     <Card>
       <Steps
         current={step}
-        onChange={value => value < step && setStep(value)}
+        onChange={value => !busy && value < step && setStep(value)}
         items={[{ title: 'Địa phương' }, { title: 'Cơ cấu tổ chức' }, { title: 'Bộ chỉ tiêu' }, { title: 'Thời hạn' }, { title: 'Áp dụng' }]}
         style={{ marginBottom: 28 }}
       />
@@ -252,7 +302,7 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
             <Input placeholder="laithieu.gov.vn" />
           </Form.Item>
         </Form>
-        <Button icon={<SaveOutlined />} loading={busy} onClick={() => void saveLocality()}>
+        <Button icon={<SaveOutlined />} loading={busy} onClick={() => void saveLocality()} style={{ maxWidth: '100%', height: 'auto', whiteSpace: 'normal' }}>
           Chỉ lưu thông tin địa phương
         </Button>
       </div>
@@ -274,17 +324,19 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
               {
                 title: 'Tên phòng ban',
                 key: 'name',
+                sorter: byText<Dept>(item => item.name),
                 render: (_, item) => (
                   <Input
                     value={item.name}
-                    status={item.selected && item.name.trim().length < 2 ? 'error' : undefined}
+                    maxLength={160}
+                    status={item.selected && (item.name.trim().length < 2 || item.name.trim().length > 160) ? 'error' : undefined}
                     onChange={event => setDepartments(list => list.map(entry => (entry.code === item.code ? { ...entry, name: event.target.value } : entry)))}
                   />
                 ),
               },
-              { title: 'Mã', dataIndex: 'code', width: 110 },
-              { title: 'Loại', dataIndex: 'kind', width: 200, render: (value: string) => DEPARTMENT_KIND[value as keyof typeof DEPARTMENT_KIND] ?? value },
-              { title: '', key: 'state', width: 120, render: (_, item) => (existing.has(item.code.toUpperCase()) ? <Tag color="blue">Đã có</Tag> : item.optional ? <Tag>Tuỳ chọn</Tag> : null) },
+              { title: 'Mã', dataIndex: 'code', width: 110, sorter: byText<Dept>(item => item.code) },
+              { title: 'Loại', dataIndex: 'kind', width: 200, sorter: byText<Dept>(item => DEPARTMENT_KIND[item.kind as keyof typeof DEPARTMENT_KIND] ?? item.kind), render: (value: string) => DEPARTMENT_KIND[value as keyof typeof DEPARTMENT_KIND] ?? value },
+              { title: 'Trạng thái', key: 'state', width: 140, sorter: byRank<Dept, string>(['existing', 'optional', 'required'], item => existing.has(item.code.toUpperCase()) ? 'existing' : item.optional ? 'optional' : 'required'), render: (_, item) => (existing.has(item.code.toUpperCase()) ? <Tag color="blue">Đã có</Tag> : item.optional ? <Tag>Tuỳ chọn</Tag> : null) },
             ]}
           />
         </Flex>
@@ -356,12 +408,12 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
         />
       )}
 
-      <Flex justify="space-between" style={{ marginTop: 24 }}>
-        <Button disabled={step === 0} onClick={() => setStep(value => value - 1)}>
+      <Flex justify="space-between" gap={8} wrap style={{ marginTop: 24 }}>
+        <Button disabled={busy || step === 0} onClick={() => setStep(value => value - 1)}>
           Quay lại
         </Button>
         {step < 4 ? (
-          <Button type="primary" onClick={() => void next()}>
+          <Button type="primary" disabled={busy} onClick={() => void next()}>
             Tiếp tục
           </Button>
         ) : (
@@ -375,13 +427,13 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
 }
 
 export default function Setup() {
-  const templates = useApi<Templates>('/setup/templates', { staleTime: Infinity });
-  const locality = useApi<Locality>('/locality', { staleTime: Infinity });
+  const templates = useApi<Templates>('/setup/templates', { staleTime: 0 });
+  const locality = useApi<Locality>('/locality', { staleTime: 0 });
   return (
     <Page title="Thiết lập địa phương">
       {templates.error || locality.error ? (
         <LoadError error={templates.error ?? locality.error} retry={() => void Promise.all([templates.refetch(), locality.refetch()])} />
-      ) : templates.data && locality.data ? (
+      ) : templates.data && locality.data && templates.isFetchedAfterMount && locality.isFetchedAfterMount ? (
         <Wizard templates={templates.data} current={locality.data} />
       ) : (
         <PageSkeleton />

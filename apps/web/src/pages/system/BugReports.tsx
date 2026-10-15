@@ -6,7 +6,7 @@ import { LoadError } from '@/components/States';
 import { useAction, useApi } from '@/hooks/useApi';
 import { errorText, http } from '@/lib/api';
 import { dateTime, fromNow, num } from '@/lib/format';
-import { byDate, byRank, byText } from '@/lib/sort';
+import { byDate, byNumber, byRank, byText, NUMBER_FIRST } from '@/lib/sort';
 
 type Status = 'NEW' | 'IN_PROGRESS' | 'RESOLVED' | 'WONT_FIX';
 const STATUS_RANK: Status[] = ['NEW', 'IN_PROGRESS', 'RESOLVED', 'WONT_FIX'];
@@ -37,21 +37,26 @@ const STATUS: Record<Status, { label: string; color: string }> = {
 function ReportDrawer({ item, onClose }: { item: Report | null; onClose: () => void }) {
   const { message } = App.useApp();
   const [form] = Form.useForm<{ status: Status; adminNote?: string }>();
-  const [shot, setShot] = useState<string | null>(null);
+  const [shot, setShot] = useState<{ reportId: string; url: string } | null>(null);
   useEffect(() => {
+    setShot(null);
     if (!item) return;
     form.setFieldsValue({ status: item.status, adminNote: item.adminNote ?? '' });
-    setShot(null);
     if (!item.hasScreenshot) return;
+    let active = true;
     let url = '';
     http
       .blob(`/bug-reports/${item.id}/screenshot`)
       .then(blob => {
+        if (!active) return;
         url = URL.createObjectURL(blob);
-        setShot(url);
+        setShot({ reportId: item.id, url });
       })
-      .catch(error => message.error(errorText(error, 'Không tải được ảnh')));
+      .catch(error => {
+        if (active) message.error(errorText(error, 'Không tải được ảnh'));
+      });
     return () => {
+      active = false;
       if (url) URL.revokeObjectURL(url);
     };
   }, [item, form, message]);
@@ -68,6 +73,7 @@ function ReportDrawer({ item, onClose }: { item: Report | null; onClose: () => v
       open={Boolean(item)}
       onClose={onClose}
       size={640}
+      destroyOnHidden
       footer={
         <Flex justify="flex-end" gap={8}>
           <Button onClick={onClose}>Đóng</Button>
@@ -99,7 +105,7 @@ function ReportDrawer({ item, onClose }: { item: Report | null; onClose: () => v
             ]}
           />
           <div className="quote">{item.description}</div>
-          {item.hasScreenshot && (shot ? <Image src={shot} alt="Ảnh chụp màn hình" /> : <Tag icon={<PictureOutlined />}>Đang tải ảnh</Tag>)}
+          {item.hasScreenshot && (shot?.reportId === item.id ? <Image src={shot.url} alt="Ảnh chụp màn hình" /> : <Tag icon={<PictureOutlined />}>Đang tải ảnh</Tag>)}
           <Form form={form} layout="vertical" onFinish={values => save.mutate(values)}>
             <Form.Item name="status" label="Trạng thái">
               <Select options={(Object.keys(STATUS) as Status[]).map(value => ({ value, label: STATUS[value].label }))} />
@@ -133,11 +139,14 @@ export default function BugReports() {
             active={status === 'ALL' ? 0 : 1}
             search={<Input allowClear prefix={<SearchOutlined />} placeholder="Nội dung, địa chỉ, mã màn hình" value={text} onChange={event => setText(event.target.value)} style={{ width: '100%', maxWidth: 300 }} />}
             filters={
-              <Segmented
-                value={status}
-                onChange={value => setStatus(value as Status | 'ALL')}
-                options={[{ value: 'ALL', label: 'Tất cả' }, ...(Object.keys(STATUS) as Status[]).map(value => ({ value, label: `${STATUS[value].label} ${count(value)}` }))]}
-              />
+              <div style={{ maxWidth: '100%', overflowX: 'auto' }}>
+                <Segmented
+                  style={{ minWidth: 'max-content' }}
+                  value={status}
+                  onChange={value => setStatus(value as Status | 'ALL')}
+                  options={[{ value: 'ALL', label: 'Tất cả' }, ...(Object.keys(STATUS) as Status[]).map(value => ({ value, label: `${STATUS[value].label} ${count(value)}` }))]}
+                />
+              </div>
             }
           />
         </div>
@@ -153,10 +162,10 @@ export default function BugReports() {
             onRow={item => ({ onClick: () => setOpen(item), className: 'link-row' })}
             locale={{ emptyText: 'Chưa có báo lỗi' }}
             columns={[
-              { title: 'Mô tả', dataIndex: 'description', render: value => <span className="clamp-2">{value}</span> },
+              { title: 'Mô tả', dataIndex: 'description', sorter: byText(item => item.description), render: value => <span className="clamp-2">{value}</span> },
               { title: 'Màn hình', dataIndex: 'screenCode', width: 128, sorter: byText(item => item.screenCode), render: (value, item) => <Tooltip title={item.url}>{value ?? '—'}</Tooltip> },
               { title: 'Người gửi', dataIndex: 'reporterName', width: 180, sorter: byText(item => item.reporterName) },
-              { title: 'Ảnh', dataIndex: 'hasScreenshot', width: 70, align: 'center', render: value => (value ? <PictureOutlined /> : null) },
+              { title: 'Ảnh', dataIndex: 'hasScreenshot', width: 70, align: 'center', sorter: byNumber(item => Number(item.hasScreenshot)), sortDirections: NUMBER_FIRST, render: value => (value ? <PictureOutlined /> : null) },
               { title: 'Trạng thái', dataIndex: 'status', width: 130, sorter: byRank(STATUS_RANK, item => item.status), render: (value: Status) => <Tag color={STATUS[value].color}>{STATUS[value].label}</Tag> },
               { title: 'Gửi lúc', dataIndex: 'createdAt', width: 130, sorter: byDate(item => item.createdAt), defaultSortOrder: 'descend', render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
             ]}

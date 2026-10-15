@@ -131,7 +131,7 @@ export default function Imports() {
   const rows = useMemo(() => {
     if (!preview) return [];
     return [
-      ...(preview.errors ?? []).map(error => ({ key: `e${error.row}-${error.field ?? ''}`, row: error.row, kind: 'error' as const, error })),
+      ...(preview.errors ?? []).map((error, index) => ({ key: `e${error.row}-${error.code}-${index}`, row: error.row, kind: 'error' as const, error })),
       ...(preview.changes ?? []).map(change => ({ key: `c${change.row}`, row: change.row, kind: 'change' as const, change })),
     ].sort((a, b) => a.row - b.row);
   }, [preview]);
@@ -253,7 +253,7 @@ export default function Imports() {
                           </span>
                         ),
                     },
-                    { title: 'Ghi chú', key: 'note', width: 220, render: (_, item) => (item.kind === 'change' ? item.change.note || '—' : '') },
+                    { title: 'Ghi chú', key: 'note', width: 220, sorter: byText(item => (item.kind === 'change' ? item.change.note : null)), render: (_, item) => (item.kind === 'change' ? item.change.note || '—' : '') },
                   ]}
                 />
               </>
@@ -272,23 +272,29 @@ export default function Imports() {
             rowKey="id"
             loading={history.isLoading}
             dataSource={history.data ?? []}
-            scroll={{ x: 900 }}
+            scroll={{ x: 1200 }}
+            tableLayout="fixed"
             pagination={{ defaultPageSize: 10 }}
             locale={{ emptyText: 'Chưa có lượt nhập' }}
             expandable={{ expandedRowRender: batch => <BatchUpdates id={batch.id} />, rowExpandable: batch => batch.status !== 'PREVIEWED' }}
             columns={[
-              { title: 'Tệp', key: 'file', sorter: byText(batch => batch.fileName), render: (_, batch) => <Tooltip title={dateTime(batch.createdAt)}>{batch.fileName}</Tooltip> },
+              { title: 'Tệp', key: 'file', width: 240, sorter: byText(batch => batch.fileName), render: (_, batch) => <Tooltip title={dateTime(batch.createdAt)}><span style={{ overflowWrap: 'anywhere' }}>{batch.fileName}</span></Tooltip> },
               { title: 'Phòng', key: 'dept', width: 220, sorter: byText(batch => batch.department?.name), render: (_, batch) => batch.department?.name ?? '—' },
-              { title: 'Dòng', key: 'rows', width: 150, sorter: byNumber(batch => batch.errorRows), sortDirections: NUMBER_FIRST, render: (_, batch) => `${num(batch.successRows)} hợp lệ · ${num(batch.errorRows)} lỗi` },
+              { title: 'Người nộp', dataIndex: 'createdBy', width: 160, sorter: byText(batch => batch.createdBy) },
+              { title: 'Dòng', key: 'rows', width: 150, align: 'center', sorter: byNumber(batch => batch.errorRows), sortDirections: NUMBER_FIRST, render: (_, batch) => `${num(batch.successRows)} hợp lệ · ${num(batch.errorRows)} lỗi` },
               {
                 title: 'Trạng thái',
                 key: 'status',
-                width: 220,
+                width: 240,
                 sorter: byRank(Object.keys(STATUS), batch => batch.status),
                 render: (_, batch) => (
-                  <Flex gap={6} wrap>
+                  <Flex vertical gap={4} align="start">
                     <Tag color={STATUS[batch.status].color}>{STATUS[batch.status].label}</Tag>
-                    {batch.reviewCounts && batch.reviewCounts.pending > 0 && <span className="entry-meta">{batch.reviewCounts.pending} chờ duyệt</span>}
+                    {batch.reviewCounts && batch.reviewCounts.approved + batch.reviewCounts.rejected + batch.reviewCounts.pending > 0 && (
+                      <span className="entry-meta">
+                        {num(batch.reviewCounts.approved)} duyệt · {num(batch.reviewCounts.rejected)} trả · {num(batch.reviewCounts.pending)} chờ
+                      </span>
+                    )}
                   </Flex>
                 ),
               },
