@@ -36,6 +36,11 @@
     đề mục gần nhất vào từng chunk và bộ lọc lĩnh vực của lệnh duyệt hàng loạt còn đối chiếu tên chỉ tiêu,
     nhưng người duyệt vẫn cần xác minh các bảng có tiêu đề/ô gộp bất thường.
 
+17. Giọng nói của Jarvis dùng Web Speech API của trình duyệt: Chrome/Edge chuyển âm thanh tới dịch vụ nhận
+    dạng của Google/Microsoft (cần mạng, cần HTTPS hoặc localhost); Firefox chưa hỗ trợ. Mặc định tắt chế độ
+    gọi tên, mỗi người tự bật. Khi cần xử lý giọng nói hoàn toàn trong mạng nội bộ, thay phần nhận dạng
+    (`apps/web/src/app/layout/jarvis/voice.ts`) bằng mô hình nhận dạng chạy trên máy chủ (ví dụ Whisper).
+
 ## Chuỗi cung ứng phần mềm
 
 17. Audit ngày 27/07/2026 còn 12 cảnh báo high và 1 moderate, không có critical. Các cảnh báo high quy

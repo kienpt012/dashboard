@@ -61,6 +61,10 @@ cài tại `/usr/local/sbin/ioc-deploy`. Cơ chế này ngăn khóa CI tự thay
 SMTP có thể để trống trong giai đoạn nghiệm thu IP. Khi trỏ tên miền, cập nhật `PUBLIC_APP_URL`,
 `CORS_ORIGINS`, cấu hình SMTP và cấp TLS trước khi dùng tài khoản quản trị trong vận hành thật.
 
+Trình duyệt chỉ cho dùng micro trên HTTPS (hoặc `localhost`), nên khi chạy bằng `http://<IP>` thì Jarvis
+vẫn trả lời câu hỏi gõ phím nhưng nút micro và chế độ gọi tên "Jarvis" bị tắt. Cấp TLS cho tên miền là
+điều kiện để dùng giọng nói.
+
 ## Kiểm tra sau triển khai
 
 ```bash
