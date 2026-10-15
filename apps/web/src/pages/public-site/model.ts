@@ -1,4 +1,5 @@
 // Mô hình trang công khai: thư viện khối, mẫu trang, thao tác bố cục. Ràng buộc khớp apps/api/src/public-dashboard.ts.
+import { verticalCompactor } from 'react-grid-layout';
 import type {
   PublicDashboardBreakpoint,
   PublicDashboardConfig,
@@ -16,6 +17,9 @@ export const BREAKPOINT_LABEL: Record<PublicDashboardBreakpoint, string> = { des
 export const CANVAS_WIDTH: Record<PublicDashboardBreakpoint, number | null> = { desktop: null, tablet: 820, mobile: 400 };
 export const ROW_HEIGHT = 40;
 export const GAP = 16;
+/** Giới hạn của máy chủ: số khối 1–40, chiều cao khối tối đa 40 hàng. */
+export const MAX_WIDGETS = 40;
+export const MAX_H = 40;
 
 /** Chiều cao tối thiểu theo loại khối (đơn vị hàng lưới) — máy chủ nâng khối thấp hơn lên mức này. */
 export const MIN_H: Record<PublicDashboardWidgetType, Record<PublicDashboardBreakpoint, number>> = {
@@ -120,7 +124,7 @@ function uniqueId(type: string, taken: Set<string>) {
 
 function item(i: string, type: PublicDashboardWidgetType, breakpoint: PublicDashboardBreakpoint, x: number, y: number, w: number, h: number): PublicDashboardLayoutItem {
   const minH = MIN_H[type][breakpoint];
-  return { i, x, y, w, h: Math.max(h, minH), minW: Math.min(w, WIDGETS[type].minW, COLS[breakpoint]), minH };
+  return { i, x, y, w, h: Math.min(MAX_H, Math.max(h, minH)), minW: Math.min(w, WIDGETS[type].minW, COLS[breakpoint]), minH };
 }
 
 /** Thêm khối mới vào cuối trang ở cả ba cỡ màn hình. */
@@ -135,9 +139,22 @@ export function addWidget(config: PublicDashboardConfig, type: PublicDashboardWi
   return { config: { ...config, widgets: [...config.widgets, widget], layouts }, id };
 }
 
+/** Dồn các khối lên trên (cùng thuật toán lưới kéo thả dùng), giữ đúng dạng dữ liệu máy chủ nhận. */
+export function compactLayout(layout: PublicDashboardLayoutItem[], breakpoint: PublicDashboardBreakpoint): PublicDashboardLayoutItem[] {
+  return verticalCompactor.compact(layout.map(entry => ({ ...entry })), COLS[breakpoint]).map(({ i, x, y, w, h, minW, minH }) => ({
+    i,
+    x,
+    y,
+    w,
+    h,
+    ...(minW ? { minW } : {}),
+    ...(minH ? { minH } : {}),
+  }));
+}
+
 export function removeWidget(config: PublicDashboardConfig, id: string): PublicDashboardConfig {
   const layouts = { ...config.layouts };
-  for (const breakpoint of BREAKPOINTS) layouts[breakpoint] = config.layouts[breakpoint].filter(entry => entry.i !== id);
+  for (const breakpoint of BREAKPOINTS) layouts[breakpoint] = compactLayout(config.layouts[breakpoint].filter(entry => entry.i !== id), breakpoint);
   return { ...config, widgets: config.widgets.filter(widget => widget.id !== id), layouts };
 }
 
@@ -168,8 +185,68 @@ export function cleanLayout(layout: readonly PublicDashboardLayoutItem[], config
       const type = types.get(entry.i)!;
       const minH = MIN_H[type][breakpoint];
       const w = Math.max(1, Math.min(COLS[breakpoint], entry.w));
-      return { i: entry.i, x: Math.max(0, Math.min(COLS[breakpoint] - w, entry.x)), y: Math.max(0, entry.y), w, h: Math.max(minH, entry.h), minW: Math.min(w, entry.minW ?? 1), minH };
+      return { i: entry.i, x: Math.max(0, Math.min(COLS[breakpoint] - w, entry.x)), y: Math.max(0, entry.y), w, h: Math.min(MAX_H, Math.max(minH, entry.h)), minW: Math.min(w, entry.minW ?? 1), minH };
     });
+}
+
+// ---------------------------------------------------------------- Kiểm tra trước khi lưu (khớp parseBindings, safeHref của máy chủ)
+
+const SLOT_PATTERN = /^[a-z][a-z0-9_-]{0,49}$/;
+
+export function slotUsed(html: string, slot: string) {
+  const escaped = slot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\{\\{\\s*${escaped}\\s*\\}\\}|data-ioc-slot\\s*=\\s*["']${escaped}["']`, 'i').test(html);
+}
+
+export function hrefAllowed(href: string) {
+  return /^#[A-Za-z0-9_-]+$/.test(href) || (href.startsWith('/') && !href.startsWith('//') && !/[\\\u0000-\u001f\u007f]|%5c/i.test(href)) || /^https:\/\//i.test(href);
+}
+
+/** Lỗi của từng khối: rỗng là hợp lệ. activePublications là các văn bản đang công khai. */
+export function widgetProblems(widget: PublicDashboardWidget, label: string, activePublications: Set<string>): string[] {
+  const s = widget.settings;
+  switch (widget.type) {
+    case 'targetList':
+      return s.mode === 'selected' && !s.targetKeys?.length ? [`${label}: chưa chọn chỉ tiêu`] : [];
+    case 'richText':
+      return s.body?.trim() ? [] : [`${label}: chưa có nội dung`];
+    case 'cta':
+      if (!s.body?.trim() || !s.label?.trim() || !s.href?.trim()) return [`${label}: thiếu mô tả, nhãn hoặc liên kết`];
+      return hrefAllowed(s.href.trim()) ? [] : [`${label}: liên kết phải là đường dẫn nội bộ hoặc https://`];
+    case 'documentList':
+      return (s.publicationIds ?? []).some(id => !activePublications.has(id)) ? [`${label}: có văn bản đã thu hồi`] : [];
+    case 'customHtml': {
+      const html = s.html?.trim() ?? '';
+      if (!html) return [`${label}: chưa có HTML`];
+      const seen = new Set<string>();
+      for (const binding of s.bindings ?? []) {
+        if (!SLOT_PATTERN.test(binding.slot) || seen.has(binding.slot)) return [`${label}: tên biến "${binding.slot}" không hợp lệ hoặc bị trùng`];
+        seen.add(binding.slot);
+        if (!binding.label?.trim()) return [`${label}: biến "${binding.slot}" chưa có tên hiển thị`];
+        if (binding.source === 'target' && !binding.targetKey) return [`${label}: biến "${binding.slot}" chưa chọn chỉ tiêu`];
+        if (binding.source === 'document' && !binding.documentId) return [`${label}: biến "${binding.slot}" chưa chọn văn bản`];
+        if (binding.source === 'document' && binding.documentId && !activePublications.has(binding.documentId)) return [`${label}: biến "${binding.slot}" trỏ tới văn bản đã thu hồi`];
+        if (!slotUsed(html, binding.slot)) return [`${label}: chưa đặt {{${binding.slot}}} trong HTML`];
+      }
+      return [];
+    }
+    default:
+      return [];
+  }
+}
+
+/** Bỏ mọi tham chiếu tới một văn bản vừa thu hồi khỏi bản nháp. */
+export function dropPublication(config: PublicDashboardConfig, publicationId: string): PublicDashboardConfig {
+  return {
+    ...config,
+    widgets: config.widgets.map(widget =>
+      widget.type === 'documentList'
+        ? { ...widget, settings: { ...widget.settings, publicationIds: (widget.settings.publicationIds ?? []).filter(id => id !== publicationId) } }
+        : widget.type === 'customHtml'
+          ? { ...widget, settings: { ...widget.settings, bindings: (widget.settings.bindings ?? []).map(binding => (binding.source === 'document' && binding.documentId === publicationId ? { ...binding, documentId: undefined } : binding)) } }
+          : widget,
+    ),
+  };
 }
 
 // ---------------------------------------------------------------- Mẫu trang

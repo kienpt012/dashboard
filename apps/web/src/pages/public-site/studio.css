@@ -84,6 +84,11 @@
   cursor: grabbing;
 }
 
+.st-handle:focus-visible {
+  outline: 2px solid var(--ioc-color-primary);
+  outline-offset: 2px;
+}
+
 .st-handle:hover {
   color: var(--pd-text);
 }

@@ -43,7 +43,7 @@ import {
 } from 'antd';
 import { GridLayout, useContainerWidth } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { useLocality } from '@/app/locality';
 import { useThemeMode } from '@/app/theme';
@@ -68,11 +68,16 @@ import {
   METRIC_KEYS,
   METRICS,
   removeWidget,
+  dropPublication,
+  MAX_H,
+  MAX_WIDGETS,
   ROW_HEIGHT,
+  slotUsed,
   TEMPLATES,
   themeIssues,
   updateWidget,
   WIDGET_TYPES,
+  widgetProblems,
   WIDGETS,
 } from './model';
 import { PublicRenderer, themeStyle, useFrameColors, WidgetView } from './Renderer';
@@ -137,7 +142,7 @@ function PageSettings({ draft, onChange }: { draft: Draft; onChange: (next: Draf
   );
 }
 
-function BindingsEditor({ bindings, onChange, editor }: { bindings: CustomHtmlBinding[]; onChange: (next: CustomHtmlBinding[]) => void; editor: EditorResponse }) {
+function BindingsEditor({ bindings, onChange, editor, html }: { bindings: CustomHtmlBinding[]; onChange: (next: CustomHtmlBinding[]) => void; editor: EditorResponse; html: string }) {
   const update = (index: number, patch: Partial<CustomHtmlBinding>) => onChange(bindings.map((binding, at) => (at === index ? { ...binding, ...patch } : binding)));
   const published = editor.catalog.documents.filter(document => document.publication);
   return (
@@ -145,16 +150,18 @@ function BindingsEditor({ bindings, onChange, editor }: { bindings: CustomHtmlBi
       {bindings.map((binding, index) => (
         <div className="st-binding" key={index}>
           <Flex gap={8}>
-            <Input
-              value={binding.slot}
-              addonBefore="Biến"
-              maxLength={50}
-              status={/^[a-z][a-z0-9_-]{0,49}$/.test(binding.slot) ? undefined : 'error'}
-              onChange={event => update(index, { slot: event.target.value.toLowerCase() })}
-            />
+            <Space.Compact style={{ flex: 1 }}>
+              <Space.Addon>Biến</Space.Addon>
+              <Input
+                value={binding.slot}
+                maxLength={50}
+                status={/^[a-z][a-z0-9_-]{0,49}$/.test(binding.slot) && bindings.filter(other => other.slot === binding.slot).length === 1 && slotUsed(html, binding.slot) ? undefined : 'error'}
+                onChange={event => update(index, { slot: event.target.value.toLowerCase() })}
+              />
+            </Space.Compact>
             <Button danger type="text" icon={<DeleteOutlined />} aria-label="Xoá biến" onClick={() => onChange(bindings.filter((_, at) => at !== index))} />
           </Flex>
-          <Input value={binding.label} placeholder="Tên hiển thị" maxLength={100} onChange={event => update(index, { label: event.target.value })} />
+          <Input value={binding.label} placeholder="Tên hiển thị" maxLength={100} status={binding.label?.trim() ? undefined : 'error'} onChange={event => update(index, { label: event.target.value })} />
           <Flex gap={8}>
             <Select
               style={{ flex: 1 }}
@@ -177,6 +184,7 @@ function BindingsEditor({ bindings, onChange, editor }: { bindings: CustomHtmlBi
             <Select
               showSearch={{ optionFilterProp: 'label' }}
               placeholder="Chọn chỉ tiêu"
+              status={binding.targetKey ? undefined : 'error'}
               value={binding.targetKey}
               options={editor.catalog.targets.map(target => ({ value: target.key, label: `${target.code} · ${target.title}` }))}
               onChange={targetKey => update(index, { targetKey })}
@@ -186,6 +194,7 @@ function BindingsEditor({ bindings, onChange, editor }: { bindings: CustomHtmlBi
             <Select
               showSearch={{ optionFilterProp: 'label' }}
               placeholder="Chọn văn bản đã công khai"
+              status={binding.documentId && published.some(document => document.publication!.id === binding.documentId) ? undefined : 'error'}
               value={binding.documentId}
               options={published.map(document => ({ value: document.publication!.id, label: document.publication!.title }))}
               onChange={documentId => update(index, { documentId })}
@@ -300,7 +309,7 @@ function WidgetSettings({
 
       {['targetList', 'departmentProgress', 'feedbackList', 'documentList'].includes(widget.type) && (
         <Form.Item label="Số mục tối đa">
-          <InputNumber min={1} max={maxFor} value={s.maxItems} onChange={value => value && set({ maxItems: value })} style={{ width: 120 }} />
+          <InputNumber min={1} max={maxFor} precision={0} step={1} value={s.maxItems} onChange={value => value != null && set({ maxItems: Math.min(maxFor, Math.max(1, Math.round(value))) })} style={{ width: 120 }} />
         </Form.Item>
       )}
 
@@ -346,7 +355,7 @@ function WidgetSettings({
             />
           </Form.Item>
           <Form.Item label="Biến dữ liệu">
-            <BindingsEditor bindings={s.bindings ?? []} onChange={bindings => set({ bindings })} editor={editor} />
+            <BindingsEditor bindings={s.bindings ?? []} onChange={bindings => set({ bindings })} editor={editor} html={s.html ?? ''} />
           </Form.Item>
         </>
       )}
@@ -397,7 +406,7 @@ function Canvas({
           <GridLayout
             key={device}
             width={width}
-            layout={config.layouts[device]}
+            layout={config.layouts[device].map(entry => ({ ...entry, maxH: MAX_H }))}
             gridConfig={{ cols: COLS[device], rowHeight: ROW_HEIGHT, margin: [GAP, GAP], containerPadding: [0, 0] }}
             dragConfig={{ enabled: true, handle: '.st-handle', threshold: 4 }}
             resizeConfig={{ enabled: true, handles: ['se', 's', 'e'] }}
@@ -417,7 +426,21 @@ function Canvas({
                   }}
                 >
                   <div className="st-bar">
-                    <span className="st-handle" title="Kéo để di chuyển">
+                    <span
+                      className="st-handle"
+                      title="Kéo để di chuyển"
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={active}
+                      aria-label={`Chọn khối ${widget.title || WIDGETS[widget.type].label}`}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onSelect(widget.id);
+                        } else if (event.key === 'Escape') onSelect(null);
+                      }}
+                    >
                       <HolderOutlined />
                       {WIDGETS[widget.type].label}
                     </span>
@@ -489,7 +512,7 @@ function HistoryDrawer({ open, onClose, editor, onRestore, busy }: { open: boole
 
 type PublicationValues = { title: string; summary?: string; confirmedSafe: boolean };
 
-function DocumentsDrawer({ open, onClose, documents }: { open: boolean; onClose: () => void; documents: EditorDocument[] }) {
+function DocumentsDrawer({ open, onClose, documents, onRevoked }: { open: boolean; onClose: () => void; documents: EditorDocument[]; onRevoked: (publicationId: string) => void }) {
   const client = useQueryClient();
   const { message } = App.useApp();
   const [form] = Form.useForm<PublicationValues>();
@@ -498,6 +521,7 @@ function DocumentsDrawer({ open, onClose, documents }: { open: boolean; onClose:
 
   async function save(document: EditorDocument, values: PublicationValues, isPublic: boolean) {
     setBusy(document.id);
+    const revokedId = !isPublic ? document.publication?.id : undefined;
     try {
       await http.put(`/public-dashboard/documents/${document.id}/publication`, {
         expectedVersion: document.publication?.version,
@@ -507,6 +531,7 @@ function DocumentsDrawer({ open, onClose, documents }: { open: boolean; onClose:
         public: isPublic,
       });
       message.success(isPublic ? 'Đã công khai văn bản' : 'Đã thu hồi văn bản');
+      if (revokedId) onRevoked(revokedId);
       setEditing(null);
       await invalidate(client, ['/public-dashboard', '/public/dashboard']);
     } catch (error) {
@@ -633,31 +658,59 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
   const [note, setNote] = useState('');
   const [history, setHistory] = useState(false);
   const [documents, setDocuments] = useState(false);
+  const { dark } = useThemeMode();
+  // Bản sao đồng bộ của trạng thái để các thao tác bất đồng bộ luôn đọc giá trị mới nhất.
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const savedRef = useRef(saved);
+  const versionRef = useRef(version);
+  /** Bật trước khi chủ động nạp bản của máy chủ (khôi phục, chọn tải bản mới) để thay bản nháp cục bộ. */
+  const adoptNext = useRef(false);
+
+  const markSaved = (value: string) => {
+    savedRef.current = value;
+    setSaved(value);
+  };
+  const markVersion = (value: number) => {
+    versionRef.current = value;
+    setVersion(value);
+  };
 
   const dirty = snapshot(draft) !== saved;
   const issues = themeIssues(draft.config.theme);
   const selectedWidget = draft.config.widgets.find(widget => widget.id === selected) ?? null;
+  const activePublications = useMemo(() => new Set(editor.catalog.documents.flatMap(document => (document.publication ? [document.publication.id] : []))), [editor.catalog.documents]);
   const problems = [
     ...issues,
     ...(draft.name.trim().length < 3 ? ['Tên bản nháp cần ít nhất 3 ký tự'] : []),
-    ...draft.config.widgets.flatMap(widget => {
-      const label = widget.title || WIDGETS[widget.type].label;
-      if (widget.type === 'targetList' && widget.settings.mode === 'selected' && !widget.settings.targetKeys?.length) return [`${label}: chưa chọn chỉ tiêu`];
-      if (widget.type === 'richText' && !widget.settings.body?.trim()) return [`${label}: chưa có nội dung`];
-      if (widget.type === 'cta' && (!widget.settings.body?.trim() || !widget.settings.label?.trim() || !widget.settings.href?.trim())) return [`${label}: thiếu mô tả, nhãn hoặc liên kết`];
-      return [];
-    }),
+    ...(draft.config.widgets.length < 1 ? ['Trang cần ít nhất 1 khối'] : draft.config.widgets.length > MAX_WIDGETS ? [`Trang có tối đa ${MAX_WIDGETS} khối`] : []),
+    ...draft.config.widgets.flatMap(widget => widgetProblems(widget, widget.title || WIDGETS[widget.type].label, activePublications)),
   ];
 
-  // Nạp lại khi máy chủ trả bản mới (sau lưu, công bố, khôi phục) và không có thay đổi chưa lưu.
+  // Đồng bộ với bản của máy chủ mà KHÔNG bao giờ tự xoá thay đổi chưa lưu.
   useEffect(() => {
-    if (snapshot(draftRef.current) === saved || editor.dashboard.draftVersion !== version) {
+    const serverVersion = editor.dashboard.draftVersion;
+    const serverSnapshot = snapshot(base);
+    const localDirty = snapshot(draftRef.current) !== savedRef.current;
+    const adopt = () => {
+      adoptNext.current = false;
       setDraft(base);
-      setSaved(snapshot(base));
-      setVersion(editor.dashboard.draftVersion);
+      markSaved(serverSnapshot);
+      markVersion(serverVersion);
+    };
+    if (adoptNext.current || !localDirty) return adopt();
+    if (serverVersion === versionRef.current) return;
+    if (serverSnapshot === savedRef.current) {
+      // Ví dụ: công bố chỉ tăng phiên bản, nội dung không đổi — giữ thay đổi đang sửa.
+      markVersion(serverVersion);
+      return;
     }
+    modal.confirm({
+      title: 'Bản nháp đã thay đổi ở nơi khác',
+      okText: 'Tải bản mới',
+      cancelText: 'Giữ bản đang sửa',
+      onOk: adopt,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base]);
 
@@ -689,7 +742,7 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
           okText: 'Tải bản mới',
           cancelText: 'Để sau',
           onOk: async () => {
-            setSaved(snapshot(draftRef.current));
+            adoptNext.current = true;
             await reload();
           },
         });
@@ -700,39 +753,44 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
     [message, modal, reload],
   );
 
-  async function saveDraft() {
+  /** Lưu bản nháp; trả phiên bản mới hoặc null nếu không lưu được. */
+  async function saveDraft(): Promise<number | null> {
     if (problems.length) {
       message.error(problems[0]);
-      return false;
+      return null;
     }
+    const sent = draftRef.current;
+    const sentSnapshot = snapshot(sent);
     setBusy('save');
     try {
       const result = await http.put<{ draftVersion: number; draftConfig: PublicDashboardConfig; draftName: string; draftTemplateKey: string }>('/public-dashboard/draft', {
-        expectedVersion: version,
-        name: draft.name.trim(),
-        templateKey: draft.templateKey,
-        config: draft.config,
+        expectedVersion: versionRef.current,
+        name: sent.name.trim(),
+        templateKey: sent.templateKey,
+        config: sent.config,
       });
       const next = { name: result.draftName, templateKey: result.draftTemplateKey, config: result.draftConfig };
-      setDraft(next);
-      setSaved(snapshot(next));
-      setVersion(result.draftVersion);
+      markVersion(result.draftVersion);
+      markSaved(snapshot(next));
+      // Chỉ nhận bản chuẩn hoá của máy chủ khi không có chỉnh sửa nào trong lúc chờ; ngược lại giữ bản đang sửa (vẫn "Chưa lưu").
+      if (snapshot(draftRef.current) === sentSnapshot) setDraft(next);
       message.success('Đã lưu bản nháp');
       void invalidate(client, ['/public-dashboard']);
-      return true;
+      return result.draftVersion;
     } catch (error) {
       conflict(error);
-      return false;
+      return null;
     } finally {
       setBusy(null);
     }
   }
 
   async function publish() {
-    if (dirty && !(await saveDraft())) return;
+    const expected = dirty ? await saveDraft() : versionRef.current;
+    if (expected === null) return;
     setBusy('publish');
     try {
-      await http.post('/public-dashboard/publish', { expectedVersion: version, changeNote: note.trim() });
+      await http.post('/public-dashboard/publish', { expectedVersion: expected, changeNote: note.trim() });
       message.success('Đã công bố trang công khai');
       setPublishing(false);
       setNote('');
@@ -747,10 +805,10 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
   async function restore(revision: number) {
     setBusy('restore');
     try {
-      await http.post(`/public-dashboard/revisions/${revision}/restore`, { expectedVersion: version });
+      await http.post(`/public-dashboard/revisions/${revision}/restore`, { expectedVersion: versionRef.current });
       message.success(`Đã đưa bản lần ${revision} vào bản nháp`);
       setHistory(false);
-      setSaved(snapshot(draftRef.current));
+      adoptNext.current = true;
       await invalidate(client, ['/public-dashboard']);
     } catch (error) {
       conflict(error);
@@ -769,6 +827,15 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  /** Thêm hoặc nhân bản khối, tôn trọng giới hạn của máy chủ. */
+  function withRoom(run: () => void) {
+    if (draft.config.widgets.length >= MAX_WIDGETS) {
+      message.warning(`Trang có tối đa ${MAX_WIDGETS} khối`);
+      return;
+    }
+    run();
+  }
 
   const setConfig = (config: PublicDashboardConfig) => setDraft(current => ({ ...current, config }));
 
@@ -843,16 +910,13 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
               trigger={['click']}
               menu={{
                 items: WIDGET_TYPES.map(type => ({ key: type, label: WIDGETS[type].label })),
-                onClick: ({ key }) => {
-                  if (draft.config.widgets.length >= 40) {
-                    message.warning('Trang có tối đa 40 khối');
-                    return;
-                  }
-                  const result = addWidget(draft.config, key as PublicDashboardWidget['type']);
-                  setConfig(result.config);
-                  setSelected(result.id);
-                  setMode('layout');
-                },
+                onClick: ({ key }) =>
+                  withRoom(() => {
+                    const result = addWidget(draft.config, key as PublicDashboardWidget['type']);
+                    setConfig(result.config);
+                    setSelected(result.id);
+                    setMode('layout');
+                  }),
               }}
             >
               <Button icon={<AppstoreAddOutlined />}>Thêm khối</Button>
@@ -878,14 +942,16 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
                 setConfig(removeWidget(draft.config, id));
                 if (selected === id) setSelected(null);
               }}
-              onDuplicate={id => {
-                const result = duplicateWidget(draft.config, id);
-                setConfig(result.config);
-                setSelected(result.id);
-              }}
+              onDuplicate={id =>
+                withRoom(() => {
+                  const result = duplicateWidget(draft.config, id);
+                  setConfig(result.config);
+                  setSelected(result.id);
+                })
+              }
             />
           ) : (
-            <div className="st-preview pd" style={themeStyle(draft.config, false) as CSSProperties}>
+            <div className="st-preview pd" style={themeStyle(draft.config, dark)}>
               <div className="st-frame" style={{ maxWidth: CANVAS_WIDTH[device] ?? draft.config.theme.contentWidth }}>
                 <PublicRenderer config={draft.config} data={editor.previewData} breakpoint={device} />
               </div>
@@ -913,11 +979,13 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
               widget={selectedWidget}
               editor={editor}
               onChange={patch => setConfig(updateWidget(draft.config, selectedWidget.id, patch))}
-              onDuplicate={() => {
-                const result = duplicateWidget(draft.config, selectedWidget.id);
-                setConfig(result.config);
-                setSelected(result.id);
-              }}
+              onDuplicate={() =>
+                withRoom(() => {
+                  const result = duplicateWidget(draft.config, selectedWidget.id);
+                  setConfig(result.config);
+                  setSelected(result.id);
+                })
+              }
               onRemove={() => {
                 setConfig(removeWidget(draft.config, selectedWidget.id));
                 setSelected(null);
@@ -952,7 +1020,12 @@ function Studio({ editor, reload }: { editor: EditorResponse; reload: () => Prom
       </Modal>
 
       <HistoryDrawer open={history} onClose={() => setHistory(false)} editor={editor} onRestore={revision => void restore(revision)} busy={busy === 'restore'} />
-      <DocumentsDrawer open={documents} onClose={() => setDocuments(false)} documents={editor.catalog.documents} />
+      <DocumentsDrawer
+        open={documents}
+        onClose={() => setDocuments(false)}
+        documents={editor.catalog.documents}
+        onRevoked={id => setDraft(current => ({ ...current, config: dropPublication(current.config, id) }))}
+      />
     </Page>
   );
 }
