@@ -290,6 +290,7 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
           <LegalBasis text={framework.legalBasis} />
         </div>
       )}
+      <div className="fw-foot">
       <div className="fw-stats">
         <div>
           <span>Chỉ tiêu</span>
@@ -316,6 +317,7 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
       </div>
       <div style={{ marginTop: 14 }}>
         <DistBar counts={s.counts} total={s.total} />
+      </div>
       </div>
     </Card>
   );

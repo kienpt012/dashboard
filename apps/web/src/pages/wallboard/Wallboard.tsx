@@ -44,10 +44,31 @@ function useScale() {
   return scale;
 }
 
-function chunks<T>(list: T[], size: number) {
-  const out: T[][] = [];
-  for (let index = 0; index < list.length; index += size) out.push(list.slice(index, index + size));
-  return out.length ? out : [[]];
+/** Một hàng cao 70px + khoảng cách 8px; mỗi dòng tên thêm 29px. Trang chứa tối đa chiều cao của 8 hàng một dòng. */
+const ROW = 78;
+const LINE = 29;
+
+function rowHeight(title: string, charsPerLine: number) {
+  return ROW + (Math.min(3, Math.ceil(title.length / charsPerLine)) - 1) * LINE;
+}
+
+/** Chia trang theo chiều cao ước tính để tên dài được xuống dòng mà trang vẫn vừa khung. */
+function paginate<T>(list: T[], height: (item: T) => number, budget: number) {
+  const pages: T[][] = [];
+  let current: T[] = [];
+  let used = 0;
+  for (const item of list) {
+    const size = height(item);
+    if (current.length && used + size > budget) {
+      pages.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(item);
+    used += size;
+  }
+  if (current.length) pages.push(current);
+  return pages.length ? pages : [[]];
 }
 
 function sortTargets(targets: WallTarget[]) {
@@ -126,7 +147,7 @@ function frameworkResult(slide: FrameworkSlide) {
 function Rows({ rows, showDepartment }: { rows: WallTarget[]; showDepartment: boolean }) {
   const statOnly = rows.every(target => target.kind === 'STAT');
   return (
-    <div className="wb-table">
+    <div className={`wb-table${statOnly ? ' stat' : ''}`}>
       <div className="wb-thead">
         <span />
         <span>Chỉ tiêu</span>
@@ -347,12 +368,13 @@ export default function Wallboard() {
     if (data.slides.some(slide => slide.type === 'framework')) list.push({ kind: 'overview', key: 'overview', group: group++ });
     for (const slide of data.slides) {
       if (!slide.targets.length) continue;
-      const pages = chunks(slide.type === 'department' ? slide.targets : sortTargets(slide.targets), ROWS);
+      const perLine = slide.targets.every(target => target.kind === 'STAT') ? 66 : 50;
+      const pages = paginate(slide.type === 'department' ? slide.targets : sortTargets(slide.targets), target => rowHeight(target.title, perLine), ROWS * ROW);
       pages.forEach((rows, page) => list.push({ kind: 'slide', key: `${slide.type}-${slide.id}-${page}`, group, slide, rows, page, pages: pages.length }));
       group += 1;
     }
     if (data.stalled.length) {
-      const pages = chunks(data.stalled, ROWS + 1);
+      const pages = paginate(data.stalled, item => rowHeight(item.title, 95), (ROWS + 1) * ROW);
       pages.forEach((rows, page) => list.push({ kind: 'stalled', key: `stalled-${page}`, group, rows, page, pages: pages.length }));
       group += 1;
     }

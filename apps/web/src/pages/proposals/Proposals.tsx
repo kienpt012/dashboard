@@ -44,6 +44,14 @@ function compareStatus(a: Proposal, b: Proposal) {
     || b.createdAt.localeCompare(a.createdAt);
 }
 
+/** Nguồn đề xuất: số văn bản (bỏ nếu căn cứ đã nêu), căn cứ, bộ chỉ tiêu. */
+function sourceLine(item: Proposal) {
+  const doc = item.document ? item.document.docNumber || item.document.code : null;
+  const basis = item.legalBasis?.trim() || null;
+  const parts = [doc && basis?.includes(doc) ? null : doc, basis, item.framework?.name];
+  return parts.filter(Boolean).join(' · ') || undefined;
+}
+
 function targetOf(item: Proposal) {
   if (item.targetText) return item.targetText;
   if (item.targetValue !== null && item.targetValue !== undefined) return `${num(item.targetValue)}${item.unit ? ` ${item.unit}` : ''}`;
@@ -548,7 +556,7 @@ export default function Proposals() {
                         )}
                       </Space>
                     }
-                    sub={[item.document ? item.document.docNumber || item.document.code : null, item.legalBasis, item.framework?.name].filter(Boolean).join(' · ') || undefined}
+                    sub={sourceLine(item)}
                   />
                 ),
               },
