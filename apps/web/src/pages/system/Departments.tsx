@@ -143,7 +143,7 @@ export default function Departments() {
             loading={list.isLoading}
             dataSource={rows}
             pagination={false}
-            scroll={{ x: 900 }}
+            scroll={{ x: 1060 }}
             expandable={{
               expandedRowRender: item => (
                 <div className="expand-panel pre-line" style={{ display: 'grid', gap: 12, overflowWrap: 'anywhere' }}>

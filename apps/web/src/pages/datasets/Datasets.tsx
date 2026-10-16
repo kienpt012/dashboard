@@ -65,7 +65,7 @@ export default function Datasets() {
             rowKey="code"
             loading={list.isLoading}
             dataSource={rows}
-            scroll={{ x: 980 }}
+            scroll={{ x: 1180 }}
             pagination={false}
             onRow={item => ({ onClick: () => navigate(`/admin/kho-du-lieu/${item.code}`), className: 'link-row' })}
             columns={[

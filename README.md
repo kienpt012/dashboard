@@ -123,6 +123,18 @@ Máy khác trong mạng nội bộ truy cập qua `http://<IP-máy-chủ>:8080`;
 
 Không dùng `docker compose down -v`: lệnh này xoá volume dữ liệu.
 
+### Nâng cấp từ bản đang chạy
+
+```powershell
+cd C:\ioc
+git pull
+.\start-ioc.cmd
+```
+
+`start-ioc.cmd` build lại image, áp dụng migration mới và giữ nguyên dữ liệu, tài khoản, `.env`. Bản 2 chỉ thêm bảng và cột
+(có giá trị mặc định), không xoá dữ liệu cũ. Sau khi nâng cấp, vào **Thiết lập địa phương** để khai thông tin đơn vị nếu
+màn hình điều hành nhắc. Máy chỉ dùng thử và muốn có bộ dữ liệu mẫu mới: `.\start-ioc.cmd -ResetData` (xoá toàn bộ dữ liệu).
+
 ## Xử lý sự cố
 
 | Hiện tượng | Cách xử lý |

@@ -535,7 +535,7 @@ export default function Proposals() {
             rowKey="id"
             loading={list.isLoading}
             dataSource={rows}
-            scroll={{ x: 1000 }}
+            scroll={{ x: 1130 }}
             pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: total => `${num(total)} đề xuất` }}
             onRow={item => ({ onClick: () => update({ id: item.id }), className: 'link-row' })}
             locale={{ emptyText: 'Không có đề xuất' }}

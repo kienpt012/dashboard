@@ -123,7 +123,7 @@ function Frameworks({ data }: { data: Overview }) {
       size="middle"
       pagination={false}
       dataSource={data.frameworks}
-      scroll={{ x: 820 }}
+      scroll={{ x: 1060 }}
       expandable={{
         expandedRowRender: framework => (
           <Descriptions
@@ -191,7 +191,7 @@ function Departments({ data }: { data: Overview }) {
       size="middle"
       pagination={false}
       dataSource={data.departments}
-      scroll={{ x: 980 }}
+      scroll={{ x: 1200 }}
       expandable={{
         expandedRowRender: department => (
           <Descriptions
