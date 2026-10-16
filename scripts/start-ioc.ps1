@@ -389,6 +389,36 @@ function Test-ComposeAvailable {
   Write-Ok "Docker Compose $($result.Text)"
 }
 
+# Docker Desktop đặt các socket Unix (*.sock) trong AppData. Trên một số bản Windows, socket của lần chạy
+# trước không đổi tên được nữa ("The file cannot be accessed by the system") và Docker Desktop báo
+# "An unexpected error occurred" mỗi lần mở. Khi Docker Desktop đang tắt, chuyển các thư mục socket cũ
+# sang tên khác để Docker tạo lại thư mục mới. Không đụng tới dữ liệu (volume, image, container).
+function Clear-DockerStaleSockets {
+  if (Get-Process -Name 'Docker Desktop', 'com.docker.backend' -ErrorAction SilentlyContinue) { return }
+  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  foreach ($directory in @((Join-Path $env:LOCALAPPDATA 'Docker\run'), (Join-Path $env:LOCALAPPDATA 'docker-secrets-engine'))) {
+    if (-not (Test-Path -LiteralPath $directory)) { continue }
+    $sockets = @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*.sock*' -or $_.Name -like '*.stale' })
+    if ($sockets.Count -eq 0) { continue }
+    try {
+      Rename-Item -LiteralPath $directory -NewName ((Split-Path -Leaf $directory) + ".old-$stamp") -ErrorAction Stop
+      Write-Note "Đã dọn socket cũ của Docker Desktop ($(Split-Path -Leaf $directory))."
+    } catch {
+      Write-Caution "Không dọn được socket cũ trong $directory — nếu Docker Desktop báo lỗi, tắt hẳn Docker Desktop rồi chạy lại."
+    }
+  }
+  # Thư mục cũ của các lần dọn trước: xoá được thì xoá, không được thì để lại.
+  Get-ChildItem -LiteralPath $env:LOCALAPPDATA -Directory -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like 'docker-secrets-engine.old-*' } |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+  $dockerData = Join-Path $env:LOCALAPPDATA 'Docker'
+  if (Test-Path -LiteralPath $dockerData) {
+    Get-ChildItem -LiteralPath $dockerData -Directory -Force -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -like 'run.old-*' } |
+      ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+  }
+}
+
 function Start-DockerEngine {
   Write-Step 'Kiểm tra Docker'
 
@@ -414,6 +444,7 @@ function Start-DockerEngine {
   }
 
   Write-Note 'Docker Engine đang tắt — đang bật Docker Desktop...'
+  Clear-DockerStaleSockets
   $viaCli = Invoke-IocNative 'docker' @('desktop', 'start', '--detach')
   if ($viaCli.ExitCode -ne 0) {
     # Docker Desktop bản cũ chưa có lệnh "docker desktop"; mở thẳng ứng dụng.
