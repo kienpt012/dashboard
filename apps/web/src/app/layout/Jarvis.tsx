@@ -1,18 +1,38 @@
 import { AudioOutlined, ClearOutlined, SendOutlined, SettingOutlined } from '@ant-design/icons';
-import { App, Button, Drawer, Flex, Input, Popover, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { App, Button, Drawer, Flex, Input, Popover, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { Link } from 'react-router-dom';
+import { useLocality } from '@/app/locality';
 import { errorText, http } from '@/lib/api';
 import { dateTime, num, pct } from '@/lib/format';
 import type { CopilotResponse } from '@/types/core';
 import { setJarvisSettings, useJarvisSettings } from './jarvis/settings';
-import { afterWakeWord, canSpeakVietnamese, chime, createRecognition, recognitionError, speak, stopSpeaking, transcriptOf, voiceSupport, type Recognition } from './jarvis/voice';
+import { JarvisHud, prefersReducedMotion, type HudPhase, type HudSignal } from './jarvis/Hud';
+import {
+  afterWakeWord,
+  alternativesOf,
+  canSpeakVietnamese,
+  chime,
+  COMMAND_LANG,
+  createRecognition,
+  defaultVoice,
+  heardWakeWord,
+  openMicLevel,
+  recognitionError,
+  setPreferredVoice,
+  speak,
+  stopSpeaking,
+  transcriptOf,
+  vietnameseVoices,
+  voiceSupport,
+  WAKE_LANG,
+  type Recognition,
+} from './jarvis/voice';
 
 // Jarvis — trợ lý điều hành: hỏi bằng chữ hoặc giọng nói, gọi bằng tên "Jarvis", đọc câu trả lời.
 // Lệnh có ghi dữ liệu luôn chờ người dùng bấm xác nhận; không xác nhận bằng giọng nói.
 
 const SUGGESTIONS = ['Tình hình thực hiện năm nay', 'Chỉ tiêu nào sắp trễ hạn?', 'Chỉ tiêu nào chưa có số liệu?', 'Đề xuất nào đang chờ xác minh?'];
-const COMMAND_WAIT_MS = 8000;
 
 export type JarvisVoiceState = 'off' | 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -124,7 +144,19 @@ const STATUS_TEXT: Record<JarvisVoiceState, string | null> = {
   idle: 'Đang chờ gọi “Jarvis”',
   listening: 'Đang nghe',
   thinking: 'Đang xử lý',
-  speaking: 'Đang trả lời',
+  speaking: 'Đang nói',
+};
+
+/** Thời gian chờ câu lệnh sau khi Jarvis chào xong. */
+const COMMAND_TIMEOUT_MS = 9000;
+const GREETED_KEY = 'ioc_jarvis_greeted';
+const SHORT_GREETINGS = ['Tôi nghe đây.', 'Vâng, bạn cần gì?', 'Jarvis đây, mời bạn nói.'];
+
+const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+export type JarvisHandle = {
+  /** Gọi Jarvis: mở khung, hiệu ứng HUD, lời chào; gọi bằng giọng nói thì nghe tiếp câu lệnh. */
+  summon: (byVoice: boolean) => void;
 };
 
 export function Jarvis({
@@ -132,42 +164,68 @@ export function Jarvis({
   onOpen,
   onClose,
   onVoiceState,
-  onHeard,
+  introEnabled,
+  ref,
 }: {
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
   onVoiceState?: (state: JarvisVoiceState) => void;
-  /** Câu trình duyệt vừa nghe được khi đang chờ gọi tên — để hiện cho người dùng biết micro đang nghe gì. */
-  onHeard?: (text: string) => void;
+  /** Cấu hình hệ thống: hiệu ứng toàn màn hình khi gọi Jarvis. */
+  introEnabled: boolean;
+  ref?: Ref<JarvisHandle>;
 }) {
   const { message } = App.useApp();
+  const locality = useLocality();
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const settings = useJarvisSettings();
   const [voice, setVoice] = useState<JarvisVoiceState>('off');
   const [heard, setHeard] = useState('');
+  /** Câu micro nghe được gần nhất khi chờ tên gọi — hiện trong cài đặt để kiểm tra vì sao chưa gọi được. */
+  const [lastHeard, setLastHeard] = useState('');
+  const [hud, setHud] = useState<{ phase: HudPhase; caption: string } | null>(null);
+  const [hudLeaving, setHudLeaving] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => vietnameseVoices());
+  const signal = useRef<HudSignal>({ level: 0, pulse: 0 });
   const counter = useRef(0);
   const bottom = useRef<HTMLDivElement>(null);
   const recognition = useRef<Recognition | null>(null);
-  /** Kiểu phiên nghe đang chạy: chờ tên gọi (liên tục) hay bấm để nói (một câu). */
-  const listenMode = useRef<'wake' | 'talk' | null>(null);
+  /** Kiểu phiên nghe đang chạy: chờ tên gọi (tiếng Anh, liên tục), câu lệnh sau tên gọi, hay bấm để nói. */
+  const listenMode = useRef<'wake' | 'command' | 'talk' | null>(null);
   const voiceRef = useRef(voice);
   const settingsRef = useRef(settings);
-  const commandTimer = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
   /** Micro bị chặn hoặc lỗi: không tự mở lại cho đến khi người dùng bật lại. */
   const blockedRef = useRef(false);
   /** Người dùng vừa tự bật gọi tên (để biết có nên báo lỗi micro hay không). */
   const askedRef = useRef(false);
+  /** Mỗi lần gọi là một phiên; phiên mới huỷ các bước còn dở của phiên cũ. */
+  const sessionRef = useRef(0);
+  const lastSummonRef = useRef(0);
+  /** HUD bị người dùng thu nhỏ trong phiên này. */
+  const hudHiddenRef = useRef(false);
+  const micRef = useRef<{ close: () => void; frame: number } | null>(null);
+  const restartTimer = useRef<number | undefined>(undefined);
+  const mountedRef = useRef(true);
   const onOpenRef = useRef(onOpen);
-  const onHeardRef = useRef(onHeard);
+  const introRef = useRef(introEnabled);
   const canListen = voiceSupport.recognition;
 
   settingsRef.current = settings;
   onOpenRef.current = onOpen;
-  onHeardRef.current = onHeard;
+  introRef.current = introEnabled;
+
+  useEffect(() => setPreferredVoice(settings.voiceName), [settings.voiceName]);
+
+  // Chrome nạp danh sách giọng đọc sau khi trang mở.
+  useEffect(() => {
+    if (!voiceSupport.speech) return;
+    const load = () => setVoices(vietnameseVoices());
+    window.speechSynthesis.addEventListener('voiceschanged', load);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', load);
+  }, []);
 
   const updateVoice = useCallback(
     (next: JarvisVoiceState) => {
@@ -182,35 +240,77 @@ export function Jarvis({
     bottom.current?.scrollIntoView({ block: 'end' });
   }, [bubbles, heard]);
 
-  const send = useCallback(
-    async (value: string, viaVoice = false) => {
-      const content = value.trim();
-      if (!content || busyRef.current) return null;
-      busyRef.current = true;
-      const userId = ++counter.current;
-      const replyId = ++counter.current;
-      setBubbles(list => [...list, { id: userId, role: 'user', text: content, voice: viaVoice }]);
-      setText('');
-      setSending(true);
-      try {
-        const answer = await http.post<CopilotResponse>('/copilot/messages', { message: content });
-        setBubbles(list => [...list, { id: replyId, role: 'assistant', answer, action: answer.pendingAction ? 'pending' : undefined }]);
-        return answer;
-      } catch (error) {
-        setBubbles(list => [...list, { id: replyId, role: 'assistant', error: errorText(error) }]);
-        return null;
-      } finally {
-        busyRef.current = false;
-        setSending(false);
-      }
-    },
-    [],
-  );
+  const send = useCallback(async (value: string, viaVoice = false) => {
+    const content = value.trim();
+    if (!content || busyRef.current) return null;
+    busyRef.current = true;
+    const userId = ++counter.current;
+    const replyId = ++counter.current;
+    setBubbles(list => [...list, { id: userId, role: 'user', text: content, voice: viaVoice }]);
+    setText('');
+    setSending(true);
+    try {
+      const answer = await http.post<CopilotResponse>('/copilot/messages', { message: content });
+      setBubbles(list => [...list, { id: replyId, role: 'assistant', answer, action: answer.pendingAction ? 'pending' : undefined }]);
+      return answer;
+    } catch (error) {
+      setBubbles(list => [...list, { id: replyId, role: 'assistant', error: errorText(error) }]);
+      return null;
+    } finally {
+      busyRef.current = false;
+      setSending(false);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------- HUD
+
+  const showHud = useCallback((phase: HudPhase, caption: string) => {
+    if (hudHiddenRef.current) return;
+    setHudLeaving(false);
+    setHud({ phase, caption });
+  }, []);
+
+  const closeHud = useCallback(() => {
+    setHudLeaving(true);
+    window.setTimeout(() => {
+      setHud(null);
+      setHudLeaving(false);
+    }, 380);
+  }, []);
+
+  const pulse = useCallback(() => {
+    signal.current.pulse = Math.min(1, signal.current.pulse + 0.55);
+  }, []);
+
+  const stopMic = useCallback(() => {
+    if (!micRef.current) return;
+    cancelAnimationFrame(micRef.current.frame);
+    micRef.current.close();
+    micRef.current = null;
+    signal.current.level = 0;
+  }, []);
+
+  /** Đo âm lượng micro cho vòng sáng HUD trong lúc nghe câu lệnh. */
+  const startMic = useCallback(async (session: number) => {
+    stopMic();
+    const mic = await openMicLevel();
+    if (!mic) return;
+    if (session !== sessionRef.current || listenMode.current !== 'command' || micRef.current) {
+      mic.close();
+      return;
+    }
+    const holder = { close: mic.close, frame: 0 };
+    const tick = () => {
+      signal.current.level = mic.level();
+      holder.frame = requestAnimationFrame(tick);
+    };
+    holder.frame = requestAnimationFrame(tick);
+    micRef.current = holder;
+  }, [stopMic]);
 
   // ---------------------------------------------------------------- Nghe
 
   const stopListening = useCallback(() => {
-    window.clearTimeout(commandTimer.current);
     const current = recognition.current;
     recognition.current = null;
     listenMode.current = null;
@@ -226,70 +326,53 @@ export function Jarvis({
     }
   }, []);
 
+  /** Lỗi micro: ngừng tự mở lại; chỉ báo khi người dùng vừa tự bật (lúc tự bật khi mở trang thì im lặng). */
+  const onRecognitionError = useCallback(
+    (code: string) => {
+      const text = recognitionError(code);
+      if (!text) return false;
+      blockedRef.current = true;
+      if (askedRef.current || listenMode.current === 'talk' || listenMode.current === 'command') message.error(text);
+      askedRef.current = false;
+      return true;
+    },
+    [message],
+  );
+
+  // Các hàm dưới gọi lẫn nhau theo vòng (chờ tên → gọi → nghe lệnh → trả lời → chờ tên): dùng ref để luôn gọi bản mới nhất.
+  const flow = useRef({ summon: (_byVoice: boolean) => {} });
+
   const startWake = useCallback(() => {
     if (!canListen || !settingsRef.current.wake || recognition.current || blockedRef.current || !voiceSupport.secure) return;
-    const rec = createRecognition(true);
+    if (document.visibilityState === 'hidden') return;
+    const rec = createRecognition(true, WAKE_LANG);
     if (!rec) return;
-    let awaiting = false;
-    const finish = () => {
-      awaiting = false;
-      window.clearTimeout(commandTimer.current);
-      setHeard('');
-    };
-    const dispatch = (command: string) => {
-      finish();
-      void handleVoiceCommand(command);
-    };
     rec.onresult = event => {
-      if (voiceRef.current === 'thinking' || voiceRef.current === 'speaking') return;
+      if (listenMode.current !== 'wake') return;
       const { finalText, interimText } = transcriptOf(event.results, event.resultIndex);
-      if (!awaiting) {
-        const rest = afterWakeWord(finalText || interimText);
-        if (rest === null) {
-          onHeardRef.current?.(interimText || finalText);
-          return;
-        }
-        onHeardRef.current?.('');
-        awaiting = true;
-        chime();
-        onOpenRef.current();
-        updateVoice('listening');
-        commandTimer.current = window.setTimeout(() => {
-          finish();
-          if (voiceRef.current === 'listening') updateVoice('idle');
-        }, COMMAND_WAIT_MS);
-        if (finalText && rest.length > 1) dispatch(rest);
-        else setHeard(rest);
-        return;
-      }
-      if (interimText) setHeard(afterWakeWord(interimText) ?? interimText);
-      if (finalText) {
-        const command = afterWakeWord(finalText) ?? finalText;
-        if (command.trim().length > 1) dispatch(command);
+      const said = finalText || interimText;
+      if (said) setLastHeard(said);
+      const candidates = [said, ...alternativesOf(event.results, event.resultIndex)];
+      if (candidates.some(candidate => heardWakeWord(candidate))) {
+        stopListening();
+        flow.current.summon(true);
       }
     };
     rec.onerror = event => {
-      const text = recognitionError(event.error);
-      if (!text) return;
-      // Micro bị chặn, không có micro hoặc mất mạng: ngừng tự mở lại. Chỉ báo lỗi khi chính người dùng vừa bật,
-      // còn lúc tự bật khi mở trang thì im lặng (biểu tượng Jarvis không hiện chấm "đang nghe").
-      blockedRef.current = true;
-      if (askedRef.current) message.error(text);
-      askedRef.current = false;
+      onRecognitionError(event.error);
     };
     rec.onend = () => {
-      // Chrome tự ngắt phiên nghe dài; mở lại nếu vẫn đang bật chế độ gọi tên.
+      // Trình duyệt tự ngắt phiên nghe dài hoặc khi im lặng lâu; mở lại nếu vẫn đang bật chế độ gọi tên.
       if (recognition.current !== rec) return;
+      recognition.current = null;
+      listenMode.current = null;
       if (blockedRef.current) {
-        recognition.current = null;
-        listenMode.current = null;
         updateVoice('off');
         return;
       }
-      recognition.current = null;
-      window.setTimeout(() => {
-        if (settingsRef.current.wake && voiceRef.current !== 'thinking' && voiceRef.current !== 'speaking') startWake();
-      }, 300);
+      restartTimer.current = window.setTimeout(() => {
+        if (mountedRef.current && settingsRef.current.wake && voiceRef.current === 'idle') startWake();
+      }, 250);
     };
     recognition.current = rec;
     listenMode.current = 'wake';
@@ -298,39 +381,172 @@ export function Jarvis({
       if (voiceRef.current === 'off') updateVoice('idle');
     } catch {
       recognition.current = null;
+      listenMode.current = null;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canListen, message, updateVoice]);
+  }, [canListen, onRecognitionError, stopListening, updateVoice]);
 
-  /** Sau khi trả lời: quay về chờ tên gọi (nếu bật) hoặc tắt. */
+  /** Quay về chờ tên gọi (nếu bật) hoặc tắt. */
   const resume = useCallback(() => {
-    if (settingsRef.current.wake) {
+    stopMic();
+    if (settingsRef.current.wake && !blockedRef.current) {
       updateVoice('idle');
       startWake();
     } else updateVoice('off');
-  }, [startWake, updateVoice]);
+  }, [startWake, stopMic, updateVoice]);
 
-  async function handleVoiceCommand(command: string) {
-    stopListening();
-    updateVoice('thinking');
-    const answer = await send(command, true);
-    if (answer && settingsRef.current.readAloud && canSpeakVietnamese()) {
+  /** Trả lời một câu lệnh nói: gửi, đọc câu trả lời kèm phụ đề trên HUD, rồi quay về chờ tên gọi. */
+  const answerVoice = useCallback(
+    async (command: string, session: number) => {
+      stopMic();
+      updateVoice('thinking');
+      showHud('thinking', command);
+      // Câu hỏi gõ tay đang chờ trả lời: đợi xong (tối đa 30 giây) rồi mới gửi câu lệnh nói.
+      for (let waited = 0; busyRef.current && waited < 30_000; waited += 200) {
+        await delay(200);
+        if (session !== sessionRef.current) return;
+      }
+      const answer = await send(command, true);
+      if (session !== sessionRef.current) return;
+      const reply = answer?.reply ?? 'Xin lỗi, tôi chưa trả lời được câu này. Bạn xem chi tiết trong khung Jarvis.';
       updateVoice('speaking');
-      await speak(answer.reply);
-    }
-    resume();
-  }
+      showHud('speaking', reply);
+      if (settingsRef.current.readAloud && canSpeakVietnamese()) {
+        await speak(reply, { onWord: pulse, onChunk: part => showHud('speaking', part) });
+      } else await delay(Math.min(6000, 1500 + reply.length * 35));
+      if (session !== sessionRef.current) return;
+      closeHud();
+      resume();
+    },
+    [closeHud, pulse, resume, send, showHud, stopMic, updateVoice],
+  );
 
-  /** Bấm để nói: nghe một câu, điền vào ô nhập, nói xong thì gửi. */
+  /** Nghe một câu lệnh tiếng Việt sau lời chào. */
+  const listenCommand = useCallback(
+    (session: number) => {
+      const rec = createRecognition(false, COMMAND_LANG);
+      if (!rec) {
+        closeHud();
+        resume();
+        return;
+      }
+      let latest = '';
+      let finished = false;
+      // Im lặng quá lâu: kết thúc phiên nghe với những gì đã nghe được.
+      const timer = window.setTimeout(() => done(latest), COMMAND_TIMEOUT_MS);
+      const done = (command: string) => {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        // Phiên đã bị thay (gọi lại, bấm nói, rời trang): phiên mới đã tự dừng recognizer cũ — không đụng vào cái đang chạy.
+        if (session !== sessionRef.current) return;
+        if (recognition.current === rec) stopListening();
+        const clean = (afterWakeWord(command) ?? command).trim();
+        if (clean.length > 1) void answerVoice(clean, session);
+        else {
+          showHud('listening', 'Tôi chưa nghe rõ. Gọi “Jarvis” khi bạn cần nhé.');
+          window.setTimeout(() => {
+            if (session !== sessionRef.current) return;
+            closeHud();
+            resume();
+          }, 1600);
+        }
+      };
+      rec.onresult = event => {
+        const { finalText, interimText } = transcriptOf(event.results, 0);
+        latest = finalText || interimText;
+        setHeard(latest);
+        showHud('listening', latest);
+        if (finalText) done(finalText);
+      };
+      rec.onerror = event => {
+        onRecognitionError(event.error);
+      };
+      rec.onend = () => {
+        if (recognition.current !== rec && recognition.current !== null) return;
+        done(latest);
+      };
+      recognition.current = rec;
+      listenMode.current = 'command';
+      updateVoice('listening');
+      setHeard('');
+      showHud('listening', '');
+      void startMic(session);
+      try {
+        rec.start();
+      } catch {
+        done('');
+      }
+    },
+    [answerVoice, closeHud, onRecognitionError, resume, showHud, startMic, stopListening, updateVoice],
+  );
+
+  const summon = useCallback(
+    async (byVoice: boolean) => {
+      const session = ++sessionRef.current;
+      stopListening();
+      stopSpeaking();
+      stopMic();
+      onOpenRef.current();
+      const withHud = introRef.current && !prefersReducedMotion();
+      // Tắt hiệu ứng (cấu hình hoặc "giảm chuyển động"): mọi bước của phiên này đều không hiện HUD.
+      hudHiddenRef.current = !withHud;
+      // Phiên trước bị cắt ngang: đóng HUD cũ ngay, không để phụ đề cũ kẹt lại.
+      setHud(null);
+      setHudLeaving(false);
+      const now = Date.now();
+      // Bấm nút thì chỉ chào kèm hiệu ứng nếu chưa chào trong 1 phút; gọi bằng giọng nói thì luôn chào.
+      const greet = byVoice || now - lastSummonRef.current > 60_000;
+      lastSummonRef.current = now;
+      if (!greet) {
+        resume();
+        return;
+      }
+      let first = false;
+      try {
+        first = !sessionStorage.getItem(GREETED_KEY);
+        sessionStorage.setItem(GREETED_KEY, '1');
+      } catch {
+        /* bỏ qua */
+      }
+      const greeting = first
+        ? `Xin chào, tôi là Jarvis, trợ lý điều hành của ${locality.agencyName || locality.name || locality.brandName}. Tôi có thể giúp gì cho bạn?`
+        : SHORT_GREETINGS[Math.floor(Math.random() * SHORT_GREETINGS.length)];
+      if (byVoice) chime();
+      if (withHud) showHud('intro', greeting);
+      updateVoice('speaking');
+      if (settingsRef.current.readAloud && canSpeakVietnamese()) {
+        await delay(withHud ? 450 : 0);
+        if (session !== sessionRef.current) return;
+        await speak(greeting, { onWord: pulse });
+      } else await delay(withHud ? 1800 : 0);
+      if (session !== sessionRef.current) return;
+      if (byVoice) listenCommand(session);
+      else {
+        if (withHud) closeHud();
+        resume();
+      }
+    },
+    [closeHud, listenCommand, locality.agencyName, locality.brandName, locality.name, pulse, resume, showHud, stopListening, stopMic, updateVoice],
+  );
+
+  flow.current = { summon: byVoice => void summon(byVoice) };
+
+  useImperativeHandle(ref, () => ({ summon: byVoice => void summon(byVoice) }), [summon]);
+
+  /** Bấm để nói trong khung Jarvis: nghe một câu tiếng Việt rồi gửi. */
   function talk() {
     if (listenMode.current === 'talk') {
       stopListening();
       resume();
       return;
     }
+    const session = ++sessionRef.current;
     stopListening();
     stopSpeaking();
-    const rec = createRecognition(false);
+    stopMic();
+    setHud(null);
+    setHudLeaving(false);
+    const rec = createRecognition(false, COMMAND_LANG);
     if (!rec) return;
     let latest = '';
     rec.onresult = event => {
@@ -339,15 +555,16 @@ export function Jarvis({
       setText(latest);
     };
     rec.onerror = event => {
-      const text = recognitionError(event.error);
-      if (text) message.error(text);
+      onRecognitionError(event.error);
     };
     rec.onend = () => {
       if (recognition.current !== rec) return;
       recognition.current = null;
       listenMode.current = null;
-      if (latest.trim()) void handleVoiceCommand(latest);
-      else resume();
+      if (latest.trim()) {
+        hudHiddenRef.current = true;
+        void answerVoice(latest, session);
+      } else resume();
     };
     recognition.current = rec;
     listenMode.current = 'talk';
@@ -364,21 +581,34 @@ export function Jarvis({
   useEffect(() => {
     if (!canListen) return;
     if (settings.wake) {
-      if (!recognition.current) startWake();
+      if (!recognition.current && voiceRef.current !== 'thinking' && voiceRef.current !== 'speaking') startWake();
     } else if (listenMode.current === 'wake') {
       stopListening();
       updateVoice('off');
     }
   }, [settings.wake, canListen, startWake, stopListening, updateVoice]);
 
+  // Trình duyệt dừng micro khi chuyển tab: quay lại thì nghe tiếp.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && settingsRef.current.wake && !recognition.current && (voiceRef.current === 'idle' || voiceRef.current === 'off')) startWake();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [startWake]);
+
   // Dọn khi rời khung quản trị.
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      sessionRef.current += 1;
+      window.clearTimeout(restartTimer.current);
       stopListening();
       stopSpeaking();
-    },
-    [stopListening],
-  );
+      stopMic();
+    };
+  }, [stopListening, stopMic]);
 
   async function decide(bubbleId: number, actionId: string, confirm: boolean) {
     setBubbles(list => list.map(item => (item.id === bubbleId ? { ...item, action: 'busy' as const } : item)));
@@ -401,15 +631,18 @@ export function Jarvis({
       <Flex justify="space-between" align="center" gap={12}>
         <span>Gọi bằng tên “Jarvis”</span>
         <Switch
-          checked={settings.wake}
+          checked={settings.wake && !blockedRef.current}
           disabled={!canListen || !voiceSupport.secure}
           onChange={wake => {
             if (wake) {
               chime();
               blockedRef.current = false;
               askedRef.current = true;
+              setJarvisSettings({ wake });
+              startWake();
+            } else {
+              setJarvisSettings({ wake });
             }
-            setJarvisSettings({ wake });
           }}
         />
       </Flex>
@@ -417,6 +650,35 @@ export function Jarvis({
         <span>Đọc câu trả lời</span>
         <Switch checked={settings.readAloud} disabled={!voiceSupport.speech} onChange={readAloud => setJarvisSettings({ readAloud })} />
       </Flex>
+      {voices.length > 0 && (
+        <Flex vertical gap={4}>
+          <span>Giọng đọc</span>
+          <Select
+            size="small"
+            value={settings.voiceName ?? defaultVoice(voices)?.name}
+            options={voices.map(item => ({ value: item.name, label: item.name.replace(/^Microsoft /, '').replace(/ - Vietnamese \(Vietnam\)$/, '') }))}
+            onChange={voiceName => {
+              setJarvisSettings({ voiceName });
+              setPreferredVoice(voiceName);
+              // Câu nghe thử không có tên gọi, và tạm ngừng nghe tên trong lúc đọc để không tự gọi chính mình.
+              const listening = listenMode.current === 'wake';
+              if (listening) stopListening();
+              void speak('Xin chào, đây là giọng đọc của trợ lý điều hành.').then(() => {
+                if (listening && voiceRef.current === 'idle') startWake();
+              });
+            }}
+            popupMatchSelectWidth={false}
+          />
+        </Flex>
+      )}
+      {settings.wake && canListen && voiceSupport.secure && (
+        <Flex vertical gap={2}>
+          <span>Micro nghe được gần nhất</span>
+          <Typography.Text type="secondary" className="jarvis-last-heard">
+            {lastHeard ? `“${lastHeard}”` : 'Chưa nghe thấy gì — thử nói “Hey Jarvis”'}
+          </Typography.Text>
+        </Flex>
+      )}
       {!canListen ? (
         <Typography.Text type="secondary">Trình duyệt này chưa hỗ trợ nhận dạng giọng nói (dùng Chrome hoặc Edge)</Typography.Text>
       ) : !voiceSupport.secure ? (
@@ -430,6 +692,19 @@ export function Jarvis({
   const status = STATUS_TEXT[voice];
 
   return (
+    <>
+    {hud && (
+      <JarvisHud
+        phase={hud.phase}
+        caption={hud.caption}
+        signal={signal}
+        leaving={hudLeaving}
+        onDismiss={() => {
+          hudHiddenRef.current = true;
+          closeHud();
+        }}
+      />
+    )}
     <Drawer
       title={
         <Flex align="center" gap={10}>
@@ -551,5 +826,6 @@ export function Jarvis({
         <div ref={bottom} />
       </div>
     </Drawer>
+    </>
   );
 }

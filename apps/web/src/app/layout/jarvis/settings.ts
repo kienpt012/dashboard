@@ -1,9 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
-// Cài đặt Jarvis của người dùng trên máy này: gọi bằng tên, đọc câu trả lời.
-// Dùng chung giữa nút trên thanh đầu trang và khung Jarvis.
+// Cài đặt Jarvis của người dùng trên máy này: gọi bằng tên, đọc câu trả lời, giọng đọc.
 
-export type JarvisSettings = { wake: boolean; readAloud: boolean };
+export type JarvisSettings = { wake: boolean; readAloud: boolean; voiceName: string | null };
 
 const KEY = 'ioc_jarvis';
 const listeners = new Set<() => void>();
@@ -12,9 +11,9 @@ function read(): JarvisSettings {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || 'null') as Partial<JarvisSettings> | null;
     // Gọi bằng tên bật sẵn như trợ lý giọng nói của điện thoại; người dùng tắt được trong khung Jarvis.
-    return { wake: saved?.wake !== false, readAloud: saved?.readAloud !== false };
+    return { wake: saved?.wake !== false, readAloud: saved?.readAloud !== false, voiceName: saved?.voiceName ?? null };
   } catch {
-    return { wake: true, readAloud: true };
+    return { wake: true, readAloud: true, voiceName: null };
   }
 }
 
@@ -26,7 +25,7 @@ export function getJarvisSettings() {
 
 export function setJarvisSettings(patch: Partial<JarvisSettings> | ((value: JarvisSettings) => Partial<JarvisSettings>)) {
   const next = { ...current, ...(typeof patch === 'function' ? patch(current) : patch) };
-  if (next.wake === current.wake && next.readAloud === current.readAloud) return;
+  if (next.wake === current.wake && next.readAloud === current.readAloud && next.voiceName === current.voiceName) return;
   current = next;
   try {
     localStorage.setItem(KEY, JSON.stringify(current));

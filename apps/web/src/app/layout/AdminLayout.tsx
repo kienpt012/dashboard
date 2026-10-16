@@ -24,8 +24,7 @@ import { APPROVERS, can, initials, isGlobal, roleLabel } from '@/lib/roles';
 import { navGroups, routeInfo } from '../nav';
 import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
-import { Jarvis, JarvisMark, type JarvisVoiceState } from './Jarvis';
-import { JarvisSummon, prefersReducedMotion } from './jarvis/Summon';
+import { Jarvis, JarvisMark, type JarvisHandle, type JarvisVoiceState } from './Jarvis';
 import { Notifications } from './Notifications';
 import './layout.css';
 
@@ -138,28 +137,15 @@ export default function AdminLayout() {
   const [palette, setPalette] = useState(false);
   const [copilot, setCopilot] = useState(false);
   const [voice, setVoice] = useState<JarvisVoiceState>('off');
-  const [summon, setSummon] = useState(false);
   const clientSettings = useApi<{ jarvisIntro: boolean }>('/settings/client', { staleTime: 300_000 });
-  const introEnabled = clientSettings.data?.jarvisIntro ?? true;
-  const lastSummon = useRef(0);
-  // Mở Jarvis kèm hiệu ứng triệu hồi: luôn chạy khi gọi bằng giọng nói; khi bấm thì không lặp lại trong 1 phút.
-  const summonJarvis = useCallback(
-    (byVoice: boolean) => {
-      setCopilot(true);
-      if (!introEnabled || prefersReducedMotion()) return;
-      const now = Date.now();
-      if (!byVoice && now - lastSummon.current < 60_000) return;
-      lastSummon.current = now;
-      setSummon(true);
-    },
-    [introEnabled],
-  );
-  const openJarvis = useCallback(() => summonJarvis(true), [summonJarvis]);
+  const jarvisRef = useRef<JarvisHandle>(null);
+  const openJarvis = useCallback(() => setCopilot(true), []);
   const closeJarvis = useCallback(() => setCopilot(false), []);
+  /** Bấm nút, Ctrl J, hộp tìm kiếm: mở Jarvis (kèm hiệu ứng, lời chào), hoặc đóng nếu đang mở. */
   const toggleJarvis = useCallback(() => {
     if (copilotRef.current) setCopilot(false);
-    else summonJarvis(false);
-  }, [summonJarvis]);
+    else jarvisRef.current?.summon(false);
+  }, []);
   const copilotRef = useRef(copilot);
   copilotRef.current = copilot;
   const [loadedAt, setLoadedAt] = useState(() => new Date());
@@ -322,12 +308,11 @@ export default function AdminLayout() {
       <CommandPalette
         open={palette}
         onClose={() => setPalette(false)}
-        onCopilot={() => summonJarvis(false)}
+        onCopilot={() => jarvisRef.current?.summon(false)}
         onTheme={() => theme.setChoice(theme.dark ? 'light' : 'dark')}
         onLogout={logout}
       />
-      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} />
-      {summon && <JarvisSummon onDone={() => setSummon(false)} />}
+      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} introEnabled={clientSettings.data?.jarvisIntro ?? true} ref={jarvisRef} />
       <BackToTop />
     </Layout>
   );
