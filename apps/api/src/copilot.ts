@@ -109,7 +109,7 @@ const INTENT_SYSTEM_PROMPT = `Bạn là bộ định tuyến câu lệnh cho h�
 Phân loại câu của người dùng vào đúng một intent:
 - DASHBOARD_SUMMARY: hỏi tổng quan, tiến độ chung, tình hình thực hiện.
 - LIST_TARGETS: liệt kê/lọc chỉ tiêu (theo phòng ban, trạng thái, dưới ngưỡng %).
-- TARGETS_AT_RISK: chỉ tiêu sắp trễ hạn, quá hạn, có rủi ро, cần chú ý.
+- TARGETS_AT_RISK: chỉ tiêu sắp trễ hạn, quá hạn, có rủi ro, cần chú ý.
 - TARGETS_MISSING_REPORT: chỉ tiêu chưa có/thiếu số liệu báo cáo trong kỳ.
 - SEARCH_DOCUMENTS: tìm văn bản, tài liệu, kế hoạch, quyết định trong kho.
 - LIST_CANDIDATES: đề xuất chỉ tiêu do AI trích xuất đang chờ xác minh/đã duyệt/đã từ chối.
