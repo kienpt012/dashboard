@@ -1,6 +1,6 @@
 import { CaretRightOutlined, CloseOutlined, FullscreenExitOutlined, FullscreenOutlined, LeftOutlined, PauseOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons';
 import { Button, Spin } from 'antd';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { localityInitials, type PublicLocality } from '@/app/locality';
 import { useUser } from '@/app/session';
@@ -527,11 +527,25 @@ export default function Wallboard() {
 
   const go = useCallback((delta: number) => setIndex(value => (total ? (((value + delta) % total) + total) % total : 0)), [total]);
 
+  // Tự chuyển trang khi vạch tiến độ chạy hết (animationend). Bộ hẹn giờ chỉ là dự phòng khi trình duyệt tắt hiệu ứng;
+  // mỗi trang chỉ được tự chuyển một lần để hai nguồn cùng kích hoạt không làm nhảy cóc trang.
+  const advanced = useRef(-1);
+  const advance = useCallback(
+    (from: number) => {
+      if (advanced.current === from) return;
+      advanced.current = from;
+      go(1);
+    },
+    [go],
+  );
+  useEffect(() => {
+    advanced.current = -1;
+  }, [index]);
   useEffect(() => {
     if (paused || total < 2) return;
-    const timer = window.setTimeout(() => go(1), seconds * 1000);
+    const timer = window.setTimeout(() => advance(index), seconds * 1000 + (REDUCED ? 0 : 500));
     return () => window.clearTimeout(timer);
-  }, [index, paused, total, seconds, go]);
+  }, [index, paused, total, seconds, advance]);
 
   useEffect(() => {
     document.title = `Trình chiếu · ${data?.locality.brandName ?? 'IOC'}`;
@@ -638,7 +652,7 @@ export default function Wallboard() {
                         key={part === page ? `run-${index}` : part}
                         className={part < page ? 'done' : part === page ? 'run' : ''}
                         style={part === page ? { animationDuration: `${seconds}s`, animationPlayState: paused || total < 2 ? 'paused' : 'running' } : undefined}
-                        onAnimationEnd={part === page ? () => go(1) : undefined}
+                        onAnimationEnd={part === page ? () => advance(index) : undefined}
                       />
                     ))}
                 </button>
