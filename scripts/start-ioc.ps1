@@ -151,7 +151,12 @@ function Update-IocCode {
   }
 
   $current = (Invoke-IocGit @('log', '-1', '--format=%h %cd', '--date=format:%d/%m/%Y')).Text
-  $behind = [int]((Invoke-IocGit @('rev-list', '--count', 'HEAD..@{u}')).Text)
+  $count = Invoke-IocGit @('rev-list', '--count', 'HEAD..@{u}')
+  $behind = 0
+  if ($count.ExitCode -ne 0 -or -not [int]::TryParse($count.Text, [ref]$behind)) {
+    Write-Caution 'Không so được với nhánh trên GitHub (nhánh có thể đã bị xoá); chạy bản hiện có.'
+    return
+  }
   if ($behind -eq 0) {
     Write-Ok "Đang dùng bản mới nhất ($current)"
     return
@@ -1402,17 +1407,67 @@ function Get-UserCount {
   return [int](($result.Text -split "`n")[-1].Trim())
 }
 
+# Trạng thái dữ liệu do API báo: empty (trống), demo (đang dùng bộ mẫu, kèm phiên bản) hay real (dữ liệu thật).
+# Image cũ chưa có lệnh demo-status thì trả về $null.
+function Get-IocDataStatus {
+  $result = Get-IocComposeOutput $repoRoot @('exec', '-T', 'api', './docker-entrypoint.sh', 'demo-status')
+  if ($result.ExitCode -ne 0) { return $null }
+  $line = @($result.Text -split "`n" | Where-Object { $_ -match '^IOC_DATA ' }) | Select-Object -Last 1
+  if (-not $line) { return $null }
+  $parts = $line.Trim() -split '\s+'
+  return [pscustomobject]@{ State = $parts[1]; Version = $parts[2]; Latest = $parts[3] }
+}
+
+# Mật khẩu cho tài khoản mẫu: dùng giá trị trong .env nếu đủ mạnh, không thì sinh mới và ghi vào .env.
+# Seed chạy trong môi trường production nên từ chối mật khẩu yếu/mặc định.
+function Get-DemoPasswords {
+  $settings = Read-IocDotEnv $envPath
+  $adminPassword = if ($settings.Contains('DEMO_ADMIN_PASSWORD')) { [string]$settings['DEMO_ADMIN_PASSWORD'] } else { '' }
+  $userPassword = if ($settings.Contains('DEMO_USER_PASSWORD')) { [string]$settings['DEMO_USER_PASSWORD'] } else { '' }
+  $changed = $false
+  if (-not (Test-IocStrongLoginPassword $adminPassword 'Admin@12345')) {
+    $adminPassword = New-IocLoginPassword
+    Set-IocDotEnvValue $envPath 'DEMO_ADMIN_PASSWORD' $adminPassword
+    $changed = $true
+  }
+  if (-not (Test-IocStrongLoginPassword $userPassword 'Demo@12345') -or $userPassword -eq $adminPassword) {
+    $userPassword = New-IocLoginPassword
+    Set-IocDotEnvValue $envPath 'DEMO_USER_PASSWORD' $userPassword
+    $changed = $true
+  }
+  return [pscustomobject]@{ AdminPassword = $adminPassword; UserPassword = $userPassword; Changed = $changed }
+}
+
+# Sao lưu toàn bộ cơ sở dữ liệu (pg_dump định dạng nén) vào thư mục backups/ của bản cài này.
+# Khôi phục: docker compose exec -T postgres pg_restore -U <POSTGRES_USER> -d <POSTGRES_DB> --clean < tệp.dump
+function Backup-IocDatabase([string]$Reason) {
+  $settings = Read-IocDotEnv $envPath
+  $user = Get-IocSetting $settings 'POSTGRES_USER' 'ioc_admin'
+  $database = Get-IocSetting $settings 'POSTGRES_DB' 'ioc_laithieu'
+  $folder = Join-Path $repoRoot 'backups'
+  if (-not (Test-Path -LiteralPath $folder)) { [void](New-Item -ItemType Directory -Path $folder) }
+  $name = "$database-$Reason-$(Get-Date -Format 'yyyyMMdd-HHmmss').dump"
+  $dump = Get-IocComposeOutput $repoRoot @('exec', '-T', 'postgres', 'pg_dump', '-U', $user, '-Fc', '-f', "/tmp/$name", $database)
+  if ($dump.ExitCode -ne 0) { throw "Không sao lưu được cơ sở dữ liệu trước khi thay dữ liệu mẫu: $($dump.Text)" }
+  $copy = Get-IocComposeOutput $repoRoot @('cp', "postgres:/tmp/$name", (Join-Path $folder $name))
+  [void](Get-IocComposeOutput $repoRoot @('exec', '-T', 'postgres', 'rm', '-f', "/tmp/$name"))
+  if ($copy.ExitCode -ne 0) { throw "Không chép được bản sao lưu ra máy: $($copy.Text)" }
+  Write-Ok "Đã sao lưu dữ liệu hiện tại: backups\$name"
+}
+
+# Nạp bộ dữ liệu mẫu: "seed" cho cơ sở dữ liệu trống, "seed-replace" để thay bộ mẫu cũ.
+function Invoke-DemoSeed([string]$Command, $Passwords) {
+  $code = Invoke-IocCompose $repoRoot @(
+    'exec', '-T',
+    '-e', "DEMO_ADMIN_PASSWORD=$($Passwords.AdminPassword)",
+    '-e', "DEMO_USER_PASSWORD=$($Passwords.UserPassword)",
+    'api', './docker-entrypoint.sh', $Command
+  )
+  if ($code -ne 0) { throw 'Nạp bộ dữ liệu mẫu thất bại (xem thông báo ở trên).' }
+}
+
 function Initialize-DemoData {
   Write-Step 'Kiểm tra dữ liệu ban đầu'
-
-  $count = Get-UserCount
-  if ($count -gt 0) {
-    Write-Ok "Cơ sở dữ liệu đã có $count tài khoản — không tạo lại dữ liệu"
-    return
-  }
-
-  Write-Note 'Cơ sở dữ liệu còn trống: chưa có tài khoản nào để đăng nhập.'
-  Write-Note 'Đang tạo phòng ban, chỉ tiêu mẫu, tài khoản quản trị và tài khoản dùng thử...'
 
   # Image build từ phiên bản cũ chưa có lệnh "seed" trong entrypoint; gọi nó sẽ khởi
   # động thêm một tiến trình API thay vì tạo dữ liệu.
@@ -1421,36 +1476,52 @@ function Initialize-DemoData {
     throw 'Image API đang dùng là bản cũ, chưa hỗ trợ tạo dữ liệu ban đầu. Hãy chạy lại start-ioc.cmd KHÔNG kèm -SkipBuild.'
   }
 
-  $settings = Read-IocDotEnv $envPath
-  $adminPassword = if ($settings.Contains('DEMO_ADMIN_PASSWORD')) { [string]$settings['DEMO_ADMIN_PASSWORD'] } else { '' }
-  $userPassword = if ($settings.Contains('DEMO_USER_PASSWORD')) { [string]$settings['DEMO_USER_PASSWORD'] } else { '' }
-
-  # Chỉ đổi mật khẩu mẫu trong .env khi CHƯA có tài khoản nào — lúc này chúng chưa được
-  # dùng ở đâu. Seed chạy trong môi trường production nên từ chối mật khẩu yếu/mặc định.
-  if (-not (Test-IocStrongLoginPassword $adminPassword 'Admin@12345')) {
-    $adminPassword = New-IocLoginPassword
-    Set-IocDotEnvValue $envPath 'DEMO_ADMIN_PASSWORD' $adminPassword
+  $count = Get-UserCount
+  if ($count -gt 0) {
+    # Máy đang dùng bộ dữ liệu mẫu cũ: thay bằng bộ mẫu chính thức hiện hành, có sao lưu trước.
+    # Dữ liệu thật của địa phương (không có tài khoản mẫu) không bao giờ bị đụng tới.
+    $status = Get-IocDataStatus
+    $replaceable = $status -and $status.Version -ne $status.Latest -and ($status.State -in @('demo', 'demo-old', 'demo-used'))
+    if ($replaceable) {
+      if ($status.State -eq 'demo-used') {
+        Write-Caution "Máy đang dùng bộ dữ liệu mẫu $($status.Version) và ĐÃ có dữ liệu nhập thêm sau khi nạp."
+        Write-Note "Bản này có bộ dữ liệu mẫu mới ($($status.Latest)). Thay thì mọi dữ liệu hiện có sẽ bị xoá (có sao lưu trước)."
+        # Có thể là dữ liệu thật nhập trên nền bộ mẫu: chỉ thay khi người dùng tự gõ đồng ý, không tự đồng ý.
+        $agree = (Test-Interactive) -and (Confirm-IocChoice -Question 'Thay bằng bộ dữ liệu mẫu mới?' -DefaultYes $false)
+      } else {
+        $label = if ($status.State -eq 'demo-old') { 'bộ dữ liệu mẫu đời trước' } else { "bộ dữ liệu mẫu $($status.Version)" }
+        Write-Note "Máy đang dùng $label; bản này có bộ dữ liệu mẫu mới ($($status.Latest))."
+        $agree = if ($status.State -eq 'demo') { $true } else { Confirm-IocChoice -Question 'Thay bằng bộ dữ liệu mẫu mới? Dữ liệu mẫu hiện tại sẽ bị xoá (có sao lưu trước).' -DefaultYes $true -AssumeYes:$Yes }
+      }
+      if ($agree) {
+        Backup-IocDatabase 'truoc-thay-du-lieu-mau'
+        $passwords = Get-DemoPasswords
+        Invoke-DemoSeed 'seed-replace' $passwords
+        Write-Ok "Đã thay bằng bộ dữ liệu mẫu $($status.Latest)"
+        $script:newAccounts = [pscustomobject]@{ AdminPassword = $passwords.AdminPassword; UserPassword = $passwords.UserPassword }
+      } else {
+        Write-Note 'Giữ dữ liệu hiện tại. Muốn dùng bộ mẫu mới sau này: start-ioc.cmd -ResetData.'
+      }
+      return
+    }
+    Write-Ok "Cơ sở dữ liệu đã có $count tài khoản — không tạo lại dữ liệu"
+    return
   }
-  if (-not (Test-IocStrongLoginPassword $userPassword 'Demo@12345') -or $userPassword -eq $adminPassword) {
-    $userPassword = New-IocLoginPassword
-    Set-IocDotEnvValue $envPath 'DEMO_USER_PASSWORD' $userPassword
-  }
 
-  $code = Invoke-IocCompose $repoRoot @(
-    'exec', '-T',
-    '-e', "DEMO_ADMIN_PASSWORD=$adminPassword",
-    '-e', "DEMO_USER_PASSWORD=$userPassword",
-    'api', './docker-entrypoint.sh', 'seed'
-  )
-  if ($code -ne 0) { throw 'Tạo dữ liệu ban đầu thất bại (xem thông báo ở trên).' }
+  Write-Note 'Cơ sở dữ liệu còn trống: chưa có tài khoản nào để đăng nhập.'
+  Write-Note 'Đang nạp bộ dữ liệu mẫu (phường giả lập, số liệu mô phỏng) và tài khoản dùng thử...'
+
+  # Chỉ đổi mật khẩu mẫu trong .env khi CHƯA có tài khoản nào — lúc này chúng chưa được dùng ở đâu.
+  $passwords = Get-DemoPasswords
+  Invoke-DemoSeed 'seed' $passwords
 
   $count = Get-UserCount
   if ($count -eq 0) { throw 'Tạo dữ liệu chạy xong nhưng vẫn chưa có tài khoản nào.' }
 
   Write-Ok "Đã tạo dữ liệu ban đầu ($count tài khoản)"
   $script:newAccounts = [pscustomobject]@{
-    AdminPassword = $adminPassword
-    UserPassword = $userPassword
+    AdminPassword = $passwords.AdminPassword
+    UserPassword = $passwords.UserPassword
   }
 }
 
@@ -1563,24 +1634,26 @@ try {
   # lần cài trước hay chưa, và mật khẩu cũ của nó là gì.
   Test-Machine
   Update-IocCode
-  if ($script:relaunched) { return }
-  Test-RepositoryFiles
-  Start-DockerEngine
-  Initialize-EnvFile
-  Resolve-ContainerNames
-  Test-RequiredPorts
+  # Bản mới của trình khởi động đã chạy hết ở tiến trình con (mã thoát lấy từ đó): không chạy tiếp bản cũ.
+  if (-not $script:relaunched) {
+    Test-RepositoryFiles
+    Start-DockerEngine
+    Initialize-EnvFile
+    Resolve-ContainerNames
+    Test-RequiredPorts
 
-  if ($CheckOnly) {
-    Start-Ollama
-    Show-CheckReport
-  } else {
-    Sync-WebOrigins
-    Start-Ollama
-    Start-IocStack
-    Wait-IocHealthy
-    Initialize-DemoData
-    Test-ContainerDependencies
-    Show-Summary
+    if ($CheckOnly) {
+      Start-Ollama
+      Show-CheckReport
+    } else {
+      Sync-WebOrigins
+      Start-Ollama
+      Start-IocStack
+      Wait-IocHealthy
+      Initialize-DemoData
+      Test-ContainerDependencies
+      Show-Summary
+    }
   }
 } catch {
   Write-Host ''

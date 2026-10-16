@@ -480,6 +480,8 @@ model SystemSetting {
   wallboardRotateSeconds      Int      @default(20)
   // Hiệu ứng toàn màn hình khi gọi Jarvis; tắt cho máy cấu hình yếu hoặc phòng họp trang trọng.
   jarvisIntro                 Boolean  @default(true)
+  // Phiên bản bộ dữ liệu mẫu đã nạp (null: dữ liệu thật hoặc bộ mẫu cũ). start-ioc dùng để thay bộ mẫu cũ bằng bộ mới.
+  demoDataVersion             String?
   version                     Int      @default(1)
   updatedBy                   String?
   updatedAt                   DateTime @updatedAt
