@@ -981,7 +981,7 @@ export class PublicFeedbackController {
         publicDepartmentName: true,
       },
       orderBy: { publicPublishedAt: 'desc' },
-      take: 12,
+      take: 24,
     });
     return items.map(item => ({
       code: item.code,
