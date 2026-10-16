@@ -236,6 +236,78 @@
   overflow-wrap: anywhere;
 }
 
+.formula-note {
+  margin: 0 0 10px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.formula-terms {
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ioc-color-bg-container);
+}
+
+.formula-term {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+/* Gạch phân số giữa tử số và mẫu số */
+.formula-term.den {
+  border-top: 2px solid var(--ioc-color-text-tertiary);
+}
+
+.formula-role {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ioc-color-text-tertiary);
+  white-space: nowrap;
+}
+
+.formula-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.formula-rows {
+  display: block;
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.formula-val {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.formula-result {
+  margin-top: 10px;
+}
+
+.formula-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.formula-meta dt {
+  color: var(--ioc-color-text-tertiary);
+}
+
+.formula-meta dd {
+  margin: 0;
+  min-width: 0;
+}
+
 .formula-traces {
   margin: 10px 0 0;
   padding-inline-start: 18px;

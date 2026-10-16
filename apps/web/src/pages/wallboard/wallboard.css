@@ -383,7 +383,7 @@
 /* Bảng chỉ có số liệu thống kê: cột số và tình trạng hẹp hơn, nhường chỗ cho tên. */
 .wb-table.stat .wb-thead,
 .wb-table.stat .wb-row {
-  grid-template-columns: 6px minmax(0, 1fr) 210px 170px;
+  grid-template-columns: 6px minmax(0, 1fr) 250px 170px;
 }
 
 .wb-thead {
@@ -427,7 +427,7 @@
   font-weight: 600;
   line-height: 1.3;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-wrap: pretty;
@@ -442,6 +442,16 @@
   text-overflow: ellipsis;
 }
 
+.wb-row-plan {
+  font-size: 16px;
+  line-height: 1.35;
+  color: #c3cddd;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .wb-row-sub em {
   font-style: normal;
   color: #fbbf24;
@@ -450,11 +460,15 @@
 .wb-row-value {
   font-size: 21px;
   font-weight: 600;
+  line-height: 1.3;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Con số không bị ngắt; đơn vị dài được xuống dòng thay vì bị cắt */
+.wb-row-value .nw {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .wb-row-progress {

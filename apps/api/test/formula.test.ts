@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyScore, datasetsReferenced, evaluateFormula, formatFormula,
+  applyScore, datasetsReferenced, evaluateFormula, formatFormula, outlineFormula,
   normalizeRow, validateColumns, validateFormula,
   type AggregateSpec, type Condition, type DatasetColumn, type Expr,
   type FormulaSpec, type Row, type ScoreRule,
@@ -389,4 +389,26 @@ test('Mô tả dải điểm giải thích điểm bằng tỷ lệ và tỷ l�
   assert.ok(text.includes('Theo dữ liệu đã duyệt'));
   evaluateFormula(formula, () => []);
   assert.deepEqual(formula, snapshot);
+});
+
+test('Tách công thức tỷ lệ thành tử số, mẫu số; một bảng nguồn thì không nhắc lại tên bảng', () => {
+  const formula: FormulaSpec = {
+    value: { op: 'percent', num: { ...count(), where: [['chair', 'in', ['Bí thư']]], yearColumn: 'date' }, den: { ...count(), yearColumn: 'date' } },
+    score: { type: 'linear', max: 2 },
+    note: 'Số cuộc họp do Bí thư chủ trì ÷ tổng số cuộc họp',
+  };
+  const outline = outlineFormula(formula, { dataset: () => 'Cuộc họp CĐS', column: (_, key) => columns.find(column => column.key === key)?.label ?? key });
+  assert.equal(outline.kind, 'percent');
+  assert.equal(outline.parts.length, 2);
+  assert.ok(outline.parts[0].text.startsWith('Đếm bản ghi có'), outline.parts[0].text);
+  assert.ok(!outline.parts[0].text.includes('Cuộc họp CĐS'));
+  assert.ok(!outline.parts[0].text.includes('lọc theo năm'));
+  assert.equal(outline.parts[1].text, 'Đếm bản ghi');
+  assert.equal(outline.yearColumns.length, 1);
+  assert.ok(outline.score?.includes('tối đa 2 điểm'));
+  assert.equal(outline.note, 'Số cuộc họp do Bí thư chủ trì ÷ tổng số cuộc họp');
+  const sum = outlineFormula({ value: { op: 'add', args: [count('a'), count('b')] } });
+  assert.equal(sum.kind, 'expr');
+  assert.equal(sum.parts.length, 1);
+  assert.ok(sum.parts[0].text.includes('«a»') && sum.parts[0].text.includes('«b»'));
 });

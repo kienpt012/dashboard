@@ -49,7 +49,20 @@ const ROW = 78;
 const LINE = 29;
 
 function rowHeight(title: string, charsPerLine: number) {
-  return ROW + (Math.min(3, Math.ceil(title.length / charsPerLine)) - 1) * LINE;
+  return ROW + (Math.min(4, Math.ceil(title.length / charsPerLine)) - 1) * LINE;
+}
+
+/** Kế hoạch ghi bằng lời dài hơn cột số thì cột số chỉ ghi giá trị, lời kế hoạch xuống dòng riêng (chữ 16px, mỗi dòng 22px). */
+const PLAN_INLINE = 16;
+const PLAN_LINE = 22;
+
+function longPlan(target: WallTarget) {
+  return target.kind !== 'STAT' && Boolean(target.targetText) && target.targetText!.length > PLAN_INLINE;
+}
+
+function targetHeight(target: WallTarget, charsPerLine: number) {
+  const plan = longPlan(target) ? Math.min(2, Math.ceil(target.targetText!.length / Math.round(charsPerLine * 1.35))) * PLAN_LINE : 0;
+  return rowHeight(target.title, charsPerLine) + plan;
 }
 
 /** Chia trang theo chiều cao ước tính để tên dài được xuống dòng mà trang vẫn vừa khung. */
@@ -246,6 +259,7 @@ function Rows({ rows, showDepartment }: { rows: WallTarget[]; showDepartment: bo
       {rows.map((target, index) => {
         const color = STATUS[target.status].hex;
         const stat = target.kind === 'STAT';
+        const plan = longPlan(target);
         const who = showDepartment ? target.departmentName : target.assigneeName ?? (target.valueSource === 'MANUAL' ? 'Chưa giao người' : 'Tự tính');
         return (
           <div className={`wb-row${target.status === 'OVERDUE' ? ' hot' : ''}`} key={target.id} style={{ '--i': index } as CSSProperties}>
@@ -257,9 +271,29 @@ function Rows({ rows, showDepartment }: { rows: WallTarget[]; showDepartment: bo
                 {target.missingPeriods?.length ? <em> · thiếu {target.missingPeriods.slice(-2).join(', ')}</em> : null}
                 {target.explanationRequested ? <em> · đang giải trình</em> : null}
               </span>
+              {plan && <span className="wb-row-plan">Kế hoạch: {target.targetText}</span>}
             </div>
             <div className="wb-row-value">
-              {stat ? (target.hasReport ? `${num(target.currentValue)} ${target.unit}` : '—') : `${num(target.currentValue)} / ${target.targetText || num(target.targetValue)}`}
+              {stat ? (
+                target.hasReport ? (
+                  <>
+                    <span className="nw">{num(target.currentValue)}</span> {target.unit}
+                  </>
+                ) : (
+                  '—'
+                )
+              ) : plan ? (
+                <>
+                  <span className="nw">
+                    {num(target.currentValue)} / {num(target.targetValue)}
+                  </span>{' '}
+                  {target.unit}
+                </>
+              ) : (
+                <>
+                  <span className="nw">{num(target.currentValue)} /</span> {target.targetText || num(target.targetValue)}
+                </>
+              )}
             </div>
             <div className="wb-row-progress">
               {stat ? (
@@ -464,7 +498,7 @@ export default function Wallboard() {
     for (const slide of data.slides) {
       if (!slide.targets.length) continue;
       const perLine = slide.targets.every(target => target.kind === 'STAT') ? 66 : 50;
-      const pages = paginate(slide.type === 'department' ? slide.targets : sortTargets(slide.targets), target => rowHeight(target.title, perLine), ROWS * ROW);
+      const pages = paginate(slide.type === 'department' ? slide.targets : sortTargets(slide.targets), target => targetHeight(target, perLine), ROWS * ROW);
       pages.forEach((rows, page) => list.push({ kind: 'slide', key: `${slide.type}-${slide.id}-${page}`, group, slide, rows, page, pages: pages.length }));
       group += 1;
     }

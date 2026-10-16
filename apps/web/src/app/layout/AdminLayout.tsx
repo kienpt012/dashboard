@@ -276,7 +276,7 @@ export default function AdminLayout() {
                 {screens.md && (
                   <span className="user-chip-text">
                     <strong>{user.fullName}</strong>
-                    <span>{user.position || roleLabel[user.role]}</span>
+                    <span>{roleLabel[user.role]}</span>
                   </span>
                 )}
               </button>

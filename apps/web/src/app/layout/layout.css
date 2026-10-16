@@ -267,8 +267,8 @@
   display: flex;
   gap: 14px;
   justify-content: flex-end;
-  /* chừa chỗ cho nút lên đầu trang */
-  padding: 10px 84px 14px 24px;
+  /* chừa chỗ cho nút lên đầu trang (cách đáy 24px, cao 44px) để không che dòng cuối của trang */
+  padding: 10px 84px 52px 24px;
   font-size: 11px;
   color: var(--ioc-color-text-quaternary);
   font-variant-numeric: tabular-nums;
@@ -447,7 +447,7 @@
     display: none;
   }
   .screen-strip {
-    padding: 8px 72px 12px 16px;
+    padding: 8px 72px 52px 16px;
   }
 }
 

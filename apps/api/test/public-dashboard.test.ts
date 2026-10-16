@@ -316,7 +316,7 @@ test('lưu draft no-op không tăng version hoặc ghi audit nhưng vẫn chặn
     config: cloneDefault() as unknown as Record<string, unknown>,
   });
   assert.equal(result.draftVersion, 5);
-  assert.equal(result.unchanged, true);
+  assert.equal('unchanged' in result && result.unchanged, true);
   assert.equal(updateCalls, 0);
   assert.equal(auditCalls, 0);
 

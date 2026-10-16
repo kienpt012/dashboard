@@ -446,21 +446,27 @@ export function evaluateFormula(formula: FormulaSpec, getRows: (dataset: string)
   return { value: round(value, 6), score: round(score, 2), traces, warnings };
 }
 
-export function formatFormula(formula: FormulaSpec, labels?: { dataset?: (code: string) => string; column?: (dataset: string, key: string) => string }): string {
-  const number = (value: number): string => String(value).replace('.', ',');
+type FormulaLabels = { dataset?: (code: string) => string; column?: (dataset: string, key: string) => string };
+
+const formulaNumber = (value: number): string => String(value).replace('.', ',');
+
+/** Mô tả một biểu thức bằng lời. `oneSource`: mọi phép tổng hợp cùng một bảng nên không nhắc lại tên bảng; `withYear`: kèm điều kiện lọc năm. */
+function describeExpr(expr: Expr, labels: FormulaLabels | undefined, options: { oneSource?: boolean; withYear?: boolean } = { withYear: true }): string {
   const displayValue = (value: unknown): string => value === null ? 'rỗng' : typeof value === 'boolean' ? value ? 'có' : 'không' : String(value);
   const describe = (expr: Expr): string => {
-    if (typeof expr === 'number') return number(expr);
+    if (typeof expr === 'number') return formulaNumber(expr);
     if ('agg' in expr) {
       const dataset = `«${labels?.dataset?.(expr.dataset) ?? expr.dataset}»`;
       const column = (key: string): string => `«${labels?.column?.(expr.dataset, key) ?? key}»`;
       const names = { count: 'Đếm', sum: 'Tổng', avg: 'Trung bình', min: 'Giá trị nhỏ nhất', max: 'Giá trị lớn nhất', countDistinct: 'Đếm giá trị phân biệt' };
-      let text = expr.agg === 'count' ? `Đếm ${dataset}` : `${names[expr.agg]} ${column(expr.column ?? '')} trong ${dataset}`;
+      let text = expr.agg === 'count'
+        ? options.oneSource ? 'Đếm bản ghi' : `Đếm ${dataset}`
+        : `${names[expr.agg]} ${column(expr.column ?? '')}${options.oneSource ? '' : ` trong ${dataset}`}`;
       if (expr.where?.length) {
         const operations: Record<ConditionOp, string> = { eq: 'bằng', ne: 'khác', in: 'thuộc', nin: 'không thuộc', gt: 'lớn hơn', gte: 'lớn hơn hoặc bằng', lt: 'nhỏ hơn', lte: 'nhỏ hơn hoặc bằng', contains: 'chứa', notEmpty: 'không rỗng', isTrue: 'là có', isFalse: 'là không' };
         text += ' có ' + expr.where.map(([key, op, value]) => `${column(key)} ${operations[op]}${['notEmpty', 'isTrue', 'isFalse'].includes(op) ? '' : ' ' + (Array.isArray(value) ? `[${value.map(displayValue).join(', ')}]` : displayValue(value))}`).join(' và ');
       }
-      if (expr.yearColumn) text += `, lọc theo năm của ${column(expr.yearColumn)}`;
+      if (expr.yearColumn && options.withYear) text += `, lọc theo năm của ${column(expr.yearColumn)}`;
       return text;
     }
     if ('args' in expr) {
@@ -470,26 +476,70 @@ export function formatFormula(formula: FormulaSpec, labels?: { dataset?: (code: 
     }
     return `${expr.op === 'ratio' ? 'Tỷ lệ' : 'Phần trăm'}: (${describe(expr.num)}) ÷ (${describe(expr.den)})${expr.op === 'percent' ? ' × 100' : ''}`;
   };
-  let text = describe(formula.value);
-  const rule = formula.score;
-  if (rule) {
-    switch (rule.type) {
-      case 'linear': text += `; chấm điểm tuyến tính tối đa ${number(rule.max)} điểm`; break;
-      case 'capped': text += `; chấm điểm theo tỷ lệ giới hạn từ 0 đến 1, tối đa ${number(rule.max)} điểm`; break;
-      case 'binary': text += `; giá trị lớn hơn 0 được ${number(rule.max)} điểm, còn lại 0 điểm`; break;
-      case 'threshold': text += `; đạt ngưỡng ${number(rule.min)} được ${number(rule.max)} điểm, dưới ngưỡng ${rule.below === 'zero' ? 'được 0 điểm' : `lấy giá trị nhân ${number(rule.max)}`}`; break;
-      case 'steps':
-      case 'band': {
-        const bands = rule.type === 'steps' ? rule.steps : rule.bands;
-        text += '; chấm theo bậc đầu tiên đạt: ' + [...bands].sort((a, b) => b.gte - a.gte).map(band => {
-          const score = band.score === 'r' ? 'giá trị công thức' : band.score === 'rmax' && rule.type === 'band' ? `giá trị công thức nhân ${number(rule.max)}` : number(band.score as number);
-          return `từ ${number(band.gte)} được ${score} điểm`;
-        }).join(', ') + `; còn lại ${number(rule.otherwise ?? 0)} điểm`;
-        break;
-      }
+  return describe(expr);
+}
+
+/** Mô tả cách chấm điểm từ giá trị công thức. */
+export function describeScore(rule: ScoreRule): string {
+  const number = formulaNumber;
+  switch (rule.type) {
+    case 'linear': return `chấm điểm tuyến tính tối đa ${number(rule.max)} điểm`;
+    case 'capped': return `chấm điểm theo tỷ lệ giới hạn từ 0 đến 1, tối đa ${number(rule.max)} điểm`;
+    case 'binary': return `giá trị lớn hơn 0 được ${number(rule.max)} điểm, còn lại 0 điểm`;
+    case 'threshold': return `đạt ngưỡng ${number(rule.min)} được ${number(rule.max)} điểm, dưới ngưỡng ${rule.below === 'zero' ? 'được 0 điểm' : `lấy giá trị nhân ${number(rule.max)}`}`;
+    case 'steps':
+    case 'band': {
+      const bands = rule.type === 'steps' ? rule.steps : rule.bands;
+      return 'chấm theo bậc đầu tiên đạt: ' + [...bands].sort((a, b) => b.gte - a.gte).map(band => {
+        const score = band.score === 'r' ? 'giá trị công thức' : band.score === 'rmax' && rule.type === 'band' ? `giá trị công thức nhân ${number(rule.max)}` : number(band.score as number);
+        return `từ ${number(band.gte)} được ${score} điểm`;
+      }).join(', ') + `; còn lại ${number(rule.otherwise ?? 0)} điểm`;
     }
   }
+}
+
+export function formatFormula(formula: FormulaSpec, labels?: FormulaLabels): string {
+  let text = describeExpr(formula.value, labels);
+  if (formula.score) text += `; ${describeScore(formula.score)}`;
   if (formula.unit) text += `; đơn vị: ${formula.unit}`;
   if (formula.note) text += `; ghi chú: ${formula.note}`;
   return text;
+}
+
+/** Một vế của công thức để hiển thị riêng: lời mô tả và biểu thức con để tính giá trị của vế đó. */
+export interface FormulaPart { text: string; expr: Expr }
+export interface FormulaOutline {
+  /** ratio/percent: tử số ÷ mẫu số; expr: biểu thức khác. */
+  kind: 'ratio' | 'percent' | 'expr';
+  parts: FormulaPart[];
+  /** Cột ngày dùng để lọc theo năm (nhãn), nếu có. */
+  yearColumns: string[];
+  score: string | null;
+  unit: string | null;
+  note: string | null;
+}
+
+/** Tách công thức thành các vế dễ đọc: tử số và mẫu số (nếu là tỷ lệ), điều kiện lọc năm, cách chấm điểm và ghi chú. */
+export function outlineFormula(formula: FormulaSpec, labels?: FormulaLabels): FormulaOutline {
+  const oneSource = datasetsReferenced(formula).length === 1;
+  const years = new Set<string>();
+  const visit = (expr: Expr): void => {
+    if (typeof expr === 'number') return;
+    if ('agg' in expr) {
+      if (expr.yearColumn) years.add(labels?.column?.(expr.dataset, expr.yearColumn) ?? expr.yearColumn);
+    } else if ('args' in expr) expr.args.forEach(visit);
+    else { visit(expr.num); visit(expr.den); }
+  };
+  visit(formula.value);
+  const part = (expr: Expr): FormulaPart => ({ text: describeExpr(expr, labels, { oneSource, withYear: false }), expr });
+  const value = formula.value;
+  const fraction = typeof value === 'object' && 'op' in value && (value.op === 'ratio' || value.op === 'percent') ? value : null;
+  return {
+    kind: fraction ? fraction.op as 'ratio' | 'percent' : 'expr',
+    parts: fraction ? [part(fraction.num), part(fraction.den)] : [part(value)],
+    yearColumns: [...years],
+    score: formula.score ? describeScore(formula.score) : null,
+    unit: formula.unit ?? null,
+    note: formula.note?.trim() || null,
+  };
 }

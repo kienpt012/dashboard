@@ -273,6 +273,7 @@ export type DossierPermissions={
 };
 
 export type FormulaTrace={dataset:string;agg:string;column?:string;matched:number;total:number;value:number|null};
+export type FormulaOutline={kind:'ratio'|'percent'|'expr';parts:{text:string;value:number|null;matched:number|null;total:number|null}[];yearColumns:string[];score:string|null;unit:string|null;note:string|null};
 
 export type Dossier={
   id:string;
@@ -325,7 +326,7 @@ export type Dossier={
   currentPeriodKey:string;
   periods:{key:string;label:string;deadline:string;overdue:boolean;reported:boolean}[];
   completeness:{directive:boolean;execution:boolean;evaluation:boolean};
-  formula?:{text:string;result:{value:number|null;score:number|null;traces:FormulaTrace[];warnings:string[]};datasets:{code:string;name:string;builtin:boolean}[]}|null;
+  formula?:{text:string;outline?:FormulaOutline;result:{value:number|null;score:number|null;traces:FormulaTrace[];warnings:string[]};datasets:{code:string;name:string;builtin:boolean}[]}|null;
   managers:{id:string;fullName:string;position?:string|null;lastLoginAt?:string|null}[];
   staff:{id:string;fullName:string;position?:string|null;role:string}[];
   maxTransfers:number;

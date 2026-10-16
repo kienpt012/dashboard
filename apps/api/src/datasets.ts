@@ -40,6 +40,7 @@ import {
   type FormulaSpec,
   formatFormula,
   normalizeRow,
+  outlineFormula,
   type Row,
   validateColumns,
   validateFormula,
@@ -715,12 +716,28 @@ export async function describeTargetFormula(prisma: PrismaService, formula: Pris
   const names = new Map<string, string>(Object.entries(BUILTIN_DATASETS).map(([code, item]) => [code, item.name]));
   const custom = await prisma.dataset.findMany({ where: { code: { in: [...columns.keys()] } }, select: { code: true, name: true } });
   custom.forEach(item => names.set(item.code, item.name));
-  const result = await evaluateTargetFormula(prisma, spec, year);
+  const labels = {
+    dataset: (code: string) => names.get(code) ?? code,
+    column: (dataset: string, key: string) => columns.get(dataset)?.find(column => column.key === key)?.label ?? key,
+  };
+  const getRows = await createRowLoader(prisma)(datasetsReferenced(spec));
+  const result = evaluateFormula(spec, getRows, { year });
+  const outline = outlineFormula(spec, labels);
   return {
-    text: formatFormula(spec, {
-      dataset: code => names.get(code) ?? code,
-      column: (dataset, key) => columns.get(dataset)?.find(column => column.key === key)?.label ?? key,
-    }),
+    text: formatFormula(spec, labels),
+    // Từng vế (tử số, mẫu số…) kèm giá trị và số dòng khớp của riêng vế đó, để người xem thấy con số đến từ đâu.
+    outline: {
+      kind: outline.kind,
+      parts: outline.parts.map(part => {
+        const own = evaluateFormula({ value: part.expr }, getRows, { year });
+        const trace = own.traces.length === 1 ? own.traces[0] : null;
+        return { text: part.text, value: own.value, matched: trace?.matched ?? null, total: trace?.total ?? null };
+      }),
+      yearColumns: outline.yearColumns,
+      score: outline.score,
+      unit: outline.unit,
+      note: outline.note,
+    },
     result,
     datasets: [...columns.keys()].map(code => ({ code, name: names.get(code) ?? code, builtin: isBuiltinDataset(code) })),
   };

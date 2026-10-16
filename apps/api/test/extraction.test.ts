@@ -222,7 +222,7 @@ test('bảng thật: đơn vị đứng trước giá trị vẫn bắt được
   const bhyt = findValueWithUnit('9 Tỷ lệ người dân tham gia bảo hiểm y tế % ≥ 95 Bảo hiểm xã hội');
   assert.ok(bhyt.some(match => match.value === 95 && match.unit === '%'));
   const nhaOXaHoi = findValueWithUnit('18 Số căn hộ nhà ở xã hội đạt Căn 28.500 Sở Xây dựng');
-  assert.ok(nhaOXaHoi.some(match => match.value === 28500 && match.unit.toLowerCase() === 'căn'));
+  assert.ok(nhaOXaHoi.some(match => match.value === 28500 && match.unit?.toLowerCase() === 'căn'));
 });
 
 test('chuẩn hóa tiếng Việt và độ tương đồng Dice phục vụ phát hiện trùng', () => {

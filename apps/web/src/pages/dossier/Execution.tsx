@@ -183,32 +183,94 @@ function Formula() {
   const { d } = useDossier();
   const formula = d.formula;
   if (!formula) return <Alert type="warning" showIcon title="Chưa đọc được công thức tự tính của chỉ tiêu này" style={{ marginBottom: 16 }} />;
+  const outline = formula.outline;
+  const { result } = formula;
+  const fraction = outline && outline.kind !== 'expr' && outline.parts.length === 2 ? outline : null;
+  const [top, bottom] = fraction?.parts ?? [];
   return (
     <div className="formula">
-      <Flex align="center" gap={8} style={{ marginBottom: 8 }}>
-        <CalculatorOutlined />
-        <Typography.Text strong>Cách tính</Typography.Text>
+      <Flex align="center" justify="space-between" gap={8} wrap style={{ marginBottom: 8 }}>
+        <Flex align="center" gap={8}>
+          <CalculatorOutlined />
+          <Typography.Text strong>Cách tính</Typography.Text>
+        </Flex>
+        {d.computedAt && <span className="muted">Tính lúc {dateTime(d.computedAt)}</span>}
       </Flex>
-      <code className="formula-text">{formula.text}</code>
-      <Space size={16} wrap style={{ marginTop: 10 }}>
+      {outline?.note && <p className="formula-note">{outline.note}</p>}
+      {!outline ? (
+        <code className="formula-text">{formula.text}</code>
+      ) : (
+        <div className="formula-terms">
+          {(fraction ? [['Tử số', top], ['Mẫu số', bottom]] as const : [['Giá trị', outline.parts[0]]] as const).map(([role, part], index) => (
+            <div key={role} className={`formula-term${fraction && index === 1 ? ' den' : ''}`}>
+              <span className="formula-role">{role}</span>
+              <span className="formula-desc">
+                {part.text}
+                {part.matched !== null && part.total !== null && (
+                  <span className="formula-rows">
+                    {num(part.matched)} / {num(part.total)} bản ghi khớp
+                  </span>
+                )}
+              </span>
+              <b className="formula-val">{part.value === null ? '—' : num(part.value)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+      <Space size={16} wrap className="formula-result">
         <span>
-          Kết quả: <b>{formula.result.value === null ? 'chưa tính được' : valueText(formula.result.value, d.unit)}</b>
+          {fraction && top.value !== null && bottom.value !== null && (
+            <span className="muted">
+              {num(top.value)} ÷ {num(bottom.value)}
+              {fraction.kind === 'percent' ? ' × 100' : ''} ={' '}
+            </span>
+          )}
+          {!fraction && 'Kết quả: '}
+          <b>{result.value === null ? 'chưa tính được' : valueText(result.value, d.unit)}</b>
         </span>
-        {formula.result.score !== null && (
+        {result.score !== null && (
           <span>
-            Điểm: <b>{num(formula.result.score)}</b>
+            Điểm: <b>{num(result.score)}</b>
             {d.maxScore ? ` / ${num(d.maxScore)}` : ''}
           </span>
         )}
-        {d.computedAt && <span className="muted">Tính lúc {dateTime(d.computedAt)}</span>}
       </Space>
-      {formula.result.traces.length > 0 && (
+      <dl className="formula-meta">
+        {formula.datasets.length > 0 && (
+          <>
+            <dt>Nguồn</dt>
+            <dd>
+              {formula.datasets.map((dataset, index) => (
+                <span key={dataset.code}>
+                  {index > 0 && ', '}
+                  <DatabaseOutlined /> <Link to={`/admin/kho-du-lieu/${dataset.code}`}>{dataset.name}</Link>
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
+        {outline && outline.yearColumns.length > 0 && (
+          <>
+            <dt>Phạm vi</dt>
+            <dd>
+              Năm {d.year}, theo {outline.yearColumns.map(column => `«${column}»`).join(', ')}
+            </dd>
+          </>
+        )}
+        {outline?.score && (
+          <>
+            <dt>Chấm điểm</dt>
+            <dd>{outline.score.charAt(0).toUpperCase() + outline.score.slice(1)}</dd>
+          </>
+        )}
+      </dl>
+      {!fraction && result.traces.length > 1 && (
         <ul className="formula-traces">
-          {formula.result.traces.map((trace, index) => {
+          {result.traces.map((trace, index) => {
             const dataset = formula.datasets.find(item => item.code === trace.dataset);
             return (
               <li key={`${trace.dataset}-${index}`}>
-                <DatabaseOutlined /> <Link to={`/admin/kho-du-lieu/${trace.dataset}`}>{dataset?.name ?? trace.dataset}</Link> · {AGG[trace.agg] ?? trace.agg}
+                {dataset?.name ?? trace.dataset} · {AGG[trace.agg] ?? trace.agg}
                 {trace.column ? ` cột ${trace.column}` : ''}: {num(trace.matched)}/{num(trace.total)} dòng khớp
                 {trace.value !== null ? ` → ${num(trace.value)}` : ''}
               </li>
@@ -216,7 +278,7 @@ function Formula() {
           })}
         </ul>
       )}
-      {formula.result.warnings.map(warning => (
+      {result.warnings.map(warning => (
         <Alert key={warning} type="warning" showIcon title={warning} style={{ marginTop: 8 }} />
       ))}
     </div>
