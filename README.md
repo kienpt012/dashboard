@@ -110,8 +110,9 @@ Máy khác trong mạng nội bộ truy cập qua `http://<IP-máy-chủ>:8080`;
 
 | Lệnh | Tác dụng |
 |---|---|
-| `.\start-ioc.cmd` | Khởi động; sau `git pull` sẽ build lại và áp dụng migration mới |
-| `.\start-ioc.cmd -SkipBuild` | Khởi động nhanh bằng image đã build |
+| `.\start-ioc.cmd` | Khởi động; tự cập nhật bản mới từ GitHub, build lại và áp dụng migration mới |
+| `.\start-ioc.cmd -SkipBuild` | Khởi động nhanh bằng image đã build (vẫn build khi vừa có bản mới) |
+| `.\start-ioc.cmd -NoUpdate` | Không tự cập nhật từ GitHub trong lần chạy này |
 | `.\start-ioc.cmd -CheckOnly` | Chỉ kiểm tra điều kiện, không thay đổi gì |
 | `.\start-ioc.cmd -NoAI` | Không dùng Ollama; trích xuất bằng bộ luật |
 | `.\start-ioc.cmd -SkipModelPull` | Không tải model AI còn thiếu |
@@ -123,17 +124,17 @@ Máy khác trong mạng nội bộ truy cập qua `http://<IP-máy-chủ>:8080`;
 
 Không dùng `docker compose down -v`: lệnh này xoá volume dữ liệu.
 
-### Nâng cấp từ bản đang chạy
+### Cập nhật lên bản mới
 
-```powershell
-cd C:\ioc
-git pull
-.\start-ioc.cmd
-```
+Chỉ cần chạy lại `start-ioc.cmd`. Mỗi lần khởi động, trình khởi động tự:
 
-`start-ioc.cmd` build lại image, áp dụng migration mới và giữ nguyên dữ liệu, tài khoản, `.env`. Bản 2 chỉ thêm bảng và cột
-(có giá trị mặc định), không xoá dữ liệu cũ. Sau khi nâng cấp, vào **Thiết lập địa phương** để khai thông tin đơn vị nếu
-màn hình điều hành nhắc. Máy chỉ dùng thử và muốn có bộ dữ liệu mẫu mới: `.\start-ioc.cmd -ResetData` (xoá toàn bộ dữ liệu).
+1. Kiểm tra GitHub và tải bản mới nhất của nhánh đang dùng (`git pull` dạng tua nhanh) — không ghi đè tệp bạn tự sửa;
+2. Bổ sung vào `.env` các cấu hình mới (giữ nguyên mật khẩu, khoá bí mật và giá trị bạn đã đặt);
+3. Build lại image và áp dụng migration cơ sở dữ liệu mới — dữ liệu, tài khoản được giữ nguyên.
+
+Không muốn tự cập nhật trong một lần chạy: `.\start-ioc.cmd -NoUpdate`. Máy chỉ dùng thử và muốn có bộ dữ liệu mẫu mới:
+`.\start-ioc.cmd -ResetData` (xoá toàn bộ dữ liệu, hỏi xác nhận trước). Sau khi nâng cấp từ bản 1, vào **Thiết lập địa phương**
+để khai thông tin đơn vị nếu màn hình điều hành nhắc.
 
 ## Xử lý sự cố
 
