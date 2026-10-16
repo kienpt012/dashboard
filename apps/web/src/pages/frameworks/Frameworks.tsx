@@ -7,7 +7,7 @@ import { useMe } from '@/app/session';
 import { DistBar, Metric, YearSelect } from '@/components/Data';
 import { Page } from '@/components/Page';
 import { LoadError, PageSkeleton } from '@/components/States';
-import { LegalBasis } from '@/components/LegalBasis';
+import { DocumentLink, LegalBasis } from '@/components/LegalBasis';
 import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
 import { useAction, useApi } from '@/hooks/useApi';
 import { http } from '@/lib/api';
@@ -15,6 +15,7 @@ import { currentYear, num, pct } from '@/lib/format';
 import { can, FRAMEWORK_EDITORS, LEADERSHIP } from '@/lib/roles';
 import { fold } from '@/app/nav';
 import type { Framework, FrameworkKind, FrameworkTemplate, IssuingLevel } from '@/types/domain';
+import type { SourceDocument } from '@/types/core';
 import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
 
 type ApplyResult = { frameworkId: string; code: string; name: string; createdTargets: number; createdDatasets: string[]; computedTargets: number; needsPlanValue: number };
@@ -82,6 +83,7 @@ function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolea
         name: framework.name,
         issuingLevel: framework.issuingLevel,
         legalBasis: framework.legalBasis ?? '',
+        sourceDocumentId: framework.sourceDocumentId ?? undefined,
         description: framework.description ?? '',
         sortOrder: framework.sortOrder ?? 0,
         showOnWallboard: framework.showOnWallboard,
@@ -96,9 +98,12 @@ function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolea
     form.setFieldValue('code', suggestCode(kind, formYear || year, taken));
   }, [open, framework, codeTouched, kind, formYear, year, taken, form]);
 
+  const documents = useApi<SourceDocument[]>(open ? '/documents' : null, { staleTime: 60_000 });
   const save = useAction(
-    (values: Record<string, unknown>) =>
-      framework ? http.patch(`/frameworks/${framework.id}`, { ...values, expectedVersion: framework.version }) : http.post('/frameworks', { ...values, maxScore: values.kind === 'SCORE' ? values.maxScore : undefined }),
+    ({ sourceDocumentId, ...values }: Record<string, unknown>) =>
+      framework
+        ? http.patch(`/frameworks/${framework.id}`, { ...values, sourceDocumentId: sourceDocumentId ?? '', expectedVersion: framework.version })
+        : http.post('/frameworks', { ...values, sourceDocumentId: sourceDocumentId || undefined, maxScore: values.kind === 'SCORE' ? values.maxScore : undefined }),
     { success: framework ? 'Đã cập nhật bộ chỉ tiêu' : 'Đã tạo bộ chỉ tiêu', refresh: ['/frameworks', '/ioc'], onDone: onClose },
   );
 
@@ -141,6 +146,20 @@ function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolea
         )}
         <Form.Item name="legalBasis" label="Căn cứ" className="span-2">
           <Input maxLength={300} />
+        </Form.Item>
+        <Form.Item
+          name="sourceDocumentId"
+          label="Văn bản giao (trong kho)"
+          className="span-2"
+          extra="Hệ thống tự tìm dòng của từng chỉ tiêu trong văn bản này để mở đúng chỗ khi xem hồ sơ chỉ tiêu."
+        >
+          <Select
+            allowClear
+            showSearch={{ optionFilterProp: 'label' }}
+            loading={documents.isLoading}
+            placeholder="Chọn văn bản đã tải lên kho"
+            options={(documents.data ?? []).map(document => ({ value: document.id, label: [document.docNumber, document.title].filter(Boolean).join(' — ') }))}
+          />
         </Form.Item>
         <Form.Item name="description" label="Mô tả" className="span-2">
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={2000} />
@@ -360,6 +379,11 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
       {framework.legalBasis && (
         <div className="fw-basis">
           <LegalBasis text={framework.legalBasis} />
+        </div>
+      )}
+      {framework.sourceDocument && (
+        <div className="fw-basis">
+          Văn bản giao: <DocumentLink id={framework.sourceDocument.id}>{framework.sourceDocument.docNumber || framework.sourceDocument.title}</DocumentLink>
         </div>
       )}
       {framework.description && (

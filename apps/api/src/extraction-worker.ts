@@ -356,7 +356,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private async processParseJob(job: ClaimedJob): Promise<void> {
     const document = await this.prisma.sourceDocument.findUnique({
       where: { id: job.documentId },
-      select: { id: true, mimeType: true, data: true, status: true },
+      select: { id: true, mimeType: true, data: true, status: true, autoExtract: true },
     });
     if (!document) {
       await this.completeJob(job, {});
@@ -398,6 +398,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           text: page.text,
           ocrUsed: page.ocrUsed,
           ocrConfidence: page.ocrConfidence,
+          layout: page.layout?.length ? (page.layout as Prisma.InputJsonValue) : undefined,
         })),
       });
       await tx.documentChunk.createMany({
@@ -420,14 +421,16 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           processingError: null,
         },
       });
-      // Nối tiếp tự động sang bước trích xuất chỉ tiêu.
-      await tx.extractionJob.create({
-        data: {
-          documentId: document.id,
-          kind: ExtractionJobKind.INDICATOR_EXTRACT,
-          createdById: job.createdById,
-        },
-      });
+      // Nối tiếp tự động sang bước trích xuất chỉ tiêu (trừ văn bản chỉ lưu để tra cứu, định vị nguồn).
+      if (document.autoExtract) {
+        await tx.extractionJob.create({
+          data: {
+            documentId: document.id,
+            kind: ExtractionJobKind.INDICATOR_EXTRACT,
+            createdById: job.createdById,
+          },
+        });
+      }
     });
     await this.completeJob(job, { chunksTotal: chunks.length, chunksDone: chunks.length });
     this.logger.log(`Đã phân tích tài liệu ${document.id}: ${parsed.pageCount} trang, ${chunks.length} đoạn`);

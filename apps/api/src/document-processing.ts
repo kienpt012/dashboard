@@ -4,6 +4,8 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { pdfPageSpans, tsvSpans } from './source-layout';
+import type { LayoutSpan } from './source-locator';
 
 const execFileAsync = promisify(execFile);
 
@@ -12,6 +14,8 @@ export interface ParsedPage {
   text: string;
   ocrUsed: boolean;
   ocrConfidence?: number;
+  /** Bố cục chữ (khung từng dòng/ô) để định vị và tô sáng nguồn; chỉ có với PDF và ảnh. */
+  layout?: LayoutSpan[];
 }
 
 export interface ParsedDocument {
@@ -112,7 +116,13 @@ interface PdfParserApi {
   renderPageAsImage(pdf: PdfDocumentProxy, pageNumber: number, options: Record<string, unknown>): Promise<{ data: ArrayBuffer | Uint8Array } | ArrayBuffer | Uint8Array>;
 }
 
-type PdfDocumentProxy = unknown;
+type PdfDocumentProxy = { numPages: number; getPage(pageNumber: number): Promise<Parameters<typeof pdfPageSpans>[0]> };
+
+/** Mở PDF bằng pdf.js (unpdf) — dùng chung cho đọc văn bản và tính lại bố cục của văn bản cũ. */
+export async function openPdf(buffer: Buffer | Uint8Array) {
+  const { getDocumentProxy } = await loadUnpdf();
+  return getDocumentProxy(new Uint8Array(buffer));
+}
 
 let unpdfModule: Promise<PdfParserApi> | null = null;
 
@@ -141,6 +151,8 @@ export function resolveOcrConfig(env: Record<string, string | undefined> = proce
 export interface OcrResult {
   text: string;
   confidence?: number;
+  /** Khung từng dòng chữ OCR, chuẩn hoá theo kích thước ảnh. */
+  spans?: LayoutSpan[];
 }
 
 // OCR một ảnh bằng Tesseract native (spawn tiến trình, không cần Python).
@@ -160,7 +172,7 @@ export async function ocrImageBuffer(imageBuffer: Buffer, config: OcrEngineConfi
     }
     await execFileAsync(config.tesseractPath, args, { timeout: 120_000, windowsHide: true });
     const tsv = await readFile(`${outputBase}.tsv`, 'utf8');
-    return parseTesseractTsv(tsv);
+    return { ...parseTesseractTsv(tsv), spans: tsvSpans(tsv) };
   } finally {
     await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
@@ -216,7 +228,8 @@ export async function parsePdf(buffer: Buffer, options: PdfParseOptions): Promis
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
     const layerText = normalizeExtractedText(text[pageNumber - 1] ?? '');
     if (layerText.length >= MIN_TEXT_LAYER_CHARS || ocrPagesRemaining <= 0) {
-      pages.push({ pageNumber, text: layerText, ocrUsed: false });
+      const layout = layerText ? await pdfPageSpans(await pdf.getPage(pageNumber)).catch(() => undefined) : undefined;
+      pages.push({ pageNumber, text: layerText, ocrUsed: false, layout });
       continue;
     }
     ocrPagesRemaining -= 1;
@@ -236,6 +249,8 @@ export async function parsePdf(buffer: Buffer, options: PdfParseOptions): Promis
       text: normalizeExtractedText(ocr.text),
       ocrUsed: true,
       ocrConfidence: ocr.confidence,
+      // Ảnh render đúng tỉ lệ trang nên toạ độ chuẩn hoá theo ảnh cũng là toạ độ trên trang.
+      layout: ocr.spans,
     });
   }
   const hasTextLayer = pages.some(page => !page.ocrUsed && page.text.length >= MIN_TEXT_LAYER_CHARS);
@@ -322,6 +337,7 @@ export async function parseImage(buffer: Buffer, ocr: OcrEngineConfig): Promise<
       text: normalizeExtractedText(result.text),
       ocrUsed: true,
       ocrConfidence: result.confidence,
+      layout: result.spans,
     }],
     pageCount: 1,
     hasTextLayer: false,
