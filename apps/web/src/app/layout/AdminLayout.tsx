@@ -26,7 +26,6 @@ import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
 import { Jarvis, JarvisMark, type JarvisVoiceState } from './Jarvis';
 import { JarvisSummon, prefersReducedMotion } from './jarvis/Summon';
-import { WakeToggle } from './jarvis/WakeToggle';
 import { Notifications } from './Notifications';
 import './layout.css';
 
@@ -139,7 +138,6 @@ export default function AdminLayout() {
   const [palette, setPalette] = useState(false);
   const [copilot, setCopilot] = useState(false);
   const [voice, setVoice] = useState<JarvisVoiceState>('off');
-  const [heard, setHeard] = useState('');
   const [summon, setSummon] = useState(false);
   const clientSettings = useApi<{ jarvisIntro: boolean }>('/settings/client', { staleTime: 300_000 });
   const introEnabled = clientSettings.data?.jarvisIntro ?? true;
@@ -282,8 +280,7 @@ export default function AdminLayout() {
             <kbd>Ctrl K</kbd>
           </button>
           <div className="head-actions">
-            <WakeToggle heard={heard} quiet={copilot} />
-            <Tooltip title={voice === 'idle' ? 'Jarvis đang chờ gọi tên (Ctrl J)' : 'Jarvis (Ctrl J)'}>
+            <Tooltip title={voice === 'idle' ? 'Jarvis đang nghe — nói “Jarvis” để gọi (Ctrl J)' : 'Jarvis (Ctrl J)'}>
               <Button
                 type="text"
                 className={`head-btn jarvis-btn voice-${voice}${copilot ? ' on' : ''}`}
@@ -329,7 +326,7 @@ export default function AdminLayout() {
         onTheme={() => theme.setChoice(theme.dark ? 'light' : 'dark')}
         onLogout={logout}
       />
-      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} onHeard={setHeard} />
+      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} />
       {summon && <JarvisSummon onDone={() => setSummon(false)} />}
       <BackToTop />
     </Layout>

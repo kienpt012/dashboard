@@ -157,6 +157,10 @@ export function Jarvis({
   const settingsRef = useRef(settings);
   const commandTimer = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
+  /** Micro bị chặn hoặc lỗi: không tự mở lại cho đến khi người dùng bật lại. */
+  const blockedRef = useRef(false);
+  /** Người dùng vừa tự bật gọi tên (để biết có nên báo lỗi micro hay không). */
+  const askedRef = useRef(false);
   const onOpenRef = useRef(onOpen);
   const onHeardRef = useRef(onHeard);
   const canListen = voiceSupport.recognition;
@@ -223,7 +227,7 @@ export function Jarvis({
   }, []);
 
   const startWake = useCallback(() => {
-    if (!canListen || !settingsRef.current.wake || recognition.current) return;
+    if (!canListen || !settingsRef.current.wake || recognition.current || blockedRef.current || !voiceSupport.secure) return;
     const rec = createRecognition(true);
     if (!rec) return;
     let awaiting = false;
@@ -266,14 +270,22 @@ export function Jarvis({
     };
     rec.onerror = event => {
       const text = recognitionError(event.error);
-      if (text) {
-        message.error(text);
-        setJarvisSettings({ wake: false });
-      }
+      if (!text) return;
+      // Micro bị chặn, không có micro hoặc mất mạng: ngừng tự mở lại. Chỉ báo lỗi khi chính người dùng vừa bật,
+      // còn lúc tự bật khi mở trang thì im lặng (biểu tượng Jarvis không hiện chấm "đang nghe").
+      blockedRef.current = true;
+      if (askedRef.current) message.error(text);
+      askedRef.current = false;
     };
     rec.onend = () => {
       // Chrome tự ngắt phiên nghe dài; mở lại nếu vẫn đang bật chế độ gọi tên.
       if (recognition.current !== rec) return;
+      if (blockedRef.current) {
+        recognition.current = null;
+        listenMode.current = null;
+        updateVoice('off');
+        return;
+      }
       recognition.current = null;
       window.setTimeout(() => {
         if (settingsRef.current.wake && voiceRef.current !== 'thinking' && voiceRef.current !== 'speaking') startWake();
@@ -392,7 +404,11 @@ export function Jarvis({
           checked={settings.wake}
           disabled={!canListen || !voiceSupport.secure}
           onChange={wake => {
-            if (wake) chime();
+            if (wake) {
+              chime();
+              blockedRef.current = false;
+              askedRef.current = true;
+            }
             setJarvisSettings({ wake });
           }}
         />

@@ -11,9 +11,10 @@ const listeners = new Set<() => void>();
 function read(): JarvisSettings {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || 'null') as Partial<JarvisSettings> | null;
-    return { wake: Boolean(saved?.wake), readAloud: saved?.readAloud !== false };
+    // Gọi bằng tên bật sẵn như trợ lý giọng nói của điện thoại; người dùng tắt được trong khung Jarvis.
+    return { wake: saved?.wake !== false, readAloud: saved?.readAloud !== false };
   } catch {
-    return { wake: false, readAloud: true };
+    return { wake: true, readAloud: true };
   }
 }
 
