@@ -11,7 +11,7 @@ import {
   AimOutlined,
 } from '@ant-design/icons';
 import DOMPurify from 'dompurify';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useThemeMode } from '@/app/theme';
 import { apiBaseUrl } from '@/lib/api';
@@ -429,6 +429,7 @@ export function themeStyle(config: PublicDashboardConfig, dark: boolean): CSSPro
   const { theme } = config;
   return {
     '--pd-accent': dark ? `color-mix(in srgb, ${theme.accent} 62%, white)` : theme.accent,
+    '--pd-accent-fill': theme.accent,
     '--pd-bg': dark ? 'var(--ioc-color-bg-layout)' : theme.background,
     '--pd-surface': dark ? 'var(--ioc-color-bg-container)' : theme.surface,
     '--pd-text': dark ? 'var(--ioc-color-text)' : theme.text,
@@ -447,13 +448,12 @@ export function useFrameColors(config: PublicDashboardConfig, dark: boolean) {
 export function useBreakpoint(forced?: PublicDashboardBreakpoint, desktopMin = 1000) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [breakpoint, setBreakpoint] = useState<PublicDashboardBreakpoint>('desktop');
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (forced || !ref.current) return;
     const element = ref.current;
-    const observer = new ResizeObserver(([entry]) => {
-      const width = entry.contentRect.width;
-      setBreakpoint(width < 640 ? 'mobile' : width < desktopMin ? 'tablet' : 'desktop');
-    });
+    const apply = (width: number) => setBreakpoint(width < 640 ? 'mobile' : width < desktopMin ? 'tablet' : 'desktop');
+    apply(element.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => apply(entry.contentRect.width));
     observer.observe(element);
     return () => observer.disconnect();
   }, [forced, desktopMin]);

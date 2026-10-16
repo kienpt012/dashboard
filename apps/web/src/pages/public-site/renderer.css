@@ -6,6 +6,11 @@
   --pd-soft: color-mix(in srgb, var(--pd-accent) 8%, var(--pd-surface));
   color: var(--pd-text);
   min-width: 0;
+  container-type: inline-size;
+}
+
+.st-frame {
+  container-type: inline-size;
 }
 
 .pd-grid {
@@ -312,6 +317,8 @@
 
 .pd-dept-row b {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Danh sách: phản ánh, văn bản */
@@ -413,7 +420,7 @@ a.pd-doc:hover .pd-doc-action {
   flex-wrap: wrap;
   padding: 24px 28px;
   border-radius: var(--pd-radius);
-  background: var(--pd-accent);
+  background: var(--pd-accent-fill, var(--pd-accent));
   color: #fff;
 }
 
@@ -448,7 +455,7 @@ a.pd-doc:hover .pd-doc-action {
   padding: 10px 18px;
   border-radius: 999px;
   background: #fff;
-  color: var(--pd-accent);
+  color: var(--pd-accent-fill, var(--pd-accent));
   font-weight: 600;
   max-width: 100%;
   white-space: normal;
@@ -456,6 +463,14 @@ a.pd-doc:hover .pd-doc-action {
 
 .pd-cta-button .anticon {
   flex-shrink: 0;
+}
+
+[data-theme='dark'] .pd-hero {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--ioc-color-primary) 72%, #0b1220), color-mix(in srgb, var(--ioc-color-primary) 48%, #0b1220));
+}
+
+[data-theme='dark'] .pd-hero-actions .pd-hero-primary.ant-btn {
+  color: color-mix(in srgb, var(--ioc-color-primary) 72%, #0b1220);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -471,7 +486,7 @@ a.pd-doc:hover .pd-doc-action {
   }
 }
 
-@media (max-width: 639px) {
+@container (max-width: 639px) {
   .pd-card {
     padding: 16px;
   }
