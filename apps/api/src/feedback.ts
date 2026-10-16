@@ -1274,6 +1274,9 @@ export class FeedbackController {
     @Query('sort') sortRaw?: string,
   ) {
     const actor = getActor(req);
+    if (actor.role === Role.VIEWER && sortRaw?.split(':')[0] === 'title') {
+      throw new BadRequestException('Thứ tự sắp xếp không hợp lệ');
+    }
     const orderBy = feedbackListOrder(sortRaw);
     const page = pageRaw === undefined ? 1 : Number(pageRaw);
     const pageSize = pageSizeRaw === undefined ? 25 : Number(pageSizeRaw);

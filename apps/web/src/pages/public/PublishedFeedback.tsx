@@ -1,7 +1,7 @@
 import { FileSearchOutlined, FormOutlined } from '@ant-design/icons';
-import { Breadcrumb, Button, Card, Result, Skeleton, Space, Tag, Timeline } from 'antd';
+import { Breadcrumb, Button, Card, Result, Skeleton, Space, Tag, Timeline, type ButtonProps } from 'antd';
 import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useHref, useLinkClickHandler, useParams, type To } from 'react-router-dom';
 import { LoadError, NoData } from '@/components/States';
 import { useApi } from '@/hooks/useApi';
 import { ApiError } from '@/lib/api';
@@ -10,6 +10,17 @@ import type { PublicFeedbackEvent, PublicFeedbackMessage, PublishedFeedbackDetai
 import { FEEDBACK_CATEGORY, FEEDBACK_EVENT, FEEDBACK_STATUS } from '../feedback/labels';
 import { PublicShell } from './PublicShell';
 import './feedback-public.css';
+
+function LinkButton({ to, ...props }: Omit<ButtonProps, 'href' | 'onClick'> & { to: To }) {
+  const href = useHref(to);
+  const onClick = useLinkClickHandler<HTMLElement>(to);
+  return <Button {...props} href={href} onClick={onClick} />;
+}
+
+export function withoutResultEcho(messages: PublicFeedbackMessage[], summary?: string | null) {
+  const result = summary?.trim();
+  return result ? messages.filter(message => !(message.authorName !== 'Người dân' && message.body.trim() === result)) : messages;
+}
 
 // Nhãn mốc xử lý theo cách người dân đọc; phần còn lại dùng chung với trang quản trị.
 const EVENT_LABEL: Record<string, string> = {
@@ -117,6 +128,7 @@ export default function PublishedFeedback() {
   const item = detail.data;
   const notFound = !code || (detail.error instanceof ApiError && detail.error.status === 404);
   const status = item ? FEEDBACK_STATUS[item.status] : null;
+  const thread = item ? withoutResultEcho(item.messages, item.resolutionSummary) : [];
 
   return (
     <PublicShell title={item?.title || 'Kết quả phản ánh'}>
@@ -135,11 +147,7 @@ export default function PublishedFeedback() {
               status="404"
               title="Không tìm thấy phản ánh"
               subTitle="Phản ánh không tồn tại hoặc đã gỡ khỏi trang công khai."
-              extra={
-                <Link to="/phan-anh?tab=cong-khai">
-                  <Button type="primary">Xem kết quả khác</Button>
-                </Link>
-              }
+              extra={<LinkButton to="/phan-anh?tab=cong-khai" type="primary">Xem kết quả khác</LinkButton>}
             />
           </Card>
         ) : detail.error ? (
@@ -177,9 +185,9 @@ export default function PublishedFeedback() {
               <Card title="Kết quả xử lý">
                 <div className="fbp-result">{item.resolutionSummary || 'Chưa cập nhật'}</div>
               </Card>
-              {item.messages.length > 0 && (
+              {thread.length > 0 && (
                 <Card title="Trao đổi công khai">
-                  <MessageThread messages={item.messages} />
+                  <MessageThread messages={thread} />
                 </Card>
               )}
             </div>
@@ -189,21 +197,15 @@ export default function PublishedFeedback() {
               </Card>
               <Card>
                 <div className="fbp-cta">
-                  <Link to="/phan-anh">
-                    <Button type="primary" block icon={<FormOutlined />}>
-                      Gửi phản ánh
-                    </Button>
-                  </Link>
-                  <Link to="/phan-anh?tab=tra-cuu">
-                    <Button block icon={<FileSearchOutlined />}>
-                      Tra cứu hồ sơ đã gửi
-                    </Button>
-                  </Link>
-                  <Link to="/phan-anh?tab=cong-khai">
-                    <Button block type="text">
-                      Xem kết quả khác
-                    </Button>
-                  </Link>
+                  <LinkButton to="/phan-anh" type="primary" block icon={<FormOutlined />}>
+                    Gửi phản ánh
+                  </LinkButton>
+                  <LinkButton to="/phan-anh?tab=tra-cuu" block icon={<FileSearchOutlined />}>
+                    Tra cứu hồ sơ đã gửi
+                  </LinkButton>
+                  <LinkButton to="/phan-anh?tab=cong-khai" block type="text">
+                    Xem kết quả khác
+                  </LinkButton>
                 </div>
               </Card>
             </div>

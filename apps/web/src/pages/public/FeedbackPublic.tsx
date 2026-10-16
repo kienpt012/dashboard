@@ -12,7 +12,7 @@ import {
   StarFilled,
 } from '@ant-design/icons';
 import { Alert, App, Button, Card, Checkbox, Col, Empty, Form, Grid, Input, Modal, Radio, Rate, Result, Row, Select, Skeleton, Space, Steps, Tabs, Tag, Upload, type UploadFile } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { localityTitle, useLocality } from '@/app/locality';
 import { useApi } from '@/hooks/useApi';
@@ -20,7 +20,7 @@ import { ApiError, errorText, http, saveBlob } from '@/lib/api';
 import { date, dateTime, fileSize, until } from '@/lib/format';
 import type { FeedbackCategory, PublicFeedbackDetail, PublishedFeedback } from '@/types/core';
 import { FEEDBACK_CATEGORY, FEEDBACK_STATUS, options } from '../feedback/labels';
-import { EventTimeline, MessageThread, MetaGrid } from './PublishedFeedback';
+import { EventTimeline, MessageThread, MetaGrid, withoutResultEcho } from './PublishedFeedback';
 import { PublicShell } from './PublicShell';
 import './feedback-public.css';
 
@@ -55,6 +55,15 @@ function normalizeSecret(raw: string) {
 
 type Pending = { clientSubmissionId: string; lookupSecret: string };
 
+function uuidV4(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function pendingSubmission(): Pending {
   try {
     const saved = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null') as Pending | null;
@@ -62,7 +71,7 @@ function pendingSubmission(): Pending {
   } catch {
     /* trình duyệt chặn lưu trữ: vẫn gửi được, chỉ mất khả năng chống gửi trùng khi tải lại trang */
   }
-  const fresh = { clientSubmissionId: crypto.randomUUID(), lookupSecret: randomSecret() };
+  const fresh = { clientSubmissionId: uuidV4(), lookupSecret: randomSecret() };
   try {
     sessionStorage.setItem(PENDING_KEY, JSON.stringify(fresh));
   } catch {
@@ -98,18 +107,37 @@ function attachmentForm(files: UploadFile[], secret: string, version: number) {
 
 function CopyValue({ value, label }: { value: string; label: string }) {
   const { message } = App.useApp();
+  async function copy() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const input = document.createElement('textarea');
+        input.value = value;
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        const focused = document.activeElement;
+        document.body.appendChild(input);
+        try {
+          input.select();
+          if (!document.execCommand('copy')) throw new Error('Sao chép thất bại');
+        } finally {
+          input.remove();
+          if (focused instanceof HTMLElement) focused.focus();
+        }
+      }
+      message.success(`Đã sao chép ${label}`);
+    } catch {
+      message.error('Trình duyệt không cho phép sao chép');
+    }
+  }
   return (
     <Button
       size="small"
       type="text"
       icon={<CopyOutlined />}
       aria-label={`Sao chép ${label}`}
-      onClick={() =>
-        void navigator.clipboard.writeText(value).then(
-          () => message.success(`Đã sao chép ${label}`),
-          () => message.error('Trình duyệt không cho phép sao chép'),
-        )
-      }
+      onClick={() => void copy()}
     />
   );
 }
@@ -168,7 +196,7 @@ function Receipt({ created, onTrack, onAgain }: { created: Created; onTrack: () 
           </strong>
         </div>
       </div>
-      <Alert type="warning" showIcon title="Mã bảo mật chỉ hiển thị một lần. Hãy lưu biên nhận để tra cứu hồ sơ." className="fbp-gap" />
+      <Alert type="warning" showIcon title="Lưu biên nhận để tra cứu hồ sơ." className="fbp-gap" />
       {created.fileError && <Alert type="error" showIcon title="Chưa gửi được tệp minh chứng" description={`${created.fileError}. Có thể bổ sung khi tra cứu hồ sơ.`} className="fbp-gap" />}
       {!created.fileError && created.fileCount ? <Alert type="success" showIcon title={`Đã nhận ${created.fileCount} tệp minh chứng`} className="fbp-gap" /> : null}
       <div className="fbp-receipt-actions">
@@ -189,12 +217,16 @@ function Receipt({ created, onTrack, onAgain }: { created: Created; onTrack: () 
   );
 }
 
-function SubmitTab({ onTrack }: { onTrack: (code: string, secret: string) => void }) {
+function SubmitTab({ receipt: created, onCreated, onAgain, onTrack }: {
+  receipt: Created | null;
+  onCreated: (receipt: Created) => void;
+  onAgain: () => void;
+  onTrack: (code: string, secret: string) => void;
+}) {
   const [form] = Form.useForm<SubmitValues>();
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<Created | null>(null);
   const email = Form.useWatch('submitterEmail', form);
 
   async function submit(values: SubmitValues) {
@@ -205,28 +237,34 @@ function SubmitTab({ onTrack }: { onTrack: (code: string, secret: string) => voi
     }
     setBusy(true);
     setError(null);
-    const pending = pendingSubmission();
     try {
+      const pending = pendingSubmission();
       const result = await http.post<Created>('/public/feedbacks', {
         ...values,
         title: values.title.trim(),
         content: values.content.trim(),
         address: values.address?.trim() || undefined,
+        submitterName: values.submitterName.trim(),
+        submitterPhone: values.submitterPhone.trim(),
         submitterEmail: values.submitterEmail?.trim() || undefined,
         preferredContact: values.submitterEmail?.trim() ? values.preferredContact : 'PHONE',
         clientSubmissionId: pending.clientSubmissionId,
         lookupSecret: pending.lookupSecret,
       });
-      clearPending();
       let fileError: string | null = null;
+      let fileCount = 0;
+      let version = result.version;
       if (files.length) {
         try {
-          await http.post(`/public/feedbacks/${encodeURIComponent(result.code)}/attachments`, attachmentForm(files, result.lookupSecret, result.version));
+          const uploaded = await http.post<Pick<PublicFeedbackDetail, 'attachments' | 'version'>>(`/public/feedbacks/${encodeURIComponent(result.code)}/attachments`, attachmentForm(files, result.lookupSecret, result.version));
+          fileCount = uploaded.attachments.length;
+          version = uploaded.version;
         } catch (uploadError) {
           fileError = errorText(uploadError);
         }
       }
-      setCreated({ ...result, fileError, fileCount: files.length });
+      clearPending();
+      onCreated({ ...result, version, fileError, fileCount });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (submitError) {
       setError(errorText(submitError));
@@ -243,7 +281,7 @@ function SubmitTab({ onTrack }: { onTrack: (code: string, secret: string) => voi
         onAgain={() => {
           form.resetFields();
           setFiles([]);
-          setCreated(null);
+          onAgain();
         }}
       />
     );
@@ -257,10 +295,10 @@ function SubmitTab({ onTrack }: { onTrack: (code: string, secret: string) => voi
             <Form.Item name="category" label="Lĩnh vực" rules={[{ required: true, message: 'Chọn lĩnh vực' }]}>
               <Select options={options(FEEDBACK_CATEGORY)} placeholder="Chọn lĩnh vực" />
             </Form.Item>
-            <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, whitespace: true, message: 'Nhập tiêu đề' }, { min: 8, message: 'Tiêu đề cần ít nhất 8 ký tự' }]}>
+            <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, whitespace: true, message: 'Nhập tiêu đề' }, { min: 8, transform: (value?: string) => value?.trim(), message: 'Tiêu đề cần ít nhất 8 ký tự' }]}>
               <Input maxLength={200} showCount placeholder="Ví dụ: Đèn chiếu sáng hẻm 12 đường Nguyễn Trãi bị hỏng" />
             </Form.Item>
-            <Form.Item name="content" label="Nội dung" rules={[{ required: true, whitespace: true, message: 'Nhập nội dung' }, { min: 20, message: 'Nội dung cần ít nhất 20 ký tự' }]}>
+            <Form.Item name="content" label="Nội dung" rules={[{ required: true, whitespace: true, message: 'Nhập nội dung' }, { min: 20, transform: (value?: string) => value?.trim(), message: 'Nội dung cần ít nhất 20 ký tự' }]}>
               <Input.TextArea autoSize={{ minRows: 5, maxRows: 14 }} maxLength={5000} showCount placeholder="Sự việc, thời gian, mức độ ảnh hưởng" />
             </Form.Item>
             <Form.Item name="address" label="Địa điểm">
@@ -284,17 +322,17 @@ function SubmitTab({ onTrack }: { onTrack: (code: string, secret: string) => voi
           </Card>
           <Card title="Thông tin liên hệ" className="fbp-gap">
             <div className="fbp-grid">
-              <Form.Item name="submitterName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: 'Nhập họ và tên' }, { min: 2, message: 'Họ tên quá ngắn' }]}>
+              <Form.Item name="submitterName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: 'Nhập họ và tên' }, { min: 2, transform: (value?: string) => value?.trim(), message: 'Họ tên quá ngắn' }]}>
                 <Input maxLength={160} autoComplete="name" />
               </Form.Item>
               <Form.Item
                 name="submitterPhone"
                 label="Số điện thoại"
-                rules={[{ required: true, message: 'Nhập số điện thoại' }, { pattern: /^(?=(?:\D*\d){9,15}\D*$)\+?[0-9().\-\s]+$/, message: 'Số điện thoại có 9–15 chữ số' }]}
+                rules={[{ required: true, message: 'Nhập số điện thoại' }, { pattern: /^(?=(?:\D*\d){9,15}\D*$)\+?[0-9().\-\s]+$/, transform: (value?: string) => value?.trim(), message: 'Số điện thoại có 9–15 chữ số' }]}
               >
                 <Input maxLength={20} inputMode="tel" autoComplete="tel" />
               </Form.Item>
-              <Form.Item name="submitterEmail" label="Email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
+              <Form.Item name="submitterEmail" label="Email" rules={[{ type: 'email', transform: (value?: string) => value?.trim(), message: 'Email không hợp lệ' }]}>
                 <Input maxLength={180} inputMode="email" autoComplete="email" />
               </Form.Item>
               <Form.Item name="preferredContact" label="Nhận thông báo qua">
@@ -359,6 +397,7 @@ function stageOf(status: string) {
   if (status === 'RECEIVED') return 0;
   if (['ASSIGNED', 'IN_PROGRESS', 'WAITING_CITIZEN', 'PENDING_REVIEW', 'REOPENED'].includes(status)) return 1;
   if (status === 'RESOLVED') return 2;
+  if (status === 'CLOSED') return STAGES.length;
   return 3;
 }
 
@@ -369,7 +408,22 @@ function nextDeadline(item: PublicFeedbackDetail) {
   return null;
 }
 
-function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFeedbackDetail; credentials: Credentials; onReload: () => Promise<void>; onReset: () => void }) {
+function closingMeta(item: PublicFeedbackDetail) {
+  if (item.status === 'REJECTED') return { label: 'Ngày không tiếp nhận', value: dateTime(item.closedAt) };
+  if (item.status === 'RESOLVED' || item.status === 'CLOSED') {
+    return { label: item.closureReason === 'RESOLVED' ? 'Hoàn thành' : 'Kết thúc', value: dateTime(item.resolvedAt || item.closedAt) };
+  }
+  return null;
+}
+
+function TrackDetail({ item, credentials, showSecret, onUpdate, onReload, onReset }: {
+  item: PublicFeedbackDetail;
+  credentials: Credentials;
+  showSecret: boolean;
+  onUpdate: (detail: PublicFeedbackDetail) => void;
+  onReload: () => Promise<void>;
+  onReset: () => void;
+}) {
   const { message } = App.useApp();
   const [text, setText] = useState('');
   const [files, setFiles] = useState<UploadFile[]>([]);
@@ -378,8 +432,11 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
   const [reopen, setReopen] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const running = useRef(false);
   const status = FEEDBACK_STATUS[item.status];
   const deadline = nextDeadline(item);
+  const thirdMeta = deadline ? { label: deadline.label, value: date(deadline.at), hint: until(deadline.at) } : closingMeta(item);
+  const thread = withoutResultEcho(item.messages, item.resolutionSummary);
   const done = ['RESOLVED', 'CLOSED', 'REJECTED'].includes(item.status);
   const canMessage = ['WAITING_CITIZEN', 'IN_PROGRESS', 'REOPENED'].includes(item.status);
   const canAttach = ['RECEIVED', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_CITIZEN', 'REOPENED'].includes(item.status) && item.attachments.length < MAX_FILES;
@@ -387,18 +444,32 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
   const decidedAt = item.closedAt ?? item.resolvedAt;
   const canReopen = done && !item.reopenRequestedAt && item.reopenRequestCount < 3 && Boolean(decidedAt) && Date.now() - new Date(decidedAt!).getTime() <= APPEAL_MS;
 
-  async function run(key: string, action: () => Promise<unknown>, success: string) {
+  async function run(key: string, action: () => Promise<PublicFeedbackDetail>, success: string) {
+    if (running.current) return false;
+    running.current = true;
     setBusy(key);
     try {
-      await action();
+      onUpdate(await action());
       message.success(success);
-      await onReload();
       return true;
     } catch (actionError) {
       message.error(errorText(actionError));
       if (actionError instanceof ApiError && actionError.status === 409) await onReload();
       return false;
     } finally {
+      running.current = false;
+      setBusy(null);
+    }
+  }
+
+  async function reload() {
+    if (running.current) return;
+    running.current = true;
+    setBusy('reload');
+    try {
+      await onReload();
+    } finally {
+      running.current = false;
       setBusy(null);
     }
   }
@@ -430,6 +501,13 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
             <Tag style={{ marginInlineEnd: 0 }}>{FEEDBACK_CATEGORY[item.category]}</Tag>
             <span className="fbp-mono fbp-code-text">{item.code}</span>
           </Space>
+          {showSecret && (
+            <div className="fbp-track-secret">
+              <span>Mã bảo mật</span>
+              <span className="fbp-mono">{credentials.secret}</span>
+              <CopyValue value={credentials.secret} label="mã bảo mật" />
+            </div>
+          )}
           <h1 className="fbp-title">{item.title}</h1>
           {item.status !== 'REJECTED' && (
             <Steps
@@ -443,7 +521,7 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
             items={[
               { label: 'Đơn vị xử lý', value: item.departmentName || 'Đang phân công' },
               { label: 'Tiếp nhận', value: dateTime(item.createdAt) },
-              deadline ? { label: deadline.label, value: date(deadline.at), hint: until(deadline.at) } : { label: 'Hoàn thành', value: dateTime(item.resolvedAt || item.closedAt) },
+              ...(thirdMeta ? [thirdMeta] : []),
               { label: 'Cập nhật', value: dateTime(item.updatedAt) },
             ]}
           />
@@ -470,18 +548,18 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
           {item.address && <div className="fbp-sub">Địa điểm: {item.address}</div>}
         </Card>
 
-        {(item.messages.length > 0 || canMessage) && (
+        {(thread.length > 0 || canMessage) && (
           <Card title="Trao đổi" className="fbp-gap">
-            {item.messages.length > 0 ? <MessageThread messages={item.messages} selfLabel="Bạn" /> : null}
+            {thread.length > 0 ? <MessageThread messages={thread} selfLabel="Bạn" /> : null}
             {canMessage && (
               <div className="fbp-composer">
                 <Input.TextArea value={text} onChange={event => setText(event.target.value)} autoSize={{ minRows: 3, maxRows: 8 }} maxLength={3000} showCount placeholder="Thông tin bổ sung cho đơn vị xử lý" />
                 <Button
                   type="primary"
                   icon={<SendOutlined />}
-                  disabled={text.trim().length < 3}
+                  disabled={Boolean(busy) || text.trim().length < 3}
                   loading={busy === 'message'}
-                  onClick={() => void run('message', () => http.post(`${base}/messages`, { ...common, message: text.trim() }), 'Đã gửi thông tin bổ sung').then(ok => ok && setText(''))}
+                  onClick={() => void run('message', () => http.post<PublicFeedbackDetail>(`${base}/messages`, { ...common, message: text.trim() }), 'Đã gửi thông tin bổ sung').then(ok => ok && setText(''))}
                 >
                   Gửi
                 </Button>
@@ -513,7 +591,7 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
                   <Button icon={<PaperClipOutlined />}>Chọn tệp</Button>
                 </Upload>
                 <Button
-                  disabled={!files.length}
+                  disabled={Boolean(busy) || !files.length}
                   loading={busy === 'files'}
                   onClick={() => {
                     const problem = filesError(files);
@@ -521,7 +599,10 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
                       message.error(problem);
                       return;
                     }
-                    void run('files', () => http.post(`${base}/attachments`, attachmentForm(files, credentials.secret, item.version)), 'Đã bổ sung tệp').then(ok => ok && setFiles([]));
+                    void run('files', async () => {
+                      const uploaded = await http.post<Pick<PublicFeedbackDetail, 'attachments' | 'version'>>(`${base}/attachments`, attachmentForm(files, credentials.secret, item.version));
+                      return { ...item, attachments: uploaded.attachments, version: uploaded.version };
+                    }, 'Đã bổ sung tệp').then(ok => ok && setFiles([]));
                   }}
                 >
                   Gửi tệp
@@ -544,9 +625,9 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
               <Button
                 type="primary"
                 className="fbp-gap-top"
-                disabled={!rating}
+                disabled={Boolean(busy) || !rating}
                 loading={busy === 'rate'}
-                onClick={() => void run('rate', () => http.post(`${base}/rating`, { ...common, rating, comment: comment.trim() || undefined }), 'Cảm ơn bạn đã đánh giá')}
+                onClick={() => void run('rate', () => http.post<PublicFeedbackDetail>(`${base}/rating`, { ...common, rating, comment: comment.trim() || undefined }), 'Cảm ơn bạn đã đánh giá')}
               >
                 Gửi đánh giá
               </Button>
@@ -573,14 +654,14 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
           <Card>
             <div className="fbp-cta">
               {canReopen && (
-                <Button block icon={<RedoOutlined />} onClick={() => setReopen(true)}>
+                <Button block icon={<RedoOutlined />} disabled={Boolean(busy)} onClick={() => setReopen(true)}>
                   Đề nghị xem xét lại
                 </Button>
               )}
-              <Button block onClick={() => void onReload()} loading={busy === 'reload'}>
+              <Button block onClick={() => void reload()} disabled={Boolean(busy)} loading={busy === 'reload'}>
                 Tải lại hồ sơ
               </Button>
-              <Button block type="text" icon={<FileSearchOutlined />} onClick={onReset}>
+              <Button block type="text" icon={<FileSearchOutlined />} disabled={Boolean(busy)} onClick={onReset}>
                 Tra cứu hồ sơ khác
               </Button>
             </div>
@@ -593,13 +674,13 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
         open={reopen}
         onCancel={() => setReopen(false)}
         okText="Gửi đề nghị"
-        okButtonProps={{ disabled: reason.trim().length < 10, loading: busy === 'reopen' }}
-        onOk={() => void run('reopen', () => http.post(`${base}/reopen`, { ...common, reason: reason.trim() }), 'Đã gửi đề nghị xem xét lại').then(ok => ok && (setReopen(false), setReason('')))}
+        okButtonProps={{ disabled: Boolean(busy) || reason.trim().length < 10, loading: busy === 'reopen' }}
+        onOk={() => void run('reopen', () => http.post<PublicFeedbackDetail>(`${base}/reopen`, { ...common, reason: reason.trim() }), 'Đã gửi đề nghị xem xét lại').then(ok => ok && (setReopen(false), setReason('')))}
         destroyOnHidden
       >
         <Form layout="vertical">
-          <Form.Item label="Lý do" required help={reason.trim().length > 0 && reason.trim().length < 10 ? 'Ít nhất 10 ký tự' : undefined} validateStatus={reason.trim().length > 0 && reason.trim().length < 10 ? 'error' : undefined}>
-            <Input.TextArea value={reason} onChange={event => setReason(event.target.value)} autoSize={{ minRows: 4, maxRows: 10 }} maxLength={2000} showCount />
+          <Form.Item label="Lý do" htmlFor="feedback-reopen-reason" required help={reason.trim().length > 0 && reason.trim().length < 10 ? 'Ít nhất 10 ký tự' : undefined} validateStatus={reason.trim().length > 0 && reason.trim().length < 10 ? 'error' : undefined}>
+            <Input.TextArea id="feedback-reopen-reason" value={reason} onChange={event => setReason(event.target.value)} autoSize={{ minRows: 4, maxRows: 10 }} maxLength={2000} showCount />
           </Form.Item>
         </Form>
       </Modal>
@@ -607,24 +688,38 @@ function TrackDetail({ item, credentials, onReload, onReset }: { item: PublicFee
   );
 }
 
-function TrackTab({ initial }: { initial: Credentials | null }) {
+function TrackTab({ initial, onChange, showSecret }: { initial: Credentials | null; onChange: (next: Credentials | null) => void; showSecret: boolean }) {
+  const { message } = App.useApp();
   const [form] = Form.useForm<Credentials>();
   const [credentials, setCredentials] = useState<Credentials | null>(initial);
   const [item, setItem] = useState<PublicFeedbackDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loading = useRef(false);
 
-  async function load(next: Credentials) {
+  async function load(next: Credentials, { reload = false } = {}) {
+    if (loading.current) return;
+    loading.current = true;
     setBusy(true);
     setError(null);
     try {
       const detail = await http.post<PublicFeedbackDetail>('/public/feedbacks/track', { code: next.code.trim().toUpperCase(), lookupSecret: normalizeSecret(next.secret) });
-      setCredentials({ code: detail.code, secret: normalizeSecret(next.secret) });
+      const saved = { code: detail.code, secret: normalizeSecret(next.secret) };
+      setCredentials(saved);
+      onChange(saved);
       setItem(detail);
     } catch (loadError) {
-      setItem(null);
-      setError(errorText(loadError));
+      const invalid = loadError instanceof ApiError && [401, 403, 404].includes(loadError.status);
+      if (reload && item && !invalid) {
+        message.error(errorText(loadError));
+      } else {
+        setItem(null);
+        setError(errorText(loadError));
+        form.setFieldsValue(next);
+        if (invalid) onChange(null);
+      }
     } finally {
+      loading.current = false;
       setBusy(false);
     }
   }
@@ -641,10 +736,14 @@ function TrackTab({ initial }: { initial: Credentials | null }) {
       <TrackDetail
         item={item}
         credentials={credentials}
-        onReload={() => load(credentials)}
+        showSecret={showSecret}
+        onUpdate={setItem}
+        onReload={() => load(credentials, { reload: true })}
         onReset={() => {
           setItem(null);
           setCredentials(null);
+          onChange(null);
+          setError(null);
           form.resetFields();
         }}
       />
@@ -716,6 +815,7 @@ export default function FeedbackPublic() {
   const tab = TABS.some(item => item.key === requested) ? requested! : 'gui';
   const [handoff, setHandoff] = useState<Credentials | null>(() => (params.get('ma') ? { code: params.get('ma')!, secret: '' } : null));
   const [trackKey, setTrackKey] = useState(0);
+  const [receipt, setReceipt] = useState<Created | null>(null);
 
   function open(next: string) {
     setParams(next === 'gui' ? {} : { tab: next }, { replace: false });
@@ -738,6 +838,9 @@ export default function FeedbackPublic() {
       <div className="pub-container fbp-body">
         {tab === 'gui' && (
           <SubmitTab
+            receipt={receipt}
+            onCreated={setReceipt}
+            onAgain={() => setReceipt(null)}
             onTrack={(code, secret) => {
               setHandoff({ code, secret });
               setTrackKey(key => key + 1);
@@ -745,7 +848,7 @@ export default function FeedbackPublic() {
             }}
           />
         )}
-        {tab === 'tra-cuu' && <TrackTab key={trackKey} initial={handoff} />}
+        {tab === 'tra-cuu' && <TrackTab key={trackKey} initial={handoff} onChange={setHandoff} showSecret={Boolean(receipt && receipt.code === handoff?.code && receipt.lookupSecret === handoff.secret)} />}
         {tab === 'cong-khai' && <PublishedTab />}
       </div>
     </PublicShell>

@@ -12,7 +12,7 @@ import {
 } from '@ant-design/icons';
 import DOMPurify from 'dompurify';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useThemeMode } from '@/app/theme';
 import { apiBaseUrl } from '@/lib/api';
 import { date, dateTime, num } from '@/lib/format';
@@ -138,6 +138,7 @@ function Targets({ widget, data }: { widget: PublicDashboardWidget; data: Public
   const max = clampItems(widget.settings.maxItems, 6, 100);
   const source = mode === 'highlight' ? data.overview.highlights : mode === 'selected' ? data.targets.filter(target => keys.includes(target.key)) : data.targets;
   const items = source.slice(0, max);
+  const emptyText = mode === 'highlight' ? 'Chưa có chỉ tiêu nổi bật' : mode === 'selected' ? 'Chưa có chỉ tiêu được chọn trong năm này' : 'Chưa có chỉ tiêu được công bố';
   return (
     <>
       <Head title={widget.title} extra={items.length > 0 && <span className="pd-meta">{num(items.length)} chỉ tiêu</span>} />
@@ -148,7 +149,7 @@ function Targets({ widget, data }: { widget: PublicDashboardWidget; data: Public
           ))}
         </div>
       ) : (
-        <Empty icon={<AimOutlined />} text="Chưa có chỉ tiêu được công bố" />
+        <Empty icon={<AimOutlined />} text={emptyText} />
       )}
     </>
   );
@@ -282,7 +283,19 @@ function Cta({ widget }: { widget: PublicDashboardWidget }) {
       </span>
     </>
   );
-  return href.startsWith('/') || href.startsWith('#') ? (
+  if (href.startsWith('#')) return (
+    <a href={href} className="pd-cta" onClick={event => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = document.getElementById(href.slice(1));
+      if (!target) return;
+      event.preventDefault();
+      target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      window.history.replaceState(window.history.state, '', href);
+    }}>
+      {content}
+    </a>
+  );
+  return href.startsWith('/') ? (
     <Link to={href} className="pd-cta">
       {content}
     </Link>
@@ -297,6 +310,16 @@ function Cta({ widget }: { widget: PublicDashboardWidget }) {
 
 function escapeHtml(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+}
+
+function customHtmlHref(value: string) {
+  if (value.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(value)) return null;
+  try {
+    const url = new URL(value, window.location.href);
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function readField(source: unknown, field: string): unknown {
@@ -335,7 +358,8 @@ function customDocument(widget: PublicDashboardWidget, data: PublicDashboardData
   let html = widget.settings.html ?? '';
   for (const binding of bindings) {
     const slot = binding.slot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    html = html.replace(new RegExp(`{{\\s*${slot}\\s*}}`, 'g'), escapeHtml(bindingText(binding, data)));
+    const value = escapeHtml(bindingText(binding, data));
+    html = html.replace(new RegExp(`{{\\s*${slot}\\s*}}`, 'g'), () => value);
   }
   const clean = DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
@@ -350,7 +374,11 @@ function customDocument(widget: PublicDashboardWidget, data: PublicDashboardData
       const value = attribute.value.trim();
       if (name.startsWith('on')) element.removeAttribute(attribute.name);
       if (name === 'style' && /url\s*\(|expression\s*\(|@import/i.test(value)) element.removeAttribute(attribute.name);
-      if (name === 'href' && !/^(?:https:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(value)) element.removeAttribute(attribute.name);
+      if (name === 'href') {
+        const href = customHtmlHref(value);
+        if (href === null) element.removeAttribute(attribute.name);
+        else element.setAttribute(attribute.name, href);
+      }
     }
     if (element.tagName === 'A') {
       element.setAttribute('target', '_blank');
@@ -361,7 +389,7 @@ function customDocument(widget: PublicDashboardWidget, data: PublicDashboardData
     const binding = bindings.find(item => item.slot === element.getAttribute('data-ioc-slot'));
     if (binding) element.textContent = bindingText(binding, data);
   });
-  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><style>html,body{margin:0;background:transparent}body{font:14px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:${colors.text};overflow:hidden}*{box-sizing:border-box}a{color:${colors.accent}}h1,h2,h3,h4{margin:0 0 8px;line-height:1.3}p{margin:0 0 8px}table{border-collapse:collapse;width:100%}th,td{padding:6px 8px;border-bottom:1px solid rgba(127,127,127,.25);text-align:left}</style></head><body>${template.innerHTML}</body></html>`;
+  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><style>html,body{margin:0;background:transparent}body{font:14px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:${colors.text};overflow:auto;overflow-wrap:anywhere}*{box-sizing:border-box}a{color:${colors.accent}}h1,h2,h3,h4{margin:0 0 8px;line-height:1.3}p{margin:0 0 8px}table{border-collapse:collapse;width:100%}th,td{padding:6px 8px;border-bottom:1px solid rgba(127,127,127,.25);text-align:left}</style></head><body>${template.innerHTML}</body></html>`;
 }
 
 function CustomHtml({ widget, data, colors }: { widget: PublicDashboardWidget; data: PublicDashboardData; colors: { text: string; accent: string } }) {
@@ -416,7 +444,7 @@ export function useFrameColors(config: PublicDashboardConfig, dark: boolean) {
 }
 
 /** Cỡ màn hình theo bề rộng khung chứa (không theo cửa sổ) để xem trước đúng trong trình dựng. */
-export function useBreakpoint(forced?: PublicDashboardBreakpoint) {
+export function useBreakpoint(forced?: PublicDashboardBreakpoint, desktopMin = 1000) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [breakpoint, setBreakpoint] = useState<PublicDashboardBreakpoint>('desktop');
   useEffect(() => {
@@ -424,20 +452,31 @@ export function useBreakpoint(forced?: PublicDashboardBreakpoint) {
     const element = ref.current;
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width;
-      setBreakpoint(width < 640 ? 'mobile' : width < 1000 ? 'tablet' : 'desktop');
+      setBreakpoint(width < 640 ? 'mobile' : width < desktopMin ? 'tablet' : 'desktop');
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [forced]);
+  }, [forced, desktopMin]);
   return { ref, breakpoint: forced ?? breakpoint };
 }
 
 /** Trang công khai theo cấu hình: lưới 12/8/4 cột, các khối đặt theo bố cục đã lưu, hàng tự giãn theo nội dung. */
 export function PublicRenderer({ config, data, breakpoint: forced }: { config: PublicDashboardConfig; data: PublicDashboardData; breakpoint?: PublicDashboardBreakpoint }) {
   const { dark } = useThemeMode();
-  const { ref, breakpoint } = useBreakpoint(forced);
+  const { hash } = useLocation();
+  const { ref, breakpoint } = useBreakpoint(forced, Math.min(1000, config.theme.contentWidth - 48));
   const colors = useFrameColors(config, dark);
   const layout = config.layouts[breakpoint];
+  useEffect(() => {
+    if (forced || !hash) return;
+    let id: string;
+    try { id = decodeURIComponent(hash.slice(1)); } catch { return; }
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(id);
+      if (target && ref.current?.contains(target)) target.scrollIntoView({ block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [forced, hash, layout, ref]);
   const byId = new Map(config.widgets.map(widget => [widget.id, widget]));
   const ordered = [...layout].sort((a, b) => a.y - b.y || a.x - b.x);
   return (

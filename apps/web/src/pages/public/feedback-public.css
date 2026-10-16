@@ -83,6 +83,21 @@
   font-weight: 700;
   line-height: 1.4;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.fbp-track-secret {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.fbp-track-secret .fbp-mono {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .fbp-steps {
@@ -184,6 +199,8 @@
   gap: 12px;
   margin-bottom: 4px;
   font-size: 12.5px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
 }
 
 .fbp-msg-head time {
@@ -266,7 +283,7 @@
 }
 
 .fbp-cta > a {
-  display: block;
+  display: flex;
 }
 
 /* Biên nhận */
@@ -340,6 +357,8 @@
   background: var(--ioc-color-bg-container);
   color: var(--ioc-color-text);
   transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .fbp-pub-card:hover {
@@ -356,10 +375,7 @@
 
 .fbp-clamp {
   color: var(--ioc-color-text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .fbp-pub-foot {
