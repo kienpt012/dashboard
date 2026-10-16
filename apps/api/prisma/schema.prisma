@@ -478,6 +478,8 @@ model SystemSetting {
   assignmentStallDays         Int      @default(3)
   maxTransfers                Int      @default(1)
   wallboardRotateSeconds      Int      @default(20)
+  // Hiệu ứng toàn màn hình khi gọi Jarvis; tắt cho máy cấu hình yếu hoặc phòng họp trang trọng.
+  jarvisIntro                 Boolean  @default(true)
   version                     Int      @default(1)
   updatedBy                   String?
   updatedAt                   DateTime @updatedAt

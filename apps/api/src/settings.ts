@@ -1,7 +1,7 @@
 import { BadRequestException, Body, ConflictException, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsInt, IsNumber, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, Max, Min, ValidateIf } from 'class-validator';
 import { audit, getActor } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { PrismaService } from './prisma.service';
@@ -97,6 +97,10 @@ export class UpdateSystemSettingDto {
   @Min(5, { message: 'Số giây chuyển trang trình chiếu phải từ 5 đến 300' })
   @Max(300, { message: 'Số giây chuyển trang trình chiếu phải từ 5 đến 300' })
   wallboardRotateSeconds?: number;
+
+  @ValidateIfDefined()
+  @IsBoolean({ message: 'Hiệu ứng khi gọi Jarvis phải là bật hoặc tắt' })
+  jarvisIntro?: boolean;
 }
 
 @Controller('settings')
@@ -104,6 +108,14 @@ export class UpdateSystemSettingDto {
 @Roles(Role.ADMIN)
 export class SettingsController {
   constructor(private prisma: PrismaService) {}
+
+  /** Phần cấu hình mà giao diện của mọi người dùng cần đọc. */
+  @Get('client')
+  @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF, Role.VIEWER)
+  async client() {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true } });
+    return { jarvisIntro: setting?.jarvisIntro ?? true };
+  }
 
   @Get()
   async get() {
@@ -131,6 +143,7 @@ export class SettingsController {
       assignmentStallDays: 3,
       maxTransfers: 1,
       wallboardRotateSeconds: 20,
+      jarvisIntro: true,
       version: 1,
       updatedBy: null,
       updatedAt: null,
@@ -175,6 +188,7 @@ export class SettingsController {
           assignmentStallDays: dto.assignmentStallDays ?? 3,
           maxTransfers: dto.maxTransfers ?? 1,
           wallboardRotateSeconds: dto.wallboardRotateSeconds ?? 20,
+          jarvisIntro: dto.jarvisIntro ?? true,
           updatedBy: actor.username,
         } });
         changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
@@ -218,6 +232,9 @@ export class SettingsController {
             : {}),
           ...(dto.wallboardRotateSeconds !== undefined && dto.wallboardRotateSeconds !== current.wallboardRotateSeconds
             ? { wallboardRotateSeconds: dto.wallboardRotateSeconds }
+            : {}),
+          ...(dto.jarvisIntro !== undefined && dto.jarvisIntro !== current.jarvisIntro
+            ? { jarvisIntro: dto.jarvisIntro }
             : {}),
         };
         changedFields = Object.keys(updates);

@@ -10,7 +10,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Avatar, Badge, Button, Drawer, Dropdown, Grid, Layout, Menu, Tooltip, type MenuProps } from 'antd';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { localityInitials, useLocality } from '@/app/locality';
 import { useMe } from '@/app/session';
@@ -25,6 +25,7 @@ import { navGroups, routeInfo } from '../nav';
 import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
 import { Jarvis, JarvisMark, type JarvisVoiceState } from './Jarvis';
+import { JarvisSummon, prefersReducedMotion } from './jarvis/Summon';
 import { WakeToggle } from './jarvis/WakeToggle';
 import { Notifications } from './Notifications';
 import './layout.css';
@@ -139,8 +140,30 @@ export default function AdminLayout() {
   const [copilot, setCopilot] = useState(false);
   const [voice, setVoice] = useState<JarvisVoiceState>('off');
   const [heard, setHeard] = useState('');
-  const openJarvis = useCallback(() => setCopilot(true), []);
+  const [summon, setSummon] = useState(false);
+  const clientSettings = useApi<{ jarvisIntro: boolean }>('/settings/client', { staleTime: 300_000 });
+  const introEnabled = clientSettings.data?.jarvisIntro ?? true;
+  const lastSummon = useRef(0);
+  // Mở Jarvis kèm hiệu ứng triệu hồi: luôn chạy khi gọi bằng giọng nói; khi bấm thì không lặp lại trong 1 phút.
+  const summonJarvis = useCallback(
+    (byVoice: boolean) => {
+      setCopilot(true);
+      if (!introEnabled || prefersReducedMotion()) return;
+      const now = Date.now();
+      if (!byVoice && now - lastSummon.current < 60_000) return;
+      lastSummon.current = now;
+      setSummon(true);
+    },
+    [introEnabled],
+  );
+  const openJarvis = useCallback(() => summonJarvis(true), [summonJarvis]);
   const closeJarvis = useCallback(() => setCopilot(false), []);
+  const toggleJarvis = useCallback(() => {
+    if (copilotRef.current) setCopilot(false);
+    else summonJarvis(false);
+  }, [summonJarvis]);
+  const copilotRef = useRef(copilot);
+  copilotRef.current = copilot;
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const info = routeInfo(location.pathname, !isGlobal(user));
 
@@ -167,12 +190,12 @@ export default function AdminLayout() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'j') {
         event.preventDefault();
-        setCopilot(value => !value);
+        toggleJarvis();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [toggleJarvis]);
 
   function toggle() {
     if (mobile) {
@@ -265,7 +288,7 @@ export default function AdminLayout() {
                 type="text"
                 className={`head-btn jarvis-btn voice-${voice}${copilot ? ' on' : ''}`}
                 icon={<JarvisMark size={20} state={voice} />}
-                onClick={() => setCopilot(value => !value)}
+                onClick={toggleJarvis}
                 aria-label="Jarvis"
               />
             </Tooltip>
@@ -302,11 +325,12 @@ export default function AdminLayout() {
       <CommandPalette
         open={palette}
         onClose={() => setPalette(false)}
-        onCopilot={() => setCopilot(true)}
+        onCopilot={() => summonJarvis(false)}
         onTheme={() => theme.setChoice(theme.dark ? 'light' : 'dark')}
         onLogout={logout}
       />
       <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} onHeard={setHeard} />
+      {summon && <JarvisSummon onDone={() => setSummon(false)} />}
       <BackToTop />
     </Layout>
   );

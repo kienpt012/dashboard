@@ -1,5 +1,5 @@
 import { SaveOutlined } from '@ant-design/icons';
-import { Button, Card, Col, Form, InputNumber, Row } from 'antd';
+import { Button, Card, Col, Form, InputNumber, Row, Switch } from 'antd';
 import { useEffect } from 'react';
 import { Page } from '@/components/Page';
 import { PageSkeleton, Query } from '@/components/States';
@@ -21,11 +21,12 @@ type Settings = {
   assignmentStallDays: number;
   maxTransfers: number;
   wallboardRotateSeconds: number;
+  jarvisIntro: boolean;
   updatedAt?: string;
   updatedBy?: string;
 };
 
-type Field = { name: keyof Settings; label: string; min: number; max: number; unit: string };
+type Field = { name: keyof Settings; label: string; min: number; max: number; unit: string } | { name: keyof Settings; label: string; kind: 'switch'; extra: string };
 
 const GROUPS: { title: string; fields: Field[] }[] = [
   {
@@ -55,8 +56,11 @@ const GROUPS: { title: string; fields: Field[] }[] = [
     ],
   },
   {
-    title: 'Trình chiếu',
-    fields: [{ name: 'wallboardRotateSeconds', label: 'Chuyển trang sau', min: 5, max: 300, unit: 'giây' }],
+    title: 'Trình chiếu và Jarvis',
+    fields: [
+      { name: 'wallboardRotateSeconds', label: 'Chuyển trang sau', min: 5, max: 300, unit: 'giây' },
+      { name: 'jarvisIntro', label: 'Hiệu ứng khi gọi Jarvis', kind: 'switch', extra: 'Hình ảnh toàn màn hình khi gọi Jarvis' },
+    ],
   },
 ];
 
@@ -71,11 +75,17 @@ function SettingsForm({ data }: { data: Settings }) {
           <Col key={group.title} xs={24} lg={12}>
             <Card title={group.title} style={{ height: '100%' }}>
               <div className="form-grid">
-                {group.fields.map(field => (
-                  <Form.Item key={field.name} name={field.name} label={field.label} rules={[{ required: true, type: 'number', min: field.min, max: field.max, message: `Từ ${field.min} đến ${field.max}` }]}>
-                    <InputNumber min={field.min} max={field.max} style={{ width: '100%' }} suffix={field.unit || undefined} />
-                  </Form.Item>
-                ))}
+                {group.fields.map(field =>
+                  'kind' in field ? (
+                    <Form.Item key={field.name} name={field.name} label={field.label} valuePropName="checked" extra={field.extra}>
+                      <Switch />
+                    </Form.Item>
+                  ) : (
+                    <Form.Item key={field.name} name={field.name} label={field.label} rules={[{ required: true, type: 'number', min: field.min, max: field.max, message: `Từ ${field.min} đến ${field.max}` }]}>
+                      <InputNumber min={field.min} max={field.max} style={{ width: '100%' }} suffix={field.unit || undefined} />
+                    </Form.Item>
+                  ),
+                )}
               </div>
             </Card>
           </Col>

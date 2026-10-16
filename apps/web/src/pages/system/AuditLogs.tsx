@@ -267,7 +267,25 @@ const METADATA_NAMES: Record<string, string> = {
   year: 'Năm',
 };
 
-function formatMetadata(value: NonNullable<Log['metadata']>[string]): string {
+/** Tên trường cấu hình trong "Trường thay đổi" (nhãn khớp màn hình Cấu hình và hồ sơ). */
+const FIELD_NAMES: Record<string, string> = {
+  defaultYear: 'Năm kế hoạch mặc định',
+  warningDays: 'Cảnh báo trước hạn',
+  riskThreshold: 'Ngưỡng có nguy cơ',
+  reportAutoApproveDays: 'Tự thông qua báo cáo sau',
+  proposalAutoApproveDays: 'Tự thông qua đề xuất sau',
+  explanationDueDays: 'Hạn trả lời giải trình',
+  assignmentStallDays: 'Nhắc chưa giao người sau',
+  maxTransfers: 'Số lần chuyển việc tối đa',
+  feedbackFirstResponseDays: 'Hạn phản hồi đầu tiên',
+  feedbackResolutionDays: 'Hạn xử lý phản ánh',
+  feedbackCitizenResponseDays: 'Hạn người dân bổ sung',
+  wallboardRotateSeconds: 'Chuyển trang trình chiếu sau',
+  jarvisIntro: 'Hiệu ứng khi gọi Jarvis',
+};
+
+function formatMetadata(value: NonNullable<Log['metadata']>[string], key?: string): string {
+  if (key === 'changedFields' && Array.isArray(value)) return value.map(item => FIELD_NAMES[String(item)] ?? METADATA_NAMES[String(item)] ?? String(item)).join(', ');
   if (Array.isArray(value)) return value.map(item => formatMetadata(item)).join(', ');
   if (typeof value === 'boolean') return value ? 'Có' : 'Không';
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) && vn(value).isValid()) {
@@ -358,7 +376,7 @@ export default function AuditLogs() {
                   size="small"
                   column={{ xs: 1, md: 2, xl: 3 }}
                   styles={{ label: { whiteSpace: 'normal' }, content: { minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' } }}
-                  items={Object.entries(row.metadata ?? {}).map(([key, value]) => ({ key, label: METADATA_NAMES[key] ?? key, children: formatMetadata(value) }))}
+                  items={Object.entries(row.metadata ?? {}).map(([key, value]) => ({ key, label: METADATA_NAMES[key] ?? key, children: formatMetadata(value, key) }))}
                 />
               ),
             }}
