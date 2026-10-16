@@ -165,6 +165,11 @@ quyền của người hỏi, ví dụ:
 - "Tìm văn bản về chuyển đổi số."
 - "Có bao nhiêu đề xuất chỉ tiêu đang chờ xác minh?"
 
+Khi được gọi, Jarvis xuất hiện với hiệu ứng toàn màn hình khoảng 2 giây; bấm chuột hoặc nhấn phím bất kỳ để bỏ qua.
+Quản trị viên tắt hiệu ứng này tại **Cấu hình** › `Hiệu ứng khi gọi Jarvis` (mục 2.5).
+
+![Jarvis xuất hiện khi được gọi](anh/tq-jarvis-goi.jpg)
+
 #### Hỏi Jarvis
 1. Bấm biểu tượng Jarvis trên thanh đầu trang, hoặc nhấn `Ctrl J`.
 2. Gõ câu hỏi bằng tiếng Việt, nhấn `Enter`. Có thể bấm biểu tượng micro trong ô nhập để nói thay vì gõ.
