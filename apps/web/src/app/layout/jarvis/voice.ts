@@ -82,30 +82,42 @@ function fold(text: string) {
     .toLowerCase();
 }
 
-// Người Việt nói "Jarvis" thường được nhận thành: jarvis, javis, gia vít, da vít, giác vít, cha vít…
-// Bắt buộc đuôi s/t/ch để không nhầm với "gia vị".
-const WAKE_SINGLE = /^(jarvis|javis|jarvit|javit|giavis|giavit|giarvis|davis|davit|chavis|chavit|zavis|zavit|jarvich|giavich)$/;
-const WAKE_HEAD = /^(jar|ja|gia|giac|da|dac|cha|za|jav|jaa)$/;
-const WAKE_TAIL = /^(vis|vit|vich|viz|vyt|vys)$/;
+// Bộ nhận dạng tiếng Việt viết "Jarvis" theo nhiều cách: jarvis, javis, gia vít, giá vít, da vít, giác vít, chà vích,
+// dạ vịt… Khớp theo âm trên chuỗi đã bỏ dấu, ghép 1–3 từ liền nhau: phụ âm đầu (gi/d/r/ch/tr/z/j), vần "a",
+// rồi "v", nguyên âm i/y và BẮT BUỘC phụ âm cuối (s/t/ch/x/z/c) — nhờ vậy "gia vị", "giá vé" không bị nhận nhầm.
+const WAKE = /^(gi|dz|d|r|ch|tr|z|j|y)(a|ar|ac|aa|ah)(v)(i|y|ee)(s|t|ch|x|z|c|th|ts)$/;
+
+/** Từ đệm ở đầu câu lệnh sau tên gọi. */
+const LEAD = /^(ơi|oi|à|a|này|nay|nè|ne|ạ)(?=[\s,.!?]|$)[,.!?\s]*/i;
+
+function letters(word: string) {
+  return fold(word).replace(/[^a-z]/g, '');
+}
+
+/** Vị trí tên gọi trong câu: [từ bắt đầu, số từ], hoặc null. */
+export function findWakeWord(words: string[]): [number, number] | null {
+  const keys = words.map(letters);
+  for (let start = 0; start < keys.length; start += 1) {
+    if (!keys[start]) continue;
+    let joined = '';
+    for (let size = 1; size <= 3 && start + size <= keys.length; size += 1) {
+      joined += keys[start + size - 1];
+      if (WAKE.test(joined)) return [start, size];
+    }
+  }
+  return null;
+}
 
 /** Bỏ dấu câu và từ gọi đệm ("ơi", "à", "này", "nè") ở đầu câu lệnh. */
 function commandAfter(words: string[]) {
-  return words
-    .join(' ')
-    .replace(/^[,.!?:;\s]+/, '')
-    .replace(/^(ơi|à|này|nè)(?=[\s,.!?]|$)[,.!?\s]*/i, '')
-    .trim();
+  return words.join(' ').replace(/^[,.!?:;\s]+/, '').replace(LEAD, '').trim();
 }
 
 /** Tìm từ gọi trong câu: trả về phần câu lệnh phía sau, hoặc null nếu không có từ gọi. */
 export function afterWakeWord(text: string): string | null {
   const words = text.split(/\s+/).filter(Boolean);
-  const folded = words.map(word => fold(word).replace(/[^a-z]/g, ''));
-  for (let index = 0; index < folded.length; index += 1) {
-    if (WAKE_SINGLE.test(folded[index])) return commandAfter(words.slice(index + 1));
-    if (index + 1 < folded.length && WAKE_HEAD.test(folded[index]) && WAKE_TAIL.test(folded[index + 1])) return commandAfter(words.slice(index + 2));
-  }
-  return null;
+  const found = findWakeWord(words);
+  return found ? commandAfter(words.slice(found[0] + found[1])) : null;
 }
 
 // ---------------------------------------------------------------- Giọng đọc

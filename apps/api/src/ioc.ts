@@ -50,73 +50,82 @@ function daysSince(date: Date | null | undefined, now: Date) {
   return date ? Math.floor((now.getTime() - date.getTime()) / DAY) : 0;
 }
 
+/**
+ * Ảnh chụp số liệu điều hành dùng chung cho Trung tâm điều hành, trình chiếu và Jarvis: chỉ tiêu trong phạm vi quyền,
+ * tình trạng, kỳ thiếu báo cáo, báo cáo chờ duyệt, giải trình đang mở. Mọi nơi hiển thị số liệu tổng hợp đều đi qua đây
+ * để con số khớp nhau.
+ */
+export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: number, requestedDepartmentId?: string) {
+  const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+  const now = new Date();
+  const setting = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
+  const threshold = setting?.riskThreshold ?? 70;
+  const stallDays = setting?.assignmentStallDays ?? 3;
+  const targets = await prisma.target.findMany({
+    where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
+    include: {
+      department: { select: { id: true, name: true, color: true, sortOrder: true } },
+      assignee: { select: { id: true, fullName: true } },
+      framework: { select: { id: true, name: true, kind: true } },
+      _count: { select: { directives: true, evaluations: true, children: true } },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+  });
+  const targetIds = targets.map(target => target.id);
+  const [reports, pendingReports, openExplanations] = await Promise.all([
+    prisma.progressUpdate.findMany({
+      where: { targetId: { in: targetIds }, reviewStatus: { not: ProgressReviewStatus.REJECTED }, periodKey: { not: null } },
+      select: { targetId: true, periodKey: true },
+    }),
+    prisma.progressUpdate.findMany({
+      where: { targetId: { in: targetIds }, reviewStatus: ProgressReviewStatus.PENDING },
+      select: { id: true, targetId: true, createdAt: true, userId: true },
+    }),
+    prisma.explanationRequest.findMany({
+      where: { targetId: { in: targetIds }, status: ExplanationStatus.OPEN },
+      select: { id: true, targetId: true, dueAt: true, createdAt: true, message: true },
+    }),
+  ]);
+  const reportedByTarget = new Map<string, Set<string>>();
+  for (const report of reports) {
+    const set = reportedByTarget.get(report.targetId) ?? new Set<string>();
+    set.add(report.periodKey!);
+    reportedByTarget.set(report.targetId, set);
+  }
+  const leafIds = new Set(targets.filter(target => target._count.children === 0).map(target => target.id));
+  const evaluated = targets.map(target => {
+    const metric = evaluateTarget({
+      targetValue: target.targetValue, currentValue: target.currentValue, direction: target.direction, dueDate: target.dueDate,
+      riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind, now,
+    });
+    const periods = target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
+    const reported = reportedByTarget.get(target.id) ?? new Set<string>();
+    const missingPeriods = periods.filter(period => period.overdue && !reported.has(period.key)).map(period => period.key);
+    const pending = pendingReports.filter(report => report.targetId === target.id);
+    const unassignedDays = !target.assigneeId && target.valueSource === ValueSource.MANUAL ? daysSince(target.createdAt, now) : 0;
+    return {
+      target,
+      metric,
+      isLeaf: leafIds.has(target.id),
+      missingPeriods,
+      pending,
+      unassigned: !target.assigneeId && target.valueSource === ValueSource.MANUAL && leafIds.has(target.id),
+      overdueAssignment: stallDays > 0 && unassignedDays >= stallDays && leafIds.has(target.id),
+      stalledUnassigned: stallDays > 0 && unassignedDays >= stallDays * 2 && leafIds.has(target.id) && target.kind !== FrameworkKind.STAT,
+      explanation: openExplanations.find(item => item.targetId === target.id) ?? null,
+    };
+  });
+  return { now, setting, threshold, departmentId, evaluated, pendingReports, openExplanations };
+}
+
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class IocController {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Tập dữ liệu chung cho tổng quan, trình chiếu và trách nhiệm. */
-  private async snapshot(actor: Actor, year: number, requestedDepartmentId?: string) {
-    const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
-    const now = new Date();
-    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
-    const threshold = setting?.riskThreshold ?? 70;
-    const stallDays = setting?.assignmentStallDays ?? 3;
-    const targets = await this.prisma.target.findMany({
-      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
-      include: {
-        department: { select: { id: true, name: true, color: true, sortOrder: true } },
-        assignee: { select: { id: true, fullName: true } },
-        framework: { select: { id: true, name: true, kind: true } },
-        _count: { select: { directives: true, evaluations: true, children: true } },
-      },
-      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-    });
-    const targetIds = targets.map(target => target.id);
-    const [reports, pendingReports, openExplanations] = await Promise.all([
-      this.prisma.progressUpdate.findMany({
-        where: { targetId: { in: targetIds }, reviewStatus: { not: ProgressReviewStatus.REJECTED }, periodKey: { not: null } },
-        select: { targetId: true, periodKey: true },
-      }),
-      this.prisma.progressUpdate.findMany({
-        where: { targetId: { in: targetIds }, reviewStatus: ProgressReviewStatus.PENDING },
-        select: { id: true, targetId: true, createdAt: true, userId: true },
-      }),
-      this.prisma.explanationRequest.findMany({
-        where: { targetId: { in: targetIds }, status: ExplanationStatus.OPEN },
-        select: { id: true, targetId: true, dueAt: true, createdAt: true, message: true },
-      }),
-    ]);
-    const reportedByTarget = new Map<string, Set<string>>();
-    for (const report of reports) {
-      const set = reportedByTarget.get(report.targetId) ?? new Set<string>();
-      set.add(report.periodKey!);
-      reportedByTarget.set(report.targetId, set);
-    }
-    const leafIds = new Set(targets.filter(target => target._count.children === 0).map(target => target.id));
-    const evaluated = targets.map(target => {
-      const metric = evaluateTarget({
-        targetValue: target.targetValue, currentValue: target.currentValue, direction: target.direction, dueDate: target.dueDate,
-        riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind, now,
-      });
-      const periods = target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
-      const reported = reportedByTarget.get(target.id) ?? new Set<string>();
-      const missingPeriods = periods.filter(period => period.overdue && !reported.has(period.key)).map(period => period.key);
-      const pending = pendingReports.filter(report => report.targetId === target.id);
-      const unassignedDays = !target.assigneeId && target.valueSource === ValueSource.MANUAL ? daysSince(target.createdAt, now) : 0;
-      return {
-        target,
-        metric,
-        isLeaf: leafIds.has(target.id),
-        missingPeriods,
-        pending,
-        unassigned: !target.assigneeId && target.valueSource === ValueSource.MANUAL && leafIds.has(target.id),
-        overdueAssignment: stallDays > 0 && unassignedDays >= stallDays && leafIds.has(target.id),
-        stalledUnassigned: stallDays > 0 && unassignedDays >= stallDays * 2 && leafIds.has(target.id) && target.kind !== FrameworkKind.STAT,
-        explanation: openExplanations.find(item => item.targetId === target.id) ?? null,
-      };
-    });
-    return { now, setting, threshold, departmentId, evaluated, pendingReports, openExplanations };
+  private snapshot(actor: Actor, year: number, requestedDepartmentId?: string) {
+    return iocSnapshot(this.prisma, actor, year, requestedDepartmentId);
   }
 
   private targetBrief(item: { target: any; metric: { status: TargetStatus; progress: number } }) {

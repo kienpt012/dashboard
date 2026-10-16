@@ -25,6 +25,7 @@ import { navGroups, routeInfo } from '../nav';
 import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
 import { Jarvis, JarvisMark, type JarvisVoiceState } from './Jarvis';
+import { WakeToggle } from './jarvis/WakeToggle';
 import { Notifications } from './Notifications';
 import './layout.css';
 
@@ -137,6 +138,7 @@ export default function AdminLayout() {
   const [palette, setPalette] = useState(false);
   const [copilot, setCopilot] = useState(false);
   const [voice, setVoice] = useState<JarvisVoiceState>('off');
+  const [heard, setHeard] = useState('');
   const openJarvis = useCallback(() => setCopilot(true), []);
   const closeJarvis = useCallback(() => setCopilot(false), []);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
@@ -257,6 +259,7 @@ export default function AdminLayout() {
             <kbd>Ctrl K</kbd>
           </button>
           <div className="head-actions">
+            <WakeToggle heard={heard} quiet={copilot} />
             <Tooltip title={voice === 'idle' ? 'Jarvis đang chờ gọi tên (Ctrl J)' : 'Jarvis (Ctrl J)'}>
               <Button
                 type="text"
@@ -303,7 +306,7 @@ export default function AdminLayout() {
         onTheme={() => theme.setChoice(theme.dark ? 'light' : 'dark')}
         onLogout={logout}
       />
-      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} />
+      <Jarvis open={copilot} onOpen={openJarvis} onClose={closeJarvis} onVoiceState={setVoice} onHeard={setHeard} />
       <BackToTop />
     </Layout>
   );

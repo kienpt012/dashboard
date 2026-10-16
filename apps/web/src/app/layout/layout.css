@@ -690,3 +690,73 @@
     animation: none !important;
   }
 }
+
+/* Gọi Jarvis bằng giọng nói */
+.wake-toggle {
+  position: relative;
+  display: inline-flex;
+}
+
+.head-btn.jarvis-wake.on {
+  color: var(--ioc-color-primary);
+}
+
+.head-btn.jarvis-wake.on::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--ioc-color-primary) 55%, transparent);
+  animation: wake-ring 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes wake-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.wake-heard {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 340px;
+  padding: 6px 12px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 10px;
+  background: var(--ioc-color-bg-elevated);
+  box-shadow: var(--ioc-box-shadow-secondary);
+  color: var(--ioc-color-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.4;
+  animation: wake-heard-in 0.18s ease-out;
+}
+
+.wake-heard .anticon {
+  color: var(--ioc-color-primary);
+}
+
+@keyframes wake-heard-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head-btn.jarvis-wake.on::after,
+  .wake-heard {
+    animation: none;
+  }
+}

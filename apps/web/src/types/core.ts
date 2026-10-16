@@ -471,7 +471,10 @@ export type CopilotPlanner='llm'|'rules';
 export type CopilotSource={tool:string;parameters:Record<string,unknown>};
 
 export type CopilotTargetRow={
+  id?:string;
   code:string;
+  /** Các kỳ đã qua hạn mà chưa báo cáo (câu hỏi thiếu báo cáo). */
+  missing?:string;
   title:string;
   department:string;
   progress?:number;

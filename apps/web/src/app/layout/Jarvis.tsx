@@ -5,31 +5,20 @@ import { Link } from 'react-router-dom';
 import { errorText, http } from '@/lib/api';
 import { dateTime, num, pct } from '@/lib/format';
 import type { CopilotResponse } from '@/types/core';
+import { setJarvisSettings, useJarvisSettings } from './jarvis/settings';
 import { afterWakeWord, canSpeakVietnamese, chime, createRecognition, recognitionError, speak, stopSpeaking, transcriptOf, voiceSupport, type Recognition } from './jarvis/voice';
 
 // Jarvis — trợ lý điều hành: hỏi bằng chữ hoặc giọng nói, gọi bằng tên "Jarvis", đọc câu trả lời.
 // Lệnh có ghi dữ liệu luôn chờ người dùng bấm xác nhận; không xác nhận bằng giọng nói.
 
 const SUGGESTIONS = ['Tình hình thực hiện năm nay', 'Chỉ tiêu nào sắp trễ hạn?', 'Chỉ tiêu nào chưa có số liệu?', 'Đề xuất nào đang chờ xác minh?'];
-const SETTINGS_KEY = 'ioc_jarvis';
 const COMMAND_WAIT_MS = 8000;
 
 export type JarvisVoiceState = 'off' | 'idle' | 'listening' | 'thinking' | 'speaking';
 
-type Settings = { wake: boolean; readAloud: boolean };
-
 type Bubble =
   | { id: number; role: 'user'; text: string; voice?: boolean }
   | { id: number; role: 'assistant'; answer?: CopilotResponse; error?: string; action?: 'pending' | 'busy' | 'done' | 'cancelled' };
-
-function readSettings(): Settings {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') as Partial<Settings> | null;
-    return { wake: Boolean(saved?.wake), readAloud: saved?.readAloud !== false };
-  } catch {
-    return { wake: false, readAloud: true };
-  }
-}
 
 /** Biểu tượng Jarvis: lò phản ứng nhỏ cùng phong cách vòng HUD; quay nhanh khi đang nghe. */
 export function JarvisMark({ size = 20, state = 'off' }: { size?: number; state?: JarvisVoiceState }) {
@@ -57,9 +46,19 @@ function Rows({ answer }: { answer: CopilotResponse }) {
           rowKey="code"
           dataSource={answer.rows}
           columns={[
-            { title: 'Chỉ tiêu', dataIndex: 'title', render: (value, row) => <><Typography.Text type="secondary">{row.code}</Typography.Text> {value}</> },
+            {
+              title: 'Chỉ tiêu',
+              dataIndex: 'title',
+              render: (value, row) => (
+                <>
+                  <Typography.Text type="secondary">{row.code}</Typography.Text> {row.id ? <Link to={`/admin/targets/${row.id}`}>{value}</Link> : value}
+                </>
+              ),
+            },
             { title: 'Phòng', dataIndex: 'department', width: 120 },
-            { title: 'Tiến độ', dataIndex: 'progress', width: 80, align: 'right', render: value => pct(value) },
+            answer.rows.some(row => row.missing)
+              ? { title: 'Thiếu kỳ', dataIndex: 'missing', width: 130 }
+              : { title: 'Tiến độ', dataIndex: 'progress', width: 80, align: 'right' as const, render: value => pct(value) },
           ]}
         />
       );
@@ -128,12 +127,25 @@ const STATUS_TEXT: Record<JarvisVoiceState, string | null> = {
   speaking: 'Đang trả lời',
 };
 
-export function Jarvis({ open, onOpen, onClose, onVoiceState }: { open: boolean; onOpen: () => void; onClose: () => void; onVoiceState?: (state: JarvisVoiceState) => void }) {
+export function Jarvis({
+  open,
+  onOpen,
+  onClose,
+  onVoiceState,
+  onHeard,
+}: {
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onVoiceState?: (state: JarvisVoiceState) => void;
+  /** Câu trình duyệt vừa nghe được khi đang chờ gọi tên — để hiện cho người dùng biết micro đang nghe gì. */
+  onHeard?: (text: string) => void;
+}) {
   const { message } = App.useApp();
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [settings, setSettings] = useState<Settings>(readSettings);
+  const settings = useJarvisSettings();
   const [voice, setVoice] = useState<JarvisVoiceState>('off');
   const [heard, setHeard] = useState('');
   const counter = useRef(0);
@@ -146,10 +158,12 @@ export function Jarvis({ open, onOpen, onClose, onVoiceState }: { open: boolean;
   const commandTimer = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
   const onOpenRef = useRef(onOpen);
+  const onHeardRef = useRef(onHeard);
   const canListen = voiceSupport.recognition;
 
   settingsRef.current = settings;
   onOpenRef.current = onOpen;
+  onHeardRef.current = onHeard;
 
   const updateVoice = useCallback(
     (next: JarvisVoiceState) => {
@@ -159,14 +173,6 @@ export function Jarvis({ open, onOpen, onClose, onVoiceState }: { open: boolean;
     },
     [onVoiceState],
   );
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch {
-      /* bỏ qua */
-    }
-  }, [settings]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' });
@@ -235,7 +241,11 @@ export function Jarvis({ open, onOpen, onClose, onVoiceState }: { open: boolean;
       const { finalText, interimText } = transcriptOf(event.results, event.resultIndex);
       if (!awaiting) {
         const rest = afterWakeWord(finalText || interimText);
-        if (rest === null) return;
+        if (rest === null) {
+          onHeardRef.current?.(interimText || finalText);
+          return;
+        }
+        onHeardRef.current?.('');
         awaiting = true;
         chime();
         onOpenRef.current();
@@ -258,7 +268,7 @@ export function Jarvis({ open, onOpen, onClose, onVoiceState }: { open: boolean;
       const text = recognitionError(event.error);
       if (text) {
         message.error(text);
-        setSettings(current => ({ ...current, wake: false }));
+        setJarvisSettings({ wake: false });
       }
     };
     rec.onend = () => {
@@ -383,13 +393,13 @@ export function Jarvis({ open, onOpen, onClose, onVoiceState }: { open: boolean;
           disabled={!canListen || !voiceSupport.secure}
           onChange={wake => {
             if (wake) chime();
-            setSettings(current => ({ ...current, wake }));
+            setJarvisSettings({ wake });
           }}
         />
       </Flex>
       <Flex justify="space-between" align="center" gap={12}>
         <span>Đọc câu trả lời</span>
-        <Switch checked={settings.readAloud} disabled={!voiceSupport.speech} onChange={readAloud => setSettings(current => ({ ...current, readAloud }))} />
+        <Switch checked={settings.readAloud} disabled={!voiceSupport.speech} onChange={readAloud => setJarvisSettings({ readAloud })} />
       </Flex>
       {!canListen ? (
         <Typography.Text type="secondary">Trình duyệt này chưa hỗ trợ nhận dạng giọng nói (dùng Chrome hoặc Edge)</Typography.Text>

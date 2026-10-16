@@ -14,6 +14,7 @@ import {
   AgentActionStatus,
   CandidateStatus,
   DocumentStatus,
+  FrameworkKind,
   Prisma,
   Role,
   TargetStatus,
@@ -23,9 +24,10 @@ import { IsString, MaxLength, MinLength } from 'class-validator';
 import { type Actor, audit, getActor, isLeadership, resolveDepartmentScope } from './access';
 import { approveCandidateById, missingApprovalFields } from './candidates';
 import { JwtAuthGuard } from './common';
-import { evaluateTarget } from './metrics';
+import { iocSnapshot } from './ioc';
 import { diceSimilarity, matchDepartmentByName, normalizeVietnamese } from './matching';
 import { OllamaService } from './ollama';
+import { periodLabel } from './periods';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
 
@@ -140,11 +142,12 @@ export function ruleBasedPlan(message: string): CopilotPlan {
       includeDuplicates: /(cả|kể cả|bao gồm).*(trùng|nghi trùng)/.test(normalized) || null,
     };
   }
+  // "Quá hạn báo cáo" là thiếu báo cáo kỳ, không phải chỉ tiêu quá hạn hoàn thành: xét trước nhóm rủi ro.
+  if (/(chưa có số liệu|thiếu số liệu|thiếu báo cáo|chưa báo cáo|chậm báo cáo|chưa nộp|chưa cập nhật|(quá hạn|trễ hạn|trễ|chậm) (nộp )?báo cáo)/.test(normalized)) {
+    return { intent: 'TARGETS_MISSING_REPORT', year };
+  }
   if (/(trễ hạn|quá hạn|rủi ro|cần chú ý|sắp trễ|nguy cơ)/.test(normalized)) {
     return { intent: 'TARGETS_AT_RISK', year };
-  }
-  if (/(chưa có số liệu|thiếu số liệu|chưa báo cáo|chưa cập nhật)/.test(normalized)) {
-    return { intent: 'TARGETS_MISSING_REPORT', year };
   }
   if (/(văn bản|tài liệu|kế hoạch|quyết định|công văn)/.test(normalized) && /(tìm|kiếm|tra|xem|mở)/.test(normalized)) {
     return { intent: 'SEARCH_DOCUMENTS', year, searchQuery: message.replace(/.*?(tìm|kiếm|tra cứu)\s*/i, '').trim() || null };
@@ -552,26 +555,32 @@ export class CopilotController {
 
     switch (plan.intent) {
       case 'DASHBOARD_SUMMARY': {
-        const targets = await this.loadEvaluatedTargets(year, departmentId, settings?.riskThreshold ?? 70);
-        const completed = targets.filter(target => target.status === TargetStatus.COMPLETED).length;
-        const atRisk = targets.filter(target => target.status === TargetStatus.AT_RISK).length;
-        const overdue = targets.filter(target => target.status === TargetStatus.OVERDUE).length;
-        const weightTotal = targets.reduce((sum, target) => sum + target.weight, 0);
-        const weighted = targets.reduce((sum, target) => sum + (target.progress / 100) * target.weight, 0);
-        const overall = weightTotal ? Math.round((weighted / weightTotal) * 100) : 0;
+        // Cùng cách tính với Trung tâm điều hành: chỉ tiêu lá, không tính chỉ tiêu thống kê, bình quân theo trọng số.
+        const snap = await iocSnapshot(this.prisma, actor, year, departmentId);
+        const leaves = snap.evaluated.filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT);
+        const stats = snap.evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.STAT);
+        const count = (status: TargetStatus) => leaves.filter(item => item.metric.status === status).length;
+        const weight = leaves.reduce((sum, item) => sum + item.target.weight, 0);
+        const overall = weight ? Math.round(leaves.reduce((sum, item) => sum + item.metric.progress * item.target.weight, 0) / weight) : 0;
+        const missing = snap.evaluated.filter(item => item.isLeaf && item.missingPeriods.length).length;
         return {
-          reply: `Năm ${year}${departmentNote}: ${targets.length} chỉ tiêu, tiến độ chung theo trọng số ${overall}%. `
-            + `Đã hoàn thành ${completed}, có rủi ro ${atRisk}, quá hạn ${overdue}. `
-            + `Số liệu lấy trực tiếp từ danh mục chỉ tiêu tại thời điểm trả lời.`,
+          reply: `Năm ${year}${departmentNote}: ${leaves.length} chỉ tiêu, tiến độ chung ${overall}%. `
+            + `Hoàn thành ${count(TargetStatus.COMPLETED)}, đúng tiến độ ${count(TargetStatus.ON_TRACK)}, có nguy cơ ${count(TargetStatus.AT_RISK)}, `
+            + `quá hạn ${count(TargetStatus.OVERDUE)}, chưa bắt đầu ${count(TargetStatus.NOT_STARTED)}. `
+            + (stats.length ? `Chỉ tiêu thống kê có số liệu ${stats.filter(item => item.target.lastReportedAt).length}/${stats.length}. ` : '')
+            + `${missing} chỉ tiêu thiếu báo cáo kỳ, ${snap.pendingReports.length} báo cáo chờ duyệt.`,
           intent: plan.intent,
           planner,
-          source: { tool: 'queryMetrics', parameters: { year, departmentId: departmentId ?? 'ALL' } },
+          source: { tool: 'iocSnapshot', parameters: { year, departmentId: departmentId ?? 'ALL' } },
         };
       }
       case 'LIST_TARGETS':
       case 'TARGETS_AT_RISK': {
         const riskOnly = plan.intent === 'TARGETS_AT_RISK';
-        let targets = await this.loadEvaluatedTargets(year, departmentId, settings?.riskThreshold ?? 70);
+        const snap = await iocSnapshot(this.prisma, actor, year, departmentId);
+        let targets = snap.evaluated
+          .filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT)
+          .map(item => ({ ...item.target, departmentName: item.target.department.name, progress: item.metric.progress, status: item.metric.status }));
         if (riskOnly) {
           targets = targets.filter(target =>
             target.status === TargetStatus.AT_RISK || target.status === TargetStatus.OVERDUE);
@@ -597,6 +606,7 @@ export class CopilotController {
           source: { tool: 'queryTargets', parameters: { year, departmentId: departmentId ?? 'ALL', riskOnly, status: plan.status, belowProgress: plan.belowProgress } },
           rowType: 'targets',
           rows: shown.map(target => ({
+            id: target.id,
             code: target.code,
             title: target.title,
             department: target.departmentName,
@@ -610,31 +620,29 @@ export class CopilotController {
         };
       }
       case 'TARGETS_MISSING_REPORT': {
-        const targets = await this.prisma.target.findMany({
-          where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
-          select: {
-            id: true, code: true, title: true, unit: true, frequency: true,
-            lastReportedAt: true, department: { select: { name: true } },
-          },
-          orderBy: { code: 'asc' },
-        });
-        const now = new Date();
-        const staleBefore = new Date(now);
-        staleBefore.setUTCDate(staleBefore.getUTCDate() - 45);
-        const missing = targets.filter(target => !target.lastReportedAt || target.lastReportedAt < staleBefore);
+        // Cùng tiêu chí "Thiếu báo cáo kỳ" của Trung tâm điều hành: kỳ đã qua hạn báo cáo mà chưa có báo cáo.
+        const snap = await iocSnapshot(this.prisma, actor, year, departmentId);
+        const reporting = snap.evaluated.filter(item => item.isLeaf && item.target.valueSource === 'MANUAL');
+        const missing = reporting
+          .filter(item => item.missingPeriods.length)
+          .sort((a, b) => b.missingPeriods.length - a.missingPeriods.length);
         return {
           reply: missing.length
-            ? `Có ${missing.length}/${targets.length} chỉ tiêu năm ${year}${departmentNote} chưa có số liệu hoặc không cập nhật trong 45 ngày gần nhất.`
-            : `Tất cả ${targets.length} chỉ tiêu năm ${year}${departmentNote} đều đã có số liệu trong 45 ngày gần nhất.`,
+            ? `Có ${missing.length}/${reporting.length} chỉ tiêu năm ${year}${departmentNote} thiếu báo cáo ít nhất một kỳ đã qua hạn.`
+            : `Tất cả ${reporting.length} chỉ tiêu báo cáo thủ công năm ${year}${departmentNote} đã đủ báo cáo các kỳ đến hạn.`,
           intent: plan.intent,
           planner,
-          source: { tool: 'findMissingReports', parameters: { year, departmentId: departmentId ?? 'ALL', staleDays: 45 } },
+          source: { tool: 'iocSnapshot.missingPeriods', parameters: { year, departmentId: departmentId ?? 'ALL' } },
           rowType: 'targets',
-          rows: missing.slice(0, 20).map(target => ({
-            code: target.code,
-            title: target.title,
-            department: target.department.name,
-            lastReportedAt: target.lastReportedAt,
+          rows: missing.slice(0, 20).map(item => ({
+            id: item.target.id,
+            code: item.target.code,
+            title: item.target.title,
+            department: item.target.department.name,
+            missing: item.missingPeriods.length > 2
+              ? `${item.missingPeriods.length} kỳ, gần nhất ${periodLabel(item.missingPeriods[item.missingPeriods.length - 1])}`
+              : item.missingPeriods.map(periodLabel).join(', '),
+            lastReportedAt: item.target.lastReportedAt,
           })),
         };
       }
@@ -724,33 +732,6 @@ export class CopilotController {
     }
   }
 
-  private async loadEvaluatedTargets(year: number, departmentId: string | undefined, riskThreshold: number) {
-    const targets = await this.prisma.target.findMany({
-      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
-      select: {
-        id: true, code: true, title: true, unit: true, targetValue: true, currentValue: true,
-        weight: true, direction: true, status: true, dueDate: true, lastReportedAt: true,
-        department: { select: { name: true } },
-      },
-      orderBy: { code: 'asc' },
-    });
-    return targets.map(target => {
-      const evaluated = evaluateTarget({
-        targetValue: target.targetValue,
-        currentValue: target.currentValue,
-        direction: target.direction,
-        dueDate: target.dueDate,
-        hasReport: Boolean(target.lastReportedAt),
-        riskThreshold,
-      });
-      return {
-        ...target,
-        departmentName: target.department.name,
-        progress: evaluated.progress,
-        status: evaluated.status,
-      };
-    });
-  }
 }
 
 // Khớp cách người dùng gọi văn bản ("phụ lục 1", "kế hoạch KTXH", mã VB) với
