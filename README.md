@@ -47,7 +47,7 @@ Có thể nhấp đúp `start-ioc.cmd` thay cho lệnh cuối. Clone vào đư�
 4. Kiểm tra cổng 8080, 3000, 5432; đề nghị cổng khác nếu bị chiếm.
 5. Cài Ollama và tải model AI (tuỳ chọn, khoảng 3,7 GB).
 6. Build và khởi động PostgreSQL, API, web; áp dụng migration.
-7. Tạo dữ liệu mẫu nếu cơ sở dữ liệu trống và in tài khoản đăng nhập.
+7. Nạp bộ dữ liệu mẫu nếu cơ sở dữ liệu trống (máy đang dùng bộ mẫu đời trước thì thay bằng bộ mới) và in tài khoản đăng nhập.
 
 Lần cài đầu mất khoảng 10 phút, chưa tính thời gian tải model. Nếu script dừng với thông báo **CẦN BẠN XỬ LÝ** (ví dụ phải khởi động lại Windows sau khi cài Docker), làm theo hướng dẫn rồi chạy lại lệnh. Chạy lại không ghi đè `.env` và không tạo lại dữ liệu.
 
@@ -69,8 +69,9 @@ docker compose exec api ./docker-entrypoint.sh seed   # chỉ chạy một lần
 
 ## Tài khoản mẫu
 
-Dữ liệu mẫu dựng một phường giả lập (TP.HCM) với ba bộ chỉ tiêu, kho dữ liệu, báo cáo, đánh giá và một số việc đang
-chờ để thấy cơ chế trách nhiệm hoạt động.
+Bộ dữ liệu mẫu (`apps/api/prisma/demo/`) là một phường giả lập (TP.HCM) với ba bộ chỉ tiêu, kho dữ liệu, báo cáo, đánh giá,
+phản ánh, trang công khai và một số việc đang chờ để thấy cơ chế trách nhiệm hoạt động. Mọi số liệu thực hiện là mô phỏng.
+Người phát triển cập nhật bộ mẫu từ một cơ sở dữ liệu demo bằng `npx tsx prisma/demo/export.ts` (thư mục `apps/api`).
 
 | Tài khoản | Vai trò | Dùng để thử |
 |---|---|---|
@@ -130,7 +131,8 @@ Chỉ cần chạy lại `start-ioc.cmd`. Mỗi lần khởi động, trình kh�
 
 1. Kiểm tra GitHub và tải bản mới nhất của nhánh đang dùng (`git pull` dạng tua nhanh) — không ghi đè tệp bạn tự sửa;
 2. Bổ sung vào `.env` các cấu hình mới (giữ nguyên mật khẩu, khoá bí mật và giá trị bạn đã đặt);
-3. Build lại image và áp dụng migration cơ sở dữ liệu mới — dữ liệu, tài khoản được giữ nguyên.
+3. Build lại image và áp dụng migration cơ sở dữ liệu mới — dữ liệu, tài khoản được giữ nguyên;
+4. Máy đang dùng bộ dữ liệu mẫu đời trước: hỏi rồi thay bằng bộ mẫu mới (dữ liệu thật của địa phương không bao giờ bị đụng tới).
 
 Không muốn tự cập nhật trong một lần chạy: `.\start-ioc.cmd -NoUpdate`. Máy chỉ dùng thử và muốn có bộ dữ liệu mẫu mới:
 `.\start-ioc.cmd -ResetData` (xoá toàn bộ dữ liệu, hỏi xác nhận trước). Sau khi nâng cấp từ bản 1, vào **Thiết lập địa phương**

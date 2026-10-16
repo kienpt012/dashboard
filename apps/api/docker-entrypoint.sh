@@ -35,7 +35,10 @@ export DIRECT_URL
 #                    scripts/start-ioc.ps1 on a fresh database through
 #                    `docker compose exec api ./docker-entrypoint.sh seed`, so the
 #                    database URL is derived exactly as the running API derives it.
-#                    The seed is idempotent and never overwrites existing rows.
+#                    Loads the official demo dataset (prisma/demo) into an empty database only.
+#   seed-replace     apply migrations and REPLACE an existing demo dataset (older sample data) with the
+#                    current one. Refuses to touch a database that holds real locality data.
+#   demo-status      print "IOC_DATA <empty|demo|real> <current version> <latest version>" for start-ioc.
 #   bootstrap        apply migrations and create only the first ADMIN account
 #                    (ADMIN_USERNAME / ADMIN_PASSWORD) for a real locality without
 #                    demo data; the locality is then configured at /admin/thiet-lap.
@@ -48,6 +51,13 @@ case "${1:-serve}" in
     npx prisma migrate deploy --schema=prisma/schema.prisma
     ALLOW_DEMO_SEED=true exec npx tsx prisma/seed.ts
     ;;
+  seed-replace)
+    npx prisma migrate deploy --schema=prisma/schema.prisma
+    ALLOW_DEMO_SEED=true exec npx tsx prisma/seed.ts --replace
+    ;;
+  demo-status)
+    exec npx tsx prisma/demo/status.ts
+    ;;
   serve)
     npx prisma migrate deploy --schema=prisma/schema.prisma
     if [ "${RUN_DEMO_SEED:-false}" = "true" ]; then
@@ -56,7 +66,7 @@ case "${1:-serve}" in
     exec node dist/main.js
     ;;
   *)
-    echo "Unknown command: $1 (expected: serve, seed or bootstrap)" >&2
+    echo "Unknown command: $1 (expected: serve, seed, seed-replace, demo-status or bootstrap)" >&2
     exit 64
     ;;
 esac

@@ -163,19 +163,71 @@
   animation: jv-glitch-b 0.9s steps(2, end) 0.45s both;
 }
 
-.jv-greeting {
+.jv-caption {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 16vh;
+  left: 50%;
+  bottom: 9vh;
+  transform: translateX(-50%);
+  width: min(880px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   text-align: center;
-  font-size: clamp(15px, 2.4vmin, 22px);
-  font-weight: 500;
-  letter-spacing: 0.18em;
+}
+
+.jv-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: #bae6fd;
-  text-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+  color: #67e8f9;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
+  animation: jv-blink-soft 1.4s ease-in-out infinite;
+}
+
+.jv-greeting {
+  max-height: 22vh;
+  overflow: hidden;
+  font-size: clamp(16px, 2.3vmin, 24px);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: #e0f2fe;
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
   min-height: 1.5em;
+  animation: jv-caption-in 0.35s ease-out both;
+}
+
+/* Lời chào mở đầu: chữ in hoa giãn rộng như phim */
+.phase-intro .jv-greeting {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #bae6fd;
+}
+
+/* Câu người dùng đang nói: chữ lớn, sáng hơn */
+.phase-listening .jv-greeting {
+  font-size: clamp(18px, 2.8vmin, 30px);
+  color: #f0f9ff;
+}
+
+.phase-thinking .jv-ring-a,
+.phase-thinking .jv-ring-c {
+  animation-duration: 0.9s, 1.6s;
+}
+
+@keyframes jv-caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes jv-blink-soft {
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .jv-caret {
@@ -313,5 +365,21 @@
 @keyframes jv-blink {
   50% {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jv-summon,
+  .jv-summon::after,
+  .jv-ticks,
+  .jv-ring,
+  .jv-core,
+  .jv-word,
+  .jv-word::before,
+  .jv-word::after,
+  .jv-label,
+  .jv-greeting,
+  .jv-caret {
+    animation: none !important;
   }
 }

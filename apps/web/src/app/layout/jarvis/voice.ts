@@ -1,6 +1,7 @@
-// Giọng nói của Jarvis: nhận dạng (Web Speech API của trình duyệt), bắt từ gọi "Jarvis", đọc câu trả lời, tiếng chuông.
-// Nhận dạng do trình duyệt thực hiện (Chrome/Edge chuyển âm thanh tới dịch vụ nhận dạng của hãng) và chỉ chạy trên
-// HTTPS hoặc localhost. Lệnh có ghi dữ liệu không bao giờ được xác nhận bằng giọng nói.
+// Giọng nói của Jarvis: nhận dạng (Web Speech API của trình duyệt), bắt tên gọi "Jarvis", đọc câu trả lời,
+// đo âm lượng micro cho hiệu ứng, tiếng chuông. Nhận dạng do trình duyệt thực hiện (Chrome/Edge chuyển âm thanh tới
+// dịch vụ nhận dạng của hãng) và chỉ chạy trên HTTPS hoặc localhost. Lệnh có ghi dữ liệu không bao giờ được xác nhận
+// bằng giọng nói.
 
 type RecognitionResultList = ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
 
@@ -34,14 +35,21 @@ export const voiceSupport = {
   speech: typeof window !== 'undefined' && 'speechSynthesis' in window,
 };
 
-export function createRecognition(continuous: boolean): Recognition | null {
+/**
+ * Tên "Jarvis" là tiếng Anh: bộ nhận dạng tiếng Việt thường nghe thành câu tiếng Việt ("Hãy cho biết"), nên phiên chờ
+ * tên gọi dùng tiếng Anh; câu lệnh sau đó nghe bằng tiếng Việt.
+ */
+export const WAKE_LANG = 'en-US';
+export const COMMAND_LANG = 'vi-VN';
+
+export function createRecognition(continuous: boolean, lang = COMMAND_LANG): Recognition | null {
   const Recognition = recognitionClass();
   if (!Recognition) return null;
   const recognition = new Recognition();
-  recognition.lang = 'vi-VN';
+  recognition.lang = lang;
   recognition.continuous = continuous;
   recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
+  recognition.maxAlternatives = 3;
   return recognition;
 }
 
@@ -56,6 +64,18 @@ export function transcriptOf(results: RecognitionResultList, from = 0) {
   return { finalText: finalText.trim(), interimText: interimText.trim() };
 }
 
+/** Mọi phương án nhận dạng (kể cả phương án phụ) — tên gọi có thể nằm ở phương án thứ hai, thứ ba. */
+export function alternativesOf(results: RecognitionResultList, from = 0): string[] {
+  const texts: string[] = [];
+  for (let index = from; index < results.length; index += 1) {
+    const result = results[index] as unknown as ArrayLike<{ transcript: string }>;
+    for (let alt = 0; alt < result.length; alt += 1) {
+      if (result[alt]?.transcript) texts.push(result[alt].transcript);
+    }
+  }
+  return texts;
+}
+
 export function recognitionError(code: string) {
   switch (code) {
     case 'not-allowed':
@@ -66,7 +86,7 @@ export function recognitionError(code: string) {
     case 'network':
       return 'Nhận dạng giọng nói cần kết nối mạng';
     case 'language-not-supported':
-      return 'Trình duyệt chưa hỗ trợ nhận dạng tiếng Việt';
+      return 'Trình duyệt chưa hỗ trợ nhận dạng ngôn ngữ này';
     default:
       return null;
   }
@@ -81,6 +101,10 @@ function fold(text: string) {
     .replace(/đ/gi, 'd')
     .toLowerCase();
 }
+
+// Bộ nhận dạng tiếng Anh nghe giọng Việt nói "Jarvis" thành: jarvis, javis, jervis, jarvas, charvis…
+// Không nhận các tên tiếng Anh có thật (Davis, Travis) để tránh tự kích hoạt khi trong phòng nói chuyện khác.
+const WAKE_EN = /\b(jarvis+|jervis|jarves|jarvas|jarvus|javis|jaavis|charvis|garvis|harvis|jarvish)\b/i;
 
 // Bộ nhận dạng tiếng Việt viết "Jarvis" theo nhiều cách: jarvis, javis, gia vít, giá vít, da vít, giác vít, chà vích,
 // dạ vịt… Khớp theo âm trên chuỗi đã bỏ dấu, ghép 1–3 từ liền nhau: phụ âm đầu (gi/d/r/ch/tr/z/j), vần "a",
@@ -113,58 +137,165 @@ function commandAfter(words: string[]) {
   return words.join(' ').replace(/^[,.!?:;\s]+/, '').replace(LEAD, '').trim();
 }
 
-/** Tìm từ gọi trong câu: trả về phần câu lệnh phía sau, hoặc null nếu không có từ gọi. */
+/** Tìm từ gọi trong câu tiếng Việt: trả về phần câu lệnh phía sau, hoặc null nếu không có từ gọi. */
 export function afterWakeWord(text: string): string | null {
   const words = text.split(/\s+/).filter(Boolean);
   const found = findWakeWord(words);
   return found ? commandAfter(words.slice(found[0] + found[1])) : null;
 }
 
+/** Câu do bộ nhận dạng tiếng Anh (phiên chờ tên gọi) nghe được có chứa tên Jarvis không. */
+export function heardWakeWord(text: string): boolean {
+  return WAKE_EN.test(text);
+}
+
 // ---------------------------------------------------------------- Giọng đọc
 
-let cachedVoice: SpeechSynthesisVoice | null | undefined;
+export function vietnameseVoices(): SpeechSynthesisVoice[] {
+  if (!voiceSupport.speech) return [];
+  return window.speechSynthesis.getVoices().filter(voice => voice.lang.toLowerCase().replace('_', '-').startsWith('vi'));
+}
 
-function vietnameseVoice() {
-  if (!voiceSupport.speech) return null;
-  if (cachedVoice) return cachedVoice;
-  const voices = window.speechSynthesis.getVoices().filter(voice => voice.lang.toLowerCase().replace('_', '-').startsWith('vi'));
-  // Ưu tiên giọng tự nhiên (Edge: Microsoft HoaiMy/NamMinh Online), rồi giọng của Google.
-  cachedVoice = voices.find(voice => /natural|online/i.test(voice.name)) ?? voices.find(voice => /google/i.test(voice.name)) ?? voices[0] ?? null;
-  return cachedVoice;
+/** Giọng mặc định cho Jarvis: giọng nam tự nhiên (Edge: Microsoft NamMinh Online), rồi giọng tự nhiên khác, giọng Google. */
+export function defaultVoice(voices = vietnameseVoices()): SpeechSynthesisVoice | null {
+  return (
+    voices.find(voice => /namminh/i.test(voice.name)) ??
+    voices.find(voice => /natural|online/i.test(voice.name)) ??
+    voices.find(voice => /google/i.test(voice.name)) ??
+    voices[0] ??
+    null
+  );
+}
+
+let preferredName: string | null = null;
+
+/** Chọn giọng theo tên (lưu trong cài đặt Jarvis); không có thì dùng giọng mặc định. */
+export function setPreferredVoice(name: string | null | undefined) {
+  preferredName = name || null;
+}
+
+function currentVoice() {
+  const voices = vietnameseVoices();
+  return (preferredName && voices.find(voice => voice.name === preferredName)) || defaultVoice(voices);
 }
 
 if (voiceSupport.speech) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    cachedVoice = undefined;
-  };
+  // Chrome nạp danh sách giọng không đồng bộ; gọi một lần để kích hoạt việc nạp.
+  window.speechSynthesis.getVoices();
 }
 
 export function canSpeakVietnamese() {
-  return Boolean(vietnameseVoice());
+  return Boolean(currentVoice());
 }
 
-/** Đọc câu trả lời; promise xong khi đọc hết hoặc bị dừng. */
-export function speak(text: string): Promise<void> {
+/** Tách câu dài: Chrome tự ngắt giọng đọc sau khoảng 15 giây nếu một lượt đọc quá dài. */
+function chunks(text: string) {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const sentences = clean.match(/[^.!?;:…]+[.!?;:…]*\s*/g) ?? [clean];
+  const parts: string[] = [];
+  for (const sentence of sentences) {
+    const last = parts[parts.length - 1];
+    if (last && last.length + sentence.length < 180) parts[parts.length - 1] = last + sentence;
+    else parts.push(sentence);
+  }
+  return parts.map(part => part.trim()).filter(Boolean);
+}
+
+let speechToken = 0;
+
+/**
+ * Đọc thành tiếng; promise xong khi đọc hết hoặc bị dừng. onWord được gọi ở mỗi ranh giới từ (dùng cho hiệu ứng nhấp
+ * nháy theo lời nói; trình duyệt không báo ranh giới từ thì gọi giả lập theo nhịp đọc); onChunk báo đoạn đang đọc
+ * (dùng làm phụ đề).
+ */
+export function speak(text: string, options: { onWord?: () => void; onChunk?: (part: string) => void; rate?: number } = {}): Promise<void> {
+  const voice = currentVoice();
+  const parts = chunks(text);
+  if (!voice || parts.length === 0) return Promise.resolve();
+  window.speechSynthesis.cancel();
+  const token = ++speechToken;
   return new Promise(resolve => {
-    const voice = vietnameseVoice();
-    if (!voice || !text.trim()) {
+    let index = 0;
+    let ticker = 0;
+    let boundaries = false;
+    const done = () => {
+      window.clearInterval(ticker);
       resolve();
-      return;
+    };
+    const next = () => {
+      if (token !== speechToken || index >= parts.length) {
+        done();
+        return;
+      }
+      const part = parts[index++];
+      options.onChunk?.(part);
+      // Trình duyệt có thể từ chối giọng hoặc dịch vụ đọc lỗi: bỏ qua đoạn đó, không để cuộc nói chuyện bị kẹt.
+      try {
+        const utterance = new SpeechSynthesisUtterance(part);
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
+        utterance.rate = options.rate ?? 1.02;
+        utterance.pitch = /namminh/i.test(voice.name) ? 0.95 : 1;
+        utterance.onboundary = event => {
+          if (event.name === 'word' || !event.name) {
+            boundaries = true;
+            options.onWord?.();
+          }
+        };
+        utterance.onend = () => next();
+        utterance.onerror = () => next();
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        next();
+      }
+    };
+    if (options.onWord) {
+      ticker = window.setInterval(() => {
+        if (!boundaries && window.speechSynthesis.speaking) options.onWord?.();
+      }, 230);
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text.replace(/\s+/g, ' ').trim());
-    utterance.voice = voice;
-    utterance.lang = voice.lang;
-    utterance.rate = 1.05;
-    utterance.pitch = 1;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
-    window.speechSynthesis.speak(utterance);
+    next();
   });
 }
 
 export function stopSpeaking() {
+  speechToken += 1;
   if (voiceSupport.speech) window.speechSynthesis.cancel();
+}
+
+// ---------------------------------------------------------------- Âm lượng micro (cho hiệu ứng)
+
+export type MicLevel = { level: () => number; close: () => void };
+
+/** Mở micro để đo âm lượng 0..1; không có quyền micro thì trả về null (hiệu ứng dùng nhịp giả lập). */
+export async function openMicLevel(): Promise<MicLevel | null> {
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) return null;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const context = new AudioContext();
+    const source = context.createMediaStreamSource(stream);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    let smooth = 0;
+    return {
+      level: () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (const value of data) sum += ((value - 128) / 128) ** 2;
+        const rms = Math.sqrt(sum / data.length);
+        smooth = smooth * 0.7 + Math.min(1, rms * 4.5) * 0.3;
+        return smooth;
+      },
+      close: () => {
+        stream.getTracks().forEach(track => track.stop());
+        void context.close();
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------- Tiếng chuông khi nghe thấy tên
@@ -174,6 +305,8 @@ let audio: AudioContext | null = null;
 export function chime() {
   try {
     audio ??= new AudioContext();
+    // Lần đầu tạo khi chưa có thao tác của người dùng thì AudioContext bị treo; thử mở lại mỗi lần kêu.
+    if (audio.state === 'suspended') void audio.resume();
     const now = audio.currentTime;
     [880, 1320].forEach((frequency, index) => {
       const oscillator = audio!.createOscillator();
