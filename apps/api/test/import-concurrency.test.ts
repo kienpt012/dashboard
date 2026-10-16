@@ -159,6 +159,7 @@ test('áp dụng draft đọc lại ownership và claim PREVIEWED nguyên tử t
 });
 
 test('từ chối báo cáo và tính lại trạng thái batch trong cùng transaction Serializable', async () => {
+  const workEvents: any[] = [];
   let transactionOptions: unknown;
   let batchUpdate: any;
   const pendingUpdate = {
@@ -198,6 +199,15 @@ test('từ chối báo cáo và tính lại trạng thái batch trong cùng tran
     },
     auditLog: {
       create: async () => undefined,
+    },
+    workEvent: {
+      create: async (args: any) => {
+        workEvents.push(args.data);
+        return args.data;
+      },
+    },
+    notification: {
+      createMany: async (args: any) => ({ count: args.data.length }),
     },
   };
   const prisma = {

@@ -18,6 +18,9 @@ RUN apk add --no-cache \
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/prisma ./prisma
+# Dữ liệu mẫu và trình thiết lập dùng chung thư viện bộ chỉ tiêu trong src (chạy bằng tsx).
+COPY --from=build /app/apps/api/src ./src
+COPY --from=build /app/apps/api/tsconfig.json ./tsconfig.json
 COPY --from=build /app/apps/api/package.json ./package.json
 COPY apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh

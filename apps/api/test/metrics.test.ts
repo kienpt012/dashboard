@@ -82,3 +82,24 @@ test('năm mặc định dùng múi giờ Việt Nam tại thời điểm giao t
   assert.equal(currentVietnamYear(new Date('2026-12-31T16:59:59.999Z')), 2026);
   assert.equal(currentVietnamYear(new Date('2026-12-31T17:00:00.000Z')), 2027);
 });
+
+test('chỉ tiêu chưa từng báo cáo nhưng đã quá hạn được tính là quá hạn, không phải chưa bắt đầu', () => {
+  const now = new Date('2026-10-14T03:00:00Z');
+  assert.equal(
+    evaluateTarget({ targetValue: 100, currentValue: 0, hasReport: false, dueDate: '2026-09-30T16:59:59.999Z', now }).status,
+    TargetStatus.OVERDUE,
+  );
+  assert.equal(
+    evaluateTarget({ targetValue: 100, currentValue: 0, hasReport: false, dueDate: '2026-12-31T16:59:59.999Z', now }).status,
+    TargetStatus.NOT_STARTED,
+  );
+});
+
+test('chỉ tiêu thống kê chỉ phân biệt đã có số liệu hay chưa, không bao giờ hoàn thành hay quá hạn', () => {
+  const now = new Date('2026-10-14T03:00:00Z');
+  const dueDate = '2026-01-31T16:59:59.999Z';
+  assert.equal(evaluateTarget({ targetValue: 0, currentValue: 0, hasReport: false, dueDate, now, kind: 'STAT' }).status, TargetStatus.NOT_STARTED);
+  const reported = evaluateTarget({ targetValue: 0, currentValue: 5000, hasReport: true, dueDate, now, kind: 'STAT' });
+  assert.equal(reported.status, TargetStatus.ON_TRACK);
+  assert.equal(reported.completed, false);
+});

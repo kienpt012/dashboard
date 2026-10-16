@@ -1,7 +1,7 @@
 @echo off
 rem IOC Lai Thieu - khoi dong toan bo he thong.
 rem Nhap dup file nay, hoac chay trong cua so lenh. Toan bo logic nam o scripts\start-ioc.ps1.
-rem Tham so: -CheckOnly -NoAI -SkipBuild -SkipModelPull -Yes -NoBrowser -NoPause -ResetData
+rem Tham so: -CheckOnly -NoUpdate -NoAI -SkipBuild -SkipModelPull -Yes -NoBrowser -NoPause -ResetData
 rem (giai thich chi tiet: scripts\start-ioc.ps1 hoac README.md)
 setlocal
 

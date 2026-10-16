@@ -54,6 +54,9 @@ const sanitizeHtml = require('sanitize-html') as (html: string, options: Sanitiz
 export const PUBLIC_DASHBOARD_ID = 'public-home';
 export const PUBLIC_DASHBOARD_SCHEMA_VERSION = 1 as const;
 export const PUBLIC_DASHBOARD_CONFIG_MAX_BYTES = 5 * 1024 * 1024;
+/** Số mục tối đa dữ liệu công khai trả về — bằng giới hạn maxItems của khối (danh sách chỉ tiêu 100, phản ánh 24). */
+export const PUBLIC_HIGHLIGHT_LIMIT = 100;
+export const PUBLIC_FEEDBACK_LIMIT = 24;
 export const PUBLIC_DASHBOARD_BREAKPOINTS = ['desktop', 'tablet', 'mobile'] as const;
 export const PUBLIC_DASHBOARD_COLUMNS = { desktop: 12, tablet: 8, mobile: 4 } as const;
 export const PUBLIC_DASHBOARD_WIDGET_TYPES = [
@@ -192,12 +195,12 @@ function defaultLayout(
 export const DEFAULT_PUBLIC_DASHBOARD_CONFIG: PublicDashboardConfig = {
   schemaVersion: 1,
   theme: {
-    accent: '#0f8378',
-    background: '#f3f8f7',
+    accent: '#1d4ed8',
+    background: '#f4f6fb',
     surface: '#ffffff',
-    text: '#173633',
+    text: '#172033',
     contentWidth: 1440,
-    radius: 18,
+    radius: 14,
   },
   settings: { showHeader: true, showFooter: true },
   widgets: [
@@ -996,7 +999,7 @@ function buildPublicOverview(targets: PublicDashboardTargetView[], year: number)
       .sort((left, right) => right.progress - left.progress),
     highlights: targets
       .filter(target => target.isHighlighted)
-      .slice(0, 6)
+      .slice(0, PUBLIC_HIGHLIGHT_LIMIT)
       .map(stripTargetEditorFields),
   };
 }
@@ -1179,7 +1182,7 @@ export class PublicDashboardService {
           publicDepartmentName: true,
         },
         orderBy: { publicPublishedAt: 'desc' },
-        take: 12,
+        take: PUBLIC_FEEDBACK_LIMIT,
       }),
     ]);
     const previewYear = settings?.defaultYear ?? currentVietnamYear();
@@ -1664,7 +1667,7 @@ export class PublicDashboardService {
           publicDepartmentName: true,
         },
         orderBy: { publicPublishedAt: 'desc' },
-        take: 12,
+        take: PUBLIC_FEEDBACK_LIMIT,
       }),
       refs.publicationIds.length
         ? this.prisma.documentPublication.findMany({
@@ -1738,7 +1741,7 @@ export class PublicDashboardService {
               progress: weight ? Math.round(item.progress / weight) : 0,
             }))
             .sort((left, right) => right.progress - left.progress),
-          highlights: targets.filter(target => target.isHighlighted).slice(0, 6).map(({ weight: _weight, isHighlighted: _highlight, publicOrder: _order, direction: _direction, ...target }) => target),
+          highlights: targets.filter(target => target.isHighlighted).slice(0, PUBLIC_HIGHLIGHT_LIMIT).map(({ weight: _weight, isHighlighted: _highlight, publicOrder: _order, direction: _direction, ...target }) => target),
         },
         targets: targets.map(({ weight: _weight, isHighlighted: _highlight, publicOrder: _order, direction: _direction, ...target }) => target),
         feedbacks: feedbacks.map(item => ({

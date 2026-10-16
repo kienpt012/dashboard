@@ -1,7 +1,7 @@
 import { BadRequestException, Body, ConflictException, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsInt, IsNumber, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, Max, Min, ValidateIf } from 'class-validator';
 import { audit, getActor } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { PrismaService } from './prisma.service';
@@ -55,6 +55,52 @@ export class UpdateSystemSettingDto {
   @Min(1, { message: 'Thời hạn bổ sung thông tin phải từ 1 đến 60 ngày' })
   @Max(60, { message: 'Thời hạn bổ sung thông tin phải từ 1 đến 60 ngày' })
   feedbackCitizenResponseDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số ngày tự thông qua báo cáo phải là số nguyên' })
+  @Min(0, { message: 'Số ngày tự thông qua báo cáo phải từ 0 đến 60' })
+  @Max(60, { message: 'Số ngày tự thông qua báo cáo phải từ 0 đến 60' })
+  reportAutoApproveDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số ngày tự thông qua đề xuất phải là số nguyên' })
+  @Min(0, { message: 'Số ngày tự thông qua đề xuất phải từ 0 đến 30' })
+  @Max(30, { message: 'Số ngày tự thông qua đề xuất phải từ 0 đến 30' })
+  proposalAutoApproveDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Hạn giải trình phải là số nguyên' })
+  @Min(1, { message: 'Hạn giải trình phải từ 1 đến 30' })
+  @Max(30, { message: 'Hạn giải trình phải từ 1 đến 30' })
+  explanationDueDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số ngày nhắc chưa giao người phải là số nguyên' })
+  @Min(0, { message: 'Số ngày nhắc chưa giao người phải từ 0 đến 30' })
+  @Max(30, { message: 'Số ngày nhắc chưa giao người phải từ 0 đến 30' })
+  assignmentStallDays?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số lần chuyển việc tối đa phải là số nguyên' })
+  @Min(0, { message: 'Số lần chuyển việc tối đa phải từ 0 đến 5' })
+  @Max(5, { message: 'Số lần chuyển việc tối đa phải từ 0 đến 5' })
+  maxTransfers?: number;
+
+  @ValidateIfDefined()
+  @Type(() => Number)
+  @IsInt({ message: 'Số giây chuyển trang trình chiếu phải là số nguyên' })
+  @Min(5, { message: 'Số giây chuyển trang trình chiếu phải từ 5 đến 300' })
+  @Max(300, { message: 'Số giây chuyển trang trình chiếu phải từ 5 đến 300' })
+  wallboardRotateSeconds?: number;
+
+  @ValidateIfDefined()
+  @IsBoolean({ message: 'Hiệu ứng khi gọi Jarvis phải là bật hoặc tắt' })
+  jarvisIntro?: boolean;
 }
 
 @Controller('settings')
@@ -62,6 +108,14 @@ export class UpdateSystemSettingDto {
 @Roles(Role.ADMIN)
 export class SettingsController {
   constructor(private prisma: PrismaService) {}
+
+  /** Phần cấu hình mà giao diện của mọi người dùng cần đọc. */
+  @Get('client')
+  @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF, Role.VIEWER)
+  async client() {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true } });
+    return { jarvisIntro: setting?.jarvisIntro ?? true };
+  }
 
   @Get()
   async get() {
@@ -83,6 +137,13 @@ export class SettingsController {
       feedbackFirstResponseDays: 2,
       feedbackResolutionDays: 10,
       feedbackCitizenResponseDays: 7,
+      reportAutoApproveDays: 7,
+      proposalAutoApproveDays: 3,
+      explanationDueDays: 3,
+      assignmentStallDays: 3,
+      maxTransfers: 1,
+      wallboardRotateSeconds: 20,
+      jarvisIntro: true,
       version: 1,
       updatedBy: null,
       updatedAt: null,
@@ -121,6 +182,13 @@ export class SettingsController {
           feedbackFirstResponseDays: firstResponseDays,
           feedbackResolutionDays: resolutionDays,
           feedbackCitizenResponseDays: dto.feedbackCitizenResponseDays ?? 7,
+          reportAutoApproveDays: dto.reportAutoApproveDays ?? 7,
+          proposalAutoApproveDays: dto.proposalAutoApproveDays ?? 3,
+          explanationDueDays: dto.explanationDueDays ?? 3,
+          assignmentStallDays: dto.assignmentStallDays ?? 3,
+          maxTransfers: dto.maxTransfers ?? 1,
+          wallboardRotateSeconds: dto.wallboardRotateSeconds ?? 20,
+          jarvisIntro: dto.jarvisIntro ?? true,
           updatedBy: actor.username,
         } });
         changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
@@ -146,6 +214,27 @@ export class SettingsController {
           ...(dto.feedbackCitizenResponseDays !== undefined
             && dto.feedbackCitizenResponseDays !== current.feedbackCitizenResponseDays
             ? { feedbackCitizenResponseDays: dto.feedbackCitizenResponseDays }
+            : {}),
+          ...(dto.reportAutoApproveDays !== undefined && dto.reportAutoApproveDays !== current.reportAutoApproveDays
+            ? { reportAutoApproveDays: dto.reportAutoApproveDays }
+            : {}),
+          ...(dto.proposalAutoApproveDays !== undefined && dto.proposalAutoApproveDays !== current.proposalAutoApproveDays
+            ? { proposalAutoApproveDays: dto.proposalAutoApproveDays }
+            : {}),
+          ...(dto.explanationDueDays !== undefined && dto.explanationDueDays !== current.explanationDueDays
+            ? { explanationDueDays: dto.explanationDueDays }
+            : {}),
+          ...(dto.assignmentStallDays !== undefined && dto.assignmentStallDays !== current.assignmentStallDays
+            ? { assignmentStallDays: dto.assignmentStallDays }
+            : {}),
+          ...(dto.maxTransfers !== undefined && dto.maxTransfers !== current.maxTransfers
+            ? { maxTransfers: dto.maxTransfers }
+            : {}),
+          ...(dto.wallboardRotateSeconds !== undefined && dto.wallboardRotateSeconds !== current.wallboardRotateSeconds
+            ? { wallboardRotateSeconds: dto.wallboardRotateSeconds }
+            : {}),
+          ...(dto.jarvisIntro !== undefined && dto.jarvisIntro !== current.jarvisIntro
+            ? { jarvisIntro: dto.jarvisIntro }
             : {}),
         };
         changedFields = Object.keys(updates);

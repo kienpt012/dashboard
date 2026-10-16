@@ -66,6 +66,7 @@ function prismaConflict(code: 'P2025' | 'P2034') {
 }
 
 test('gửi báo cáo đọc lại chỉ tiêu đúng phạm vi và lịch sử chờ duyệt trong cùng transaction Serializable', async () => {
+  const workEvents: any[] = [];
   const calls: string[] = [];
   let transactionOptions: unknown;
   const tx = {
@@ -98,6 +99,18 @@ test('gửi báo cáo đọc lại chỉ tiêu đúng phạm vi và lịch sử 
     },
     auditLog: {
       create: async () => undefined,
+    },
+    user: {
+      findMany: async () => [{ id: 'manager-1' }],
+    },
+    workEvent: {
+      create: async (args: any) => {
+        workEvents.push(args.data);
+        return args.data;
+      },
+    },
+    notification: {
+      createMany: async (args: any) => ({ count: args.data.length }),
     },
   };
   const prisma = {

@@ -10,9 +10,9 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { FeedbackStatus, Prisma, Role } from '@prisma/client';
+import { DepartmentKind, FeedbackStatus, Prisma, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsHexColor, IsInt, IsOptional, IsString, Matches, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsHexColor, IsInt, IsOptional, IsString, Matches, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { PrismaService } from './prisma.service';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { audit, getActor, resolveDepartmentScope } from './access';
@@ -44,6 +44,26 @@ class CreateDepartmentDto {
   @IsOptional()
   @IsHexColor({ message: 'Màu nhận diện phải là mã màu HEX hợp lệ' })
   color?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString({ message: 'Tên ngắn không hợp lệ' })
+  @MaxLength(80, { message: 'Tên ngắn không được vượt quá 80 ký tự' })
+  shortName?: string;
+
+  @IsOptional()
+  @IsEnum(DepartmentKind, { message: 'Loại đơn vị không hợp lệ' })
+  kind?: DepartmentKind;
+
+  @IsOptional()
+  @IsString({ message: 'Lĩnh vực phụ trách không hợp lệ' })
+  @MaxLength(1000, { message: 'Lĩnh vực phụ trách không được vượt quá 1000 ký tự' })
+  responsibilities?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }
 
 export class UpdateDepartmentDto {
@@ -78,6 +98,26 @@ export class UpdateDepartmentDto {
   @ValidateIfDefined()
   @IsBoolean({ message: 'Trạng thái phòng ban không hợp lệ' })
   isActive?: boolean;
+
+  @ValidateIfDefined()
+  @Trim()
+  @IsString({ message: 'Tên ngắn không hợp lệ' })
+  @MaxLength(80, { message: 'Tên ngắn không được vượt quá 80 ký tự' })
+  shortName?: string;
+
+  @ValidateIfDefined()
+  @IsEnum(DepartmentKind, { message: 'Loại đơn vị không hợp lệ' })
+  kind?: DepartmentKind;
+
+  @ValidateIfDefined()
+  @IsString({ message: 'Lĩnh vực phụ trách không hợp lệ' })
+  @MaxLength(1000, { message: 'Lĩnh vực phụ trách không được vượt quá 1000 ký tự' })
+  responsibilities?: string;
+
+  @ValidateIfDefined()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }
 
 @Controller('departments')
@@ -92,7 +132,7 @@ export class DepartmentsController {
     return this.prisma.department.findMany({
       where: departmentId ? { id: departmentId } : undefined,
       include: { _count: { select: { users: true, targets: { where: { isArchived: false } }, feedbacks: true } } },
-      orderBy: { name: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
   }
 
@@ -122,6 +162,10 @@ export class DepartmentsController {
             name: dto.name.trim(),
             description: dto.description?.trim() || undefined,
             color: dto.color,
+            shortName: dto.shortName?.trim() || undefined,
+            kind: dto.kind,
+            responsibilities: dto.responsibilities?.trim() || undefined,
+            sortOrder: dto.sortOrder,
           },
         });
         await audit(tx, actor, {
@@ -190,6 +234,10 @@ export class DepartmentsController {
             ...(dto.description === undefined ? {} : { description: dto.description.trim() || null }),
             ...(dto.color === undefined ? {} : { color: dto.color }),
             ...(dto.isActive === undefined ? {} : { isActive: dto.isActive }),
+            ...(dto.shortName === undefined ? {} : { shortName: dto.shortName.trim() || null }),
+            ...(dto.kind === undefined ? {} : { kind: dto.kind }),
+            ...(dto.responsibilities === undefined ? {} : { responsibilities: dto.responsibilities.trim() || null }),
+            ...(dto.sortOrder === undefined ? {} : { sortOrder: dto.sortOrder }),
             version: { increment: 1 },
           },
         });

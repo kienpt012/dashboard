@@ -1,0 +1,509 @@
+import { AppstoreAddOutlined, CalculatorOutlined, EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { App, Button, Card, Col, Descriptions, Drawer, Dropdown, Empty, Flex, Form, Input, InputNumber, Modal, Result, Row, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useLocality, type PublicLocality } from '@/app/locality';
+import { useMe } from '@/app/session';
+import { DistBar, Metric, YearSelect } from '@/components/Data';
+import { Page } from '@/components/Page';
+import { LoadError, PageSkeleton } from '@/components/States';
+import { LegalBasis } from '@/components/LegalBasis';
+import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
+import { useAction, useApi } from '@/hooks/useApi';
+import { http } from '@/lib/api';
+import { currentYear, num, pct } from '@/lib/format';
+import { can, FRAMEWORK_EDITORS, LEADERSHIP } from '@/lib/roles';
+import { fold } from '@/app/nav';
+import type { Framework, FrameworkKind, FrameworkTemplate, IssuingLevel } from '@/types/domain';
+import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
+
+type ApplyResult = { frameworkId: string; code: string; name: string; createdTargets: number; createdDatasets: string[]; computedTargets: number; needsPlanValue: number };
+type Outcome = { targetId: string; code: string; title: string; previousValue: number; value: number | null; changed: boolean; warnings: string[] };
+
+const LOCALITY_KINDS: Record<string, string> = { XA: 'Xã', PHUONG: 'Phường', DAC_KHU: 'Đặc khu', TRUONG_HOC: 'Trường học', CO_QUAN_KHAC: 'Cơ quan khác' };
+const ISSUING: { value: IssuingLevel; label: string }[] = [
+  { value: 'CENTRAL', label: 'Trung ương giao' },
+  { value: 'PROVINCE', label: 'Tỉnh/Thành phố giao' },
+  { value: 'LOCAL', label: 'Địa phương tự đặt' },
+];
+const KINDS: { value: FrameworkKind; label: string }[] = [
+  { value: 'PLAN', label: 'Kế hoạch – thực hiện' },
+  { value: 'SCORE', label: 'Chấm điểm' },
+  { value: 'STAT', label: 'Thống kê' },
+  { value: 'TASK', label: 'Nhiệm vụ' },
+];
+
+const CODE_PREFIX: Record<FrameworkKind, string> = { PLAN: 'KH', SCORE: 'CD', STAT: 'TK', TASK: 'NV' };
+
+/** Mã gợi ý chưa trùng: KH-2026, KH-2026-2… */
+function suggestCode(kind: FrameworkKind, year: number, taken: Set<string>) {
+  const base = `${CODE_PREFIX[kind] ?? 'BO'}-${year}`;
+  if (!taken.has(base)) return base;
+  let index = 2;
+  while (taken.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+}
+
+function nameForYear(template: FrameworkTemplate, year: number) {
+  return template.effectiveYear ? template.sampleName.replace(`năm ${template.effectiveYear}`, `năm ${year}`) : template.sampleName;
+}
+
+function scopeText(template: FrameworkTemplate) {
+  const kinds = template.scope.localityKinds.map(kind => LOCALITY_KINDS[kind] ?? kind).join(', ');
+  return template.scope.province ? `${kinds} thuộc ${template.scope.province}` : `${kinds} trên cả nước`;
+}
+
+function fits(template: FrameworkTemplate, locality: PublicLocality) {
+  if (!locality.configured) return null;
+  const kindOk = template.scope.localityKinds.includes(locality.kind);
+  const provinceOk = !template.scope.province || !locality.provinceName || fold(template.scope.province) === fold(locality.provinceName);
+  return kindOk && provinceOk;
+}
+
+function result(framework: Framework) {
+  const s = framework.summary;
+  if (framework.kind === 'SCORE') return { label: 'Điểm', value: s.score === null ? '—' : `${num(s.score)} / ${num(s.maxScore ?? framework.maxScore ?? 100)}` };
+  if (framework.kind === 'STAT') return { label: 'Có số liệu', value: `${num(s.reported)} / ${num(s.total)}` };
+  return { label: 'Tiến độ', value: s.progress === null ? '—' : pct(s.progress) };
+}
+
+function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolean; framework?: Framework | null; year: number; codes: string[]; onClose: () => void }) {
+  const [form] = Form.useForm();
+  const kind = Form.useWatch('kind', form);
+  const formYear = Form.useWatch('year', form);
+  const [codeTouched, setCodeTouched] = useState(false);
+  const taken = useMemo(() => new Set(codes.map(code => code.toUpperCase())), [codes]);
+  useEffect(() => {
+    if (!open) return;
+    form.resetFields();
+    setCodeTouched(false);
+    if (framework)
+      form.setFieldsValue({
+        name: framework.name,
+        issuingLevel: framework.issuingLevel,
+        legalBasis: framework.legalBasis ?? '',
+        description: framework.description ?? '',
+        sortOrder: framework.sortOrder ?? 0,
+        showOnWallboard: framework.showOnWallboard,
+        isActive: framework.isActive,
+      });
+    else form.setFieldsValue({ kind: 'PLAN', issuingLevel: 'LOCAL', year, showOnWallboard: true, maxScore: 100 });
+  }, [open, framework, form, year]);
+
+  // Mã gợi ý đi theo loại và năm cho tới khi người dùng tự sửa mã.
+  useEffect(() => {
+    if (!open || framework || codeTouched || !kind) return;
+    form.setFieldValue('code', suggestCode(kind, formYear || year, taken));
+  }, [open, framework, codeTouched, kind, formYear, year, taken, form]);
+
+  const save = useAction(
+    (values: Record<string, unknown>) =>
+      framework ? http.patch(`/frameworks/${framework.id}`, { ...values, expectedVersion: framework.version }) : http.post('/frameworks', { ...values, maxScore: values.kind === 'SCORE' ? values.maxScore : undefined }),
+    { success: framework ? 'Đã cập nhật bộ chỉ tiêu' : 'Đã tạo bộ chỉ tiêu', refresh: ['/frameworks', '/ioc'], onDone: onClose },
+  );
+
+  return (
+    <Modal title={framework ? 'Sửa bộ chỉ tiêu' : 'Tạo bộ chỉ tiêu'} open={open} onCancel={onClose} onOk={() => form.submit()} okText="Lưu" confirmLoading={save.isPending} width={640} destroyOnHidden>
+      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
+        {!framework && (
+          <Form.Item
+            name="code"
+            label="Mã bộ"
+            normalize={(value?: string) => value?.toUpperCase().replace(/\s+/g, '-')}
+            rules={[
+              { required: true, pattern: /^[A-Z0-9][A-Z0-9_-]{1,39}$/, message: 'Chữ in hoa không dấu, số, gạch ngang (2–40 ký tự)' },
+              { validator: (_, value?: string) => (value && taken.has(value.toUpperCase()) ? Promise.reject(new Error('Mã đã được dùng')) : Promise.resolve()) },
+            ]}
+          >
+            <Input placeholder="KH-2026" maxLength={40} onChange={() => setCodeTouched(true)} />
+          </Form.Item>
+        )}
+        {!framework && (
+          <Form.Item name="year" label="Năm" rules={[{ required: true }]}>
+            <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
+          </Form.Item>
+        )}
+        <Form.Item name="name" label="Tên bộ chỉ tiêu" className="span-2" rules={[{ required: true, min: 3, max: 200, message: '3–200 ký tự' }]}>
+          <Input />
+        </Form.Item>
+        {!framework && (
+          <Form.Item name="kind" label="Loại" rules={[{ required: true }]}>
+            <Select options={KINDS} />
+          </Form.Item>
+        )}
+        <Form.Item name="issuingLevel" label="Cấp giao" rules={[{ required: true }]}>
+          <Select options={ISSUING} />
+        </Form.Item>
+        {!framework && kind === 'SCORE' && (
+          <Form.Item name="maxScore" label="Điểm tối đa">
+            <InputNumber min={1} max={1000} style={{ width: '100%' }} />
+          </Form.Item>
+        )}
+        <Form.Item name="legalBasis" label="Căn cứ" className="span-2">
+          <Input maxLength={300} />
+        </Form.Item>
+        <Form.Item name="description" label="Mô tả" className="span-2">
+          <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={2000} />
+        </Form.Item>
+        {framework && (
+          <Form.Item name="sortOrder" label="Thứ tự hiển thị" rules={[{ required: true, message: 'Nhập thứ tự hiển thị' }]}>
+            <InputNumber min={0} max={9999} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+        )}
+        <Form.Item name="showOnWallboard" label="Hiện trên trình chiếu" valuePropName="checked">
+          <Switch />
+        </Form.Item>
+        {framework && (
+          <Form.Item name="isActive" label="Đang sử dụng" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+        )}
+      </Form>
+    </Modal>
+  );
+}
+
+function TemplateLibrary({ open, frameworks, year: pageYear, onClose }: { open: boolean; frameworks: Framework[]; year: number; onClose: () => void }) {
+  const locality = useLocality();
+  const user = useMe();
+  const canApply = can(user, LEADERSHIP);
+  const { modal } = App.useApp();
+  const templates = useApi<FrameworkTemplate[]>(open ? '/frameworks/templates' : null, { staleTime: 10 * 60_000 });
+  const [years, setYears] = useState<Record<string, number>>({});
+  const apply = useAction(({ template, year }: { template: FrameworkTemplate; year: number }) => http.post<ApplyResult>(`/frameworks/templates/${encodeURIComponent(template.key)}/apply`, { year }), {
+    refresh: ['/frameworks', '/targets', '/ioc', '/datasets'],
+    onDone: done =>
+      modal.success({
+        title: `Đã nạp ${done.name}`,
+        width: 520,
+        content: (
+          <Descriptions
+            size="small"
+            column={1}
+            items={[
+              { label: 'Mã bộ', children: done.code },
+              { label: 'Chỉ tiêu đã tạo', children: num(done.createdTargets) },
+              { label: 'Tự tính từ dữ liệu', children: num(done.computedTargets) },
+              { label: 'Cần nhập mục tiêu', children: num(done.needsPlanValue) },
+              { label: 'Bảng dữ liệu mới', children: done.createdDatasets.length ? done.createdDatasets.join(', ') : 'Không' },
+            ]}
+          />
+        ),
+      }),
+  });
+
+  return (
+    <Drawer title="Thư viện bộ chỉ tiêu mẫu" open={open} onClose={onClose} size={720}>
+      {templates.error ? (
+        <LoadError error={templates.error} retry={() => void templates.refetch()} />
+      ) : (
+        <Flex vertical gap={12}>
+          {(templates.data ?? []).map(template => {
+            const year = years[template.key] ?? pageYear;
+            const existing = frameworks.find(item => item.templateKey === template.key && item.year === year);
+            const fit = fits(template, locality);
+            const appliedYears = [...new Set(frameworks.filter(item => item.templateKey === template.key && item.year).map(item => item.year as number))].sort();
+            const warnings = [
+              fit === false ? `Mẫu dành cho ${scopeText(template)}` : null,
+              template.effectiveYear && year < template.effectiveYear ? `Mẫu có hiệu lực từ năm ${template.effectiveYear}` : null,
+            ].filter(Boolean) as string[];
+            return (
+              <Card key={template.key} size="small">
+                <Flex vertical gap={8}>
+                  <Flex justify="space-between" gap={12} align="flex-start">
+                    <Typography.Text strong>{nameForYear(template, year)}</Typography.Text>
+                    <KindTag kind={template.kind} />
+                  </Flex>
+                  <span className="fw-basis">
+                    <LegalBasis text={template.legalBasis} />
+                  </span>
+                  {template.description && (
+                    <Typography.Paragraph type="secondary" ellipsis={{ rows: 2, expandable: 'collapsible', symbol: expanded => (expanded ? 'Thu gọn' : 'Xem thêm') }} style={{ marginBottom: 0 }}>
+                      {template.description}
+                    </Typography.Paragraph>
+                  )}
+                  <Space size={[6, 6]} wrap>
+                    <Tag>{ISSUING.find(item => item.value === template.issuingLevel)?.label}</Tag>
+                    <Tag color={fit === false ? 'orange' : fit ? 'green' : 'default'}>{scopeText(template)}</Tag>
+                    <Tag>{num(template.targetCount)} chỉ tiêu</Tag>
+                    {template.computedCount > 0 && <Tag color="cyan">{num(template.computedCount)} tự tính</Tag>}
+                    {template.datasetCount > 0 && <Tag>{num(template.datasetCount)} bảng dữ liệu</Tag>}
+                    {appliedYears.map(applied => (
+                      <Tag key={String(applied)} color="blue">
+                        Đã nạp {applied}
+                      </Tag>
+                    ))}
+                  </Space>
+                  <Flex gap={8} align="center" justify="flex-end" wrap>
+                    <YearSelect value={year} onChange={value => setYears(current => ({ ...current, [template.key]: value }))} />
+                    <Tooltip title={existing ? `Năm ${year} đã nạp (${existing.code})` : !canApply ? 'Lãnh đạo hoặc quản trị viên nạp mẫu' : undefined}>
+                      <Button
+                        type="primary"
+                        icon={<AppstoreAddOutlined />}
+                        disabled={Boolean(existing) || !canApply}
+                        loading={apply.isPending && apply.variables?.template.key === template.key}
+                        onClick={() =>
+                          modal.confirm({
+                            title: `Nạp bộ mẫu vào năm ${year}?`,
+                            content: (
+                              <Flex vertical gap={8}>
+                                <span>{`${nameForYear(template, year)} — ${num(template.targetCount)} chỉ tiêu.`}</span>
+                                {warnings.map(warning => (
+                                  <Typography.Text key={warning} type="warning">
+                                    {warning}
+                                  </Typography.Text>
+                                ))}
+                              </Flex>
+                            ),
+                            okText: 'Nạp',
+                            onOk: () => apply.mutateAsync({ template, year }),
+                          })
+                        }
+                      >
+                        Nạp
+                      </Button>
+                    </Tooltip>
+                  </Flex>
+                </Flex>
+              </Card>
+            );
+          })}
+          {templates.isLoading && <PageSkeleton />}
+        </Flex>
+      )}
+    </Drawer>
+  );
+}
+
+function RecomputeResult({ data, onClose }: { data: { framework: Framework; outcomes: Outcome[] } | null; onClose: () => void }) {
+  return (
+    <Modal title={data ? `Tính lại: ${data.framework.name}` : ''} open={Boolean(data)} onCancel={onClose} footer={<Button onClick={onClose}>Đóng</Button>} width={760} destroyOnHidden>
+      {data && !data.outcomes.length ? (
+        <Result status="info" title="Bộ này chưa có chỉ tiêu tự tính" />
+      ) : (
+        <Table
+          size="small"
+          rowKey="targetId"
+          pagination={false}
+          dataSource={data?.outcomes ?? []}
+          columns={[
+            { title: 'Chỉ tiêu', key: 'title', sorter: byText(row => row.code), render: (_, row) => <Link to={`/admin/targets/${row.targetId}`}>{row.code} · {row.title}</Link> },
+            { title: 'Trước', dataIndex: 'previousValue', width: 90, align: 'right', sorter: byNumber(row => row.previousValue), sortDirections: NUMBER_FIRST, render: value => num(value) },
+            { title: 'Sau', dataIndex: 'value', width: 90, align: 'right', sorter: byNumber(row => row.value), sortDirections: NUMBER_FIRST, render: (value, row) => <b className={row.changed ? 'tone-info' : undefined}>{num(value)}</b> },
+            { title: 'Lưu ý', dataIndex: 'warnings', width: 220, sorter: byNumber(row => row.warnings.length), sortDirections: NUMBER_FIRST, render: (warnings: string[]) => (warnings.length ? <span className="tone-warn">{warnings.join('; ')}</span> : '') },
+          ]}
+        />
+      )}
+    </Modal>
+  );
+}
+
+function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framework: Framework; onEdit: () => void; onRecompute: () => void; recomputing: boolean }) {
+  const user = useMe();
+  const { modal } = App.useApp();
+  const editor = can(user, FRAMEWORK_EDITORS);
+  const s = framework.summary;
+  const r = result(framework);
+  const toggle = useAction((changes: Record<string, unknown>) => http.patch(`/frameworks/${framework.id}`, { ...changes, expectedVersion: framework.version }), {
+    success: 'Đã cập nhật',
+    refresh: ['/frameworks', '/ioc'],
+  });
+  return (
+    <Card
+      className={`fw-card${framework.isActive ? '' : ' inactive'}`}
+      title={
+        <Link to={`/admin/targets?frameworkId=${framework.id}&year=${framework.year ?? ''}`} className="fw-title">
+          {framework.name}
+        </Link>
+      }
+      extra={
+        editor && (
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                { key: 'edit', icon: <EditOutlined />, label: 'Sửa', onClick: onEdit },
+                { key: 'recompute', icon: <CalculatorOutlined />, label: 'Tính lại chỉ tiêu tự tính', onClick: onRecompute, disabled: recomputing },
+                { type: 'divider' },
+                { key: 'wall', label: framework.showOnWallboard ? 'Ẩn khỏi trình chiếu' : 'Hiện trên trình chiếu', onClick: () => toggle.mutate({ showOnWallboard: !framework.showOnWallboard }) },
+                {
+                  key: 'active',
+                  danger: framework.isActive,
+                  label: framework.isActive ? 'Ngừng sử dụng' : 'Dùng lại',
+                  onClick: () =>
+                    framework.isActive
+                      ? modal.confirm({
+                          title: `Ngừng sử dụng ${framework.code}?`,
+                          content: 'Bộ sẽ ẩn khỏi trung tâm điều hành và trình chiếu.',
+                          okText: 'Ngừng sử dụng',
+                          cancelText: 'Huỷ',
+                          okButtonProps: { danger: true },
+                          onOk: () => toggle.mutateAsync({ isActive: false }),
+                        })
+                      : toggle.mutate({ isActive: true }),
+                },
+              ],
+            }}
+          >
+            <Button type="text" icon={<MoreOutlined />} aria-label="Thao tác" loading={recomputing} />
+          </Dropdown>
+        )
+      }
+    >
+      <Space size={[6, 6]} wrap style={{ marginBottom: 10 }}>
+        <KindTag kind={framework.kind} />
+        <Tag>{framework.issuingLevelLabel}</Tag>
+        <Tag>{framework.code}</Tag>
+        {!framework.isActive && <Tag color="default">Ngừng sử dụng</Tag>}
+        {!framework.showOnWallboard && <Tag>Không trình chiếu</Tag>}
+      </Space>
+      {framework.legalBasis && (
+        <div className="fw-basis">
+          <LegalBasis text={framework.legalBasis} />
+        </div>
+      )}
+      {framework.description && (
+        <Typography.Paragraph type="secondary" ellipsis={{ rows: 2, expandable: 'collapsible', symbol: expanded => (expanded ? 'Thu gọn' : 'Xem thêm') }} className="fw-desc">
+          {framework.description}
+        </Typography.Paragraph>
+      )}
+      <div className="fw-foot">
+      <div className="fw-stats">
+        <div>
+          <span>Chỉ tiêu</span>
+          <b>{num(s.total)}</b>
+        </div>
+        <div>
+          <span>{r.label}</span>
+          <b>{r.value}</b>
+        </div>
+        <div>
+          <span>Có chỉ đạo</span>
+          <b>
+            {num(s.withDirective)}
+            <small>/{num(s.total)}</small>
+          </b>
+        </div>
+        <div>
+          <span>Đã đánh giá</span>
+          <b>
+            {num(s.withEvaluation)}
+            <small>/{num(s.total)}</small>
+          </b>
+        </div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <DistBar counts={s.counts} total={s.total} />
+      </div>
+      <div className="fw-status">
+        {STATUS_ORDER.filter(key => s.counts[key] > 0).map(key => (
+          <Link key={key} to={`/admin/targets?frameworkId=${framework.id}&year=${framework.year ?? ''}&status=${key}`}>
+            <i style={{ background: STATUS[key].hex }} />
+            {STATUS[key].label} <b>{num(s.counts[key])}</b>
+          </Link>
+        ))}
+      </div>
+      </div>
+    </Card>
+  );
+}
+
+export default function Frameworks() {
+  const user = useMe();
+  const [params, setParams] = useSearchParams();
+  const year = Number(params.get('year')) || currentYear();
+  const [show, setShow] = useState<'active' | 'all'>('active');
+  const [library, setLibrary] = useState(false);
+  const [editing, setEditing] = useState<Framework | null | undefined>(undefined);
+  const [recomputed, setRecomputed] = useState<{ framework: Framework; outcomes: Outcome[] } | null>(null);
+  const list = useApi<Framework[]>('/frameworks?includeInactive=true');
+  const recompute = useAction((framework: Framework) => http.post<{ recomputed: Outcome[] }>(`/frameworks/${framework.id}/recompute`), {
+    refresh: ['/frameworks', '/targets', '/ioc'],
+  });
+
+  const rows = useMemo(() => (list.data ?? []).filter(item => (item.year ?? year) === year && (show === 'all' || item.isActive)), [list.data, year, show]);
+  const totals = useMemo(() => {
+    const active = rows.filter(item => item.isActive);
+    const sum = (pick: (item: Framework) => number) => active.reduce((total, item) => total + pick(item), 0);
+    return {
+      frameworks: active.length,
+      targets: sum(item => item.summary.total),
+      reported: sum(item => item.summary.reported),
+      atRisk: sum(item => item.summary.counts.AT_RISK ?? 0),
+      overdue: sum(item => item.summary.counts.OVERDUE ?? 0),
+    };
+  }, [rows]);
+
+  return (
+    <Page
+      title="Bộ chỉ tiêu"
+      meta={list.data && <span>{num(rows.length)} bộ · Năm {year}</span>}
+      extra={
+        <>
+          <YearSelect value={year} onChange={value => setParams({ year: String(value) }, { replace: true })} />
+          <Segmented
+            value={show}
+            onChange={value => setShow(value as 'active' | 'all')}
+            options={[
+              { value: 'active', label: 'Đang dùng' },
+              { value: 'all', label: 'Tất cả' },
+            ]}
+          />
+          {can(user, FRAMEWORK_EDITORS) && (
+            <Button icon={<AppstoreAddOutlined />} onClick={() => setLibrary(true)}>
+              Thư viện mẫu
+            </Button>
+          )}
+          {can(user, FRAMEWORK_EDITORS) && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditing(null)}>
+              Tạo bộ chỉ tiêu
+            </Button>
+          )}
+        </>
+      }
+    >
+      {list.error && !list.data ? (
+        <LoadError error={list.error} retry={() => void list.refetch()} />
+      ) : !list.data ? (
+        <PageSkeleton />
+      ) : rows.length ? (
+        <>
+        <Card className="card-flush" style={{ marginBottom: 16 }}>
+          <div className="metric-grid metric-grid-5">
+            <Metric label="Bộ đang dùng" value={num(totals.frameworks)} />
+            <Metric label="Chỉ tiêu" value={num(totals.targets)} to={`/admin/targets?year=${year}`} />
+            <Metric label="Đã có số liệu" value={num(totals.reported)} foot={totals.targets ? pct((totals.reported / totals.targets) * 100) : undefined} />
+            <Metric label="Có nguy cơ" value={num(totals.atRisk)} tone={totals.atRisk ? 'warn' : undefined} to={`/admin/targets?year=${year}&status=AT_RISK`} />
+            <Metric label="Quá hạn" value={num(totals.overdue)} tone={totals.overdue ? 'bad' : undefined} to={`/admin/targets?year=${year}&status=OVERDUE`} />
+          </div>
+        </Card>
+        <Row gutter={[16, 16]} align="stretch">
+          {rows.map(framework => (
+            <Col key={framework.id} xs={24} lg={12} xxl={8} style={{ display: 'flex' }}>
+              <FrameworkCard
+                framework={framework}
+                onEdit={() => setEditing(framework)}
+                recomputing={recompute.isPending && recompute.variables?.id === framework.id}
+                onRecompute={() => recompute.mutate(framework, { onSuccess: done => setRecomputed({ framework, outcomes: done.recomputed }) })}
+              />
+            </Col>
+          ))}
+        </Row>
+        </>
+      ) : (
+        <Card>
+          <Empty description={`Chưa có bộ chỉ tiêu năm ${year}`}>
+            {can(user, LEADERSHIP) && (
+              <Button type="primary" icon={<AppstoreAddOutlined />} onClick={() => setLibrary(true)}>
+                Nạp từ thư viện mẫu
+              </Button>
+            )}
+          </Empty>
+        </Card>
+      )}
+      <TemplateLibrary open={library} frameworks={list.data ?? []} year={year} onClose={() => setLibrary(false)} />
+      <FrameworkForm open={editing !== undefined} framework={editing} year={year} codes={(list.data ?? []).map(item => item.code)} onClose={() => setEditing(undefined)} />
+      <RecomputeResult data={recomputed} onClose={() => setRecomputed(null)} />
+    </Page>
+  );
+}

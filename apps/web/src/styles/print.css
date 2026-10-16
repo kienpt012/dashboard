@@ -1,0 +1,290 @@
+/* Bản in theo thể thức văn bản hành chính (Nghị định 30/2020/NĐ-CP).
+   Văn bản in nằm ngoài #root (cổng React); khi in chỉ còn văn bản, giao diện ẩn hết.
+   Luôn đen trên trắng, Times New Roman, không phụ thuộc chế độ sáng/tối. */
+
+.print-root {
+  display: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 20mm 15mm 20mm 30mm;
+}
+
+@page landscape {
+  size: A4 landscape;
+  margin: 12mm 15mm 10mm 20mm;
+}
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body.has-print-doc > *:not(.print-root) {
+    display: none !important;
+  }
+
+  body.has-print-doc > .print-root {
+    display: block !important;
+  }
+
+  .print-doc {
+    color: #000;
+    background: #fff;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 13pt;
+    line-height: 1.35;
+  }
+
+  .print-doc.landscape {
+    page: landscape;
+  }
+
+  .print-doc.landscape .print-doc-head {
+    margin-bottom: 1mm;
+  }
+
+  .print-doc.landscape .print-doc-title {
+    margin: 1mm 0 3mm;
+  }
+
+  .print-doc.landscape .print-doc-sign {
+    margin-top: 3mm;
+  }
+
+  .print-doc.landscape .print-doc-sign-space {
+    height: 13mm;
+  }
+
+  .print-doc * {
+    color: #000;
+  }
+
+  .print-doc-head {
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: 8mm;
+    margin-bottom: 4mm;
+  }
+
+  .print-doc-agency,
+  .print-doc-nation {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .print-doc-agency span {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .print-doc-agency span:first-child:not(:last-child) {
+    font-weight: 400;
+  }
+
+  .print-doc-nation span:first-child {
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .print-doc-nation span + span {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .print-doc .underline {
+    display: inline-block;
+    padding-bottom: 2pt;
+    border-bottom: 0.75pt solid #000;
+  }
+
+  .print-doc-nation em {
+    margin-top: 3mm;
+    font-size: 13pt;
+    font-style: italic;
+  }
+
+  .print-doc-number {
+    margin-top: 1mm;
+    font-size: 13pt;
+  }
+
+  .print-doc-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1mm;
+    margin: 3mm 0 5mm;
+    text-align: center;
+  }
+
+  .print-doc-title strong {
+    font-size: 14pt;
+    font-weight: 700;
+  }
+
+  .print-doc-title em {
+    font-size: 13pt;
+    font-style: italic;
+  }
+
+  .print-doc table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11pt;
+  }
+
+  .print-doc.landscape table {
+    font-size: 10.5pt;
+  }
+
+  .print-doc.landscape th {
+    font-size: 10pt;
+    padding: 2pt 2pt;
+  }
+
+  .print-doc thead {
+    display: table-header-group;
+  }
+
+  .print-doc tr {
+    break-inside: avoid;
+  }
+
+  .print-doc th,
+  .print-doc td {
+    padding: 2pt 4pt;
+    border: 0.75pt solid #000;
+    vertical-align: middle;
+    background: #fff;
+  }
+
+  .print-doc th {
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .print-doc td.c {
+    text-align: center;
+  }
+
+  .print-doc td.r {
+    text-align: right;
+  }
+
+  .print-doc tr.group td {
+    font-weight: 700;
+  }
+
+  .print-doc tr.total td {
+    font-weight: 700;
+  }
+
+  .print-doc .w-stt {
+    width: 9mm;
+  }
+
+  .print-doc .w-name {
+    width: 60mm;
+  }
+
+  .print-doc .w-person {
+    width: 34mm;
+  }
+
+  .print-doc .w-title {
+    width: 92mm;
+  }
+
+  .print-doc .w-unit {
+    width: 18mm;
+  }
+
+  .print-doc .w-plan {
+    width: 30mm;
+  }
+
+  .print-doc .w-num {
+    width: 17mm;
+  }
+
+  .print-doc .w-eval {
+    width: 25mm;
+  }
+
+  .print-doc .w-dept {
+    width: 44mm;
+  }
+
+  .print-doc .print-note {
+    margin-top: 4mm;
+    font-size: 11pt;
+    font-style: italic;
+  }
+
+  .print-doc .print-note p {
+    margin: 0 0 1mm;
+  }
+
+  .print-doc-sign {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10mm;
+    margin-top: 6mm;
+    break-inside: avoid;
+    break-before: avoid;
+    text-align: center;
+  }
+
+  /* Không để phần chữ ký đứng một mình ở trang cuối: kéo theo vài dòng cuối của bảng. */
+  .print-doc tbody tr:nth-last-child(-n + 3) {
+    break-after: avoid;
+  }
+
+  .print-doc-body {
+    break-after: avoid;
+  }
+
+  .print-doc-sign > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .print-doc-sign strong {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .print-doc-sign em {
+    font-size: 12pt;
+    font-style: italic;
+  }
+
+  .print-doc-sign-space {
+    display: block;
+    height: 18mm;
+  }
+
+  .print-doc p {
+    margin: 0 0 2mm;
+    text-align: justify;
+  }
+
+  .print-doc h3 {
+    font-size: 13pt;
+    font-weight: 700;
+    margin: 3mm 0 2mm;
+  }
+}

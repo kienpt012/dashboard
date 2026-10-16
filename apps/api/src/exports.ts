@@ -1,5 +1,5 @@
-import { BadRequestException, Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { ProgressReviewStatus, Role, TargetStatus } from '@prisma/client';
+import { BadRequestException, Controller, Get, NotFoundException, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { FrameworkKind, ProgressReviewStatus, Role, TargetStatus } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
 import { audit, getActor, resolveDepartmentScope } from './access';
@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
+import { brandName, loadLocality } from './locality';
 
 const STATUS_LABELS: Record<TargetStatus, string> = {
   NOT_STARTED: 'Chưa bắt đầu',
@@ -72,14 +73,32 @@ export class ExportsController {
     @Res() res: Response,
     @Query('year') yearRaw?: string,
     @Query('departmentId') requestedDepartmentId?: string,
+    @Query('frameworkId') frameworkRaw?: string,
   ) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
     const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    const scopeDepartment = departmentId
+      ? actor.departmentId === departmentId && actor.department
+        ? actor.department
+        : await this.prisma.department.findUnique({ where: { id: departmentId }, select: { name: true, code: true } })
+      : null;
+    if (departmentId && !scopeDepartment) throw new NotFoundException('Không tìm thấy phòng ban');
+    // "none": chỉ tiêu ngoài bộ; id: một bộ chỉ tiêu; bỏ trống: toàn bộ năm.
+    const frameworkId = frameworkRaw?.trim() || undefined;
+    const framework = frameworkId && frameworkId !== 'none'
+      ? await this.prisma.framework.findUnique({ where: { id: frameworkId }, select: { code: true, name: true } })
+      : null;
+    if (frameworkId && frameworkId !== 'none' && !framework) throw new NotFoundException('Không tìm thấy bộ chỉ tiêu');
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const riskThreshold = setting?.riskThreshold ?? 70;
     const targets = await this.prisma.target.findMany({
-      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
+      where: {
+        year,
+        isArchived: false,
+        ...(departmentId ? { departmentId } : {}),
+        ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
+      },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
@@ -90,15 +109,22 @@ export class ExportsController {
       dueDate: target.dueDate,
       riskThreshold,
       hasReport: Boolean(target.lastReportedAt),
+      kind: target.kind,
     })]));
-    const weightedTotal = targets.reduce((sum, target) => sum + target.weight, 0);
-    const weightedProgress = targets.reduce(
-      (sum, target) => sum + (evaluations.get(target.id)!.progress / 100) * target.weight,
+    // Cùng quy tắc Báo cáo tổng hợp: đếm lá, tính tiến độ từ cấp trên cùng trong phạm vi.
+    const targetById = new Map(targets.map(target => [target.id, target]));
+    const parentIds = new Set(targets.map(target => target.parentId).filter((id): id is string => Boolean(id)));
+    const leaves = targets.filter(target => !parentIds.has(target.id));
+    const leafIds = new Set(leaves.map(target => target.id));
+    const topLevel = targets.filter(target => target.kind !== FrameworkKind.STAT && (!target.parentId || !targetById.has(target.parentId)));
+    const weightedTotal = topLevel.reduce((sum, target) => sum + (target.weight || 1), 0);
+    const weightedProgress = topLevel.reduce(
+      (sum, target) => sum + (evaluations.get(target.id)!.progress / 100) * (target.weight || 1),
       0,
     );
     const history = await this.prisma.progressUpdate.findMany({
       where: {
-        target: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
+        targetId: { in: targets.map(target => target.id) },
         ...(actor.role === Role.STAFF || actor.role === Role.VIEWER
           ? { reviewStatus: ProgressReviewStatus.APPROVED }
           : {}),
@@ -113,7 +139,7 @@ export class ExportsController {
     const reviewerMap = new Map(reviewers.map(user => [user.id, user.fullName]));
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'IOC Lái Thiêu';
+    workbook.creator = brandName(await loadLocality(this.prisma));
     workbook.created = new Date();
     workbook.modified = new Date();
 
@@ -121,14 +147,18 @@ export class ExportsController {
     summary.properties.tabColor = { argb: 'FF0F766E' };
     summary.columns = [{ width: 34 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
     summary.mergeCells('A1:E1');
-    summary.getCell('A1').value = `BÁO CÁO CHỈ TIÊU NĂM ${year}`;
+    const reportTitle = framework
+      ? `BÁO CÁO ${framework.name.toUpperCase()} NĂM ${year}`
+      : frameworkId === 'none' ? `BÁO CÁO CHỈ TIÊU NGOÀI BỘ NĂM ${year}` : `BÁO CÁO CHỈ TIÊU NĂM ${year}`;
+    summary.getCell('A1').value = reportTitle;
     summary.getCell('A1').font = { size: 18, bold: true, color: { argb: 'FF0F4C45' } };
-    summary.getCell('A1').alignment = { horizontal: 'center' };
-    summary.addRow(['Phạm vi', departmentId ? targets[0]?.department.name ?? 'Phòng ban' : 'Toàn hệ thống']);
+    summary.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    summary.getRow(1).height = Math.max(32, Math.ceil(reportTitle.length / 60) * 27);
+    summary.addRow(['Phạm vi', scopeDepartment?.name ?? 'Toàn hệ thống']);
     summary.addRow(['Người xuất', `${actor.fullName} (@${actor.username})`]);
     summary.addRow(['Thời điểm xuất', new Date()]);
-    summary.addRow(['Tổng chỉ tiêu', targets.length]);
-    summary.addRow(['Tiến độ theo trọng số', weightedTotal ? Math.round((weightedProgress / weightedTotal) * 100) / 100 : 0]);
+    summary.addRow(['Tổng chỉ tiêu', leaves.length]);
+    summary.addRow(['Tiến độ theo trọng số', weightedTotal ? weightedProgress / weightedTotal : null]);
     summary.mergeCells('B2:E2');
     summary.mergeCells('B3:E3');
     for (const rowNumber of [2, 3, 4, 5, 6]) {
@@ -154,15 +184,20 @@ export class ExportsController {
     for (const target of targets) {
       const evaluation = evaluations.get(target.id)!;
       const item = departments.get(target.departmentId) ?? { name: target.department.name, total: 0, completed: 0, risk: 0, progress: 0, weight: 0 };
-      item.total++;
-      item.completed += evaluation.status === TargetStatus.COMPLETED ? 1 : 0;
-      item.risk += evaluation.status === TargetStatus.AT_RISK || evaluation.status === TargetStatus.OVERDUE ? 1 : 0;
-      item.progress += evaluation.progress * target.weight;
-      item.weight += target.weight;
+      if (leafIds.has(target.id)) {
+        item.total++;
+        item.completed += evaluation.status === TargetStatus.COMPLETED ? 1 : 0;
+        item.risk += evaluation.status === TargetStatus.AT_RISK || evaluation.status === TargetStatus.OVERDUE ? 1 : 0;
+      }
+      const parent = target.parentId ? targetById.get(target.parentId) : undefined;
+      if (target.kind !== FrameworkKind.STAT && parent?.departmentId !== target.departmentId) {
+        item.progress += evaluation.progress * (target.weight || 1);
+        item.weight += target.weight || 1;
+      }
       departments.set(target.departmentId, item);
     }
     for (const item of [...departments.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'))) {
-      const row = summary.addRow([item.name, item.total, item.completed, item.risk, item.weight ? item.progress / item.weight / 100 : 0]);
+      const row = summary.addRow([item.name, item.total, item.completed, item.risk, item.weight ? item.progress / item.weight / 100 : null]);
       row.getCell(5).numFmt = '0%';
     }
     styleBody(summary, 9);
@@ -193,13 +228,13 @@ export class ExportsController {
         target.code,
         target.title,
         target.department.name,
-        target.targetValue,
+        target.kind === FrameworkKind.STAT ? null : target.targetValue,
         target.currentValue,
         target.unit,
         target.weight,
         target.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt',
-        evaluation.progress / 100,
-        STATUS_LABELS[evaluation.status],
+        target.kind === FrameworkKind.STAT ? null : evaluation.progress / 100,
+        target.kind === FrameworkKind.STAT ? (target.lastReportedAt ? 'Đã có số liệu' : 'Chưa có số liệu') : STATUS_LABELS[evaluation.status],
         target.dueDate,
         target.lastReportedAt,
         target.version,
@@ -261,9 +296,10 @@ export class ExportsController {
       action: 'EXPORT_TARGET_REPORT',
       entityType: 'REPORT_EXPORT',
       departmentId: departmentId ?? null,
-      metadata: { year, targetCount: targets.length, historyCount: history.length },
+      metadata: { year, frameworkId: frameworkId ?? null, targetCount: targets.length, historyCount: history.length },
     });
-    const scope = departmentId ? targets[0]?.department.code ?? 'phong-ban' : 'toan-phuong';
-    return sendWorkbook(res, await workbook.xlsx.writeBuffer(), `Bao_cao_chi_tieu_${filePart(scope)}_${year}.xlsx`);
+    const scope = scopeDepartment?.code ?? 'toan-phuong';
+    const set = framework ? `_${filePart(framework.code)}` : frameworkId === 'none' ? '_ngoai-bo' : '';
+    return sendWorkbook(res, await workbook.xlsx.writeBuffer(), `Bao_cao_chi_tieu${set}_${filePart(scope)}_${year}.xlsx`);
   }
 }

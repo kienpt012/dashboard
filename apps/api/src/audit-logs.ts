@@ -8,6 +8,7 @@ import {
 import { Prisma, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -38,6 +39,10 @@ class AuditLogQueryDto {
   @Min(10, { message: 'Số dòng mỗi trang phải từ 10 đến 100' })
   @Max(100, { message: 'Số dòng mỗi trang phải từ 10 đến 100' })
   pageSize?: number;
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'], { message: 'Thứ tự thời gian phải là asc hoặc desc' })
+  order?: 'asc' | 'desc';
 
   @IsOptional()
   @Transform(trimOptionalText)
@@ -141,6 +146,8 @@ const SAFE_METADATA_KEYS = new Set([
   'revoked',
   'visibility',
   'year',
+  'periodKey',
+  'targetId',
 ]);
 
 function safeMetadata(value: Prisma.JsonValue | null): Record<string, string | number | boolean | string[]> | null {
@@ -220,7 +227,7 @@ export class AuditLogsController {
       this.prisma.auditLog.findMany({
         where,
         select: auditLogSelect,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ createdAt: query.order ?? 'desc' }, { id: query.order ?? 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

@@ -1,0 +1,429 @@
+/* Phản ánh của người dân: gửi, tra cứu, kết quả công khai. */
+
+.fbp-band {
+  background: var(--ioc-color-bg-container);
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+}
+
+.fbp-band h1 {
+  margin: 0;
+  padding-top: 28px;
+  font-size: clamp(22px, 2.6vw, 28px);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.fbp-tabs.ant-tabs {
+  margin-top: 8px;
+}
+
+.fbp-tabs > .ant-tabs-nav {
+  margin: 0 !important;
+}
+
+.fbp-tabs > .ant-tabs-nav::before {
+  border-bottom: 0 !important;
+}
+
+.fbp-tabs .ant-tabs-tab {
+  padding: 14px 0 !important;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.fbp-body {
+  padding-block: 24px 40px;
+}
+
+.fbp-crumbs {
+  margin-bottom: 16px !important;
+}
+
+.fbp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.fbp-stack,
+.fbp-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.fbp-aside {
+  position: sticky;
+  top: 80px;
+}
+
+.fbp-gap {
+  margin-bottom: 16px !important;
+}
+
+.fbp-gap-top {
+  margin-top: 12px;
+}
+
+.fbp-mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+.fbp-code-text {
+  font-size: 13px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.fbp-title {
+  margin: 12px 0 16px;
+  font-size: clamp(19px, 2.2vw, 23px);
+  font-weight: 700;
+  line-height: 1.4;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.fbp-track-secret {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.fbp-track-secret .fbp-mono {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fbp-steps {
+  margin-bottom: 20px !important;
+}
+
+.fbp-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--ioc-color-border-secondary);
+}
+
+.fbp-meta dt {
+  font-size: 12.5px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.fbp-meta dd {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 0;
+  font-weight: 500;
+}
+
+.fbp-meta dd small {
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.fbp-text,
+.fbp-result {
+  white-space: pre-line;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.fbp-result-card {
+  border-color: color-mix(in srgb, var(--ioc-color-success) 35%, var(--ioc-color-border-secondary)) !important;
+}
+
+.fbp-sub {
+  font-size: 13px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.fbp-text + .fbp-sub {
+  display: block;
+  margin-top: 10px;
+}
+
+/* Mốc xử lý */
+.fbp-timeline.ant-timeline {
+  margin-bottom: -16px;
+}
+
+.fbp-event {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fbp-event b {
+  font-weight: 500;
+}
+
+.fbp-event time {
+  font-size: 12.5px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+/* Trao đổi */
+.fbp-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fbp-msg {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.fbp-msg.mine {
+  align-self: flex-end;
+  border-color: var(--ioc-color-primary-border);
+  background: var(--ioc-color-primary-bg);
+}
+
+.fbp-msg-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+.fbp-msg-head time {
+  color: var(--ioc-color-text-tertiary);
+}
+
+.fbp-msg-body {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.fbp-composer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.fbp-composer .ant-upload-wrapper {
+  align-self: stretch;
+}
+
+/* Tệp */
+.fbp-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fbp-files li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.fbp-file {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ioc-color-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.fbp-file:hover {
+  text-decoration: underline;
+}
+
+/* Biểu mẫu gửi */
+.fbp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.fbp-drop.ant-upload-wrapper .ant-upload-drag {
+  padding: 4px 0;
+}
+
+.fbp-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 18px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.fbp-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fbp-cta > a {
+  display: flex;
+}
+
+/* Biên nhận */
+.fbp-receipt {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.fbp-receipt .ant-result-icon .anticon {
+  color: var(--ioc-color-success);
+}
+
+.fbp-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.fbp-codes > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 10px;
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.fbp-codes span {
+  font-size: 12.5px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.fbp-codes strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+.fbp-codes .fbp-secret {
+  font-size: 15px;
+}
+
+.fbp-receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Kết quả đã công khai */
+.fbp-published {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+}
+
+.fbp-pub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 12px;
+  background: var(--ioc-color-bg-container);
+  color: var(--ioc-color-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fbp-pub-card:hover {
+  color: var(--ioc-color-text);
+  border-color: var(--ioc-color-primary-border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.fbp-pub-card strong {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.fbp-clamp {
+  color: var(--ioc-color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.fbp-pub-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+@media (max-width: 991px) {
+  .fbp-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fbp-aside {
+    position: static;
+  }
+}
+
+@media (max-width: 575px) {
+  .fbp-grid,
+  .fbp-codes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fbp-msg {
+    max-width: 100%;
+  }
+  .fbp-tabs .ant-tabs-tab {
+    font-size: 14px;
+  }
+  .fbp-tabs .ant-tabs-tab + .ant-tabs-tab {
+    margin-inline-start: 20px !important;
+  }
+}
+
+/* In biên nhận: chỉ giữ thẻ biên nhận */
+@media print {
+  .pub-header,
+  .pub-footer,
+  .fbp-band,
+  .fbp-receipt-actions,
+  .fbp-receipt .ant-alert,
+  .to-top {
+    display: none !important;
+  }
+  .fbp-receipt {
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+}

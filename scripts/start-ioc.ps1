@@ -1,10 +1,12 @@
 ﻿<#
 .SYNOPSIS
-  Khởi động toàn bộ hệ thống IOC Lái Thiêu trên Windows, kể cả trên máy chưa cài gì.
+  Khởi động toàn bộ hệ thống IOC trên Windows, kể cả trên máy chưa cài gì.
 
 .DESCRIPTION
   Chạy qua start-ioc.cmd ở thư mục gốc. Script tự làm theo thứ tự:
 
+    0. Tự cập nhật mã nguồn lên bản mới nhất trên GitHub (git pull), giữ nguyên dữ liệu
+       và .env; trình khởi động vừa được cập nhật thì tự chạy lại bằng bản mới.
     1. Kiểm tra máy (Windows, ảo hoá, RAM, đĩa) và bản clone có đủ file không.
     2. Kiểm tra Docker Desktop; chưa có thì hỏi để cài bằng winget. Bật Docker Engine.
     3. Tạo file .env với mật khẩu và khoá bí mật ngẫu nhiên. Nếu máy còn dữ liệu của
@@ -20,8 +22,12 @@
   không bị tạo lại, mật khẩu đã đặt không bị đổi. Dữ liệu chỉ bị xoá khi chạy với
   -ResetData và gõ xác nhận.
 
+.PARAMETER NoUpdate
+  Không tự cập nhật mã nguồn từ GitHub, chạy đúng bản đang có trong thư mục.
+
 .PARAMETER SkipBuild
   Dùng image Docker đã build từ lần trước, không build lại (khởi động nhanh hơn).
+  Bị bỏ qua khi vừa cập nhật mã nguồn: bản mới luôn được build lại.
 
 .PARAMETER NoAI
   Bỏ qua hoàn toàn Ollama. Hệ thống vẫn chạy; trích xuất văn bản dùng bộ luật.
@@ -48,6 +54,7 @@
 #>
 [CmdletBinding()]
 param(
+  [switch]$NoUpdate,
   [switch]$SkipBuild,
   [switch]$NoAI,
   [switch]$SkipModelPull,
@@ -85,12 +92,107 @@ $script:envCreated = $false
 $script:pendingProjectName = $null
 $script:pendingInstance = $null
 $script:isNewProject = $false
+$script:codeUpdated = $false
+$script:relaunched = $false
+# Tham số gốc, để chạy lại chính script bằng bản mới sau khi cập nhật.
+$script:launchSwitches = @($PSBoundParameters.Keys | Where-Object { $PSBoundParameters[$_] -is [System.Management.Automation.SwitchParameter] -and $PSBoundParameters[$_].IsPresent })
 
 # Dừng script vì cần người dùng tự làm một việc (cài phần mềm, khởi động lại máy...).
 # Khác với lỗi: đây là bước bình thường trên máy mới, nên thông báo nhẹ nhàng hơn.
 function Stop-ForUserAction([string]$Message) {
   $script:userAction = $Message
   throw $Message
+}
+
+# ===========================================================================
+#  0. Cập nhật mã nguồn
+# ===========================================================================
+
+function Invoke-IocGit([string[]]$Arguments) {
+  return Invoke-IocNative -FilePath 'git' -Arguments (@('-C', $repoRoot) + $Arguments)
+}
+
+# Kéo bản mới nhất của nhánh đang dùng (thường là main) từ GitHub. Chỉ tua nhanh
+# (fast-forward): không bao giờ ghi đè thay đổi chưa lưu hay commit riêng trên máy.
+# Dữ liệu nằm trong volume Docker và .env không thuộc Git nên không bị ảnh hưởng;
+# migration cơ sở dữ liệu chạy tự động khi API của bản mới khởi động.
+function Update-IocCode {
+  Write-Step 'Kiểm tra bản cập nhật'
+  if ($NoUpdate) {
+    Write-Note 'Bỏ qua cập nhật (-NoUpdate).'
+    return
+  }
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Note 'Máy chưa có Git nên không tự cập nhật được; chạy bản hiện có.'
+    return
+  }
+  $inside = Invoke-IocGit @('rev-parse', '--is-inside-work-tree')
+  if ($inside.ExitCode -ne 0 -or $inside.Text -ne 'true') {
+    Write-Note 'Thư mục này không phải bản clone Git (ví dụ tải về dạng ZIP) nên không tự cập nhật được.'
+    return
+  }
+  $branch = (Invoke-IocGit @('rev-parse', '--abbrev-ref', 'HEAD')).Text
+  $upstream = Invoke-IocGit @('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')
+  if ($branch -eq 'HEAD' -or $upstream.ExitCode -ne 0) {
+    Write-Note "Nhánh '$branch' không theo dõi nhánh nào trên GitHub; chạy bản hiện có."
+    return
+  }
+
+  $previousPrompt = $env:GIT_TERMINAL_PROMPT
+  $env:GIT_TERMINAL_PROMPT = '0'
+  try {
+    $fetch = Invoke-IocGit @('-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=30', 'fetch', '--quiet', '--prune')
+  } finally {
+    $env:GIT_TERMINAL_PROMPT = $previousPrompt
+  }
+  if ($fetch.ExitCode -ne 0) {
+    Write-Caution 'Không kết nối được GitHub để kiểm tra bản mới; chạy bản hiện có.'
+    return
+  }
+
+  $current = (Invoke-IocGit @('log', '-1', '--format=%h %cd', '--date=format:%d/%m/%Y')).Text
+  $behind = [int]((Invoke-IocGit @('rev-list', '--count', 'HEAD..@{u}')).Text)
+  if ($behind -eq 0) {
+    Write-Ok "Đang dùng bản mới nhất ($current)"
+    return
+  }
+
+  Write-Note "Có $behind thay đổi mới trên GitHub, gần nhất:"
+  $news = (Invoke-IocGit @('log', '--format=%s', '--no-merges', '-n', '8', 'HEAD..@{u}')).Text
+  foreach ($line in ($news -split "`n")) { if ($line.Trim()) { Write-Host "    · $($line.Trim())" -ForegroundColor Gray } }
+  if ($CheckOnly) {
+    Write-Note 'Khi chạy thật, script sẽ tự cập nhật lên bản này.'
+    return
+  }
+
+  $dirty = Invoke-IocGit @('status', '--porcelain', '--untracked-files=no')
+  if ($dirty.Text) {
+    Write-Caution 'Thư mục có tệp mã nguồn bị sửa trên máy nên không tự cập nhật (tránh ghi đè thay đổi của bạn).'
+    Write-Note 'Không cần giữ các thay đổi đó: chạy lệnh git stash trong thư mục này rồi chạy lại start-ioc.cmd.'
+    return
+  }
+
+  $before = (Invoke-IocGit @('rev-parse', 'HEAD')).Text
+  $merge = Invoke-IocGit @('merge', '--ff-only', '--quiet', '@{u}')
+  if ($merge.ExitCode -ne 0) {
+    Write-Caution 'Máy có commit riêng khác với GitHub nên không tự cập nhật được; chạy bản hiện có.'
+    if ($merge.Text) { Write-Note $merge.Text }
+    return
+  }
+  $script:codeUpdated = $true
+  $now = (Invoke-IocGit @('log', '-1', '--format=%h %cd', '--date=format:%d/%m/%Y')).Text
+  Write-Ok "Đã cập nhật lên bản $now"
+
+  # Chính trình khởi động thay đổi: bản đang chạy đã cũ, chạy lại bằng bản mới.
+  $changed = (Invoke-IocGit @('diff', '--name-only', $before, 'HEAD')).Text -split "`n"
+  if ($changed | Where-Object { $_ -match '^(scripts/|start-ioc\.cmd$|stop-ioc\.cmd$)' }) {
+    Write-Note 'Trình khởi động vừa được cập nhật — chạy tiếp bằng bản mới.'
+    $switches = @($script:launchSwitches | Where-Object { $_ -notin @('NoUpdate', 'SkipBuild', 'NoPause') } | ForEach-Object { "-$_" })
+    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) + $switches + @('-NoUpdate', '-NoPause')
+    & powershell.exe @arguments
+    $script:exitCode = $LASTEXITCODE
+    $script:relaunched = $true
+  }
 }
 
 # ===========================================================================
@@ -287,6 +389,36 @@ function Test-ComposeAvailable {
   Write-Ok "Docker Compose $($result.Text)"
 }
 
+# Docker Desktop đặt các socket Unix (*.sock) trong AppData. Trên một số bản Windows, socket của lần chạy
+# trước không đổi tên được nữa ("The file cannot be accessed by the system") và Docker Desktop báo
+# "An unexpected error occurred" mỗi lần mở. Khi Docker Desktop đang tắt, chuyển các thư mục socket cũ
+# sang tên khác để Docker tạo lại thư mục mới. Không đụng tới dữ liệu (volume, image, container).
+function Clear-DockerStaleSockets {
+  if (Get-Process -Name 'Docker Desktop', 'com.docker.backend' -ErrorAction SilentlyContinue) { return }
+  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  foreach ($directory in @((Join-Path $env:LOCALAPPDATA 'Docker\run'), (Join-Path $env:LOCALAPPDATA 'docker-secrets-engine'))) {
+    if (-not (Test-Path -LiteralPath $directory)) { continue }
+    $sockets = @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*.sock*' -or $_.Name -like '*.stale' })
+    if ($sockets.Count -eq 0) { continue }
+    try {
+      Rename-Item -LiteralPath $directory -NewName ((Split-Path -Leaf $directory) + ".old-$stamp") -ErrorAction Stop
+      Write-Note "Đã dọn socket cũ của Docker Desktop ($(Split-Path -Leaf $directory))."
+    } catch {
+      Write-Caution "Không dọn được socket cũ trong $directory — nếu Docker Desktop báo lỗi, tắt hẳn Docker Desktop rồi chạy lại."
+    }
+  }
+  # Thư mục cũ của các lần dọn trước: xoá được thì xoá, không được thì để lại.
+  Get-ChildItem -LiteralPath $env:LOCALAPPDATA -Directory -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like 'docker-secrets-engine.old-*' } |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+  $dockerData = Join-Path $env:LOCALAPPDATA 'Docker'
+  if (Test-Path -LiteralPath $dockerData) {
+    Get-ChildItem -LiteralPath $dockerData -Directory -Force -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -like 'run.old-*' } |
+      ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+  }
+}
+
 function Start-DockerEngine {
   Write-Step 'Kiểm tra Docker'
 
@@ -312,6 +444,7 @@ function Start-DockerEngine {
   }
 
   Write-Note 'Docker Engine đang tắt — đang bật Docker Desktop...'
+  Clear-DockerStaleSockets
   $viaCli = Invoke-IocNative 'docker' @('desktop', 'start', '--detach')
   if ($viaCli.ExitCode -ne 0) {
     # Docker Desktop bản cũ chưa có lệnh "docker desktop"; mở thẳng ứng dụng.
@@ -729,6 +862,24 @@ function Repair-EnvFile([string]$Project) {
   if ($changes.Count -gt 0) {
     $verb = if ($CheckOnly) { 'Sẽ thay' } else { 'Đã thay' }
     Write-Ok "$verb giá trị mẫu: $($changes -join ', ')"
+  }
+
+  # Bản mới thêm cấu hình: bổ sung khoá còn thiếu với giá trị mặc định của .env.example.
+  # Bỏ qua khoá bí mật/mật khẩu (đã xử lý ở trên hoặc do người quản trị tự đặt) và khoá để trống.
+  $template = Read-IocDotEnv $envTemplatePath
+  $current = Read-IocDotEnv $envPath
+  $added = New-Object System.Collections.Generic.List[string]
+  foreach ($key in @($template.Keys)) {
+    if ($current.Contains($key)) { continue }
+    if ($key -match 'PASSWORD|SECRET|PEPPER|^DATABASE_URL$|^DIRECT_URL$|^SMTP_PASS$') { continue }
+    $value = [string]$template[$key]
+    if (Test-IocPlaceholder $value) { continue }
+    if (-not $CheckOnly) { Set-IocDotEnvValue $envPath $key $value }
+    $added.Add($key)
+  }
+  if ($added.Count -gt 0) {
+    $verb = if ($CheckOnly) { 'Sẽ bổ sung' } else { 'Đã bổ sung' }
+    Write-Ok "$verb cấu hình mới: $($added -join ', ')"
   }
 }
 
@@ -1159,7 +1310,7 @@ function Start-IocStack {
     throw 'File docker-compose.yml hoặc .env không hợp lệ.'
   }
 
-  if ($SkipBuild) {
+  if ($SkipBuild -and -not $script:codeUpdated) {
     Write-Note 'Dùng image đã build từ lần trước (-SkipBuild).'
     $code = Invoke-IocCompose $repoRoot @('up', '--detach')
   } else {
@@ -1346,7 +1497,7 @@ function Show-Summary {
 
   Write-Host ''
   Write-Host '============================================================' -ForegroundColor Green
-  Write-Host '  IOC Lái Thiêu đã sẵn sàng' -ForegroundColor Green
+  Write-Host '  IOC đã sẵn sàng' -ForegroundColor Green
   Write-Host '============================================================' -ForegroundColor Green
   Write-Host "  Cổng thông tin      $web"
   Write-Host "  Đăng nhập quản trị  $web/admin/login"
@@ -1405,12 +1556,14 @@ $pauseAtEnd = (-not $NoPause) -and (Test-LaunchedFromExplorer)
 
 try {
   Write-Host ''
-  Write-Host 'IOC Lái Thiêu — trình khởi động' -ForegroundColor White
+  Write-Host 'IOC — trình khởi động' -ForegroundColor White
   if ($CheckOnly) { Write-Host 'Chế độ chỉ kiểm tra: không cài đặt và không thay đổi gì.' -ForegroundColor Gray }
 
   # Docker phải chạy TRƯỚC khi tạo .env: chỉ Docker mới cho biết máy đã có dữ liệu của
   # lần cài trước hay chưa, và mật khẩu cũ của nó là gì.
   Test-Machine
+  Update-IocCode
+  if ($script:relaunched) { return }
   Test-RepositoryFiles
   Start-DockerEngine
   Initialize-EnvFile

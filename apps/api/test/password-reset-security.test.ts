@@ -186,6 +186,8 @@ for (const scenario of adminUpdateCases) {
           findUniqueOrThrow: async () => user,
         },
         feedback: { count: async () => 0 },
+        target: { findMany: async () => [], updateMany: async () => ({ count: 0 }) },
+        workEvent: { create: async ({ data }: Record<string, any>) => data },
         passwordResetChallenge: {
           updateMany: async ({ where, data }: Record<string, any>) => {
             assert.deepEqual(where, { userId: user.id, consumedAt: null });

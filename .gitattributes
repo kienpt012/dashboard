@@ -17,3 +17,5 @@
 
 # Script chạy bên trong container Linux phải luôn là LF.
 *.sh text eol=lf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

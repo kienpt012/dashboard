@@ -25,6 +25,15 @@ import { CandidatesController } from './candidates';
 import { CopilotController } from './copilot';
 import { ExtractionWorker } from './extraction-worker';
 import { OllamaService } from './ollama';
+import { LocalityController } from './locality';
+import { SetupController } from './setup';
+import { FrameworksController } from './frameworks';
+import { DatasetsController } from './datasets';
+import { DossierController } from './dossier';
+import { NotificationsController } from './notifications';
+import { IocController } from './ioc';
+import { BugReportsController } from './bug-reports';
+import { AccountabilityWorker } from './accountability-worker';
 import {
   PublicDashboardAdminController,
   PublicDashboardPublicController,
@@ -64,6 +73,14 @@ import {
     CandidatesController,
     CopilotController,
     PublicDashboardAdminController,
+    LocalityController,
+    SetupController,
+    FrameworksController,
+    DatasetsController,
+    DossierController,
+    NotificationsController,
+    IocController,
+    BugReportsController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,
@@ -76,6 +93,7 @@ import {
     OllamaService,
     ExtractionWorker,
     PublicDashboardService,
+    AccountabilityWorker,
   ],
 })
 export class AppModule {}

@@ -1,4 +1,4 @@
-import { TargetDirection, TargetStatus } from '@prisma/client';
+import { FrameworkKind, TargetDirection, TargetStatus } from '@prisma/client';
 
 export interface TargetMetricInput {
   targetValue: number;
@@ -8,6 +8,8 @@ export interface TargetMetricInput {
   riskThreshold?: number;
   now?: Date;
   hasReport?: boolean;
+  /** Chỉ tiêu thống kê (STAT) không có mục tiêu: chỉ phân biệt đã có số liệu hay chưa. */
+  kind?: FrameworkKind;
 }
 
 export interface TargetMetric {
@@ -41,8 +43,16 @@ export function calculateProgress(
 export function evaluateTarget(input: TargetMetricInput): TargetMetric {
   const direction = input.direction ?? TargetDirection.HIGHER_IS_BETTER;
   const hasReport = input.hasReport ?? input.currentValue !== 0;
+  const now = input.now ?? new Date();
+  const dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
+  const pastDue = Boolean(dueDate && Number.isFinite(dueDate.getTime()) && dueDate < now);
+  if (input.kind === FrameworkKind.STAT) {
+    return { progress: 0, status: hasReport ? TargetStatus.ON_TRACK : TargetStatus.NOT_STARTED, completed: false };
+  }
   if (!hasReport) {
-    return { progress: 0, status: TargetStatus.NOT_STARTED, completed: false };
+    // Chưa từng báo cáo nhưng đã quá hạn hoàn thành: đây chính là chỉ tiêu bị bỏ quên mà lãnh đạo cần thấy,
+    // không được hiển thị như "Chưa bắt đầu".
+    return { progress: 0, status: pastDue ? TargetStatus.OVERDUE : TargetStatus.NOT_STARTED, completed: false };
   }
 
   const progress = calculateProgress(input.targetValue, input.currentValue, direction);
@@ -54,9 +64,7 @@ export function evaluateTarget(input: TargetMetricInput): TargetMetric {
     return { progress: 100, status: TargetStatus.COMPLETED, completed: true };
   }
 
-  const dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
-  const now = input.now ?? new Date();
-  if (dueDate && Number.isFinite(dueDate.getTime()) && dueDate < now) {
+  if (pastDue) {
     return { progress, status: TargetStatus.OVERDUE, completed: false };
   }
   const threshold = Math.max(0, Math.min(100, input.riskThreshold ?? 70));

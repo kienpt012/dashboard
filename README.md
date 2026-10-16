@@ -1,17 +1,29 @@
-# IOC Lái Thiêu
+# IOC — Trung tâm điều hành thông minh cấp xã
 
-Nền tảng điều hành số cấp phường: quản lý chỉ tiêu, báo cáo, phản ánh của người dân và trích xuất số liệu từ văn bản hành chính bằng AI chạy cục bộ. Kết quả do AI đề xuất chỉ trở thành dữ liệu chính thức sau khi cán bộ xác minh.
+Hệ thống điều hành cho UBND xã, phường, đặc khu theo hướng **"từ dữ liệu đến trách nhiệm"**: số liệu được lấy từ kho
+dữ liệu nghiệp vụ hoặc do cán bộ báo cáo kèm minh chứng, gom thành các bộ chỉ tiêu, hiển thị trên màn hình điều hành,
+và mọi việc chờ đều có hạn, có người chịu trách nhiệm. Cài cho địa phương nào cũng được: tên đơn vị, cơ cấu tổ chức
+và bộ chỉ tiêu được chọn qua trình thiết lập, không viết cứng trong mã nguồn.
 
 ## Tính năng
 
-- Chỉ tiêu, tiến độ, phòng ban, tài khoản, xuất báo cáo Excel
-- Cổng thông tin công khai (`/`) và khu quản trị (`/admin`)
-- Tiếp nhận, tra cứu và xử lý phản ánh kèm tệp minh chứng
-- Public Dashboard Studio: thiết kế, xem trước, công bố dashboard công khai
-- Kho văn bản PDF, DOCX, XLSX, ảnh; OCR và trích xuất chỉ tiêu bằng AI
-- Phân quyền theo vai trò, quy trình phê duyệt, nhật ký hệ thống
+- **Trung tâm điều hành**: theo từng bộ chỉ tiêu và từng phòng — đạt, nguy cơ, quá hạn, thiếu báo cáo kỳ, việc bị treo,
+  luồng cảnh báo, độ mới dữ liệu; **trình chiếu phòng họp** toàn màn hình tự chuyển trang.
+- **Bộ chỉ tiêu** nhiều loại (kế hoạch, chấm điểm, nhiệm vụ, thống kê), nạp từ thư viện mẫu có căn cứ pháp lý:
+  55 chỉ tiêu thống kê cấp xã (Thông tư 148/2026/TT-BTC), mẫu KT-XH và chuyển đổi số (DTI) của TP.HCM.
+- **Hồ sơ chỉ tiêu ba phần**: chỉ đạo điều hành – thực hiện (số liệu theo kỳ, nguồn, minh chứng, giải trình) – đánh giá;
+  chỉ tiêu cha–con; phiếu nguồn số liệu; dòng thời gian trách nhiệm.
+- **Kho dữ liệu** và **chỉ tiêu tự tính** bằng công thức khai báo, có dấu vết tới từng dòng dữ liệu; nhập Excel theo mẫu.
+- **Cơ chế trách nhiệm**: giao việc tới chuyên viên, giới hạn số lần chuyển việc, tự thông qua báo cáo/đề xuất khi người
+  duyệt để quá hạn (ghi trách nhiệm), nhắc việc, yêu cầu giải trình, thông báo, màn hình trách nhiệm người đứng đầu.
+- **Đề xuất chỉ tiêu** từ AI (trích xuất văn bản, OCR, chạy cục bộ) và từ cán bộ; kết quả AI phải có người rà soát và trình.
+- Phản ánh của người dân, cổng công khai, Public Dashboard Studio, xuất Excel, nhật ký hệ thống, nút **báo lỗi** kèm
+  địa chỉ trang trên mọi màn hình.
 
 **Công nghệ:** React, Vite, NestJS, Prisma, PostgreSQL, Ollama (Qwen3, bge-m3), Tesseract, Docker Compose, Nginx.
+
+Tài liệu nghiệp vụ bản 2: [phân tích yêu cầu](docs/requirements/01-phan-tich-yeu-cau-khach-hang.md) ·
+[thiết kế](docs/requirements/02-thiet-ke-ioc-v2.md) · [quyết định D-009…D-014](docs/DECISIONS.md).
 
 ## Cài đặt
 
@@ -57,14 +69,31 @@ docker compose exec api ./docker-entrypoint.sh seed   # chỉ chạy một lần
 
 ## Tài khoản mẫu
 
-| Tài khoản | Vai trò | Mật khẩu |
-|---|---|---|
-| `admin` | Quản trị hệ thống | `DEMO_ADMIN_PASSWORD` trong `.env` |
-| `lan.anh`, `manager.vhxh` | Lãnh đạo đơn vị | `DEMO_USER_PASSWORD` trong `.env` |
-| `staff.ktht` | Cán bộ cập nhật | `DEMO_USER_PASSWORD` trong `.env` |
-| `viewer.ktht` | Chỉ xem báo cáo | `DEMO_USER_PASSWORD` trong `.env` |
+Dữ liệu mẫu dựng một phường giả lập (TP.HCM) với ba bộ chỉ tiêu, kho dữ liệu, báo cáo, đánh giá và một số việc đang
+chờ để thấy cơ chế trách nhiệm hoạt động.
 
+| Tài khoản | Vai trò | Dùng để thử |
+|---|---|---|
+| `admin` | Quản trị hệ thống | Thiết lập địa phương, tài khoản, cấu hình, báo lỗi |
+| `chu.tich`, `pho.chu.tich` | Lãnh đạo UBND | Trung tâm điều hành, duyệt đề xuất, đánh giá, yêu cầu giải trình |
+| `van.thu` | Văn thư | Tiếp nhận văn bản, rà soát và trình đề xuất AI |
+| `chanh.vp`, `lan.anh`, `manager.vhxh`, `manager.ttcc` | Trưởng phòng | Giao việc, duyệt số liệu, trả lời giải trình |
+| `staff.ktht`, `thao.ktht`, `staff.vhxh`, `staff.ttcc` | Chuyên viên | Báo cáo số liệu kèm minh chứng, đề xuất chỉ tiêu |
+| `viewer.ktht` | Người xem | Chỉ xem số liệu của phòng |
+
+Mật khẩu: `DEMO_ADMIN_PASSWORD` (tài khoản `admin`) và `DEMO_USER_PASSWORD` (các tài khoản khác) trong `.env`.
 Đổi mật khẩu quản trị sau lần đăng nhập đầu tiên.
+
+## Mang sang địa phương khác
+
+1. Cài như mục trên nhưng **không** chạy lệnh tạo dữ liệu mẫu; chỉ tạo tài khoản quản trị đầu tiên:
+   `docker compose exec -e ADMIN_PASSWORD='<mật-khẩu-mạnh>' api ./docker-entrypoint.sh bootstrap`
+   ([hướng dẫn triển khai](docs/DEPLOYMENT.md#0-triển-khai-cho-một-địa-phương-thật-không-dữ-liệu-mẫu)).
+2. Đăng nhập quản trị, mở **Thiết lập địa phương** (`/admin/thiet-lap`): khai thông tin đơn vị → chọn mẫu cơ cấu tổ chức
+   (xã, phường, đặc khu, trường học… rồi sửa tự do) → chọn bộ chỉ tiêu từ thư viện → đặt thời hạn trách nhiệm → áp dụng.
+3. Tạo tài khoản lãnh đạo, văn thư, trưởng phòng, chuyên viên; trưởng phòng giao chỉ tiêu cho chuyên viên.
+4. Bộ chỉ tiêu riêng của tỉnh chưa có trong thư viện: tạo bộ mới ở **Bộ chỉ tiêu** rồi nhập chỉ tiêu, hoặc bổ sung một
+   mẫu trong `apps/api/src/templates/` (xem các mẫu có sẵn và test `apps/api/test/ioc-v2.test.ts`).
 
 ## Địa chỉ
 
@@ -81,8 +110,9 @@ Máy khác trong mạng nội bộ truy cập qua `http://<IP-máy-chủ>:8080`;
 
 | Lệnh | Tác dụng |
 |---|---|
-| `.\start-ioc.cmd` | Khởi động; sau `git pull` sẽ build lại và áp dụng migration mới |
-| `.\start-ioc.cmd -SkipBuild` | Khởi động nhanh bằng image đã build |
+| `.\start-ioc.cmd` | Khởi động; tự cập nhật bản mới từ GitHub, build lại và áp dụng migration mới |
+| `.\start-ioc.cmd -SkipBuild` | Khởi động nhanh bằng image đã build (vẫn build khi vừa có bản mới) |
+| `.\start-ioc.cmd -NoUpdate` | Không tự cập nhật từ GitHub trong lần chạy này |
 | `.\start-ioc.cmd -CheckOnly` | Chỉ kiểm tra điều kiện, không thay đổi gì |
 | `.\start-ioc.cmd -NoAI` | Không dùng Ollama; trích xuất bằng bộ luật |
 | `.\start-ioc.cmd -SkipModelPull` | Không tải model AI còn thiếu |
@@ -93,6 +123,18 @@ Máy khác trong mạng nội bộ truy cập qua `http://<IP-máy-chủ>:8080`;
 | `.\stop-ioc.cmd -KeepDocker -KeepAI` | Chỉ dừng container IOC |
 
 Không dùng `docker compose down -v`: lệnh này xoá volume dữ liệu.
+
+### Cập nhật lên bản mới
+
+Chỉ cần chạy lại `start-ioc.cmd`. Mỗi lần khởi động, trình khởi động tự:
+
+1. Kiểm tra GitHub và tải bản mới nhất của nhánh đang dùng (`git pull` dạng tua nhanh) — không ghi đè tệp bạn tự sửa;
+2. Bổ sung vào `.env` các cấu hình mới (giữ nguyên mật khẩu, khoá bí mật và giá trị bạn đã đặt);
+3. Build lại image và áp dụng migration cơ sở dữ liệu mới — dữ liệu, tài khoản được giữ nguyên.
+
+Không muốn tự cập nhật trong một lần chạy: `.\start-ioc.cmd -NoUpdate`. Máy chỉ dùng thử và muốn có bộ dữ liệu mẫu mới:
+`.\start-ioc.cmd -ResetData` (xoá toàn bộ dữ liệu, hỏi xác nhận trước). Sau khi nâng cấp từ bản 1, vào **Thiết lập địa phương**
+để khai thông tin đơn vị nếu màn hình điều hành nhắc.
 
 ## Xử lý sự cố
 

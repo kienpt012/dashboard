@@ -6,7 +6,7 @@ coverage/
 *.log
 uploads
 .DS_Store
-work/
+/work/
 outputs/
 backups/
 qa-artifacts/
@@ -20,3 +20,6 @@ qa-artifacts/
 /CLAUDE.md
 /TASKS.md
 /PROGRESS.md
+
+# Bản chép lời ghi âm khách hàng (có tên cán bộ thật)
+/docs/requirements/raw/

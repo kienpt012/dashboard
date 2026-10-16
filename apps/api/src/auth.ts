@@ -23,7 +23,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, randomInt, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from './prisma.service';
-import { Actor, audit, getActor } from './access';
+import { Actor, audit, getActor, isGlobalRole } from './access';
 import { JwtAuthGuard } from './common';
 import { requireJwtSecret } from './environment';
 import { getClientIp, RateLimitService } from './rate-limit';
@@ -213,7 +213,7 @@ export class AuthController {
       });
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng');
     }
-    if (user.role !== Role.ADMIN && (!user.department || !user.department.isActive)) {
+    if (!isGlobalRole(user.role) && (!user.department || !user.department.isActive)) {
       throw new ForbiddenException('Tài khoản chưa được gắn với phòng ban đang hoạt động');
     }
 
@@ -655,13 +655,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.ver !== user.tokenVersion) {
       throw new UnauthorizedException('Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại');
     }
-    if (user.role !== Role.ADMIN && (!user.department || !user.department.isActive)) {
+    if (!isGlobalRole(user.role) && (!user.department || !user.department.isActive)) {
       throw new ForbiddenException('Tài khoản chưa được gắn với phòng ban đang hoạt động');
     }
     return {
       id: user.id,
       username: user.username,
       fullName: user.fullName,
+      position: user.position,
       email: user.email,
       role: user.role,
       isActive: user.isActive,

@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { installHttpBodyParsers } from './http-config';
+import { validationExceptionFactory } from './validation-messages';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
@@ -26,6 +27,7 @@ async function bootstrap() {
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
+    exceptionFactory: validationExceptionFactory,
   }));
   await app.listen(process.env.PORT || 3000, '0.0.0.0');
 }

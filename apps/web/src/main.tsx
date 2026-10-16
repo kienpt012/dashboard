@@ -1,23 +1,37 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import App from './App';
-import ErrorBoundary from './components/ErrorBoundary';
-import { enableMotion } from './motion';
-import { startScrollHints } from './scroll-hint';
-import './styles/index.css';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { AppRouter } from './app/router';
+import { ThemeProvider } from './app/theme';
+import { ApiError, session } from './lib/api';
+import './lib/format';
+import './styles/global.css';
+import './styles/print.css';
 
-// Chỉ bật lớp hoạt hoạ sau khi kịch bản đã chạy được. Nếu nó hỏng, CSS không ẩn
-// gì cả và người dùng vẫn thấy toàn bộ nội dung.
-enableMotion();
-startScrollHints();
+const client = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
+      retry: (count, error) => !(error instanceof ApiError && error.status >= 400 && error.status < 500) && count < 2,
+    },
+  },
+});
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </BrowserRouter>
-  </React.StrictMode>,
+// Đổi người đăng nhập (đăng nhập, đăng xuất, hết phiên) thì bỏ toàn bộ dữ liệu đã đệm của phiên trước.
+let lastToken = session.token;
+session.subscribe(() => {
+  if (session.token === lastToken) return;
+  lastToken = session.token;
+  client.clear();
+});
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={client}>
+      <ThemeProvider>
+        <AppRouter />
+      </ThemeProvider>
+    </QueryClientProvider>
+  </StrictMode>,
 );
