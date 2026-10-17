@@ -8,7 +8,7 @@ import { DocumentViewer } from './DocumentViewer';
 import type { Box, PickedLine } from './pdf/PdfViewer';
 
 export type TargetSourceInfo = {
-  status: 'located' | 'not-found' | 'no-document' | 'processing';
+  status: 'located' | 'not-found' | 'no-document' | 'processing' | 'failed';
   document: { id: string; code: string; title: string; docNumber?: string | null; mimeType: string; pageCount?: number | null } | null;
   anchor: { pageNumber: number | null; box: Box | null; matchBox: Box | null; quote: string | null; score: number | null; manual: boolean; locatedAt: string } | null;
 };
@@ -89,7 +89,9 @@ export function TargetSource({ targetId, targetTitle, canEdit, variant = 'block'
         <Typography.Text type="secondary" className="source-meta">
           {info.status === 'processing'
             ? 'Văn bản đang được đọc…'
-            : located
+            : info.status === 'failed'
+              ? 'Hệ thống không đọc được văn bản này (lỗi xử lý); mở văn bản để xem tệp gốc.'
+              : located
               ? (
                   <>
                     Trang {anchor!.pageNumber}
@@ -122,7 +124,7 @@ export function TargetSource({ targetId, targetTitle, canEdit, variant = 'block'
     <Alert
       type="warning"
       showIcon
-      title={`Hệ thống chưa tìm thấy dòng của chỉ tiêu “${targetTitle}” trong văn bản này.${canEdit ? ' Bấm “Chỉ vị trí” rồi chọn dòng đúng.' : ''}`}
+      title={`Hệ thống chưa tìm thấy dòng của chỉ tiêu “${targetTitle}” trong văn bản này.${canEdit && document.mimeType === 'application/pdf' ? ' Bấm “Chỉ vị trí” rồi chọn dòng đúng.' : ''}`}
     />
   ) : null;
 

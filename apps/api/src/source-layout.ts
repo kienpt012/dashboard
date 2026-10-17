@@ -31,7 +31,9 @@ export function mergeSpans(spans: LayoutSpan[], maxGap = 0.012): LayoutSpan[] {
     line.sort((a, b) => a[0] - b[0]);
     let current: LayoutSpan | null = null;
     for (const span of line) {
-      if (current && span[0] - current[2] <= maxGap) {
+      // Số thứ tự (4, 22.1, IV) đứng riêng một cột: không gộp vào chữ của cột bên cạnh.
+      const label = current && /^(?:\d+(?:\.\d+)*\.?|[IVXLC]+\.?)$/i.test(current[4].trim()) && span[0] - current[2] > 0.004;
+      if (current && !label && span[0] - current[2] <= maxGap) {
         const gap: number = span[0] - current[2];
         current = [current[0], Math.min(current[1], span[1]), Math.max(current[2], span[2]), Math.max(current[3], span[3]), `${current[4]}${gap > 0.0025 ? ' ' : ''}${span[4]}`];
       } else {
@@ -86,19 +88,34 @@ export function tsvSpans(tsv: string): LayoutSpan[] {
   const width = Number(page?.[8]) || 0;
   const height = Number(page?.[9]) || 0;
   if (!width || !height) return [];
-  const lines = new Map<string, { box: [number, number, number, number]; words: string[] }>();
+  // Gom từ theo dòng Tesseract; trong một dòng, khoảng trống lớn (hơn 1,5 lần chiều cao chữ) là ranh giới ô bảng —
+  // OCR bảng hay cho một "dòng" chạy ngang mọi cột, tách ra để nhận cột như với lớp chữ PDF.
+  const words = new Map<string, { left: number; top: number; right: number; bottom: number; text: string }[]>();
   for (const cols of rows) {
     if (Number(cols[0]) !== 5 || !cols[11]?.trim() || Number(cols[10]) < 0) continue;
     const key = `${cols[2]}:${cols[3]}:${cols[4]}`;
     const left = Number(cols[6]);
     const top = Number(cols[7]);
-    const right = left + Number(cols[8]);
-    const bottom = top + Number(cols[9]);
-    const line = lines.get(key);
-    if (line) {
-      line.box = [Math.min(line.box[0], left), Math.min(line.box[1], top), Math.max(line.box[2], right), Math.max(line.box[3], bottom)];
-      line.words.push(cols[11].trim());
-    } else lines.set(key, { box: [left, top, right, bottom], words: [cols[11].trim()] });
+    const list = words.get(key) ?? [];
+    list.push({ left, top, right: left + Number(cols[8]), bottom: top + Number(cols[9]), text: cols[11].trim() });
+    words.set(key, list);
   }
-  return [...lines.values()].map(line => [round(line.box[0] / width), round(line.box[1] / height), round(line.box[2] / width), round(line.box[3] / height), line.words.join(' ')] as LayoutSpan);
+  const spans: LayoutSpan[] = [];
+  for (const list of words.values()) {
+    list.sort((a, b) => a.left - b.left);
+    let cell: typeof list = [];
+    const flush = () => {
+      if (!cell.length) return;
+      const box = [Math.min(...cell.map(w => w.left)), Math.min(...cell.map(w => w.top)), Math.max(...cell.map(w => w.right)), Math.max(...cell.map(w => w.bottom))];
+      spans.push([round(box[0] / width), round(box[1] / height), round(box[2] / width), round(box[3] / height), cell.map(w => w.text).join(' ')]);
+      cell = [];
+    };
+    for (const word of list) {
+      const previous = cell[cell.length - 1];
+      if (previous && word.left - previous.right > 1.5 * Math.max(previous.bottom - previous.top, word.bottom - word.top)) flush();
+      cell.push(word);
+    }
+    flush();
+  }
+  return spans;
 }

@@ -66,10 +66,64 @@ test('chú thích vắt ngang không nối cột tên chỉ tiêu với cột k�
 });
 
 test('nhận ra văn bản giao cho nhiều đơn vị và phần của đơn vị mình (để AI chỉ trích xuất phần đó)', () => {
-  assert.deepEqual(unitSection(pages, 'Lái Thiêu'), { pages: [2], otherUnits: 2 });
-  const ownPlan = [textLayoutPage(1, 'ỦY BAN NHÂN DÂN PHƯỜNG LÁI THIÊU\nKẾ HOẠCH\n1. Tỷ lệ hồ sơ đúng hạn đạt 98%')];
-  assert.equal(unitSection(ownPlan, 'Lái Thiêu').otherUnits, 0);
-  assert.deepEqual(unitSection(pages, 'Bình Nhâm'), { pages: [], otherUnits: 0 });
+  assert.deepEqual(unitSection(pages, 'Lái Thiêu'), { pages: [2], otherUnits: 2, multiUnit: true });
+  // Văn bản chia phần nhưng không có phần của mình: vẫn biết là văn bản chia phần, không lấy phần nào.
+  assert.deepEqual(unitSection(pages, 'Bình Nhâm'), { pages: [], otherUnits: 3, multiUnit: true });
+  // Tên địa phương nhập kèm loại đơn vị vẫn nhận đúng.
+  assert.deepEqual(unitSection(pages, 'Phường Lái Thiêu').pages, [2]);
+});
+
+// Văn bản của chính phường: đầu văn bản hai dòng, nhiều dòng văn xuôi bắt đầu bằng "Phường …" — không phải văn bản chia phần.
+const ownPlan = [
+  textLayoutPage(1, 'ỦY BAN NHÂN DÂN\nPHƯỜNG LÁI THIÊU\nKẾ HOẠCH\nPhát triển kinh tế – xã hội năm 2026\n1. Tỷ lệ hồ sơ đúng hạn đạt 98%'),
+  textLayoutPage(2, 'Phường phấn đấu tăng thu ngân sách\n2. Tỷ lệ dân số tham gia bảo hiểm y tế trên địa bàn\nphường đạt 95%'),
+  textLayoutPage(3, 'phường giảm tỷ lệ hộ nghèo còn 0,8%\nPhường Bình Hòa, phường An Phú phối hợp\n3. Trồng mới 1.200 cây xanh'),
+];
+
+test('văn bản của chính phường (đầu văn bản hai dòng, văn xuôi bắt đầu "Phường …") không bị coi là văn bản chia phần', () => {
+  assert.deepEqual(unitSection(ownPlan, 'Lái Thiêu'), { pages: [], otherUnits: 0, multiUnit: false });
+  // Đầu văn bản một dòng cũng vậy: đơn vị khác chỉ được nhắc trong văn xuôi, không có đầu phần riêng.
+  const oneLine = [textLayoutPage(1, 'ỦY BAN NHÂN DÂN PHƯỜNG LÁI THIÊU\nKẾ HOẠCH'), ...ownPlan.slice(1)];
+  assert.equal(unitSection(oneLine, 'Lái Thiêu').multiUnit, false);
+  const found = locateText(ownPlan, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Lái Thiêu' });
+  assert.equal(found?.pageNumber, 2);
+});
+
+function appendix(sections: [string, number][], extra: Record<number, string> = {}): LayoutPage[] {
+  const result: LayoutPage[] = [];
+  let pageNumber = 1;
+  for (const [unit, length] of sections) {
+    for (let index = 0; index < length; index += 1, pageNumber += 1) {
+      const header = index === 0 ? `ĐƠN VỊ: ỦY BAN NHÂN DÂN ${unit}\n` : '';
+      result.push(textLayoutPage(pageNumber, `${header}TT CHỈ TIÊU CHỦ YẾU Đơn vị tính\nTỷ lệ dân số tham gia bảo hiểm y tế\n${extra[pageNumber] ?? ''}`));
+    }
+  }
+  return result;
+}
+
+test('phần của đơn vị kéo tới trước đầu phần kế tiếp (không giới hạn số trang), bỏ trang tổng hợp chỉ nhắc tên', () => {
+  const long = appendix([['PHƯỜNG AN PHÚ', 2], ['PHƯỜNG LÁI THIÊU', 10], ['XÃ THANH AN', 2], ['ĐẶC KHU CÔN ĐẢO', 1]]);
+  assert.deepEqual(unitSection(long, 'Lái Thiêu').pages, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  // Trang tổng hợp cuối có dòng "Phường Lái Thiêu 96%": không thuộc phần của phường, các phần ở giữa cũng không.
+  const summary = appendix([['PHƯỜNG LÁI THIÊU', 2], ['PHƯỜNG THUẬN GIAO', 2], ['PHƯỜNG HƯNG ĐỊNH', 2], ['TỔNG HỢP CHUNG', 1]], { 7: 'Phường Lái Thiêu 96%' });
+  assert.deepEqual(unitSection(summary, 'Lái Thiêu').pages, [1, 2]);
+});
+
+test('tên đơn vị so có dấu: Thanh An và Thạnh An là hai phần khác nhau; đầu phần thiếu chữ "phường" vẫn nhận', () => {
+  const doc = appendix([['XÃ THANH AN', 2], ['XÃ THẠNH AN', 2], ['AN LẠC', 1], ['PHƯỜNG AN PHÚ', 1]]);
+  assert.deepEqual(unitSection(doc, 'Thạnh An').pages, [3, 4]);
+  assert.deepEqual(unitSection(doc, 'Thanh An').pages, [1, 2]);
+  assert.deepEqual(unitSection(doc, 'An Lạc').pages, [5]);
+});
+
+test('văn bản chia phần: không lấy dòng cùng tên chỉ tiêu ở phần của đơn vị khác', () => {
+  // Chỉ tiêu không có trong phần của phường mình (chỉ có ở phường khác) → không định vị, không lấy nhầm.
+  assert.equal(locateText(pages, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Lái Thiêu', hintPages: [1] })?.pageNumber, 2);
+  const texts = pages.map(page => ({ pageNumber: page.pageNumber, text: page.spans.map(span => span[4]).join('\n') }));
+  assert.deepEqual(candidatePages(texts, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Bình Nhâm' }), { pages: [], scope: 'absent' });
+  assert.equal(locateText(pages, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Bình Nhâm' }), null);
+  const absent = appendix([['PHƯỜNG AN PHÚ', 1], ['PHƯỜNG THUẬN GIAO', 1], ['PHƯỜNG HƯNG ĐỊNH', 1], ['PHƯỜNG LÁI THIÊU', 1]]).slice(0, 3);
+  assert.deepEqual(candidatePages(absent.map(page => ({ pageNumber: page.pageNumber, text: page.spans.map(span => span[4]).join('\n') })), 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Lái Thiêu' }), { pages: [], scope: 'absent' });
 });
 
 test('không thấy thì trả về null', () => {
@@ -91,13 +145,28 @@ test('văn xuôi: câu vắt qua hai dòng vẫn khớp', () => {
   assert.ok(found.matchBox[1] <= 0.1 && found.matchBox[3] >= 0.127);
 });
 
-test('lọc trang theo chữ của trang và phạm vi đơn vị; tìm lại toàn văn bản khi phần đơn vị không có', () => {
+test('lọc trang theo chữ của trang và phạm vi đơn vị', () => {
   const texts = pages.map(page => ({ pageNumber: page.pageNumber, text: page.spans.map(span => span[4]).join('\n') }));
-  const picked = candidatePages(texts, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Lái Thiêu' });
-  assert.deepEqual(picked, { pages: [2], scoped: true });
-  const unscoped = candidatePages(texts, 'Tỷ lệ dân số tham gia bảo hiểm y tế');
-  assert.equal(unscoped.pages.length, 3);
-  assert.deepEqual(candidatePages(texts, 'abc'), { pages: [], scoped: false });
+  assert.deepEqual(candidatePages(texts, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Lái Thiêu' }), { pages: [2], scope: 'own' });
+  assert.equal(candidatePages(texts, 'Tỷ lệ dân số tham gia bảo hiểm y tế').pages.length, 3);
+  assert.deepEqual(candidatePages(texts, 'abc'), { pages: [], scope: 'none' });
+  // Trang gợi ý nằm ở phần đơn vị khác bị bỏ, tìm trong phần của mình.
+  assert.deepEqual(candidatePages(texts, 'Tỷ lệ dân số tham gia bảo hiểm y tế', { scope: 'Lái Thiêu', hintPages: [3] }).pages, [2]);
+});
+
+test('văn xuôi có khối đầu văn bản hai bên: câu kết thúc ở dòng ngắn vẫn khớp', () => {
+  const page: LayoutPage = {
+    pageNumber: 1,
+    spans: [
+      [0.15, 0.05, 0.37, 0.062, 'ỦY BAN NHÂN DÂN'], [0.15, 0.065, 0.37, 0.077, 'PHƯỜNG LÁI THIÊU'], [0.15, 0.08, 0.33, 0.092, 'Số: 21/KH-UBND'],
+      [0.48, 0.05, 0.92, 0.062, 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'], [0.55, 0.065, 0.85, 0.077, 'Độc lập - Tự do - Hạnh phúc'], [0.52, 0.08, 0.9, 0.092, 'Lái Thiêu, ngày 15 tháng 01 năm 2026'],
+      [0.1, 0.2, 0.9, 0.212, 'Giải quyết việc làm mới cho 2.500 người trong năm 2026, ưu tiên lao động trên'],
+      [0.1, 0.215, 0.36, 0.227, 'địa bàn phường bị mất việc.'],
+    ],
+  };
+  const found = locateText([page], 'ưu tiên lao động trên địa bàn phường bị mất việc');
+  assert.ok(found);
+  assert.ok(found.matchBox[3] >= 0.227);
 });
 
 test('trang chỉ có chữ (DOCX): tìm được trang và câu', () => {
@@ -115,6 +184,23 @@ test('gộp mảnh chữ cùng dòng của pdf.js thành một đoạn', () => {
     [0.6, 0.1, 0.62, 0.11, '%'],
   ]);
   assert.deepEqual(merged.map(span => span[4]), ['Tốc độtăng tổng', '%']);
+});
+
+test('OCR bảng: dòng Tesseract chạy ngang nhiều cột được tách thành ô theo khoảng trống lớn', () => {
+  const tsv = [
+    'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+    '1\t1\t0\t0\t0\t0\t0\t0\t1000\t2000\t-1\t',
+    '5\t1\t1\t1\t1\t1\t100\t200\t60\t20\t95\tTỷ',
+    '5\t1\t1\t1\t1\t2\t170\t200\t30\t20\t95\tlệ',
+    '5\t1\t1\t1\t1\t3\t420\t200\t20\t20\t95\t%',
+    '5\t1\t1\t1\t1\t4\t600\t200\t40\t20\t95\tNăm',
+  ].join('\n');
+  assert.deepEqual(tsvSpans(tsv).map(span => span[4]), ['Tỷ lệ', '%', 'Năm']);
+});
+
+test('số thứ tự đứng giữa ô nhiều dòng không bị gộp vào dòng tên chỉ tiêu', () => {
+  const merged = mergeSpans([[0.066, 0.2, 0.081, 0.211, '4'], [0.093, 0.2, 0.309, 0.211, 'quản lý đăng ký và sử dụng chữ ký số']]);
+  assert.deepEqual(merged.map(span => span[4]), ['4', 'quản lý đăng ký và sử dụng chữ ký số']);
 });
 
 test('đọc khung dòng từ TSV của Tesseract (chuẩn hoá theo kích thước ảnh)', () => {

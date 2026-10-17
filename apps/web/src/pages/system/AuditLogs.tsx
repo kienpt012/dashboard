@@ -123,6 +123,7 @@ const ACTION: Record<string, string> = {
   TARGET_EVIDENCE_ADDED: 'Bổ sung minh chứng',
   TARGET_EXPLANATION_REQUESTED: 'Yêu cầu giải trình',
   TARGET_PUBLISHED: 'Công bố chỉ tiêu',
+  TARGET_SOURCE_ANCHOR_CLEARED: 'Bỏ vị trí chỉ tay, để hệ thống tự định vị',
   TARGET_SOURCE_ANCHORED: 'Chỉ vị trí chỉ tiêu trong văn bản giao',
   TARGET_SOURCE_CARD_UPDATED: 'Cập nhật nguồn số liệu',
   TARGET_UNARCHIVED: 'Khôi phục chỉ tiêu',

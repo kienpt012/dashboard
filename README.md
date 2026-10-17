@@ -69,8 +69,16 @@ docker compose exec api ./docker-entrypoint.sh seed   # chỉ chạy một lần
 
 ## Tài khoản mẫu
 
-Bộ dữ liệu mẫu (`apps/api/prisma/demo/`) là một phường giả lập (TP.HCM) với ba bộ chỉ tiêu, kho dữ liệu, báo cáo, đánh giá,
-phản ánh, trang công khai và một số việc đang chờ để thấy cơ chế trách nhiệm hoạt động. Mọi số liệu thực hiện là mô phỏng.
+Bộ dữ liệu mẫu (`apps/api/prisma/demo/`) mô phỏng phường Lái Thiêu (TP.HCM) vận hành từ tháng 01 đến giữa tháng 10/2026:
+
+- **Văn bản thật trong kho**: Quyết định 333/QĐ-UBND ngày 15/01/2026 của UBND Thành phố và 3 phụ lục (phụ lục 2 giao chỉ
+  tiêu cho 168 xã, phường, đặc khu — 336 trang). Bộ chỉ tiêu KT-XH gắn với phụ lục 2; mở hồ sơ một chỉ tiêu là xem được
+  đúng dòng của nó trong văn bản (hệ thống tự định vị trong phần của phường).
+- **Hoạt động mô phỏng**: giao việc đầu năm, gần 300 lượt báo cáo số liệu theo kỳ kèm minh chứng PDF, duyệt/trả lại,
+  văn bản chỉ đạo, yêu cầu giải trình, đánh giá 6 tháng và quý III, phản ánh của người dân ở mọi trạng thái xử lý.
+  Mọi số liệu thực hiện, văn bản của phường và minh chứng là **mô phỏng** (minh chứng có ghi rõ trên trang).
+
+Tệp gốc (văn bản, minh chứng) nằm trong `prisma/demo/tep/` theo mã băm nội dung; nội dung còn lại trong `du-lieu-mau.json.gz`.
 Người phát triển cập nhật bộ mẫu từ một cơ sở dữ liệu demo bằng `npx tsx prisma/demo/export.ts` (thư mục `apps/api`).
 
 | Tài khoản | Vai trò | Dùng để thử |
@@ -78,8 +86,8 @@ Người phát triển cập nhật bộ mẫu từ một cơ sở dữ liệu d
 | `admin` | Quản trị hệ thống | Thiết lập địa phương, tài khoản, cấu hình, báo lỗi |
 | `chu.tich`, `pho.chu.tich` | Lãnh đạo UBND | Trung tâm điều hành, duyệt đề xuất, đánh giá, yêu cầu giải trình |
 | `van.thu` | Văn thư | Tiếp nhận văn bản, rà soát và trình đề xuất AI |
-| `chanh.vp`, `lan.anh`, `manager.vhxh`, `manager.ttcc` | Trưởng phòng | Giao việc, duyệt số liệu, trả lời giải trình |
-| `staff.ktht`, `thao.ktht`, `staff.vhxh`, `staff.ttcc` | Chuyên viên | Báo cáo số liệu kèm minh chứng, đề xuất chỉ tiêu |
+| `chanh.vp`, `lan.anh`, `manager.vhxh`, `manager.ttcc`, `truong.ca`, `chihuy.qs` | Trưởng phòng, đơn vị | Giao việc, duyệt số liệu, trả lời giải trình |
+| `staff.ktht`, `thao.ktht`, `staff.vhxh`, `staff.ttcc`, `staff.vp`, `canbo.ca` | Chuyên viên | Báo cáo số liệu kèm minh chứng, đề xuất chỉ tiêu |
 | `viewer.ktht` | Người xem | Chỉ xem số liệu của phòng |
 
 Mật khẩu: `DEMO_ADMIN_PASSWORD` (tài khoản `admin`) và `DEMO_USER_PASSWORD` (các tài khoản khác) trong `.env`.

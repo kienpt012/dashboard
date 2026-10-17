@@ -173,14 +173,16 @@ export default function DocumentReview() {
   // PDF: xem bản gốc (tô sáng đúng dòng của đề xuất) hoặc chữ hệ thống đã đọc.
   const isPdf = detail?.mimeType === 'application/pdf';
   const [view, setView] = useState<'pdf' | 'text'>('pdf');
-  const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
+  // Tệp PDF gắn với mã văn bản: chuyển sang văn bản khác thì tải lại, không giữ bản của văn bản trước.
+  const [file, setFile] = useState<{ id: string; buffer: ArrayBuffer } | null>(null);
+  const bytes = file?.id === id ? file.buffer : null;
   useEffect(() => {
     if (!isPdf || view !== 'pdf' || bytes) return;
     let active = true;
     http
       .blob(`/documents/${id}/download`)
       .then(blob => blob.arrayBuffer())
-      .then(buffer => active && setBytes(buffer))
+      .then(buffer => active && setFile({ id, buffer }))
       .catch(error => active && message.error(errorText(error, 'Không mở được tệp PDF')));
     return () => {
       active = false;

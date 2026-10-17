@@ -31,7 +31,7 @@ import { candidatePages, locateText, textLayoutPage, type LayoutPage, type Layou
 // chữ, PDF scan/ảnh qua OCR, DOCX/XLSX theo trang chữ), lưu lại để lần sau mở ngay, và cho người dùng chỉnh tay khi
 // tự định vị sai. Đổi tên chỉ tiêu, đổi văn bản hay nâng cách định vị (LOCATOR_VERSION) thì tự định vị lại.
 
-const LOCATOR_VERSION = 4;
+const LOCATOR_VERSION = 5;
 
 const Trim = () => Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value));
 
@@ -57,6 +57,17 @@ export type AnchorView = {
   score: number | null;
   manual: boolean;
   locatedAt: Date;
+};
+
+type DocumentView = {
+  id: string; code: string; title: string; docNumber: string | null; mimeType: string; pageCount: number | null;
+  status: DocumentStatus; issuedBy: string | null; issuedDate: Date | null;
+};
+
+export type TargetSourceView = {
+  status: 'located' | 'not-found' | 'no-document' | 'processing' | 'failed';
+  document: DocumentView | null;
+  anchor: AnchorView | null;
 };
 
 type Located = { pageNumber: number; box: SourceBox | null; matchBox: SourceBox | null; quote: string; score: number };
@@ -91,8 +102,10 @@ export class SourceLocatorService {
     }
     const missing = rows.filter(row => !spans.has(row.pageNumber) && !row.ocrUsed && row.text.trim()).map(row => row.pageNumber);
     if (missing.length) {
-      const document = await this.prisma.sourceDocument.findUnique({ where: { id: documentId }, select: { mimeType: true, data: true } });
-      if (document?.mimeType === 'application/pdf') {
+      // Chỉ PDF tính lại được bố cục; văn bản khác không kéo cả tệp (có thể hàng chục MB) từ cơ sở dữ liệu.
+      const isPdf = (await this.prisma.sourceDocument.count({ where: { id: documentId, mimeType: 'application/pdf' } })) > 0;
+      const document = isPdf ? await this.prisma.sourceDocument.findUnique({ where: { id: documentId }, select: { data: true } }) : null;
+      if (document) {
         const pdf = await openPdf(document.data);
         for (const pageNumber of missing) {
           if (pageNumber > pdf.numPages) continue;
@@ -109,9 +122,9 @@ export class SourceLocatorService {
   }
 
   /**
-   * Tìm một câu trong văn bản. Văn bản chia phần theo đơn vị (phụ lục giao cho mọi xã, phường) thì chỉ tìm trong phần
-   * của đơn vị mình; không thấy trong phần đó thì tìm trên toàn văn bản. Trang có bố cục trả về khung để tô sáng; trang
-   * chỉ có chữ trả về trang và câu khớp.
+   * Tìm một câu trong văn bản. Văn bản chia phần theo đơn vị (phụ lục giao cho mọi xã, phường) chỉ tìm trong phần
+   * của đơn vị mình — không lấy dòng cùng tên ở phần của đơn vị khác. Trang có bố cục trả về khung để tô sáng; trang
+   * chỉ có chữ (DOCX, XLSX, ảnh cũ) trả về trang và câu khớp.
    */
   async locate(documentId: string, query: string, options: { scope?: string; hintPages?: number[]; rowHint?: string } = {}): Promise<Located | null> {
     const pages = await this.prisma.documentPage.findMany({
@@ -120,27 +133,19 @@ export class SourceLocatorService {
       orderBy: { pageNumber: 'asc' },
     });
     if (!pages.length) return null;
-    const scopes = options.scope ? [options.scope, undefined] : [undefined];
-    for (const scope of scopes) {
-      const pick = candidatePages(pages, query, { scope, hintPages: options.hintPages });
-      if (!pick.pages.length) {
-        if (pick.scoped || options.hintPages?.length) continue;
-        return null;
-      }
+    const attempt = async (hintPages?: number[]) => {
+      const pick = candidatePages(pages, query, { scope: options.scope, hintPages });
+      if (!pick.pages.length) return null;
       const { pages: laidOut, texts } = await this.layoutPages(documentId, pick.pages);
       const found = locateText(laidOut, query, { hintPages: pick.pages, rowHint: options.rowHint });
       if (found) return found;
-      // Trang chưa có bố cục (DOCX, XLSX, ảnh cũ): vẫn cho biết trang và câu khớp.
       const plain = pick.pages.filter(pageNumber => !laidOut.some(page => page.pageNumber === pageNumber));
-      if (plain.length) {
-        const byText = locateText(plain.map(pageNumber => textLayoutPage(pageNumber, texts.get(pageNumber) ?? '')), query, { hintPages: plain, rowHint: options.rowHint });
-        if (byText) return { ...byText, box: null, matchBox: null };
-      }
-      if (!pick.scoped) break;
-    }
-    // Trang gợi ý (ví dụ trang AI ghi nhận khi trích xuất) có thể lệch: tìm lại trên toàn văn bản.
-    if (options.hintPages?.length) return this.locate(documentId, query, { ...options, hintPages: undefined });
-    return null;
+      if (!plain.length) return null;
+      const byText = locateText(plain.map(pageNumber => textLayoutPage(pageNumber, texts.get(pageNumber) ?? '')), query, { hintPages: plain, rowHint: options.rowHint });
+      return byText ? { ...byText, box: null, matchBox: null } : null;
+    };
+    // Trang gợi ý (trang AI ghi nhận khi trích xuất) có thể lệch: không thấy thì tìm lại không theo gợi ý.
+    return (await attempt(options.hintPages)) ?? (options.hintPages?.length ? attempt() : null);
   }
 
   private async scopeTerm() {
@@ -183,7 +188,7 @@ export class SourceLocatorService {
   }
 
   /** Văn bản nguồn của chỉ tiêu và vị trí chỉ tiêu trong văn bản đó (tự định vị khi chưa có hoặc đã cũ). */
-  async targetSource(actor: Actor, id: string) {
+  async targetSource(actor: Actor, id: string): Promise<TargetSourceView> {
     const target = await this.loadTarget(actor, id);
     const candidate = target.sourceCandidate;
     const documentId =
@@ -199,6 +204,7 @@ export class SourceLocatorService {
     if (target.sourceAnchor?.manual && target.sourceAnchor.documentId === document.id) {
       return { status: 'located' as const, document: documentView, anchor: this.view(target.sourceAnchor) };
     }
+    if (document.status === DocumentStatus.FAILED) return { status: 'failed' as const, document: documentView, anchor: null };
     if (document.status !== DocumentStatus.PROCESSED) return { status: 'processing' as const, document: documentView, anchor: null };
 
     const scope = await this.scopeTerm();
@@ -230,7 +236,16 @@ export class SourceLocatorService {
       queryKey,
       updatedById: null,
     };
-    const saved = await this.prisma.sourceAnchor.upsert({ where: { targetId: target.id }, create: { targetId: target.id, ...data }, update: data });
+    // Không ghi đè vị trí do cán bộ vừa chỉ trong lúc hệ thống đang định vị.
+    let saved = target.sourceAnchor ? null : await this.prisma.sourceAnchor.create({ data: { targetId: target.id, ...data } }).catch(error => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+      throw error;
+    });
+    if (!saved) {
+      await this.prisma.sourceAnchor.updateMany({ where: { targetId: target.id, manual: false }, data });
+      saved = await this.prisma.sourceAnchor.findUniqueOrThrow({ where: { targetId: target.id } });
+      if (saved.manual) return this.targetSource(actor, id);
+    }
     return found
       ? { status: 'located' as const, document: documentView, anchor: this.view(saved) }
       : { status: 'not-found' as const, document: documentView, anchor: null };
@@ -259,9 +274,9 @@ export class SourceLocatorService {
       queryKey: 'manual',
       updatedById: actor.id,
     };
+    // Chỉ ghi vị trí; không đổi văn bản giao chính thức của chỉ tiêu (bỏ vị trí chỉ tay thì quay lại cách xác định thường).
     return this.prisma.$transaction(async tx => {
       const saved = await tx.sourceAnchor.upsert({ where: { targetId: target.id }, create: { targetId: target.id, ...data }, update: data });
-      if (target.sourceDocumentId !== document.id) await tx.target.update({ where: { id: target.id }, data: { sourceDocumentId: document.id } });
       await audit(tx, actor, {
         action: 'TARGET_SOURCE_ANCHORED',
         entityType: 'Target',
@@ -278,7 +293,17 @@ export class SourceLocatorService {
     const target = await this.loadTarget(actor, id);
     const allowed = isGlobalRole(actor.role) || canSuperviseDepartment(actor, target.departmentId) || target.assigneeId === actor.id;
     if (!allowed) throw new ForbiddenException('Bạn không có quyền chỉnh vị trí nguồn của chỉ tiêu này');
-    await this.prisma.sourceAnchor.deleteMany({ where: { targetId: target.id } });
+    await this.prisma.$transaction(async tx => {
+      const removed = await tx.sourceAnchor.deleteMany({ where: { targetId: target.id, manual: true } });
+      if (!removed.count) return;
+      await audit(tx, actor, {
+        action: 'TARGET_SOURCE_ANCHOR_CLEARED',
+        entityType: 'Target',
+        entityId: target.id,
+        departmentId: target.departmentId,
+        metadata: { documentId: target.sourceAnchor?.documentId ?? null, pageNumber: target.sourceAnchor?.pageNumber ?? null },
+      });
+    });
     return { ok: true };
   }
 }

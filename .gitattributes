@@ -21,3 +21,5 @@
 *.ps1 text eol=crlf
 *.gz binary
 *.dump binary
+*.zip binary
+*.wasm binary

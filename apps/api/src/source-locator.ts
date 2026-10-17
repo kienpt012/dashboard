@@ -62,9 +62,9 @@ export function textLayoutPage(pageNumber: number, text: string): LayoutPage {
 }
 
 /**
- * Chọn trước các trang đáng tìm, chỉ dựa trên chữ của trang (rẻ, không cần bố cục): trong phần của đơn vị nếu văn bản
- * chia phần theo đơn vị, xếp theo độ phủ bộ ba ký tự. Trả về cả việc có thu hẹp theo phần hay không để người gọi
- * tìm lại trên toàn văn bản khi phần đó không có chỉ tiêu (văn bản của chính đơn vị chỉ nhắc tên ở trang đầu).
+ * Chọn trước các trang đáng tìm, chỉ dựa trên chữ của trang (rẻ, không cần bố cục), xếp theo độ phủ bộ ba ký tự.
+ * Văn bản chia phần theo đơn vị (phụ lục giao cho mọi xã, phường) chỉ tìm trong phần của đơn vị mình — không bao giờ
+ * lấy dòng cùng tên chỉ tiêu ở phần của đơn vị khác; không có phần của mình thì không tìm (scope = 'absent').
  */
 export function candidatePages(
   pages: { pageNumber: number; text: string }[],
@@ -72,9 +72,12 @@ export function candidatePages(
   options: { scope?: string; hintPages?: number[]; maxPages?: number } = {},
 ) {
   const key = foldKey(query);
-  if (key.length < 6) return { pages: [] as number[], scoped: false };
-  const scoped = options.scope ? scopePages(pages.map(page => textLayoutPage(page.pageNumber, page.text)), options.scope) : [];
-  const allowed = options.hintPages?.length ? options.hintPages : scoped.length ? scoped : null;
+  const section = options.scope ? unitSection(pages.map(page => textLayoutPage(page.pageNumber, page.text)), options.scope) : null;
+  const scope: 'none' | 'own' | 'absent' = section?.multiUnit ? (section.pages.length ? 'own' : 'absent') : 'none';
+  if (key.length < 6 || scope === 'absent') return { pages: [] as number[], scope };
+  const own = scope === 'own' ? section!.pages : null;
+  const hinted = options.hintPages?.length ? options.hintPages.filter(page => !own || own.includes(page)) : [];
+  const allowed = hinted.length ? hinted : own;
   const wanted = trigrams(key);
   const ranked = pages
     .filter(page => !allowed || allowed.includes(page.pageNumber))
@@ -82,7 +85,7 @@ export function candidatePages(
     .filter(entry => entry.cover >= 0.5)
     .sort((a, b) => b.cover - a.cover)
     .slice(0, options.maxPages ?? 4);
-  return { pages: ranked.map(entry => entry.pageNumber), scoped: !options.hintPages?.length && scoped.length > 0 };
+  return { pages: ranked.map(entry => entry.pageNumber), scope };
 }
 
 type Item = { span: LayoutSpan; index: number };
@@ -104,9 +107,9 @@ function overlapGroups(items: Item[]) {
 /**
  * Nhóm đoạn chữ theo cột của bảng để đọc đúng thứ tự (đọc theo hàng sẽ xen chữ các cột vào nhau).
  * Cột = dải ngang được nhiều ô chữ phủ; khe giữa hai cột chỉ có rất ít đoạn đi qua (chú thích, tiêu đề mục trải
- * ngang) — vài đoạn như vậy không được nối hai cột thành một. Đoạn nằm trọn trong một cột vào cột đó; đoạn vắt qua
- * nhiều cột (chú thích, dòng văn xuôi) vào nhóm "toàn trang" đọc từ trên xuống; trang không có bảng (văn xuôi) thì
- * gom theo chồng lấn như thường. Mỗi nhóm xếp từ trên xuống, trái sang phải.
+ * ngang) — vài đoạn như vậy không được nối hai cột thành một. Đoạn vào cột chứa mép trái của nó: ô bảng vào đúng cột;
+ * dòng văn xuôi vắt nhiều cột cùng nhóm với dòng ngắn cuối đoạn (cùng lề trái), câu vắt dòng vẫn liền mạch; trang
+ * không có bảng thì gom theo chồng lấn như thường. Mỗi nhóm xếp từ trên xuống, trái sang phải.
  */
 function columns(spans: LayoutSpan[]) {
   const BIN = 0.004;
@@ -130,70 +133,107 @@ function columns(spans: LayoutSpan[]) {
     }
   }
   const byRun: Item[][] = runs.map(() => []);
-  const spanning: Item[] = [];
   const loose: Item[] = [];
   for (const item of items) {
     const from = bin(item.span[0] + 0.002);
     const to = bin(item.span[2] - 0.002);
     const hits = runs.flatMap((run, index) => (from <= run[1] && to >= run[0] ? [index] : []));
-    if (hits.length === 1) byRun[hits[0]].push(item);
-    else if (hits.length > 1) spanning.push(item);
-    else loose.push(item);
+    if (!hits.length) loose.push(item);
+    else byRun[hits[0]].push(item);
   }
-  const groups = [...byRun, spanning, ...overlapGroups(loose)].filter(group => group.length);
+  const groups = [...byRun, ...overlapGroups(loose)].filter(group => group.length);
   for (const group of groups) group.sort((a, b) => a.span[1] - b.span[1] || a.span[0] - b.span[0]);
   return groups.map(group => ({ items: group }));
 }
 
-/**
- * Phạm vi tìm theo phần văn bản của một đơn vị (ví dụ phụ lục giao chỉ tiêu cho mọi xã, phường — mỗi phường một phần,
- * cùng tên chỉ tiêu): trang có tên đơn vị và các trang nối tiếp cho tới khi gặp tiêu đề phần của đơn vị khác.
- */
-export function scopePages(pages: LayoutPage[], term: string) {
-  const key = foldKey(term);
-  if (key.length < 4) return [];
-  const result = new Set<number>();
-  const ordered = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
-  ordered.forEach((page, index) => {
-    const header = page.spans.find(span => foldKey(span[4]).includes(key));
-    if (!header) return;
-    result.add(page.pageNumber);
-    // Tiền tố của dòng tiêu đề phần (ví dụ "ĐƠN VỊ: ỦY BAN NHÂN DÂN PHƯỜNG "): trang sau có tiêu đề cùng tiền tố là phần khác.
-    const folded = foldKey(header[4]);
-    const prefix = folded.slice(0, folded.indexOf(key));
-    for (let next = index + 1; next < ordered.length && next <= index + 6; next += 1) {
-      const other = prefix.length >= 6 && ordered[next].spans.some(span => {
-        const text = foldKey(span[4]);
-        return text.startsWith(prefix) && !text.includes(key);
-      });
-      if (other || (prefix.length < 6 && next > index + 1)) break;
-      result.add(ordered[next].pageNumber);
-    }
-  });
-  return [...result];
+/** Chữ thường giữ dấu, bỏ dấu câu, gộp khoảng trắng — so tên đơn vị (Thanh An và Thạnh An là hai xã khác nhau). */
+function plain(text: string) {
+  return text.normalize('NFC').toLocaleLowerCase('vi').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
+const UNIT_TYPES = ['đặc khu', 'thị trấn', 'thị xã', 'thành phố', 'phường', 'xã', 'quận', 'huyện'];
+
+function dropLeadingUnitType(text: string) {
+  for (const type of UNIT_TYPES) if (text.startsWith(`${type} `)) return text.slice(type.length + 1).trim();
+  return text;
+}
+
+export type UnitSection = {
+  /** Trang thuộc phần của đơn vị mình (rỗng nếu văn bản không chia phần hoặc không có phần của mình). */
+  pages: number[];
+  /** Số đơn vị khác có phần riêng trong văn bản. */
+  otherUnits: number;
+  /** Văn bản chia phần theo đơn vị: đầu phần của đơn vị khác xuất hiện ở ít nhất 2 trang. */
+  multiUnit: boolean;
+};
+
 /**
- * Văn bản giao cho nhiều đơn vị (mỗi đơn vị một phần, đầu phần cùng mẫu "ĐƠN VỊ: UBND PHƯỜNG …"): trả về các trang
- * của đơn vị mình và số đơn vị khác có phần riêng. otherUnits = 0 nghĩa là văn bản không chia phần theo đơn vị.
+ * Văn bản giao cho nhiều đơn vị (phụ lục giao chỉ tiêu cho mọi xã, phường; mỗi đơn vị một phần mở đầu bằng dòng
+ * "ĐƠN VỊ: ỦY BAN NHÂN DÂN PHƯỜNG …"): tìm phần của đơn vị mình.
+ *
+ * Chỉ dòng có dạng đầu phần mới được tính: [phần chung ≥ 2 từ] [loại đơn vị] [tên đơn vị 1–6 từ], toàn bộ dòng chỉ có
+ * vậy. Dòng văn xuôi bắt đầu bằng "Phường …", bảng tổng hợp nhắc tên phường, đầu văn bản "ỦY BAN NHÂN DÂN / PHƯỜNG …"
+ * đều không phải đầu phần. Tên so có dấu (Thanh An ≠ Thạnh An); chỉ khi không thấy mới so không dấu. Một phần kéo dài
+ * từ trang có đầu phần của mình tới trước trang có đầu phần kế tiếp (đơn vị bất kỳ, kể cả xã, đặc khu), không giới hạn
+ * số trang.
  */
-export function unitSection(pages: LayoutPage[], term: string): { pages: number[]; otherUnits: number } {
-  const own = scopePages(pages, term);
-  const key = foldKey(term);
-  const first = pages.find(page => page.pageNumber === Math.min(...own));
-  const header = first?.spans.find(span => foldKey(span[4]).includes(key));
-  if (!header) return { pages: own, otherUnits: 0 };
-  const folded = foldKey(header[4]);
-  const prefix = folded.slice(0, folded.indexOf(key));
-  if (prefix.length < 6) return { pages: own, otherUnits: 0 };
-  const others = new Set<string>();
-  for (const page of pages) {
-    for (const span of page.spans) {
-      const text = foldKey(span[4]);
-      if (text.startsWith(prefix) && !text.includes(key)) others.add(text.slice(prefix.length, prefix.length + 24));
+export function unitSection(pages: LayoutPage[], term: string): UnitSection {
+  const empty: UnitSection = { pages: [], otherUnits: 0, multiUnit: false };
+  const name = dropLeadingUnitType(plain(term));
+  if (foldKey(name).length < 4) return empty;
+  const ordered = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
+  const lines = ordered.map(page => ({ pageNumber: page.pageNumber, lines: page.spans.map(span => plain(span[4])).filter(Boolean) }));
+
+  // Mẫu đầu phần: [phần chung ≥ 2 từ] [loại đơn vị] [tên 1–6 từ] — gom theo phần chung, đếm số trang có mẫu đó.
+  const stems = new Map<string, Set<number>>();
+  for (const page of lines) {
+    for (const line of page.lines) {
+      const words = line.split(' ');
+      for (let index = 2; index < words.length - 1; index += 1) {
+        const rest = words.slice(index).join(' ');
+        const type = UNIT_TYPES.find(item => rest.startsWith(`${item} `));
+        if (!type) continue;
+        const nameWords = words.length - index - type.split(' ').length;
+        if (nameWords < 1 || nameWords > 6) continue;
+        const stem = words.slice(0, index).join(' ');
+        if (foldKey(stem).length < 8) continue;
+        if (!stems.has(stem)) stems.set(stem, new Set());
+        stems.get(stem)!.add(page.pageNumber);
+        break;
+      }
     }
   }
-  return { pages: own, otherUnits: others.size };
+
+  let best: UnitSection = empty;
+  let bestPages = 0;
+  for (const [stem, stemPages] of stems) {
+    if (stemPages.size < 3) continue;
+    // Mỗi trang một đầu phần (dòng đầu tiên khớp): tên đơn vị sau phần chung (loại đơn vị có thể vắng).
+    const headers: { pageNumber: number; unit: string }[] = [];
+    for (const page of lines) {
+      const line = page.lines.find(text => text.startsWith(`${stem} `) && dropLeadingUnitType(text.slice(stem.length + 1)).split(' ').length <= 6);
+      if (line) headers.push({ pageNumber: page.pageNumber, unit: dropLeadingUnitType(line.slice(stem.length + 1)) });
+    }
+    const units = new Set(headers.map(header => header.unit));
+    if (units.size < 3 || headers.length < 3) continue;
+    const exact = headers.some(header => header.unit === name);
+    const isOwn = (unit: string) => (exact ? unit === name : foldKey(unit) === foldKey(name));
+    const own: number[] = [];
+    headers.forEach((header, index) => {
+      if (!isOwn(header.unit)) return;
+      const until = headers[index + 1]?.pageNumber ?? Infinity;
+      for (const page of ordered) if (page.pageNumber >= header.pageNumber && page.pageNumber < until) own.push(page.pageNumber);
+    });
+    if (headers.length <= bestPages) continue;
+    bestPages = headers.length;
+    best = { pages: own, otherUnits: [...units].filter(unit => !isOwn(unit)).length, multiUnit: true };
+  }
+  return best;
+}
+
+/** Trang thuộc phần của đơn vị (rỗng nếu văn bản không chia phần theo đơn vị). */
+export function scopePages(pages: LayoutPage[], term: string) {
+  return unitSection(pages, term).pages;
 }
 
 /**
@@ -283,9 +323,12 @@ export function locateText(
   const key = foldKey(query);
   if (key.length < 6) return null;
   const minScore = options.minScore ?? 0.72;
-  // Văn bản chia phần theo đơn vị: chỉ tìm trong phần của đơn vị (nếu tìm được phần đó).
-  const scoped = options.scope ? scopePages(pages, options.scope) : [];
-  const allowed = options.hintPages?.length ? options.hintPages : scoped.length ? scoped : null;
+  // Văn bản chia phần theo đơn vị: chỉ tìm trong phần của đơn vị mình; không có phần đó thì không tìm sang phần khác.
+  const section = options.scope ? unitSection(pages, options.scope) : null;
+  if (section?.multiUnit && !section.pages.length) return null;
+  const own = section?.multiUnit ? section.pages : null;
+  const hinted = options.hintPages?.length ? options.hintPages.filter(page => !own || own.includes(page)) : [];
+  const allowed = hinted.length ? hinted : own;
   const hint = options.rowHint ? foldKey(options.rowHint) : '';
   const wanted = trigrams(key);
   // Lọc trang: tỉ lệ bộ ba ký tự của câu cần tìm xuất hiện trên trang.

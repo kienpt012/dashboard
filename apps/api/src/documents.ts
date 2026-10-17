@@ -85,7 +85,7 @@ class UploadDocumentDto {
 
   @ValidateIfDefined()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày ban hành phải có định dạng YYYY-MM-DD' })
-  @IsDateString({}, { message: 'Ngày ban hành không hợp lệ' })
+  @IsDateString({ strict: true }, { message: 'Ngày ban hành không hợp lệ' })
   issuedDate?: string;
 
   @ValidateIfDefined() @Type(() => Number) @IsInt({ message: 'Năm kế hoạch không hợp lệ' })
@@ -124,12 +124,13 @@ class UpdateDocumentDto {
 
   @ValidateIf((_object, value) => value !== undefined && value !== '')
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày ban hành phải có định dạng YYYY-MM-DD' })
-  @IsDateString({}, { message: 'Ngày ban hành không hợp lệ' })
+  @IsDateString({ strict: true }, { message: 'Ngày ban hành không hợp lệ' })
   issuedDate?: string;
 
-  @ValidateIfDefined() @IsInt({ message: 'Năm kế hoạch không hợp lệ' })
+  // null: bỏ năm áp dụng.
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsInt({ message: 'Năm kế hoạch không hợp lệ' })
   @Min(2000, { message: 'Năm kế hoạch không hợp lệ' }) @Max(2100, { message: 'Năm kế hoạch không hợp lệ' })
-  year?: number;
+  year?: number | null;
 
   @ValidateIfDefined() @Trim() @IsString()
   departmentId?: string;

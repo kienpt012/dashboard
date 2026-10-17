@@ -438,15 +438,24 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.logger.log(`Đã phân tích tài liệu ${document.id}: ${parsed.pageCount} trang, ${chunks.length} đoạn`);
   }
 
-  /** Phần văn bản của địa phương mình nếu văn bản chia phần theo đơn vị (ít nhất 2 đơn vị khác), ngược lại null. */
+  /**
+   * Văn bản chia phần theo đơn vị (phụ lục giao chỉ tiêu cho mọi xã, phường): các trang của địa phương mình và ghi chú
+   * phạm vi. Văn bản không chia phần (văn bản của chính phường, quyết định chung) trả về null — đọc toàn văn bản.
+   */
   private async localitySection(documentId: string) {
     const locality = await loadLocality(this.prisma);
     const term = locality.configured ? locality.shortName?.trim() || locality.name : '';
     if (!term) return null;
     const pages = await this.prisma.documentPage.findMany({ where: { documentId }, select: { pageNumber: true, text: true } });
     const section = unitSection(pages.map(page => textLayoutPage(page.pageNumber, page.text)), term);
-    if (!section.pages.length || section.otherUnits < 2) return null;
-    return { term, units: section.otherUnits + 1, from: Math.min(...section.pages), to: Math.max(...section.pages) };
+    if (!section.multiUnit) return null;
+    const units = section.otherUnits + (section.pages.length ? 1 : 0);
+    if (!section.pages.length) {
+      // Không nhận ra phần của mình (tên trên văn bản viết khác?): đọc toàn văn bản để không bỏ sót, cán bộ loại đề xuất thừa.
+      return { pages: null, note: `Văn bản giao cho ${units} đơn vị nhưng không nhận ra phần của ${term}: AI đọc toàn văn bản.` };
+    }
+    const ranges = pageRanges(section.pages);
+    return { pages: new Set(section.pages), note: `Văn bản giao cho ${units} đơn vị: chỉ trích xuất phần của ${term} (trang ${ranges}).` };
   }
 
   private async processExtractJob(job: ClaimedJob, signal: AbortSignal): Promise<void> {
@@ -470,10 +479,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     // Văn bản giao chỉ tiêu cho nhiều đơn vị (phụ lục cho mọi xã, phường): chỉ đọc phần của địa phương mình —
     // không sinh đề xuất từ chỉ tiêu của đơn vị khác, và nhanh hơn nhiều với văn bản hàng trăm trang.
     const section = await this.localitySection(document.id);
-    const chunks = section ? allChunks.filter(chunk => chunk.pageTo >= section.from && chunk.pageFrom <= section.to) : allChunks;
-    if (section) {
-      this.logger.log(`Tài liệu ${document.id} giao cho ${section.units} đơn vị: chỉ trích xuất phần của ${section.term} (trang ${section.from}–${section.to})`);
-    }
+    const own = section?.pages;
+    const chunks = own
+      ? allChunks.filter(chunk => Array.from({ length: chunk.pageTo - chunk.pageFrom + 1 }, (_, offset) => chunk.pageFrom + offset).some(page => own.has(page)))
+      : allChunks;
+    const sectionNote = section?.note ?? null;
+    if (sectionNote) this.logger.log(`Tài liệu ${document.id}: ${sectionNote}`);
 
     const llmAvailable = await this.ollama.isAvailable(signal);
     const initialized = await this.prisma.extractionJob.updateMany({
@@ -487,7 +498,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         chunksTotal: chunks.length,
         chunksDone: 0,
         lockedAt: new Date(),
-        ...(section ? { note: `Văn bản giao cho ${section.units} đơn vị: chỉ trích xuất phần của ${section.term} (trang ${section.from}–${section.to})` } : {}),
+        ...(sectionNote ? { note: sectionNote } : {}),
         model: llmAvailable ? this.ollama.extractModel : null,
         promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-only',
       },
@@ -653,9 +664,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           chunksDone: chunks.length,
           model: llmAvailable ? this.ollama.extractModel : null,
           promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-v1',
-          note: capped
-            ? `Tài liệu lớn: LLM đọc ${this.maxLlmChunks}/${likelyChunksTotal} đoạn có tín hiệu chỉ tiêu, phần còn lại dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
-            : llmAvailable ? null : 'Ollama không hoạt động: toàn bộ trích xuất dùng bộ luật.',
+          note: [
+            sectionNote,
+            capped
+              ? `Tài liệu lớn: LLM đọc ${this.maxLlmChunks}/${likelyChunksTotal} đoạn có tín hiệu chỉ tiêu, phần còn lại dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
+              : llmAvailable ? null : 'Ollama không hoạt động: toàn bộ trích xuất dùng bộ luật.',
+          ].filter(Boolean).join(' ') || null,
           finishedAt: new Date(),
           lockedAt: null,
           lockedBy: null,
@@ -717,4 +731,16 @@ function resolveDeadline(deadline: string | null, targetYear: number | null): Da
 
 function diceForDuplicate(candidateName: string, targetTitle: string): number {
   return diceSimilarity(candidateName, targetTitle);
+}
+
+/** "101–102, 110" — dãy trang liền nhau gộp thành khoảng. */
+function pageRanges(pages: number[]) {
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const start = sorted[index];
+    while (index + 1 < sorted.length && sorted[index + 1] === sorted[index] + 1) index += 1;
+    parts.push(sorted[index] === start ? `${start}` : `${start}–${sorted[index]}`);
+  }
+  return parts.join(', ');
 }

@@ -59,8 +59,14 @@ function DocumentFields() {
 
 type EditValues = { title?: string; docType?: DocumentType; docNumber?: string; issuedBy?: string; issuedDate?: Dayjs | null; year?: number; departmentId?: string; description?: string };
 
-/** Sửa thông tin văn bản (trích yếu, số hiệu, cơ quan, ngày ban hành…) — không đổi tệp. */
+/** Ngày theo giờ Việt Nam ("YYYY-MM-DD") của mốc thời gian lưu trên máy chủ — không lệch ngày khi máy đặt múi giờ khác. */
+function vietnamDate(iso?: string | null) {
+  return iso ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(iso)) : '';
+}
+
+/** Sửa thông tin văn bản (trích yếu, số hiệu, cơ quan, ngày ban hành…) — không đổi tệp. Chỉ gửi trường đã đổi. */
 function EditDocumentModal({ document, onClose }: { document: SourceDocument | null; onClose: () => void }) {
+  const { message } = App.useApp();
   const [form] = Form.useForm<EditValues>();
   useEffect(() => {
     if (!document) return;
@@ -70,27 +76,33 @@ function EditDocumentModal({ document, onClose }: { document: SourceDocument | n
       docType: document.docType,
       docNumber: document.docNumber ?? '',
       issuedBy: document.issuedBy ?? '',
-      issuedDate: document.issuedDate ? dayjs(document.issuedDate) : null,
+      issuedDate: document.issuedDate ? dayjs(vietnamDate(document.issuedDate)) : null,
       year: document.year ?? undefined,
       departmentId: document.departmentId ?? undefined,
       description: document.description ?? '',
     });
   }, [document, form]);
   const save = useAction(
-    (values: EditValues) =>
-      http.patch<SourceDocument>(`/documents/${document!.id}`, {
-        expectedVersion: document!.version,
-        title: values.title?.trim(),
-        docType: values.docType ?? 'KHAC',
-        docNumber: values.docNumber?.trim() ?? '',
-        issuedBy: values.issuedBy?.trim() ?? '',
-        issuedDate: values.issuedDate ? values.issuedDate.format('YYYY-MM-DD') : '',
-        year: values.year ?? undefined,
-        departmentId: values.departmentId ?? '',
-        ...(values.description !== undefined ? { description: values.description.trim() } : {}),
-      }),
+    (changes: Record<string, unknown>) => http.patch<SourceDocument>(`/documents/${document!.id}`, { expectedVersion: document!.version, ...changes }),
     { success: 'Đã cập nhật thông tin văn bản', refresh: ['/documents', '/frameworks', '/targets'], onDone: onClose },
   );
+  function submit(values: EditValues) {
+    const before: Record<string, unknown> = {
+      title: document!.title, docType: document!.docType, docNumber: document!.docNumber ?? '', issuedBy: document!.issuedBy ?? '',
+      issuedDate: vietnamDate(document!.issuedDate), year: document!.year ?? null, departmentId: document!.departmentId ?? '', description: document!.description ?? '',
+    };
+    const after: Record<string, unknown> = {
+      title: values.title?.trim() ?? '', docType: values.docType ?? 'KHAC', docNumber: values.docNumber?.trim() ?? '', issuedBy: values.issuedBy?.trim() ?? '',
+      issuedDate: values.issuedDate ? values.issuedDate.format('YYYY-MM-DD') : '', year: values.year ?? null, departmentId: values.departmentId ?? '', description: values.description?.trim() ?? '',
+    };
+    const changes = Object.fromEntries(Object.entries(after).filter(([key, value]) => value !== before[key]));
+    if (!Object.keys(changes).length) {
+      message.info('Chưa có thay đổi');
+      onClose();
+      return;
+    }
+    save.mutate(changes);
+  }
   return (
     <Modal
       title={document ? `Sửa thông tin ${document.code}` : 'Sửa thông tin văn bản'}
@@ -102,7 +114,7 @@ function EditDocumentModal({ document, onClose }: { document: SourceDocument | n
       width={680}
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" onFinish={values => save.mutate(values)} className="form-grid">
+      <Form form={form} layout="vertical" onFinish={submit} className="form-grid">
         <DocumentFields />
       </Form>
     </Modal>

@@ -1,10 +1,16 @@
 import { AimOutlined, ColumnWidthOutlined, LeftOutlined, RightOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import { Button, Flex, InputNumber, Spin, Tooltip, Typography } from 'antd';
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Bản legacy của pdf.js: chạy được trên trình duyệt cũ hơn ở các cơ quan (bản thường cần Promise.try, Math.sumPrecise…).
+import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
+
+// Bộ giải mã ảnh scan (JBIG2, JPEG 2000), bảng mã CMap, phông chuẩn, hồ sơ màu: phục vụ cùng ứng dụng ở /pdfjs/.
+const ASSETS = `${import.meta.env.BASE_URL}pdfjs/`;
+// Giới hạn điểm ảnh của một canvas (Safari/iPad từ chối canvas quá lớn và vẽ trang trắng).
+const MAX_CANVAS_PIXELS = 16_000_000;
 
 /** Khung chuẩn hoá 0..1 trên trang (gốc trên-trái), cùng hệ toạ độ với bố cục máy chủ lưu. */
 export type Box = [number, number, number, number];
@@ -61,7 +67,8 @@ function PageCanvas({ pdf, pageNumber, scale, onSize }: { pdf: PDFDocumentProxy;
       if (cancelled || !canvasRef.current) return;
       const base = page.getViewport({ scale: 1 });
       onSize(pageNumber, { width: base.width, height: base.height });
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const wanted = Math.min(window.devicePixelRatio || 1, 2);
+      const ratio = Math.min(wanted, Math.sqrt(MAX_CANVAS_PIXELS / (base.width * scale * base.height * scale)));
       const viewport = page.getViewport({ scale: scale * ratio });
       const canvas = canvasRef.current;
       canvas.width = Math.floor(viewport.width);
@@ -69,9 +76,15 @@ function PageCanvas({ pdf, pageNumber, scale, onSize }: { pdf: PDFDocumentProxy;
       task = page.render({ canvas, viewport });
       task.promise.catch(() => undefined);
     });
+    const canvas = canvasRef.current;
     return () => {
       cancelled = true;
       task?.cancel();
+      // Trả bộ nhớ canvas ngay khi trang ra khỏi tầm nhìn (Safari giữ bộ nhớ tới khi canvas về 0×0).
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
     };
   }, [pdf, pageNumber, scale, onSize]);
   return <canvas ref={canvasRef} aria-label={`Trang ${pageNumber}`} />;
@@ -88,6 +101,28 @@ function PickLayer({ pageNumber, loadSpans, onPick }: { pageNumber: number; load
     };
   }, [pageNumber, loadSpans]);
   if (!spans) return null;
+  if (!spans.length) {
+    return (
+      <button
+        type="button"
+        className="pdf-pick-free"
+        aria-label="Bấm vào vị trí của chỉ tiêu trên trang"
+        onMouseMove={event => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const y = (event.clientY - rect.top) / rect.height;
+          setHover([0.03, Math.max(0, y - 0.012), 0.97, Math.min(1, y + 0.012)]);
+        }}
+        onMouseLeave={() => setHover(null)}
+        onClick={event => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const y = (event.clientY - rect.top) / rect.height;
+          onPick({ pageNumber, box: [0.03, Math.max(0, y - 0.012), 0.97, Math.min(1, y + 0.012)], text: '' });
+        }}
+      >
+        {hover && <span className="pdf-pick-row" style={boxStyle(hover, 0)} />}
+      </button>
+    );
+  }
   return (
     <div className="pdf-pick-layer">
       {hover && <div className="pdf-pick-row" style={boxStyle(hover, 0.002)} />}
@@ -132,7 +167,14 @@ export function PdfViewer({ data, focus, picking = false, loadSpans, onPick, ext
     setError(null);
     setSizes({});
     // pdf.js chuyển bộ đệm sang worker (làm rỗng bản gốc): giao bản sao.
-    const task = getDocument({ data: new Uint8Array(data.slice(0)) });
+    const task = getDocument({
+      data: new Uint8Array(data.slice(0)),
+      wasmUrl: `${ASSETS}wasm/`,
+      cMapUrl: `${ASSETS}cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${ASSETS}standard_fonts/`,
+      iccUrl: `${ASSETS}iccs/`,
+    });
     task.promise.then(
       async document => {
         const first = (await document.getPage(focus?.pageNumber && focus.pageNumber <= document.numPages ? focus.pageNumber : 1)).getViewport({ scale: 1 });
@@ -217,8 +259,23 @@ export function PdfViewer({ data, focus, picking = false, loadSpans, onPick, ext
 
   // Mở văn bản: tới thẳng dòng của chỉ tiêu (không cuộn mượt từ trang 1), rồi nháy sáng.
   const focusKey = focus ? `${focus.pageNumber}:${focus.box?.join(',') ?? ''}` : '';
+  // Người dùng đã tự cuộn/chuyển trang: thôi giữ khung nhìn ở dòng tô sáng.
+  const userMoved = useRef(false);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const moved = () => {
+      userMoved.current = true;
+    };
+    const events = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+    for (const name of events) element.addEventListener(name, moved, { passive: true });
+    return () => {
+      for (const name of events) element.removeEventListener(name, moved);
+    };
+  }, [pdf]);
   useEffect(() => {
     if (!pdf || !focus || !width) return;
+    userMoved.current = false;
     const frame = requestAnimationFrame(() => {
       goTo(focus.pageNumber, focus.box ?? focus.matchBox, false);
       setPulse(value => value + 1);
@@ -227,6 +284,19 @@ export function PdfViewer({ data, focus, picking = false, loadSpans, onPick, ext
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdf, focusKey, width > 0]);
+  // Kích thước thật của các trang về dần (trang khổ khác nhau) hoặc đổi cỡ hiển thị: giữ dòng tô sáng trong tầm nhìn.
+  useEffect(() => {
+    if (!pdf || !focus || !width || userMoved.current) return;
+    const frame = requestAnimationFrame(() => goTo(focus.pageNumber, focus.box ?? focus.matchBox, false));
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sizes, scale]);
+
+  /** Chuyển trang theo thao tác của người dùng: không kéo khung nhìn về dòng tô sáng nữa. */
+  const browse = (pageNumber: number) => {
+    userMoved.current = true;
+    goTo(pageNumber);
+  };
 
   const pages = useMemo(() => (pdf ? Array.from({ length: pdf.numPages }, (_, index) => index + 1) : []), [pdf]);
 
@@ -243,7 +313,7 @@ export function PdfViewer({ data, focus, picking = false, loadSpans, onPick, ext
     <div className="pdf-viewer">
       <div className="pdf-toolbar">
         <Flex align="center" gap={4}>
-          <Button size="small" type="text" icon={<LeftOutlined />} aria-label="Trang trước" disabled={!pdf || current <= 1} onClick={() => goTo(current - 1)} />
+          <Button size="small" type="text" icon={<LeftOutlined />} aria-label="Trang trước" disabled={!pdf || current <= 1} onClick={() => browse(current - 1)} />
           <InputNumber
             size="small"
             min={1}
@@ -254,11 +324,11 @@ export function PdfViewer({ data, focus, picking = false, loadSpans, onPick, ext
             aria-label="Số trang"
             onPressEnter={event => {
               const value = Number((event.target as HTMLInputElement).value);
-              if (pdf && value >= 1 && value <= pdf.numPages) goTo(value);
+              if (pdf && value >= 1 && value <= pdf.numPages) browse(value);
             }}
           />
           <Typography.Text type="secondary" className="num">/ {pdf?.numPages ?? '…'}</Typography.Text>
-          <Button size="small" type="text" icon={<RightOutlined />} aria-label="Trang sau" disabled={!pdf || current >= (pdf?.numPages ?? 1)} onClick={() => goTo(current + 1)} />
+          <Button size="small" type="text" icon={<RightOutlined />} aria-label="Trang sau" disabled={!pdf || current >= (pdf?.numPages ?? 1)} onClick={() => browse(current + 1)} />
         </Flex>
         <Flex align="center" gap={2}>
           <Tooltip title="Thu nhỏ">
@@ -277,6 +347,7 @@ export function PdfViewer({ data, focus, picking = false, loadSpans, onPick, ext
             size="small"
             icon={<AimOutlined />}
             onClick={() => {
+              userMoved.current = false;
               goTo(focus.pageNumber, focus.box ?? focus.matchBox);
               setPulse(value => value + 1);
             }}

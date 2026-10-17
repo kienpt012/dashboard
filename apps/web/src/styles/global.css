@@ -1555,3 +1555,13 @@ a.donut-row:hover {
   border: 0;
   border-radius: 0;
 }
+
+/* Chọn vị trí trên trang chưa có bố cục chữ (bản scan cũ): bấm vào đâu chọn dải ngang ở đó. */
+.pdf-pick-free {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: crosshair;
+}

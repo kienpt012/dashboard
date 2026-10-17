@@ -104,7 +104,8 @@ function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolea
       framework
         ? http.patch(`/frameworks/${framework.id}`, { ...values, sourceDocumentId: sourceDocumentId ?? '', expectedVersion: framework.version })
         : http.post('/frameworks', { ...values, sourceDocumentId: sourceDocumentId || undefined, maxScore: values.kind === 'SCORE' ? values.maxScore : undefined }),
-    { success: framework ? 'Đã cập nhật bộ chỉ tiêu' : 'Đã tạo bộ chỉ tiêu', refresh: ['/frameworks', '/ioc'], onDone: onClose },
+    // Đổi văn bản giao thì vị trí nguồn của các chỉ tiêu trong bộ được định vị lại: làm mới cả dữ liệu chỉ tiêu.
+    { success: framework ? 'Đã cập nhật bộ chỉ tiêu' : 'Đã tạo bộ chỉ tiêu', refresh: ['/frameworks', '/ioc', '/targets'], onDone: onClose },
   );
 
   return (
@@ -158,7 +159,11 @@ function FrameworkForm({ open, framework, year, codes, onClose }: { open: boolea
             showSearch={{ optionFilterProp: 'label' }}
             loading={documents.isLoading}
             placeholder="Chọn văn bản đã tải lên kho"
-            options={(documents.data ?? []).map(document => ({ value: document.id, label: [document.docNumber, document.title].filter(Boolean).join(' — ') }))}
+            options={[
+              // Văn bản đang gắn có thể nằm ngoài danh sách văn bản mới nhất: vẫn hiện đúng tên.
+              ...(framework?.sourceDocument && !(documents.data ?? []).some(document => document.id === framework.sourceDocument!.id) ? [framework.sourceDocument] : []),
+              ...(documents.data ?? []),
+            ].map(document => ({ value: document.id, label: [document.docNumber, document.title].filter(Boolean).join(' — ') }))}
           />
         </Form.Item>
         <Form.Item name="description" label="Mô tả" className="span-2">
