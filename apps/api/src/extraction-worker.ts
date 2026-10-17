@@ -32,7 +32,9 @@ import { chunkLikelyHasIndicators, extractIndicatorsFromText, type RuleExtracted
 import { diceSimilarity, matchDepartmentByName } from './matching';
 import { OllamaService } from './ollama';
 import { parsePlanningDueDate } from './planning-date';
+import { loadLocality } from './locality';
 import { PrismaService } from './prisma.service';
+import { textLayoutPage, unitSection } from './source-locator';
 
 interface ClaimedJob {
   id: string;
@@ -436,6 +438,17 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.logger.log(`Đã phân tích tài liệu ${document.id}: ${parsed.pageCount} trang, ${chunks.length} đoạn`);
   }
 
+  /** Phần văn bản của địa phương mình nếu văn bản chia phần theo đơn vị (ít nhất 2 đơn vị khác), ngược lại null. */
+  private async localitySection(documentId: string) {
+    const locality = await loadLocality(this.prisma);
+    const term = locality.configured ? locality.shortName?.trim() || locality.name : '';
+    if (!term) return null;
+    const pages = await this.prisma.documentPage.findMany({ where: { documentId }, select: { pageNumber: true, text: true } });
+    const section = unitSection(pages.map(page => textLayoutPage(page.pageNumber, page.text)), term);
+    if (!section.pages.length || section.otherUnits < 2) return null;
+    return { term, units: section.otherUnits + 1, from: Math.min(...section.pages), to: Math.max(...section.pages) };
+  }
+
   private async processExtractJob(job: ClaimedJob, signal: AbortSignal): Promise<void> {
     await this.assertExtractJobActive(job, signal);
     const document = await this.prisma.sourceDocument.findUnique({
@@ -446,13 +459,20 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       await this.completeJob(job, {});
       return;
     }
-    const chunks = await this.prisma.documentChunk.findMany({
+    const allChunks = await this.prisma.documentChunk.findMany({
       where: { documentId: document.id },
       select: { id: true, chunkIndex: true, pageFrom: true, pageTo: true, text: true },
       orderBy: { chunkIndex: 'asc' },
     });
-    if (!chunks.length) {
+    if (!allChunks.length) {
       throw new Error('Tài liệu chưa có nội dung được phân tích.');
+    }
+    // Văn bản giao chỉ tiêu cho nhiều đơn vị (phụ lục cho mọi xã, phường): chỉ đọc phần của địa phương mình —
+    // không sinh đề xuất từ chỉ tiêu của đơn vị khác, và nhanh hơn nhiều với văn bản hàng trăm trang.
+    const section = await this.localitySection(document.id);
+    const chunks = section ? allChunks.filter(chunk => chunk.pageTo >= section.from && chunk.pageFrom <= section.to) : allChunks;
+    if (section) {
+      this.logger.log(`Tài liệu ${document.id} giao cho ${section.units} đơn vị: chỉ trích xuất phần của ${section.term} (trang ${section.from}–${section.to})`);
     }
 
     const llmAvailable = await this.ollama.isAvailable(signal);
@@ -467,6 +487,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         chunksTotal: chunks.length,
         chunksDone: 0,
         lockedAt: new Date(),
+        ...(section ? { note: `Văn bản giao cho ${section.units} đơn vị: chỉ trích xuất phần của ${section.term} (trang ${section.from}–${section.to})` } : {}),
         model: llmAvailable ? this.ollama.extractModel : null,
         promptVersion: llmAvailable ? EXTRACTION_PROMPT_VERSION : 'rule-only',
       },

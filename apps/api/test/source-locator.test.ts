@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mergeSpans, tsvSpans } from '../src/source-layout';
-import { candidatePages, foldKey, locateText, scopePages, textLayoutPage, type LayoutPage, type LayoutSpan } from '../src/source-locator';
+import { candidatePages, foldKey, locateText, scopePages, textLayoutPage, unitSection, type LayoutPage, type LayoutSpan } from '../src/source-locator';
 
 // Trang bảng giao chỉ tiêu dựng giả theo bố cục phụ lục thật: cột TT | Chỉ tiêu | Đơn vị | Kế hoạch | Kỳ báo cáo,
 // tên chỉ tiêu xuống dòng trong ô, số TT nằm giữa hai dòng, chú thích cuối trang vắt qua nhiều cột.
@@ -63,6 +63,13 @@ test('chú thích vắt ngang không nối cột tên chỉ tiêu với cột k�
   assert.equal(found.quote, 'Kéo giảm tổng số vụ tội phạm về trật tự xã hội so với năm trước');
   const plan = locateText(pages, 'Tỷ lệ giải quyết hồ sơ hành chính đúng hạn trên các lĩnh vực đạt', { hintPages: [2] });
   assert.equal(plan?.quote, 'Tỷ lệ giải quyết hồ sơ hành chính đúng hạn trên các lĩnh vực đạt');
+});
+
+test('nhận ra văn bản giao cho nhiều đơn vị và phần của đơn vị mình (để AI chỉ trích xuất phần đó)', () => {
+  assert.deepEqual(unitSection(pages, 'Lái Thiêu'), { pages: [2], otherUnits: 2 });
+  const ownPlan = [textLayoutPage(1, 'ỦY BAN NHÂN DÂN PHƯỜNG LÁI THIÊU\nKẾ HOẠCH\n1. Tỷ lệ hồ sơ đúng hạn đạt 98%')];
+  assert.equal(unitSection(ownPlan, 'Lái Thiêu').otherUnits, 0);
+  assert.deepEqual(unitSection(pages, 'Bình Nhâm'), { pages: [], otherUnits: 0 });
 });
 
 test('không thấy thì trả về null', () => {

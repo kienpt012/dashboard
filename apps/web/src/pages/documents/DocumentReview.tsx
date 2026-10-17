@@ -17,7 +17,8 @@ import { documentTypeLabels, type DocumentTextResponse, type IndicatorCandidate,
 import { ApproveModal, ProposalForm, type Proposal } from '../proposals/Proposals';
 import { DOC_STATUS } from './Documents';
 import { LegalBasis } from '@/components/LegalBasis';
-import { PdfViewer, type Box } from '@/components/pdf/PdfViewer';
+import { LazyPdfViewer } from '@/components/pdf/LazyPdfViewer';
+import type { Box } from '@/components/pdf/PdfViewer';
 
 type Location = { pageNumber: number; box: Box | null; matchBox: Box | null; quote: string; score: number };
 
@@ -356,7 +357,7 @@ export default function DocumentReview() {
           >
             {isPdf && view === 'pdf' ? (
               <div className="doc-preview is-pdf review-pdf">
-                {bytes ? <PdfViewer data={bytes} focus={pdfFocus} /> : <PageSkeleton />}
+                {bytes ? <LazyPdfViewer data={bytes} focus={pdfFocus} /> : <PageSkeleton />}
               </div>
             ) : text.isLoading ? (
               <PageSkeleton />

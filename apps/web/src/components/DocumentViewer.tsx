@@ -4,7 +4,8 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApi } from '@/hooks/useApi';
 import { ScrollBox } from './Scroll';
-import { PdfViewer, type Box, type LayoutSpan, type PdfFocus, type PickedLine } from './pdf/PdfViewer';
+import { LazyPdfViewer } from './pdf/LazyPdfViewer';
+import type { Box, LayoutSpan, PdfFocus, PickedLine } from './pdf/PdfViewer';
 import { errorText, http, saveBlob } from '@/lib/api';
 import { date, fileSize } from '@/lib/format';
 import { documentTypeLabels, type DocumentTextResponse, type SourceDocumentDetail } from '@/types/core';
@@ -170,7 +171,7 @@ export function DocumentViewer({ id, onClose, focus, heading, toolbar, picking, 
                   <Spin />
                 </Flex>
               ) : isPdf && bytes ? (
-                <PdfViewer data={bytes} focus={focus} picking={picking} loadSpans={loadSpans} onPick={onPick} extra={toolbar} />
+                <LazyPdfViewer data={bytes} focus={focus} picking={picking} loadSpans={loadSpans} onPick={onPick} extra={toolbar} />
               ) : (
                 <Flex justify="center" style={{ padding: 16 }}>
                   <div className="doc-image">

@@ -174,6 +174,29 @@ export function scopePages(pages: LayoutPage[], term: string) {
 }
 
 /**
+ * Văn bản giao cho nhiều đơn vị (mỗi đơn vị một phần, đầu phần cùng mẫu "ĐƠN VỊ: UBND PHƯỜNG …"): trả về các trang
+ * của đơn vị mình và số đơn vị khác có phần riêng. otherUnits = 0 nghĩa là văn bản không chia phần theo đơn vị.
+ */
+export function unitSection(pages: LayoutPage[], term: string): { pages: number[]; otherUnits: number } {
+  const own = scopePages(pages, term);
+  const key = foldKey(term);
+  const first = pages.find(page => page.pageNumber === Math.min(...own));
+  const header = first?.spans.find(span => foldKey(span[4]).includes(key));
+  if (!header) return { pages: own, otherUnits: 0 };
+  const folded = foldKey(header[4]);
+  const prefix = folded.slice(0, folded.indexOf(key));
+  if (prefix.length < 6) return { pages: own, otherUnits: 0 };
+  const others = new Set<string>();
+  for (const page of pages) {
+    for (const span of page.spans) {
+      const text = foldKey(span[4]);
+      if (text.startsWith(prefix) && !text.includes(key)) others.add(text.slice(prefix.length, prefix.length + 24));
+    }
+  }
+  return { pages: own, otherUnits: others.size };
+}
+
+/**
  * Căn chỉnh cục bộ (Smith–Waterman) câu cần tìm trong một chuỗi dài: trả về điểm cao nhất và đoạn [start, end) của
  * chuỗi khớp. Khớp +2, sai/thiếu/thừa −1; điểm chuẩn hoá theo 2 × độ dài câu cần tìm.
  */
