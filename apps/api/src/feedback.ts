@@ -54,6 +54,7 @@ import { type Actor, audit, assertDepartmentAccess, getActor, isLeadership, reso
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { PrismaService } from './prisma.service';
 import { getClientIp, RateLimitService } from './rate-limit';
+import { uploadFileName } from './upload-name';
 
 const PUBLIC_CREATE_WINDOW_MS = 60 * 60 * 1_000;
 const PUBLIC_TRACK_WINDOW_MS = 15 * 60 * 1_000;
@@ -735,7 +736,7 @@ export class PublicFeedbackController {
       const sha256 = createHash('sha256').update(file.buffer).digest('hex');
       if (!candidates.has(sha256)) {
         candidates.set(sha256, {
-          originalName: sanitizeAttachmentFileName(file.originalname),
+          originalName: sanitizeAttachmentFileName(uploadFileName(file.originalname)),
           mimeType: detectedMime,
           size: file.size,
           sha256,

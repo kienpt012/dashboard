@@ -360,6 +360,7 @@ export type ExtractionJobInfo={
   lastError?:string|null;
   model?:string|null;
   promptVersion?:string|null;
+  note?:string|null;
   chunksTotal?:number|null;
   chunksDone?:number|null;
   startedAt?:string|null;

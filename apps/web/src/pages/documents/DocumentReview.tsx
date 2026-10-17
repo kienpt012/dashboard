@@ -426,6 +426,7 @@ export default function DocumentReview() {
                       {job.model ? ` · ${job.model}` : ''}
                     </span>
                     <span>{dateTime(job.finishedAt ?? job.startedAt ?? job.createdAt)}</span>
+                    {job.note && <Typography.Text type="secondary" style={{ flexBasis: '100%', fontSize: 12 }}>{job.note}</Typography.Text>}
                   </Flex>
                 ))}
               </Flex>

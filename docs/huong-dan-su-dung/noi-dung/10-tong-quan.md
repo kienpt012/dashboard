@@ -6,6 +6,8 @@ Hệ thống Trung tâm điều hành thông minh (IOC) cấp xã giúp Ủy ban
 các chỉ tiêu được giao và quy trách nhiệm cho từng khâu. Nguyên tắc chung là **từ dữ liệu đến trách nhiệm**:
 
 - Mỗi con số trên màn hình đều truy được nguồn: lấy từ kho dữ liệu nghiệp vụ, hoặc do cán bộ báo cáo kèm minh chứng.
+- Mỗi chỉ tiêu mở được văn bản giao ngay trong hệ thống, đúng trang và đúng dòng giao chỉ tiêu đó; hệ thống tự tìm
+  dòng này trong văn bản tải lên, kể cả phụ lục hàng trăm trang giao cho nhiều xã, phường.
 - Mỗi chỉ tiêu có phòng chủ trì, có người phụ trách, có hạn báo cáo theo kỳ.
 - Mỗi việc chờ xử lý (duyệt báo cáo, duyệt đề xuất, trả lời giải trình, xử lý phản ánh) đều có thời hạn. Quá hạn,
   hệ thống tự xử lý theo quy định (ví dụ tự thông qua báo cáo) và ghi nhận trách nhiệm của người để chậm.
@@ -82,12 +84,12 @@ Bấm vào tên của mình ở góc phải trên cùng, chọn `Đăng xuất`.
    `Duyệt báo cáo` là số báo cáo đang chờ duyệt; cạnh `Phản ánh` là số phản ánh mới tiếp nhận và đề nghị xem xét lại.
 2. **Thu gọn menu** — ẩn chữ, chỉ giữ biểu tượng để có thêm chỗ cho nội dung.
 3. **Tìm kiếm** — tìm nhanh màn hình hoặc chỉ tiêu theo mã, tên (phím tắt `Ctrl K`).
-4. **Gọi Jarvis bằng giọng nói** — bật để gọi trợ lý bằng câu "Jarvis ơi…" (xem mục 1.6).
-5. **Jarvis** — trợ lý điều hành, trả lời câu hỏi về số liệu (phím tắt `Ctrl J`).
-6. **Báo lỗi** — gửi mô tả lỗi của màn hình đang xem cho quản trị viên.
-7. **Thông báo** — việc mới được giao, báo cáo được duyệt hoặc trả lại, yêu cầu giải trình, nhắc hạn.
-8. **Tài khoản** — tên và vai trò; mở hồ sơ cá nhân, đổi giao diện sáng/tối, đăng xuất.
-9. **Dải định danh** — mã màn hình (ví dụ `DH-01`), tên đơn vị và thời điểm hiện tại. Khi báo lỗi hoặc cần hỗ trợ,
+4. **Jarvis** — trợ lý điều hành, trả lời câu hỏi về số liệu (phím tắt `Ctrl J`). Khi Jarvis đang nghe tên gọi, biểu
+   tượng chuyển động nhẹ; nói "Hey Jarvis" để gọi mà không cần bấm (xem mục 1.6).
+5. **Báo lỗi** — gửi mô tả lỗi của màn hình đang xem cho quản trị viên.
+6. **Thông báo** — việc mới được giao, báo cáo được duyệt hoặc trả lại, yêu cầu giải trình, nhắc hạn.
+7. **Tài khoản** — tên và vai trò; mở hồ sơ cá nhân, đổi giao diện sáng/tối, đăng xuất.
+8. **Dải định danh** — mã màn hình (ví dụ `DH-01`), tên đơn vị và thời điểm hiện tại. Khi báo lỗi hoặc cần hỗ trợ,
    đọc mã này để người hỗ trợ biết đúng màn hình.
 
 Mỗi phần trong tài liệu này ghi kèm mã màn hình tương ứng để dễ đối chiếu.
@@ -172,19 +174,22 @@ Quản trị viên tắt hiệu ứng này tại **Cấu hình** › `Hiệu ứ
 
 #### Hỏi Jarvis
 1. Bấm biểu tượng Jarvis trên thanh đầu trang, hoặc nhấn `Ctrl J`.
-2. Gõ câu hỏi bằng tiếng Việt, nhấn `Enter`. Có thể bấm biểu tượng micro trong ô nhập để nói thay vì gõ.
+2. Gõ câu hỏi bằng tiếng Việt, nhấn `Enter`. Muốn nói thay vì gõ, bấm biểu tượng micro (`Nói với Jarvis`) trong ô nhập.
 3. Bấm vào tên chỉ tiêu, văn bản trong câu trả lời để mở hồ sơ tương ứng.
 
-#### Gọi Jarvis bằng giọng nói
-1. Bấm nút micro trên thanh đầu trang. Lần đầu, trình duyệt hỏi quyền dùng micro: chọn `Cho phép`.
-2. Khi nút micro sáng màu, nói "Jarvis ơi" (hoặc "Hey Jarvis") rồi nói câu hỏi, ví dụ "Jarvis ơi, tóm tắt tình hình".
-3. Jarvis mở khung trợ lý, trả lời và đọc to câu trả lời (tắt đọc to trong biểu tượng bánh răng của khung Jarvis).
-4. Bấm lại nút micro để tắt. Trong lúc bật, bong bóng dưới nút micro hiện câu vừa nghe được; nếu Jarvis chưa phản hồi,
-   xem bong bóng này để biết micro có nghe rõ không.
+#### Gọi Jarvis bằng tên, không cần bấm
+1. Tính năng này bật sẵn: lần đầu vào khu vực quản trị, trình duyệt hỏi quyền dùng micro — chọn cho phép. Bật, tắt tại
+   khung Jarvis › biểu tượng bánh răng (`Cài đặt giọng nói`) › `Gọi bằng tên “Jarvis”`.
+2. Từ đó, ở bất kỳ màn hình nào của khu vực quản trị, nói "Hey Jarvis". Jarvis xuất hiện, chào bằng giọng nói rồi nghe
+   câu hỏi trong khoảng 9 giây, ví dụ "tóm tắt tình hình thực hiện năm nay".
+3. Jarvis trả lời trên màn hình và đọc to câu trả lời. Tắt đọc to bằng công tắc `Đọc câu trả lời`; chọn giọng tại
+   `Giọng đọc` trong cùng bảng cài đặt.
+4. Nếu gọi không được, xem dòng `Micro nghe được gần nhất` trong bảng cài đặt để biết micro có nghe rõ không. Tắt
+   `Gọi bằng tên “Jarvis”` khi không muốn trình duyệt nghe liên tục.
 
 > [!CANH-BAO] Jarvis có thể chuẩn bị thao tác thay đổi dữ liệu (ví dụ duyệt hàng loạt đề xuất chỉ tiêu của một văn bản),
 > nhưng chỉ thực hiện khi bạn bấm nút xác nhận trên màn hình. Lệnh bằng giọng nói không bao giờ tự thay đổi dữ liệu.
 
 Hỏi bằng giọng nói cần trình duyệt Chrome hoặc Edge, micro, kết nối Internet và địa chỉ truy cập HTTPS (hoặc
-`localhost`); truy cập bằng địa chỉ IP nội bộ qua `http://` thì micro bị trình duyệt chặn. Âm thanh được trình duyệt
-gửi tới dịch vụ nhận dạng giọng nói của hãng trình duyệt.
+`localhost`); truy cập bằng địa chỉ IP nội bộ qua `http://` thì micro bị trình duyệt chặn, bảng cài đặt ghi `Micro chỉ
+dùng được trên kết nối HTTPS`. Âm thanh được trình duyệt gửi tới dịch vụ nhận dạng giọng nói của hãng trình duyệt.

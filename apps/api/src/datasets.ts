@@ -51,6 +51,9 @@ import { PrismaService } from './prisma.service';
 import { BUILTIN_DATASETS } from './templates';
 import { recordWorkEvent } from './work';
 
+/** Số kiểu Việt Nam cho ghi chú hiển thị: 71,43 (không phải 71.428571). */
+const viNumber = (value: number) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value);
+
 // Kho dữ liệu nghiệp vụ: bảng có cấu trúc mà chỉ tiêu tự tính từ đó (QĐ "từ dữ liệu đến trách nhiệm").
 // Mỗi khi dữ liệu đổi, mọi chỉ tiêu dùng bảng đó được tính lại ngay; giá trị đổi thì ghi một báo cáo đã duyệt
 // đứng tên người vừa sửa dữ liệu — nhờ vậy con số trên màn hình điều hành luôn truy được về dòng dữ liệu gốc.
@@ -267,7 +270,7 @@ export async function recomputeTargets(
           actor,
           targetId: target.id,
           departmentId: target.departmentId,
-          note: `Giá trị tự tính đổi từ ${target.currentValue} thành ${value}`,
+          note: `Giá trị tự tính đổi từ ${viNumber(target.currentValue)} thành ${viNumber(value)}`,
           metadata: { value, previousValue: target.currentValue },
         });
       });
