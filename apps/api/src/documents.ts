@@ -236,6 +236,7 @@ export class DocumentsController {
             lastError: true,
             model: true,
             promptVersion: true,
+            note: true,
             chunksTotal: true,
             chunksDone: true,
             startedAt: true,
