@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
+import { TargetSource } from '@/components/TargetSource';
 import { LoadError, PageSkeleton } from '@/components/States';
 import { DeptTag, KindTag, StatusTag, STATUS } from '@/components/Tags';
 import { useApi } from '@/hooks/useApi';
@@ -142,6 +143,7 @@ function DossierView({ d }: { d: DossierData }) {
           {d.ordinal && <span>STT {d.ordinal}</span>}
           <DeptTag name={d.department.name} color={d.department.color} />
           <span>{ISSUING[d.issuingLevel] ?? d.issuingLevel}</span>
+          <TargetSource variant="chip" targetId={d.id} targetTitle={d.title} canEdit={d.permissions.canEditSourceCard && !d.isArchived} />
           <Space size={6}>
             <KindTag kind={d.kind} />
             <StatusTag status={d.status} />

@@ -1087,7 +1087,8 @@ export class TargetsController {
         });
         await recordWorkEvent(tx, {
           action: 'REPORT_APPROVED', actor, targetId: update.targetId, departmentId: update.target.departmentId,
-          note: (update.periodKey ? periodLabel(update.periodKey) + ': ' : '') + (update.valueText || update.value) + ' ' + update.target.unit,
+          // Giá trị dạng chữ đã tự mang đơn vị ("72% (816 tỷ đồng)"); chỉ ghép đơn vị khi hiển thị số.
+          note: (update.periodKey ? periodLabel(update.periodKey) + ': ' : '') + (update.valueText?.trim() || `${update.value} ${update.target.unit}`.trim()),
           metadata: { progressUpdateId: updateId },
         });
         await notifyUsers(tx, [update.userId], {

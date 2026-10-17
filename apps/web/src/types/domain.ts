@@ -76,6 +76,9 @@ export type Framework={
   isActive:boolean;
   version:number;
   summary:FrameworkSummary;
+  /** Văn bản giao bộ chỉ tiêu trong kho — chỉ tiêu của bộ được tự định vị trong văn bản này. */
+  sourceDocumentId?:string|null;
+  sourceDocument?:{id:string;code:string;title:string;docNumber?:string|null}|null;
 };
 
 export type FrameworkTemplate={

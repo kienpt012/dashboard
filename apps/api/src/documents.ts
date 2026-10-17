@@ -4,9 +4,11 @@ import {
   ConflictException,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -27,6 +29,7 @@ import {
 } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -42,7 +45,7 @@ import {
 import { createHash } from 'node:crypto';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
-import { audit, getActor, resolveDepartmentScope, WORKING_ROLES } from './access';
+import { audit, getActor, isGlobalRole, resolveDepartmentScope, WORKING_ROLES } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { detectDocumentKind } from './document-processing';
 import { ExtractionWorker } from './extraction-worker';
@@ -82,7 +85,7 @@ class UploadDocumentDto {
 
   @ValidateIfDefined()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày ban hành phải có định dạng YYYY-MM-DD' })
-  @IsDateString({}, { message: 'Ngày ban hành không hợp lệ' })
+  @IsDateString({ strict: true }, { message: 'Ngày ban hành không hợp lệ' })
   issuedDate?: string;
 
   @ValidateIfDefined() @Type(() => Number) @IsInt({ message: 'Năm kế hoạch không hợp lệ' })
@@ -94,6 +97,49 @@ class UploadDocumentDto {
 
   @ValidateIfDefined() @Trim() @IsString() @MaxLength(1000, { message: 'Mô tả không được vượt quá 1000 ký tự' })
   description?: string;
+
+  // false: chỉ lưu và đọc văn bản để tra cứu, định vị nguồn — không tự chạy AI trích xuất chỉ tiêu (gửi qua form: "false").
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean({ message: 'Lựa chọn trích xuất không hợp lệ' })
+  autoExtract?: boolean;
+}
+
+// Sửa thông tin văn bản (không đổi tệp): tiêu đề, số hiệu, cơ quan, ngày ban hành… Gửi chuỗi rỗng để xoá trường.
+class UpdateDocumentDto {
+  @IsInt({ message: 'Thiếu phiên bản văn bản' }) @Min(1) expectedVersion!: number;
+
+  @ValidateIfDefined() @Trim() @IsString() @MinLength(3, { message: 'Tiêu đề tài liệu phải có ít nhất 3 ký tự' })
+  @MaxLength(300, { message: 'Tiêu đề tài liệu không được vượt quá 300 ký tự' })
+  title?: string;
+
+  @ValidateIfDefined() @IsEnum(DocumentType, { message: 'Loại văn bản không hợp lệ' })
+  docType?: DocumentType;
+
+  @ValidateIfDefined() @Trim() @IsString() @MaxLength(100, { message: 'Số văn bản không được vượt quá 100 ký tự' })
+  docNumber?: string;
+
+  @ValidateIfDefined() @Trim() @IsString() @MaxLength(200, { message: 'Cơ quan ban hành không được vượt quá 200 ký tự' })
+  issuedBy?: string;
+
+  @ValidateIf((_object, value) => value !== undefined && value !== '')
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày ban hành phải có định dạng YYYY-MM-DD' })
+  @IsDateString({ strict: true }, { message: 'Ngày ban hành không hợp lệ' })
+  issuedDate?: string;
+
+  // null: bỏ năm áp dụng.
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsInt({ message: 'Năm kế hoạch không hợp lệ' })
+  @Min(2000, { message: 'Năm kế hoạch không hợp lệ' }) @Max(2100, { message: 'Năm kế hoạch không hợp lệ' })
+  year?: number | null;
+
+  @ValidateIfDefined() @Trim() @IsString()
+  departmentId?: string;
+
+  @ValidateIfDefined() @Trim() @IsString() @MaxLength(1000, { message: 'Mô tả không được vượt quá 1000 ký tự' })
+  description?: string;
+
+  @ValidateIfDefined() @IsBoolean({ message: 'Lựa chọn trích xuất không hợp lệ' })
+  autoExtract?: boolean;
 }
 
 const DOCUMENT_LIST_SELECT = {
@@ -107,11 +153,13 @@ const DOCUMENT_LIST_SELECT = {
   docNumber: true,
   issuedBy: true,
   issuedDate: true,
+  description: true,
   status: true,
   processingError: true,
   pageCount: true,
   hasTextLayer: true,
   ocrUsed: true,
+  autoExtract: true,
   year: true,
   departmentId: true,
   department: { select: { id: true, code: true, name: true, color: true } },
@@ -324,6 +372,7 @@ export class DocumentsController {
               size: file.size,
               sha256,
               data: Uint8Array.from(file.buffer),
+              autoExtract: dto.autoExtract ?? true,
               docType: dto.docType ?? DocumentType.KHAC,
               docNumber: dto.docNumber?.trim() || undefined,
               issuedBy: dto.issuedBy?.trim() || undefined,
@@ -495,6 +544,50 @@ export class DocumentsController {
     // trước khi ghi kết quả, còn tín hiệu này giúp đóng ngay luồng fetch đang giữ Ollama.
     this.extractionWorker.requestCancellation(jobId);
     return cancelledJob;
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(...WORKING_ROLES)
+  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateDocumentDto) {
+    const actor = getActor(req);
+    const { expectedVersion, ...changes } = dto;
+    const blank = (value: string | undefined) => (value === undefined ? undefined : value || null);
+    if (changes.departmentId) {
+      const department = await this.prisma.department.findUnique({ where: { id: changes.departmentId } });
+      if (!department || !department.isActive) throw new BadRequestException('Phòng ban được gắn không tồn tại hoặc đã ngừng hoạt động');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const document = await tx.sourceDocument.findUnique({ where: { id }, select: { id: true, uploadedById: true, departmentId: true } });
+      if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
+      // Người tải lên, văn thư, lãnh đạo, quản trị sửa được; cán bộ phòng sửa văn bản của phòng mình.
+      const allowed = isGlobalRole(actor.role) || document.uploadedById === actor.id || (document.departmentId !== null && document.departmentId === actor.departmentId);
+      if (!allowed) throw new ForbiddenException('Bạn không có quyền sửa thông tin văn bản này');
+      const changed = await tx.sourceDocument.updateMany({
+        where: { id, version: expectedVersion },
+        data: {
+          title: changes.title,
+          docType: changes.docType,
+          docNumber: blank(changes.docNumber),
+          issuedBy: blank(changes.issuedBy),
+          issuedDate: changes.issuedDate === undefined ? undefined : changes.issuedDate ? new Date(`${changes.issuedDate}T00:00:00.000+07:00`) : null,
+          year: changes.year,
+          departmentId: blank(changes.departmentId),
+          description: blank(changes.description),
+          autoExtract: changes.autoExtract,
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) throw new ConflictException('Văn bản vừa được người khác cập nhật. Vui lòng tải lại.');
+      await audit(tx, actor, {
+        action: 'DOCUMENT_UPDATED',
+        entityType: 'SourceDocument',
+        entityId: id,
+        departmentId: document.departmentId,
+        metadata: { fields: Object.keys(changes).filter(key => changes[key as keyof typeof changes] !== undefined) },
+      });
+      return tx.sourceDocument.findUniqueOrThrow({ where: { id }, select: DOCUMENT_LIST_SELECT });
+    });
   }
 
   @Delete(':id')

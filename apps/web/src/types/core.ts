@@ -335,9 +335,11 @@ export type SourceDocument={
   docNumber?:string|null;
   issuedBy?:string|null;
   issuedDate?:string|null;
+  description?:string|null;
   status:DocumentStatus;
   processingError?:string|null;
   pageCount?:number|null;
+  autoExtract?:boolean;
   hasTextLayer?:boolean|null;
   ocrUsed:boolean;
   year?:number|null;

@@ -405,6 +405,7 @@ model Target {
   evidences                Evidence[]
   workEvents               WorkEvent[]
   explanationRequests      ExplanationRequest[]
+  sourceAnchor             SourceAnchor?
 
   @@index([year, status])
   @@index([departmentId])
@@ -631,6 +632,8 @@ model SourceDocument {
   size            Int
   sha256          String                @unique
   data            Bytes
+  // false: chỉ đọc và lưu văn bản (tra cứu, định vị nguồn), không tự chạy AI trích xuất chỉ tiêu.
+  autoExtract     Boolean               @default(true)
   docType         DocumentType          @default(KHAC)
   docNumber       String?
   issuedBy        String?
@@ -658,6 +661,7 @@ model SourceDocument {
   directives      TargetDirective[]
   evidences       Evidence[]
   frameworks      Framework[]
+  anchors         SourceAnchor[]
 
   @@index([status, createdAt])
   @@index([departmentId, createdAt])
@@ -730,8 +734,35 @@ model DocumentPage {
   text          String
   ocrUsed       Boolean        @default(false)
   ocrConfidence Float?
+  // Bố cục chữ: [[x0, y0, x1, y1, "chữ"], …], toạ độ chuẩn hoá 0..1 gốc trên-trái (lớp chữ PDF hoặc dòng OCR).
+  // null: chưa đọc bố cục (văn bản cũ) — tính lại khi cần định vị.
+  layout        Json?
 
   @@unique([documentId, pageNumber])
+}
+
+// Vị trí chỉ tiêu trong văn bản nguồn (trang + khung dòng) để mở đúng chỗ và tô sáng. Hệ thống tự định vị;
+// người dùng chỉnh tay khi tự định vị sai (manual = true thì không tự định vị đè lên).
+model SourceAnchor {
+  id          String         @id @default(cuid())
+  targetId    String         @unique
+  target      Target         @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  documentId  String
+  document    SourceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  // null: đã tìm nhưng không thấy trong văn bản.
+  pageNumber  Int?
+  box         Json?
+  matchBox    Json?
+  quote       String?
+  score       Float?
+  manual      Boolean        @default(false)
+  // Dấu vân tay của câu tìm và văn bản; khác đi (đổi tên chỉ tiêu, đổi văn bản, đổi cách định vị) thì định vị lại.
+  queryKey    String
+  updatedById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([documentId])
 }
 
 model DocumentChunk {

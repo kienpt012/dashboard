@@ -3,6 +3,7 @@ import { Avatar, Button, Card, Descriptions, Flex, Form, Input, InputNumber, Mod
 import { useEffect, useState } from 'react';
 import { NoData } from '@/components/States';
 import { LegalBasis } from '@/components/LegalBasis';
+import { TargetSource } from '@/components/TargetSource';
 import { DeptTag } from '@/components/Tags';
 import { http } from '@/lib/api';
 import { dateTime, fromNow, msUntil, until } from '@/lib/format';
@@ -368,7 +369,6 @@ export function SourceCard() {
 export function BasisCard() {
   const { d } = useDossier();
   const legal = d.legalBasis || d.framework?.legalBasis;
-  if (!legal && !d.description && !d.scoringRule) return null;
   return (
     <Card title="Căn cứ" size="small" className="side-card">
       <Descriptions
@@ -376,6 +376,7 @@ export function BasisCard() {
         column={1}
         className="side-desc" colon={false}
         items={[
+          { label: 'Văn bản giao', children: <TargetSource targetId={d.id} targetTitle={d.title} canEdit={d.permissions.canEditSourceCard && !d.isArchived} /> },
           ...(legal ? [{ label: 'Căn cứ pháp lý', children: <LegalBasis text={legal} /> }] : []),
           ...(d.scoringRule ? [{ label: 'Thang chấm', children: <span className="pre-line">{d.scoringRule}</span> }] : []),
           ...(d.description ? [{ label: 'Mô tả', children: <span className="pre-line">{d.description}</span> }] : []),

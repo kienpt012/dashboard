@@ -16,6 +16,7 @@
     "dayjs": "^1.11.23",
     "dompurify": "^3.4.17",
     "echarts": "^6.1.0",
+    "pdfjs-dist": "6.3.289",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-grid-layout": "^2.3.0",

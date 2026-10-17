@@ -30,6 +30,7 @@ import { SetupController } from './setup';
 import { FrameworksController } from './frameworks';
 import { DatasetsController } from './datasets';
 import { DossierController } from './dossier';
+import { SourceAnchorController, SourceLocatorService } from './source-anchor';
 import { NotificationsController } from './notifications';
 import { IocController } from './ioc';
 import { BugReportsController } from './bug-reports';
@@ -78,6 +79,7 @@ import {
     FrameworksController,
     DatasetsController,
     DossierController,
+    SourceAnchorController,
     NotificationsController,
     IocController,
     BugReportsController,
@@ -94,6 +96,7 @@ import {
     ExtractionWorker,
     PublicDashboardService,
     AccountabilityWorker,
+    SourceLocatorService,
   ],
 })
 export class AppModule {}

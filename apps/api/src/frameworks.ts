@@ -294,6 +294,8 @@ class CreateFrameworkDto {
   @IsOptional() @Trim() @IsString() @MaxLength(2000) description?: string;
   @IsOptional() @IsNumber() @Min(1) @Max(1000) maxScore?: number;
   @IsOptional() @IsBoolean() showOnWallboard?: boolean;
+  // Văn bản giao bộ chỉ tiêu trong kho: chỉ tiêu của bộ được tự định vị trong văn bản này.
+  @IsOptional() @IsString() sourceDocumentId?: string;
 }
 
 class UpdateFrameworkDto {
@@ -305,6 +307,14 @@ class UpdateFrameworkDto {
   @ValidateIfDefined() @IsBoolean() showOnWallboard?: boolean;
   @ValidateIfDefined() @IsBoolean() isActive?: boolean;
   @ValidateIfDefined() @IsInt() @Min(0) sortOrder?: number;
+  // Chuỗi rỗng hoặc null: bỏ liên kết văn bản giao.
+  @IsOptional() @IsString() sourceDocumentId?: string | null;
+}
+
+async function assertDocument(tx: Prisma.TransactionClient, id: string | null | undefined) {
+  if (!id) return;
+  const exists = await tx.sourceDocument.count({ where: { id } });
+  if (!exists) throw new BadRequestException('Văn bản giao không có trong kho');
 }
 
 class ApplyTemplateDto {
@@ -357,6 +367,7 @@ export class FrameworksController {
       this.prisma.framework.findMany({
         where: includeInactive === 'true' ? {} : { isActive: true },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        include: { sourceDocument: { select: { id: true, code: true, title: true, docNumber: true } } },
       }),
       this.prisma.systemSetting.findUnique({ where: { id: 'default' } }),
     ]);
@@ -397,11 +408,12 @@ export class FrameworksController {
     const actor = getActor(req);
     try {
       return await this.prisma.$transaction(async tx => {
+        await assertDocument(tx, dto.sourceDocumentId);
         const framework = await tx.framework.create({
           data: {
             code: dto.code, name: dto.name, kind: dto.kind, issuingLevel: dto.issuingLevel, year: dto.year ?? currentVietnamYear(),
             legalBasis: dto.legalBasis, description: dto.description, maxScore: dto.kind === FrameworkKind.SCORE ? dto.maxScore ?? 100 : null,
-            showOnWallboard: dto.showOnWallboard ?? true, sortOrder: 500,
+            showOnWallboard: dto.showOnWallboard ?? true, sortOrder: 500, sourceDocumentId: dto.sourceDocumentId || null,
           },
         });
         await audit(tx, actor, { action: 'FRAMEWORK_CREATED', entityType: 'Framework', entityId: framework.id, departmentId: null, metadata: { code: framework.code } });
@@ -418,8 +430,11 @@ export class FrameworksController {
   @Roles(...LEADERSHIP_ROLES, Role.CLERK)
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateFrameworkDto) {
     const actor = getActor(req);
-    const { expectedVersion, ...changes } = dto;
+    const { expectedVersion, sourceDocumentId, ...rest } = dto;
+    const document = sourceDocumentId === undefined ? undefined : sourceDocumentId || null;
+    const changes = document === undefined ? rest : { ...rest, sourceDocumentId: document };
     return this.prisma.$transaction(async tx => {
+      await assertDocument(tx, document);
       const changed = await tx.framework.updateMany({ where: { id, version: expectedVersion }, data: { ...changes, version: { increment: 1 } } });
       if (changed.count !== 1) {
         const exists = await tx.framework.count({ where: { id } });

@@ -1,6 +1,6 @@
 import { CheckOutlined, CloseOutlined, DownloadOutlined, EditOutlined, PauseCircleOutlined, RedoOutlined, RobotOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
 import { Alert, App, Badge, Button, Card, Col, Descriptions, Empty, Flex, Pagination, Progress, Result, Row, Segmented, Space, Tag, Tooltip, Typography } from 'antd';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
@@ -17,6 +17,10 @@ import { documentTypeLabels, type DocumentTextResponse, type IndicatorCandidate,
 import { ApproveModal, ProposalForm, type Proposal } from '../proposals/Proposals';
 import { DOC_STATUS } from './Documents';
 import { LegalBasis } from '@/components/LegalBasis';
+import { LazyPdfViewer } from '@/components/pdf/LazyPdfViewer';
+import type { Box } from '@/components/pdf/PdfViewer';
+
+type Location = { pageNumber: number; box: Box | null; matchBox: Box | null; quote: string; score: number };
 
 const STATUS: Record<string, { label: string; color: string }> = {
   PROPOSED: { label: 'Chưa trình', color: 'default' },
@@ -166,6 +170,24 @@ export default function DocumentReview() {
   const [approving, setApproving] = useState<Proposal | null>(null);
   const [rejecting, setRejecting] = useState<IndicatorCandidate | null>(null);
   const textRef = useRef<HTMLDivElement>(null);
+  // PDF: xem bản gốc (tô sáng đúng dòng của đề xuất) hoặc chữ hệ thống đã đọc.
+  const isPdf = detail?.mimeType === 'application/pdf';
+  const [view, setView] = useState<'pdf' | 'text'>('pdf');
+  // Tệp PDF gắn với mã văn bản: chuyển sang văn bản khác thì tải lại, không giữ bản của văn bản trước.
+  const [file, setFile] = useState<{ id: string; buffer: ArrayBuffer } | null>(null);
+  const bytes = file?.id === id ? file.buffer : null;
+  useEffect(() => {
+    if (!isPdf || view !== 'pdf' || bytes) return;
+    let active = true;
+    http
+      .blob(`/documents/${id}/download`)
+      .then(blob => blob.arrayBuffer())
+      .then(buffer => active && setFile({ id, buffer }))
+      .catch(error => active && message.error(errorText(error, 'Không mở được tệp PDF')));
+    return () => {
+      active = false;
+    };
+  }, [isPdf, view, bytes, id, message]);
 
   const reextract = useAction(() => http.post(`/documents/${id}/extract`), { success: 'Đã yêu cầu trích xuất lại', refresh: [`/documents/${id}`, '/candidates'] });
   const cancel = useAction((jobId: string) => http.post(`/documents/${id}/extraction-jobs/${jobId}/cancel`), { success: 'Đã dừng trích xuất', refresh: [`/documents/${id}`, '/candidates'] });
@@ -183,6 +205,19 @@ export default function DocumentReview() {
     [candidates.data, filter],
   );
   const selected = (candidates.data ?? []).find(item => item.id === selectedId) ?? null;
+  const quoteOf = (item: IndicatorCandidate) => (item.sourceQuote?.trim().length ?? 0) >= 6 ? item.sourceQuote!.trim().slice(0, 1000) : item.name;
+  const located = useQuery({
+    queryKey: [`/documents/${id}/locate`, selected?.id, selected?.sourceQuote, selected?.name],
+    enabled: Boolean(isPdf && selected && detail?.status === 'PROCESSED'),
+    staleTime: Infinity,
+    queryFn: () => http.post<{ location: Location | null }>(`/documents/${id}/locate`, { text: quoteOf(selected!), pageNumber: selected!.pageNumber ?? undefined }),
+  });
+  const location = located.data?.location ?? null;
+  const pdfFocus = location
+    ? { pageNumber: location.pageNumber, box: location.box, matchBox: location.matchBox, label: 'Đề xuất lấy từ đây' }
+    : selected?.pageNumber
+      ? { pageNumber: selected.pageNumber }
+      : null;
   const pages = text.data?.pages ?? [];
   const current = pages.find(item => item.pageNumber === page) ?? pages[0];
 
@@ -305,9 +340,28 @@ export default function DocumentReview() {
           <Card
             className="card-flush doc-viewer"
             title="Nội dung văn bản"
-            extra={pages.length > 1 && <Pagination simple size="small" current={current?.pageNumber ?? 1} total={pages.length} pageSize={1} onChange={setPage} />}
+            extra={
+              <Flex gap={8} align="center">
+                {isPdf && (
+                  <Segmented
+                    size="small"
+                    value={view}
+                    onChange={value => setView(value as 'pdf' | 'text')}
+                    options={[
+                      { value: 'pdf', label: 'Bản gốc' },
+                      { value: 'text', label: 'Chữ đã đọc' },
+                    ]}
+                  />
+                )}
+                {(!isPdf || view === 'text') && pages.length > 1 && <Pagination simple size="small" current={current?.pageNumber ?? 1} total={pages.length} pageSize={1} onChange={setPage} />}
+              </Flex>
+            }
           >
-            {text.isLoading ? (
+            {isPdf && view === 'pdf' ? (
+              <div className="doc-preview is-pdf review-pdf">
+                {bytes ? <LazyPdfViewer data={bytes} focus={pdfFocus} /> : <PageSkeleton />}
+              </div>
+            ) : text.isLoading ? (
               <PageSkeleton />
             ) : current ? (
               <ScrollBox bodyClassName="doc-text" ref={textRef} label="Về đầu văn bản">

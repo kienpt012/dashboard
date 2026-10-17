@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import type { PrismaClient } from '@prisma/client';
@@ -14,6 +15,53 @@ import type { PrismaClient } from '@prisma/client';
 // (không có tài khoản mẫu) và bộ mẫu đã được dùng để nhập dữ liệu mới sau khi nạp đều không bao giờ bị tự thay.
 
 export const SNAPSHOT_FILE = join(__dirname, 'du-lieu-mau.json.gz');
+
+/**
+ * Tệp nhị phân (văn bản gốc, tệp minh chứng) để riêng trong thư mục tep/, tên theo mã băm nội dung: ảnh chụp JSON
+ * không phình to, git chỉ lưu mỗi tệp một lần, và mở thẳng được tệp để xem. Trong JSON ô dữ liệu ghi {"$file": tên}.
+ */
+export const FILES_DIR = join(__dirname, 'tep');
+
+type FileRef = { $file: string };
+
+const isFileRef = (value: unknown): value is FileRef =>
+  typeof value === 'object' && value !== null && typeof (value as FileRef).$file === 'string';
+
+function extensionOf(data: Buffer) {
+  if (data.subarray(0, 4).toString('latin1') === '%PDF') return '.pdf';
+  if (data[0] === 0x89 && data.subarray(1, 4).toString('latin1') === 'PNG') return '.png';
+  if (data[0] === 0xff && data[1] === 0xd8) return '.jpg';
+  if (data.subarray(0, 4).toString('latin1') === 'RIFF' && data.subarray(8, 12).toString('latin1') === 'WEBP') return '.webp';
+  if (data[0] === 0x50 && data[1] === 0x4b) return '.zip';
+  return '.bin';
+}
+
+async function binaryColumns(prisma: PrismaClient, table: string) {
+  const rows = await prisma.$queryRawUnsafe<{ name: string }[]>(
+    `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND data_type = 'bytea'`,
+    table,
+  );
+  return rows.map(row => row.name);
+}
+
+/** Lô nạp: tối đa 400 dòng hoặc ~24MB JSON (bảng văn bản có tệp PDF lớn). */
+function batches(rows: Record<string, unknown>[]) {
+  const result: Record<string, unknown>[][] = [];
+  let current: Record<string, unknown>[] = [];
+  let size = 0;
+  for (const row of rows) {
+    const length = JSON.stringify(row).length;
+    if (current.length && (current.length >= 400 || size + length > 24_000_000)) {
+      result.push(current);
+      current = [];
+      size = 0;
+    }
+    current.push(row);
+    size += length;
+  }
+  if (current.length) result.push(current);
+  return result;
+}
 
 /** Bảng không đưa vào bộ mẫu: thư đang chờ gửi, mã khôi phục mật khẩu, thao tác Jarvis đang chờ xác nhận. */
 const SKIPPED = new Set(['_prisma_migrations', 'MailOutbox', 'PasswordResetChallenge', 'AgentAction']);
@@ -89,12 +137,28 @@ function parentsFirst(rows: Record<string, unknown>[], column: string) {
 
 export async function exportSnapshot(prisma: PrismaClient, version: string) {
   const snapshot: Snapshot = { version, takenAt: new Date().toISOString(), tables: {} };
+  const used = new Set<string>();
+  mkdirSync(FILES_DIR, { recursive: true });
   for (const table of await tableNames(prisma)) {
     const [row] = await prisma.$queryRawUnsafe<{ rows: Record<string, unknown>[] | null }[]>(
-      `SELECT json_agg(t) AS rows FROM "${table}" t`,
+      `SELECT json_agg(t ORDER BY t.ctid) AS rows FROM "${table}" t`,
     );
-    snapshot.tables[table] = row?.rows ?? [];
+    const rows = row?.rows ?? [];
+    for (const column of await binaryColumns(prisma, table)) {
+      for (const record of rows) {
+        const value = record[column];
+        if (typeof value !== 'string' || !value.startsWith('\\x')) continue;
+        const data = Buffer.from(value.slice(2), 'hex');
+        const name = `${createHash('sha256').update(data).digest('hex').slice(0, 32)}${extensionOf(data)}`;
+        if (!existsSync(join(FILES_DIR, name))) writeFileSync(join(FILES_DIR, name), data);
+        used.add(name);
+        record[column] = { $file: name } satisfies FileRef;
+      }
+    }
+    snapshot.tables[table] = rows;
   }
+  // Tệp của bộ mẫu trước không còn dùng: xoá để repo không giữ tệp thừa.
+  for (const name of readdirSync(FILES_DIR)) if (!used.has(name)) rmSync(join(FILES_DIR, name));
   writeFileSync(SNAPSHOT_FILE, gzipSync(Buffer.from(JSON.stringify(snapshot)), { level: 9 }));
   return snapshot;
 }
@@ -136,10 +200,18 @@ export async function loadSnapshot(prisma: PrismaClient, options: { adminPasswor
         );
         const present = new Set(Object.keys(rows[0]));
         const list = columns.map(column => column.name).filter(name => present.has(name)).map(name => `"${name}"`).join(', ');
-        for (let start = 0; start < rows.length; start += 400) {
+        // Ô tệp nhị phân ghi tên tệp trong tep/: đọc tệp, đưa vào dạng hex mà json_populate_recordset hiểu cho bytea.
+        rows = rows.map(record => {
+          const refs = Object.entries(record).filter(([, value]) => isFileRef(value));
+          if (!refs.length) return record;
+          const copy = { ...record };
+          for (const [column, value] of refs) copy[column] = `\\x${readFileSync(join(FILES_DIR, (value as FileRef).$file)).toString('hex')}`;
+          return copy;
+        });
+        for (const batch of batches(rows)) {
           await tx.$executeRawUnsafe(
             `INSERT INTO "${table}" (${list}) SELECT ${list} FROM json_populate_recordset(NULL::"${table}", $1::json)`,
-            JSON.stringify(rows.slice(start, start + 400)),
+            JSON.stringify(batch),
           );
         }
       }
