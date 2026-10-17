@@ -50,6 +50,7 @@ import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { detectDocumentKind } from './document-processing';
 import { ExtractionWorker } from './extraction-worker';
 import { PrismaService } from './prisma.service';
+import { uploadFileName } from './upload-name';
 
 const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
@@ -350,7 +351,7 @@ export class DocumentsController {
         `Tài liệu này đã được tải lên trước đó với mã ${duplicate.code} (${duplicate.title})`,
       );
     }
-    const originalName = sanitizeDocumentFileName(file.originalname);
+    const originalName = sanitizeDocumentFileName(uploadFileName(file.originalname));
     const title = dto.title?.trim() || originalName.replace(/\.[a-z0-9]+$/i, '');
     const issuedDate = dto.issuedDate ? new Date(`${dto.issuedDate}T00:00:00.000+07:00`) : undefined;
     const year = dto.year ?? (issuedDate ? issuedDate.getUTCFullYear() : new Date().getUTCFullYear());

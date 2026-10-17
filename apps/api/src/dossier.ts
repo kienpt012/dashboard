@@ -69,6 +69,7 @@ import {
   vietnamDayKey,
   WORK_ACTIONS,
 } from './work';
+import { uploadFileName } from './upload-name';
 
 // Hồ sơ chỉ tiêu ba phần (chỉ đạo điều hành – thực hiện – đánh giá) và các thao tác trách nhiệm.
 // Mọi thao tác ghi WorkEvent + audit trong cùng transaction và báo cho đúng người.
@@ -402,7 +403,7 @@ export class DossierController {
     if (file.size > MAX_EVIDENCE_SIZE) throw new BadRequestException('Tệp minh chứng vượt quá 10MB');
     const mimeType = detectAllowedAttachmentMime(file.buffer);
     if (!mimeType) throw new BadRequestException('Chỉ nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF. Văn bản Word/Excel hãy tải vào Kho văn bản rồi liên kết.');
-    const title = (body.title || file.originalname || 'Minh chứng').trim().slice(0, 300);
+    const title = (body.title || uploadFileName(file.originalname) || 'Minh chứng').trim().slice(0, 300);
     const capturedAt = body.capturedAt && !Number.isNaN(Date.parse(body.capturedAt)) ? new Date(body.capturedAt) : null;
     const links = { progressUpdateId: body.progressUpdateId || undefined, directiveId: body.directiveId || undefined, evaluationId: body.evaluationId || undefined };
     return this.prisma.$transaction(async tx => {
@@ -413,7 +414,7 @@ export class DossierController {
           ...links,
           kind: EvidenceKind.FILE,
           title,
-          originalName: sanitizeAttachmentFileName(file.originalname),
+          originalName: sanitizeAttachmentFileName(uploadFileName(file.originalname)),
           mimeType,
           size: file.size,
           sha256: createHash('sha256').update(file.buffer).digest('hex'),

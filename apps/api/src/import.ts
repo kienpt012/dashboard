@@ -24,6 +24,7 @@ import { evaluateTarget } from './metrics';
 import { PrismaService } from './prisma.service';
 import { brandName, loadLocality } from './locality';
 import { currentVietnamYear } from './planning-date';
+import { uploadFileName } from './upload-name';
 
 const TEMPLATE_VERSION = 'IOC_PROGRESS_V1';
 const DATA_SHEET = 'CAP_NHAT';
@@ -564,7 +565,7 @@ export class ImportController {
     const batch = await this.prisma.$transaction(async tx => {
       const created = await tx.importBatch.create({
         data: {
-          fileName: safeFileName(file.originalname),
+          fileName: safeFileName(uploadFileName(file.originalname)),
           totalRows: rawRows.length,
           successRows: changes.length,
           errorRows,
