@@ -165,6 +165,8 @@ a {
 .cell-title > span {
   font-size: 12px;
   color: var(--ioc-color-text-tertiary);
+  /* Tên tệp dài không có dấu cách ("_PL2_CHI_TIEU_..._signed.pdf") phải ngắt được, không đẩy bảng tràn ngang. */
+  overflow-wrap: anywhere;
 }
 
 /* Thẻ số liệu */
@@ -1080,6 +1082,7 @@ a.donut-row:hover {
   border: 0;
   background: none;
   font: inherit;
+  text-align: left;
   color: var(--ioc-color-primary);
   cursor: pointer;
   text-decoration: underline;
