@@ -49,6 +49,8 @@ function ReportPrint({ rows, title, scope, at }: { rows: Target[]; title: string
   const leaves = rows.filter(row => !rows.some(other => other.parentId === row.id));
   const stats = leaves.filter(row => row.kind === 'STAT');
   const count = (status: TargetStatusKey) => leaves.filter(row => row.kind !== 'STAT' && row.status === status).length;
+  // Bảng có STT theo văn bản giao: chỉ tiêu bổ sung (không có STT) ghi "—", không đánh số trùng với STT của văn bản.
+  const numbered = rows.some(row => row.ordinal);
   let index = 0;
   return (
     <PrintDocument kind="PHỤ LỤC" title={title} subtitle={`(${scope}; số liệu đến ${vn(at).format('HH')} giờ ${vn(at).format('mm')} ngày ${vn(at).format('DD/MM/YYYY')})`} orientation="landscape">
@@ -77,7 +79,7 @@ function ReportPrint({ rows, title, scope, at }: { rows: Target[]; title: string
                 index += 1;
                 return (
                   <tr key={row.id}>
-                    <td className="c">{row.ordinal || index}</td>
+                    <td className="c">{row.ordinal || (numbered ? '—' : index)}</td>
                     <td>{row.title}</td>
                     <td className="c">{row.unit}</td>
                     {!statOnly && <td className="c">{planText(row)}</td>}
@@ -202,8 +204,9 @@ export default function Reports() {
 
   const statOnly = rows.length > 0 && rows.every(row => row.kind === 'STAT');
   const order = new Map(rows.map((row, index) => [row.id, index + 1]));
+  const numbered = rows.some(row => row.ordinal);
   const allColumns: (TableColumnsType<Target>[number] & { hideForStat?: boolean })[] = [
-    { title: 'STT', key: 'stt', width: 72, align: 'center', sorter: byNumber(row => order.get(row.id)), defaultSortOrder: 'ascend', render: (_, row) => <span className="muted">{row.ordinal || order.get(row.id)}</span> },
+    { title: 'STT', key: 'stt', width: 72, align: 'center', sorter: byNumber(row => order.get(row.id)), defaultSortOrder: 'ascend', render: (_, row) => <span className="muted">{row.ordinal || (numbered ? '—' : order.get(row.id))}</span> },
     {
       title: 'Chỉ tiêu',
       key: 'title',

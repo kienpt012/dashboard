@@ -28,7 +28,7 @@ import {
   parseSectionHeader,
   type LlmExtractedIndicator,
 } from './extraction-llm';
-import { chunkLikelyHasIndicators, extractIndicatorsFromText, type RuleExtractedIndicator } from './extraction-rules';
+import { chunkLikelyHasIndicators, detectDeadline, extractIndicatorsFromText, type RuleExtractedIndicator } from './extraction-rules';
 import { diceSimilarity, matchDepartmentByName } from './matching';
 import { OllamaService } from './ollama';
 import { parsePlanningDueDate } from './planning-date';
@@ -632,7 +632,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         targetYear: payload.targetYear ?? document.year ?? null,
         direction: payload.direction ?? TargetDirection.HIGHER_IS_BETTER,
         frequency: payload.frequency ?? null,
-        deadline: resolveDeadline(payload.deadline, payload.targetYear ?? document.year ?? null),
+        // Mô hình bỏ trống hạn nhưng câu trích dẫn ghi rõ ("hoàn thành trước ngày 30/09/2026"): lấy hạn từ câu trích dẫn,
+        // không mặc định cuối năm.
+        deadline: resolveDeadline(payload.deadline ?? detectDeadline(payload.sourceQuote ?? '', null), payload.targetYear ?? document.year ?? null),
         responsibleDepartmentName: payload.responsibleDepartmentName,
         responsibleDepartmentId: departmentMatch?.id ?? null,
         coordinatingDepartments: rulePayload?.coordinatingDepartments ?? llmPayload?.coordinatingDepartments ?? null,
