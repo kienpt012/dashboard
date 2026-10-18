@@ -192,6 +192,7 @@ const METADATA_NAMES: Record<string, string> = {
   dashboardId: 'Mã trang công khai',
   documentCode: 'Mã văn bản',
   documentCount: 'Số lượng hồ sơ',
+  departmentCount: 'Số phòng ban',
   dueAt: 'Hạn xử lý',
   emailPublicNote: 'Nội dung gửi người dân',
   errorRows: 'Số dòng lỗi',

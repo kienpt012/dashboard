@@ -34,7 +34,7 @@ Hồ sơ chỉ tiêu gom mọi thông tin của một chỉ tiêu: chỉ tiêu g
 6. **`Sai dòng? Chỉ lại`** — người có quyền sửa hồ sơ dùng khi hệ thống tô sai hàng.
 7. **`Tệp gốc`, `Mở trong kho`.**
 
-Hệ thống tự đọc vị trí từng dòng của mọi văn bản tải vào kho, kể cả bản quét. Văn bản giao cho nhiều xã, phường chỉ được tìm trong phần của địa phương mình (tên địa phương lấy từ **Thiết lập địa phương**, HT-01).
+Hệ thống tự đọc vị trí từng dòng của mọi văn bản tải vào kho, kể cả bản quét. Văn bản giao cho nhiều xã, phường chỉ được tìm trong phần của địa phương mình (nhận ra theo `Tên ngắn` khai báo tại **Thiết lập địa phương**, HT-01).
 
 **Chỉ lại vị trí khi tô sai hoặc chưa tìm thấy:**
 
@@ -42,7 +42,7 @@ Hệ thống tự đọc vị trí từng dòng của mọi văn bản tải và
 2. Chuyển tới trang đúng, bấm vào hàng của chỉ tiêu. Hệ thống lưu vị trí và ghi vào nhật ký người đã chỉ.
 3. Muốn bỏ vị trí đã chỉ, bấm `Tự định vị` để hệ thống tự tìm lại.
 
-> Văn bản Word, Excel không có hình trang: hệ thống mở phần chữ đã đọc và tô màu câu của chỉ tiêu. Chỉ tiêu chưa gắn văn bản giao thì thẻ `Căn cứ` ghi chưa có; gắn văn bản cho cả bộ tại **Bộ chỉ tiêu** (CT-01) hoặc cho riêng chỉ tiêu khi sửa chỉ tiêu.
+> Văn bản Word, Excel không có hình trang: hệ thống mở phần chữ đã đọc và tô màu câu của chỉ tiêu. Chỉ tiêu chưa gắn văn bản giao thì thẻ `Căn cứ` ghi `Chưa gắn văn bản giao.`; gắn văn bản cho cả bộ tại **Bộ chỉ tiêu** (CT-01). Chỉ tiêu được duyệt từ đề xuất AI tự gắn văn bản mà đề xuất được trích ra; biểu mẫu sửa chỉ tiêu không có ô chọn văn bản giao.
 
 #### Báo cáo số liệu một kỳ
 
@@ -95,7 +95,7 @@ Chỉ tiêu tự tính lấy số từ bảng trong **Kho dữ liệu** (DL-01) 
 
 #### Giao, chuyển và trả việc
 
-Trưởng phòng chủ trì (và lãnh đạo, quản trị) giao chỉ tiêu cho chuyên viên; chuyên viên có thể chuyển cho đồng nghiệp hoặc trả về trưởng phòng. Quy trình đầy đủ xem mục 3.2.
+Trưởng phòng chủ trì (và lãnh đạo, quản trị) giao chỉ tiêu cho chuyên viên hoặc trưởng phòng của phòng chủ trì; người đang phụ trách có thể chuyển cho đồng nghiệp cùng phòng hoặc trả về trưởng phòng. Quy trình đầy đủ xem mục 3.2.
 
 1. Bấm `Giao chuyên viên` trong thẻ `Trách nhiệm` hoặc trong `Thao tác` (chỉ tiêu đã có người thì nút ghi `Giao lại`).
 2. Chọn `Người phụ trách`, nhập `Lời nhắn` nếu cần, bấm `Xác nhận`. Người được giao nhận thông báo; dòng thời gian ghi việc giao.
@@ -108,7 +108,7 @@ Trưởng phòng chủ trì (và lãnh đạo, quản trị) giao chỉ tiêu ch
 4. **Người đang phụ trách** — và thời điểm được giao.
 5. **`Giao lại`** — đổi người phụ trách.
 
-**Chuyển cho đồng nghiệp** (chuyên viên đang phụ trách): `Thao tác` › `Chuyển đồng nghiệp`, chọn người, ghi `Lý do`, bấm `Xác nhận`.
+**Chuyển cho đồng nghiệp** (người đang phụ trách): `Thao tác` › `Chuyển đồng nghiệp`, chọn người, ghi `Lý do`, bấm `Xác nhận`.
 
 ![Chuyển cho đồng nghiệp](anh/ct-06-chuyen-viec.png)
 
@@ -127,14 +127,14 @@ Thẻ `Chỉ đạo điều hành` lưu văn bản, kết luận của lãnh đ�
 
 ![Thẻ Chỉ đạo điều hành](anh/ct-06-chi-dao.png)
 
-1. **`Thêm văn bản chỉ đạo`.**
+1. **`Thêm văn bản`** — mở hộp `Thêm văn bản chỉ đạo`.
 2. **Văn bản chỉ đạo** — loại, số hiệu, ngày, cơ quan ban hành, trích yếu, nội dung chính và tệp đính kèm.
 3. **Gỡ văn bản** — biểu tượng thùng rác, có hỏi xác nhận.
 4. **Liên kết `Yêu cầu giải trình`** — mở nhanh việc yêu cầu giải trình.
 
 **Thêm văn bản chỉ đạo:**
 
-1. Bấm `Thêm văn bản chỉ đạo`.
+1. Bấm `Thêm văn bản`; hộp `Thêm văn bản chỉ đạo` mở ra.
 2. Chọn `Loại văn bản`, nhập `Trích yếu` (bắt buộc) và các thông tin khác.
 3. Gắn văn bản: chọn `Văn bản trong kho` nếu văn bản đã có ở **Kho văn bản**, hoặc `Chọn tệp` để tải ảnh, PDF (tối đa 10 MB mỗi tệp).
 4. Bấm `Lưu`.
@@ -152,7 +152,7 @@ Thẻ `Chỉ đạo điều hành` lưu văn bản, kết luận của lãnh đ�
 
 #### Yêu cầu và trả lời giải trình
 
-1. Lãnh đạo bấm `Thao tác` › `Yêu cầu giải trình`, nhập `Nội dung yêu cầu`, có thể đặt `Thời hạn trả lời (ngày)` (để trống thì theo `Cấu hình`), bấm `Gửi yêu cầu`.
+1. Lãnh đạo UBND (hoặc quản trị) bấm `Thao tác` › `Yêu cầu giải trình`, nhập `Nội dung yêu cầu`, có thể đặt `Thời hạn trả lời (ngày)` (để trống thì theo `Cấu hình`), bấm `Gửi yêu cầu`.
 2. Thẻ `Giải trình` ở cột phải hiện yêu cầu với trạng thái `Chờ trả lời`; quá hạn thì chuyển `Quá hạn trả lời`.
 3. Trưởng phòng chủ trì hoặc chuyên viên phụ trách bấm `Trả lời`, nhập `Nội dung giải trình` (nguyên nhân, việc đã làm, lộ trình đạt chỉ tiêu; ít nhất 10 ký tự), bấm `Gửi giải trình`.
 4. Thẻ chuyển `Đã giải trình`, hiện nội dung trả lời ngay dưới yêu cầu. Mỗi chỉ tiêu chỉ có một yêu cầu đang mở tại một thời điểm.
@@ -169,7 +169,7 @@ Thẻ `Chỉ đạo điều hành` lưu văn bản, kết luận của lãnh đ�
 **Lập đánh giá:**
 
 1. Bấm `Đánh giá` trên đầu trang.
-2. Chọn `Kỳ đánh giá`, chọn `Kết quả`, nhập `Nhận xét` và `Biện pháp khắc phục` (khi chưa đạt).
+2. Chọn `Kỳ đánh giá`, chọn `Kết quả`, nhập `Nhận xét` và `Biện pháp khắc phục` (khi chưa đạt). Chọn `Đạt một phần` hoặc `Không đạt` thì ô `Nhận xét` đổi thành `Nguyên nhân chưa đạt` và bắt buộc nhập; chỉ tiêu loại `Chấm điểm` có thêm ô `Điểm` (xem mục 3.6).
 3. Bấm `Lưu đánh giá`.
 
 ![Biểu mẫu đánh giá kết quả](anh/ct-06-lap-danh-gia.png)
@@ -188,6 +188,6 @@ Thẻ `Dòng thời gian` ghi mọi việc đã làm với chỉ tiêu theo th�
 
 #### Sửa nguồn số liệu
 
-Trong thẻ `Nguồn số liệu` ở cột phải, trưởng phòng chủ trì, chuyên viên phụ trách, lãnh đạo hoặc quản trị bấm `Sửa` để cập nhật `Hệ thống / nguồn số liệu`, `Cơ quan, bộ phận cung cấp`, `Cách lấy số liệu`, `Đường dẫn tra cứu`, `Yêu cầu minh chứng` và `Hạn báo cáo (ngày trong tháng cuối kỳ)`, rồi bấm `Lưu`. Các thông tin này hiện sẵn khi chuyên viên báo cáo.
+Trong thẻ `Nguồn số liệu` ở cột phải, trưởng phòng chủ trì, chuyên viên phụ trách, lãnh đạo, văn thư hoặc quản trị bấm `Sửa` để cập nhật `Hệ thống / nguồn số liệu`, `Cơ quan, bộ phận cung cấp`, `Cách lấy số liệu`, `Đường dẫn tra cứu`, `Yêu cầu minh chứng` và `Hạn báo cáo (ngày trong tháng cuối kỳ)`, rồi bấm `Lưu`. Các thông tin này hiện sẵn khi chuyên viên báo cáo.
 
 > Chỉ tiêu đã lưu trữ hiện thông báo vàng kèm ngày và lý do; mọi nút thao tác bị ẩn, số liệu cũ vẫn xem được.

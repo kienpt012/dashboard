@@ -84,8 +84,11 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
     const result: AccountabilityRunResult = { autoApprovedReports: 0, blockedReports: 0, autoApprovedProposals: 0, blockedProposals: 0, reminders: 0, escalations: 0 };
     const reportDays = setting?.reportAutoApproveDays ?? 7;
     if (reportDays > 0) await this.autoApproveReports(now, reportDays, setting?.riskThreshold ?? 70, result);
-    if ((setting?.proposalAutoApproveDays ?? 3) > 0) await this.autoApproveProposals(now, result);
-    await this.remindProposalsDueSoon(now, result);
+    // Tắt tự thông qua đề xuất (0 ngày) thì cũng không nhắc "sắp tự thành chỉ tiêu" cho đề xuất đã có hạn cũ.
+    if ((setting?.proposalAutoApproveDays ?? 3) > 0) {
+      await this.autoApproveProposals(now, result);
+      await this.remindProposalsDueSoon(now, result);
+    }
     await this.remindMissingReports(now, result);
     const stallDays = setting?.assignmentStallDays ?? 3;
     if (stallDays > 0) await this.remindUnassigned(now, stallDays, result);

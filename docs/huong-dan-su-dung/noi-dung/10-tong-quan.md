@@ -24,13 +24,13 @@ Hệ thống gồm hai khu vực:
 ## 1.2 Vai trò người dùng
 
 Mỗi tài khoản có một vai trò. Vai trò quyết định menu được thấy và thao tác được làm. Trưởng phòng, chuyên viên và
-người xem chỉ thấy số liệu của phòng mình; lãnh đạo, văn thư và quản trị thấy toàn bộ đơn vị.
+người xem chỉ thấy số liệu của phòng mình; lãnh đạo, văn thư và quản trị thấy số liệu toàn địa phương.
 
 | Vai trò | Phạm vi | Công việc chính |
 |---|---|---|
-| Quản trị hệ thống | Toàn đơn vị | Thiết lập địa phương, quản lý tài khoản, cấu hình thời hạn, trang công khai, xem nhật ký và báo lỗi |
-| Lãnh đạo UBND | Toàn đơn vị | Theo dõi điều hành, chỉ đạo, đánh giá chỉ tiêu, yêu cầu giải trình, duyệt đề xuất và báo cáo |
-| Văn thư | Toàn đơn vị | Tiếp nhận văn bản, rà soát kết quả trích xuất, trình đề xuất chỉ tiêu, quản lý bộ chỉ tiêu và kho dữ liệu |
+| Quản trị hệ thống | Toàn địa phương | Thiết lập địa phương, quản lý tài khoản, cấu hình thời hạn, trang công khai, xem nhật ký và báo lỗi |
+| Lãnh đạo UBND | Toàn địa phương | Theo dõi điều hành, chỉ đạo, đánh giá chỉ tiêu, yêu cầu giải trình, duyệt đề xuất và báo cáo |
+| Văn thư | Toàn địa phương | Tiếp nhận văn bản, rà soát kết quả trích xuất, trình đề xuất chỉ tiêu, quản lý bộ chỉ tiêu và kho dữ liệu, phân loại và phân công phản ánh |
 | Trưởng phòng | Phòng mình | Giao chỉ tiêu cho chuyên viên, duyệt số liệu, trả lời giải trình, đánh giá chỉ tiêu của phòng |
 | Chuyên viên | Phòng mình | Báo cáo số liệu kèm minh chứng, nhập Excel, đề xuất chỉ tiêu, xử lý phản ánh được giao |
 | Người xem | Phòng mình | Chỉ xem, không thay đổi dữ liệu |
@@ -49,7 +49,7 @@ Bảng sau tóm tắt màn hình nào xuất hiện trong menu của từng vai 
 | Trang công khai, Thiết lập địa phương, Tài khoản, Cấu hình, Nhật ký hệ thống, Báo lỗi | ✓ | — | — | — | — | — |
 
 > Giao diện chỉ ẩn những nút không có quyền; quyền cuối cùng luôn do máy chủ kiểm tra. Một số thao tác còn phụ thuộc
-> vai trò trong từng chỉ tiêu, ví dụ chỉ chuyên viên đang phụ trách mới được chuyển việc hoặc trả việc.
+> vai trò trong từng chỉ tiêu, ví dụ chỉ người đang phụ trách chỉ tiêu mới được chuyển việc hoặc trả việc.
 
 ## 1.3 Đăng nhập và đăng xuất
 
@@ -60,14 +60,14 @@ Bảng sau tóm tắt màn hình nào xuất hiện trong menu của từng vai 
 2. Nhập `Tên đăng nhập` và `Mật khẩu` do quản trị viên cấp.
 3. Bấm `Đăng nhập`. Hệ thống mở **Trung tâm điều hành**.
 
-Lần đăng nhập đầu tiên, hãy đổi mật khẩu tại **Hồ sơ cá nhân** (mục 2.5). Mật khẩu phải có tối thiểu 10 ký tự, gồm chữ
+Lần đăng nhập đầu tiên, hãy đổi mật khẩu tại **Hồ sơ cá nhân** (HT-07, mục 2.5). Mật khẩu phải có tối thiểu 10 ký tự, gồm chữ
 hoa, chữ thường, chữ số và ký tự đặc biệt.
 
 #### Khôi phục mật khẩu khi quên
 1. Tại màn hình đăng nhập, bấm `Quên mật khẩu?`.
 2. Nhập `Tên đăng nhập hoặc email công vụ`, bấm `Gửi mã xác thực`. Hệ thống gửi mã 6 chữ số tới email công vụ của tài khoản.
-3. Nhập `Mã xác thực` và xác nhận. Nếu chưa nhận được thư, bấm `Gửi lại mã` sau thời gian chờ.
-4. Nhập `Mật khẩu mới`, `Nhập lại mật khẩu`, rồi xác nhận để hoàn tất.
+3. Nhập `Mã xác thực`, bấm `Xác thực`. Nếu chưa nhận được thư, bấm `Gửi lại mã` sau thời gian chờ.
+4. Nhập `Mật khẩu mới`, `Nhập lại mật khẩu`, rồi bấm `Đặt mật khẩu` để hoàn tất.
 
 ![Khôi phục mật khẩu qua mã xác thực gửi tới email công vụ|70](anh/tq-quen-mat-khau.png)
 
@@ -113,7 +113,7 @@ Bấm biểu tượng chuông để xem thông báo mới nhất. Bấm vào m�
 1. Bấm biểu tượng con bọ trên thanh đầu trang. Hộp `Báo lỗi` tự ghi sẵn mã màn hình, thời điểm và địa chỉ trang.
 2. Nhập `Mô tả`: đang làm gì, thấy gì, mong đợi điều gì.
 3. Đính kèm ảnh chụp màn hình nếu có: bấm `Đính kèm ảnh`, hoặc dán trực tiếp vào ô mô tả bằng `Ctrl V`.
-4. Bấm `Gửi`. Quản trị viên xem báo lỗi tại màn hình **Báo lỗi** (mục 2.5).
+4. Bấm `Gửi`. Quản trị viên xem báo lỗi tại màn hình **Báo lỗi** (HT-06, mục 2.5).
 
 ![Gửi báo lỗi kèm ảnh chụp|70](anh/tq-bao-loi.png)
 
@@ -129,10 +129,10 @@ Mỗi chỉ tiêu luôn ở một trong năm tình trạng, dùng cùng một m�
 | Tình trạng | Màu | Khi nào |
 |---|---|---|
 | Hoàn thành | Xanh lá | Kết quả đã đạt chỉ tiêu giao |
-| Đúng tiến độ | Xanh dương | Chưa đạt nhưng tiến độ từ ngưỡng cảnh báo trở lên (mặc định 70%) |
-| Có nguy cơ | Cam | Tiến độ dưới ngưỡng cảnh báo, chưa đến hạn hoàn thành |
-| Quá hạn | Đỏ | Đã qua hạn hoàn thành mà chưa đạt, hoặc chưa từng có báo cáo |
-| Chưa bắt đầu | Xám | Chưa có số liệu, chưa đến hạn |
+| Đúng tiến độ | Xanh dương | Chưa đạt, chưa quá hạn, tiến độ từ `Ngưỡng có nguy cơ` trở lên (mặc định 70%, HT-04) |
+| Có nguy cơ | Cam | Chưa đạt, chưa quá hạn, tiến độ dưới `Ngưỡng có nguy cơ` |
+| Quá hạn | Đỏ | Đã qua hạn hoàn thành mà chưa đạt, kể cả khi chưa từng có số liệu |
+| Chưa bắt đầu | Xám | Chưa có số liệu, chưa đến hạn hoàn thành |
 
 Chỉ tiêu loại **thống kê** chỉ thu số liệu, không có mục tiêu: hiển thị `Có số liệu` hoặc `Chưa có`.
 
@@ -141,7 +141,7 @@ Chỉ tiêu loại **thống kê** chỉ thu số liệu, không có mục tiêu
   Ví dụ giao 50 hộ, đã thực hiện 20 hộ: tiến độ 40%.
 - Chỉ tiêu "càng thấp càng tốt" (ví dụ số vụ tai nạn): đạt khi kết quả không vượt chỉ tiêu; nếu vượt,
   tiến độ = chỉ tiêu giao ÷ kết quả × 100%.
-- **Tiến độ chung** của một bộ chỉ tiêu là bình quân tiến độ các chỉ tiêu cấp trên cùng (trừ chỉ tiêu thống kê).
+- **Tiến độ chung** của một bộ chỉ tiêu là bình quân theo trọng số tiến độ các chỉ tiêu cấp trên cùng (trừ chỉ tiêu thống kê).
 - Chỉ tiêu **tự tính** lấy kết quả từ kho dữ liệu theo công thức; công thức và các vế (tử số, mẫu số) xem trong hồ sơ
   chỉ tiêu, mục **Cách tính**.
 
@@ -168,7 +168,7 @@ quyền của người hỏi, ví dụ:
 - "Có bao nhiêu đề xuất chỉ tiêu đang chờ xác minh?"
 
 Khi được gọi, Jarvis xuất hiện với hiệu ứng toàn màn hình khoảng 2 giây; bấm chuột hoặc nhấn phím bất kỳ để bỏ qua.
-Quản trị viên tắt hiệu ứng này tại **Cấu hình** › `Hiệu ứng khi gọi Jarvis` (mục 2.5).
+Quản trị viên tắt hiệu ứng này tại **Cấu hình** › `Hiệu ứng khi gọi Jarvis` (HT-04, mục 2.5).
 
 ![Jarvis xuất hiện khi được gọi](anh/tq-jarvis-goi.jpg)
 

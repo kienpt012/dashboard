@@ -19,7 +19,7 @@ Tình trạng tính theo hạn hoàn thành của chỉ tiêu và tiến độ h
 Kiểm tra `Hạn hoàn thành` và số liệu kỳ gần nhất trong hồ sơ chỉ tiêu.
 
 #### Vì sao báo cáo của tôi "Tự thông qua"?
-Người duyệt không xử lý trong số ngày quy định tại `Cấu hình` (mặc định 7 ngày). Hệ thống duyệt thay để số liệu không bị
+Người duyệt không xử lý trong số ngày `Tự thông qua báo cáo sau` tại `Cấu hình` (mặc định 7 ngày, tính từ lúc gửi). Hệ thống duyệt thay để số liệu không bị
 treo và ghi trách nhiệm người duyệt vào dòng thời gian của chỉ tiêu.
 
 #### Không bấm được `Báo cáo số liệu`?
@@ -28,16 +28,17 @@ treo và ghi trách nhiệm người duyệt vào dòng thời gian của chỉ 
 - Chỉ tiêu đã lưu trữ, hoặc bạn không thuộc phòng chủ trì, hoặc vai trò của bạn là văn thư, người xem.
 
 #### Không chuyển được việc cho đồng nghiệp?
-Mỗi chỉ tiêu chỉ được chuyển trong giới hạn số lần tại `Cấu hình` (mặc định 1 lần). Hết lượt chuyển, dùng `Trả lại`
-cho trưởng phòng kèm lý do để trưởng phòng giao lại.
+Chỉ người đang phụ trách mới chuyển được, và chỉ chuyển cho trưởng phòng, chuyên viên đang hoạt động của phòng chủ trì.
+Số lần chuyển giới hạn theo `Số lần chuyển việc tối đa` tại `Cấu hình` (mặc định 1 lần, tính từ lần giao gần nhất). Hết lượt
+chuyển, bấm `Trả về trưởng phòng` kèm lý do để trưởng phòng giao lại.
 
 #### Tệp Excel bị từ chối khi nhập số liệu?
 Dùng phiếu mẫu tải từ màn hình `Nhập số liệu Excel` (DL-03); tệp `.xlsx`, tối đa 5 MB và 5.000 dòng; không đổi tên cột,
 không xoá cột mã chỉ tiêu.
 
-#### Tải minh chứng báo lỗi?
-Minh chứng nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF, tối đa 10 MB mỗi tệp. Văn bản Word, Excel: tải vào `Kho văn bản`
-rồi chọn làm minh chứng dạng văn bản trong kho.
+#### Tải minh chứng lên bị báo lỗi?
+Minh chứng nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF, tối đa 10 MB mỗi tệp và 10 tệp mỗi lần. Văn bản Word, Excel: tải vào
+`Kho văn bản` (DL-02) rồi chọn làm minh chứng dạng văn bản trong kho.
 
 #### Nói "Hey Jarvis" mà Jarvis không xuất hiện?
 1. Dùng Chrome hoặc Edge; địa chỉ phải là HTTPS hoặc `localhost` (truy cập bằng địa chỉ IP qua `http://` thì micro bị chặn).
@@ -52,8 +53,8 @@ còn thiếu báo cáo quý III"). Jarvis chỉ trả lời trong phạm vi số
 #### Mở văn bản giao mà không thấy dòng tô sáng, hoặc tô sai dòng?
 - Văn bản Word, Excel không có hình trang: hệ thống mở nội dung đã đọc và tô màu câu của chỉ tiêu.
 - Tô sai dòng hoặc "chưa tìm thấy": người có quyền bấm `Sai dòng? Chỉ lại` / `Chỉ vị trí` rồi bấm vào dòng đúng (mục 3.4).
-- Văn bản giao cho nhiều xã, phường: hệ thống chỉ tìm trong phần của địa phương mình; kiểm tra tên địa phương tại
-  `Thiết lập địa phương` (HT-01) khớp với tên trên văn bản.
+- Văn bản giao cho nhiều xã, phường: hệ thống chỉ tìm trong phần của địa phương mình; kiểm tra `Tên ngắn` tại
+  `Thiết lập địa phương` (HT-01) khớp với địa danh trên văn bản.
 
 #### Văn bản hàng trăm trang mà AI chỉ đề xuất vài chỉ tiêu?
 Với phụ lục giao chỉ tiêu cho nhiều đơn vị, AI chỉ đọc phần của địa phương mình (xem ghi chú của lượt trích xuất ở DL-04).
@@ -63,9 +64,10 @@ Văn bản chỉ để tra cứu thì tắt `AI tự đề xuất chỉ tiêu t�
 Mở `Báo cáo tổng hợp` (CT-05), chọn năm, bộ chỉ tiêu, phòng, rồi bấm `Xuất Excel` hoặc `In báo cáo`. Danh mục chỉ tiêu
 cũng xuất được Excel bằng `Xuất Excel` (CT-02).
 
-#### Người dân mất mã tra cứu phản ánh?
-Mã tra cứu và mã bí mật chỉ hiện một lần khi gửi. Người dân liên hệ bộ phận tiếp nhận, mô tả nội dung đã gửi; cán bộ tìm
-phản ánh theo tiêu đề, nội dung tại `Phản ánh` (ND-01), đối chiếu thông tin người gửi và liên hệ lại qua số điện thoại đã khai.
+#### Người dân mất mã bảo mật của phản ánh?
+`Mã bảo mật` chỉ hiện một lần trên biên nhận; hệ thống không lưu mã này ở dạng đọc được nên cán bộ không xem lại hay cấp lại
+được (CC-02). Người dân liên hệ bộ phận tiếp nhận, mô tả nội dung đã gửi; cán bộ tìm phản ánh theo mã phản ánh, tiêu đề hoặc
+nội dung tại `Phản ánh` (ND-01), đối chiếu thông tin người gửi và liên hệ lại qua số điện thoại đã khai.
 
 #### Chạy `start-ioc` báo lỗi Docker?
 1. Mở Docker Desktop, đợi biểu tượng chuyển xanh rồi chạy lại `start-ioc.cmd`.
@@ -94,8 +96,8 @@ lưu trước vào thư mục `backups`). Dữ liệu thật của địa phươ
 | Giải trình | Lãnh đạo yêu cầu phòng chủ trì nêu nguyên nhân, giải pháp khi chỉ tiêu chậm |
 | Đánh giá | Kết luận theo kỳ: `Vượt`, `Đạt`, `Đạt một phần`, `Không đạt` |
 | Tự thông qua | Hệ thống tự duyệt báo cáo, đề xuất khi người duyệt để quá hạn, và ghi trách nhiệm |
-| Việc bị treo | Chỉ tiêu quá số ngày quy định tại `Cấu hình` mà chưa giao chuyên viên phụ trách; quá gấp đôi số ngày thì hệ thống báo lãnh đạo |
-| Chuyển việc, trả việc | Chuyên viên chuyển chỉ tiêu cho đồng nghiệp (có giới hạn số lần) hoặc trả lại trưởng phòng kèm lý do |
+| Việc bị treo | Chỉ tiêu bị chuyển, trả qua lại từ 3 lần trở lên, hoặc chưa giao người phụ trách quá gấp đôi số ngày `Nhắc chưa giao người sau` tại `Cấu hình` (trừ chỉ tiêu thống kê); hệ thống báo lãnh đạo. Trên Trình chiếu còn gồm chỉ tiêu quá hạn trả lời giải trình |
+| Chuyển việc, trả việc | Người đang phụ trách chuyển chỉ tiêu cho đồng nghiệp cùng phòng chủ trì (có giới hạn số lần) hoặc trả về trưởng phòng kèm lý do |
 | Kho dữ liệu, bảng dữ liệu | Nơi lưu số liệu nghiệp vụ theo dòng (ví dụ hồ sơ thủ tục, cuộc họp) để chỉ tiêu tự tính |
 | Công thức | Cách tính chỉ tiêu tự tính từ bảng dữ liệu (đếm, tổng, tỷ lệ theo điều kiện) |
 | Kho văn bản | Nơi lưu văn bản giao, chỉ đạo, minh chứng; hệ thống đọc chữ và vị trí từng dòng |
@@ -105,8 +107,9 @@ lưu trước vào thư mục `backups`). Dữ liệu thật của địa phươ
 | Trích xuất | AI đọc văn bản và đề xuất chỉ tiêu kèm trang, câu trích dẫn |
 | Xác minh trích xuất | Màn hình đối chiếu từng đề xuất với bản gốc trước khi trình (DL-04) |
 | Đề xuất chỉ tiêu | Chỉ tiêu chờ được duyệt đưa vào danh mục, do AI trích xuất hoặc cán bộ tạo |
-| Phiên nhập | Một lần tải tệp Excel số liệu, đối soát và trình duyệt (DL-03) |
-| Trang công khai | Cổng thông tin cho người dân: kết quả thực hiện, phản ánh, văn bản công khai |
+| Lượt nhập | Một lần tải phiếu Excel số liệu lên, đối soát rồi ghi nhận hoặc gửi duyệt (DL-03) |
+| Cổng thông tin công khai | Trang web cho người dân, không cần đăng nhập: kết quả thực hiện, gửi và tra cứu phản ánh, văn bản công khai (mục 2.6) |
+| Trang công khai | Bố cục cổng thông tin công khai do quản trị viên biên tập và công bố tại màn hình `Trang công khai` (ND-02) |
 | Phiên bản công khai | Mỗi lần công bố trang công khai được lưu thành một phiên bản, khôi phục được |
-| Mã màn hình | Mã như `DH-01`, `CT-06` hiện ở dải định danh cuối trang, dùng khi báo lỗi và tra tài liệu |
+| Mã màn hình | Mã như `DH-01`, `CT-06` hiện ở dải định danh cuối trang khu vực quản trị, dùng khi báo lỗi và tra tài liệu; mã CC- của cổng công khai chỉ dùng trong tài liệu |
 | Jarvis | Trợ lý điều hành trả lời câu hỏi về số liệu bằng chữ hoặc giọng nói |

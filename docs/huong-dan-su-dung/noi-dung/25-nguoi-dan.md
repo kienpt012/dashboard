@@ -2,7 +2,7 @@
 
 ### ND-01 · Phản ánh
 
-**Đường dẫn:** menu `Người dân` › `Phản ánh`  ·  **Vai trò:** tất cả; chuyên viên chỉ thấy hồ sơ được giao trực tiếp, trưởng phòng và người xem chỉ thấy hồ sơ của phòng mình.
+**Đường dẫn:** menu `Người dân` › `Phản ánh` (`/admin/feedback`); với tài khoản thuộc một phòng, menu ghi `Phản ánh của phòng` · **Vai trò:** tất cả; chuyên viên chỉ thấy hồ sơ được giao trực tiếp, trưởng phòng và người xem chỉ thấy hồ sơ của phòng mình.
 
 Theo dõi phản ánh do người dân gửi qua cổng công khai; phân loại, phân công, xử lý và duyệt kết quả trên cùng một hồ sơ.
 Quyền chung theo vai trò xem mục 1.2; thao tác gửi và tra cứu dành cho người dân xem mục 2.6.
@@ -130,7 +130,7 @@ nhận, dù chưa có đề nghị của người dân. Mở lại xóa cán b�
 
 ### ND-02 · Trang công khai
 
-**Đường dẫn:** menu `Người dân` › `Trang công khai` · **Vai trò:** quản trị hệ thống.
+**Đường dẫn:** menu `Người dân` › `Trang công khai` (`/admin/public-dashboard`) · **Vai trò:** quản trị hệ thống.
 
 Dùng để sắp xếp nội dung cổng thông tin người dân, lưu bản nháp và công bố từng phiên bản. Người dân chỉ thấy phiên bản đã công bố; sửa bản nháp chưa làm thay đổi trang đang hiển thị.
 
