@@ -103,16 +103,16 @@ Các bảng dưới đây là trạng thái của từng loại hồ sơ khác, 
 | `Chờ duyệt` | Báo cáo đã gửi, số liệu chính thức của chỉ tiêu chưa đổi; kỳ đó được tính là đã báo cáo | Trưởng phòng hoặc lãnh đạo bấm `Duyệt` / `Trả lại`; hoặc quá thời hạn duyệt |
 | `Đã duyệt` | Giá trị báo cáo thành số liệu chính thức; tiến độ, tình trạng được tính lại | — |
 | `Trả lại` | Người duyệt không đồng ý, có lý do; kỳ đó coi như chưa báo cáo | Người báo cáo lập báo cáo mới |
-| `Tự thông qua` | Quá số ngày duyệt trong `Cấu hình` (mặc định 7 ngày) mà không ai xử lý; hệ thống duyệt thay và ghi trách nhiệm người duyệt | — |
+| `Tự thông qua` | Nhãn của báo cáo `Đã duyệt` do hệ thống duyệt thay khi quá `Tự thông qua báo cáo sau` trong `Cấu hình` (mặc định 7 ngày, tính từ lúc gửi) mà không ai xử lý; hệ thống ghi trách nhiệm người duyệt | — |
 
 #### Đề xuất chỉ tiêu (CT-03, DL-04)
 
 | Trạng thái | Ý nghĩa | Chuyển sang khi |
 |---|---|---|
-| `Chưa trình` | Đề xuất do AI trích xuất hoặc cán bộ tạo, đang được xác minh, sửa | Bấm `Trình`; hoặc bị `Từ chối` / `Loại` |
-| `Chờ duyệt` | Đã trình, chờ trưởng phòng phụ trách hoặc lãnh đạo; thẻ ghi thời điểm tự thông qua | `Duyệt` (thành chỉ tiêu) hoặc `Từ chối`; quá hạn thì tự thông qua |
+| `Chưa trình` | Đề xuất do AI trích xuất hoặc cán bộ tạo, đang được xác minh, sửa | Bấm `Trình`; người có quyền duyệt cũng có thể `Duyệt` ngay khi đủ thông tin; hoặc bị `Từ chối` / `Loại` |
+| `Chờ duyệt` | Đã trình, chờ trưởng phòng phụ trách, lãnh đạo UBND hoặc quản trị; thẻ ghi thời điểm tự thông qua | `Duyệt` (thành chỉ tiêu) hoặc `Từ chối`; quá hạn thì tự thông qua |
 | `Đã duyệt` | Đã tạo thành chỉ tiêu; thẻ ghi mã chỉ tiêu được tạo | — |
-| `Tự thông qua` | Đã trình mà quá thời hạn duyệt (mặc định 3 ngày); hệ thống tạo chỉ tiêu | — |
+| `Tự thông qua` | Nhãn của đề xuất `Đã duyệt` do hệ thống tạo chỉ tiêu khi đã trình mà quá `Tự thông qua đề xuất sau` (mặc định 3 ngày, tính từ lúc trình) | — |
 | `Từ chối` | Không đưa vào danh mục, có lý do | — |
 
 #### Văn bản trong kho và lượt trích xuất (DL-02, DL-04)
@@ -158,25 +158,25 @@ Lượt đọc, lượt trích xuất có trạng thái đang chờ, đang chạ
 
 | Trạng thái | Ý nghĩa | Chuyển sang khi |
 |---|---|---|
-| `Mới tiếp nhận` | Người dân vừa gửi; tính hạn phản hồi đầu tiên | Văn thư, lãnh đạo phân loại và phân công; hoặc `Không tiếp nhận` |
+| `Mới tiếp nhận` | Người dân vừa gửi; tính hạn phản hồi đầu tiên | Văn thư, lãnh đạo hoặc quản trị phân công; hoặc lãnh đạo, quản trị chọn `Không tiếp nhận` |
 | `Đã phân công` | Đã giao đơn vị, cán bộ xử lý; tính hạn xử lý | Cán bộ bấm bắt đầu xử lý |
 | `Đang xử lý` | Cán bộ đang xử lý | Yêu cầu người dân bổ sung; hoặc trình kết quả |
 | `Chờ người dân bổ sung` | Chờ người dân trả lời yêu cầu bổ sung | Người dân bổ sung; hoặc đóng khi người dân không phản hồi |
 | `Chờ duyệt kết quả` | Cán bộ đã trình kết quả xử lý | Trưởng phòng, lãnh đạo duyệt (thành `Đã có kết quả`) hoặc trả lại |
-| `Đã có kết quả` | Kết quả đã duyệt, người dân xem được | Người dân đánh giá (tự đóng) hoặc người có quyền đóng |
-| `Đã đóng` | Kết thúc hồ sơ | Người dân đề nghị xem xét lại được chấp nhận |
-| `Không tiếp nhận` | Ngoài phạm vi kênh phản ánh (ví dụ khiếu nại, tố cáo), có lý do | — |
-| `Xem xét lại` | Hồ sơ mở lại theo đề nghị của người dân | Xử lý lại như `Đang xử lý` |
+| `Đã có kết quả` | Kết quả đã duyệt, người dân xem được | Người dân đánh giá (tự đóng) hoặc người có quyền đóng; hoặc mở lại (`Xem xét lại`) |
+| `Đã đóng` | Kết thúc hồ sơ | Đề nghị xem xét lại của người dân được chấp nhận, hoặc người có thẩm quyền bấm `Mở lại` |
+| `Không tiếp nhận` | Ngoài phạm vi kênh phản ánh (ví dụ khiếu nại, tố cáo), có lý do | Đề nghị xem xét lại được chấp nhận, hoặc người có thẩm quyền bấm `Khôi phục hồ sơ` |
+| `Xem xét lại` | Hồ sơ kết thúc được mở lại theo đề nghị của người dân hoặc do người có thẩm quyền chủ động mở lại | Xử lý lại như `Đang xử lý` |
 
-#### Phiên nhập số liệu Excel (DL-03)
+#### Lượt nhập số liệu Excel (DL-03)
 
 | Trạng thái | Ý nghĩa |
 |---|---|
 | `Đã đối soát, chưa ghi` | Tệp đã đọc và đối chiếu, chưa ghi số liệu nào |
-| `Chờ duyệt` | Đã trình các dòng số liệu, chờ duyệt |
-| `Đang duyệt` | Một số dòng đã được xử lý |
-| `Duyệt một phần` | Có dòng được duyệt, có dòng bị trả lại |
-| `Đã duyệt` | Mọi dòng được duyệt |
+| `Chờ duyệt` | Trưởng phòng, chuyên viên đã gửi các dòng số liệu, chưa dòng nào được xử lý |
+| `Đang duyệt` | Một số dòng đã được xử lý, vẫn còn dòng chờ |
+| `Duyệt một phần` | Đã xử lý hết; có dòng được duyệt, có dòng bị trả lại |
+| `Đã duyệt` | Mọi dòng được duyệt, kể cả dòng hệ thống tự thông qua |
 | `Bị trả lại` | Mọi dòng bị trả lại |
-| `Đã ghi nhận` | Số liệu đã ghi vào chỉ tiêu |
-| `Lỗi` | Không áp dụng được tệp |
+| `Đã ghi nhận` | Lãnh đạo UBND hoặc quản trị viên đã ghi nhận trực tiếp; số liệu đã ghi vào chỉ tiêu |
+| `Lỗi` | Lượt nhập không áp dụng được; tải phiếu mới và đối soát lại |

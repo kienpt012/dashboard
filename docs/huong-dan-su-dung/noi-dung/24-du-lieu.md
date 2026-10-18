@@ -60,10 +60,10 @@ Kho văn bản lưu văn bản giao chỉ tiêu, văn bản chỉ đạo và min
 #### Tải văn bản lên
 
 1. Bấm `Tải văn bản lên`.
-2. Kéo tệp vào khung hoặc bấm để chọn: PDF, Word, Excel hoặc ảnh chụp, tối đa 25 MB.
+2. Kéo tệp vào khung hoặc bấm để chọn: PDF (kể cả bản quét), Word (.docx), Excel (.xlsx) hoặc ảnh chụp JPEG, PNG, WEBP; tối đa 25 MB mỗi tệp.
 3. Nhập `Trích yếu` (bỏ trống thì hệ thống lấy theo tên tệp) và các thông tin còn lại.
 4. Chọn bật hoặc tắt `AI tự đề xuất chỉ tiêu từ văn bản này`.
-5. Bấm `Tải lên`. Văn bản ở trạng thái `Đang xử lý` trong lúc hệ thống đọc; văn bản dài, bản quét cần vài phút.
+5. Bấm `Tải lên`. Hệ thống mở **Xác minh trích xuất** (DL-04) của văn bản vừa tải; văn bản ở trạng thái `Chờ xử lý`, rồi `Đang xử lý` trong lúc hệ thống đọc; văn bản dài, bản quét cần vài phút.
 
 ![Hộp tải văn bản lên](anh/dl-02-tai-len.png)
 
@@ -106,7 +106,7 @@ Màn hình đặt bản gốc của văn bản cạnh các chỉ tiêu AI đề 
 3. Đúng: bấm `Trình` để gửi lãnh đạo, hoặc `Duyệt` nếu có quyền; không phải chỉ tiêu: bấm `Từ chối` và ghi lý do.
 4. Chỉ tiêu được duyệt xuất hiện ở **Danh mục chỉ tiêu** (CT-02), có liên kết về đúng dòng của văn bản này. Toàn bộ quy trình xem mục 3.4.
 
-> Văn bản giao chỉ tiêu cho nhiều xã, phường (mỗi đơn vị một phần mở đầu bằng "ĐƠN VỊ: …"): AI chỉ đọc phần của địa phương mình; khung `Lượt xử lý` cuối trang ghi rõ các trang đã đọc. Nếu không nhận ra phần của địa phương, AI đọc toàn văn bản và khung `Lượt xử lý` cũng ghi lại điều này — kiểm tra tên địa phương tại **Thiết lập địa phương** (HT-01).
+> Văn bản giao chỉ tiêu cho nhiều xã, phường (mỗi đơn vị một phần mở đầu bằng "ĐƠN VỊ: …"): AI chỉ đọc phần của địa phương mình; khung `Lượt xử lý` cuối trang ghi rõ các trang đã đọc. Nếu không nhận ra phần của địa phương, AI đọc toàn văn bản và khung `Lượt xử lý` cũng ghi lại điều này — kiểm tra `Tên ngắn` tại **Thiết lập địa phương** (HT-01).
 
 ### DL-03 · Nhập số liệu Excel
 
@@ -118,6 +118,6 @@ Dùng khi cần cập nhật số liệu nhiều chỉ tiêu của một phòng 
 
 1. **Bước 1 `Tải phiếu hiện trạng`** — chọn năm (lãnh đạo, quản trị chọn thêm `Phòng ban`), bấm `Tải phiếu Excel`.
 2. **Bước 2 `Tải lên và đối soát`** — kéo phiếu đã điền vào khung, bấm `Đối soát`. Đối soát chỉ kiểm tra, chưa đổi số liệu.
-3. **Bước 3 `Ghi nhận`** — lãnh đạo, quản trị bấm `Ghi nhận số liệu` (số liệu chính thức ngay); trưởng phòng, chuyên viên bấm `Gửi số liệu` (mỗi dòng thành một báo cáo chờ duyệt ở CT-04).
+3. **Bước 3 `Ghi nhận`** (với trưởng phòng, chuyên viên là `Gửi duyệt`) — lãnh đạo, quản trị bấm `Ghi nhận số liệu` (số liệu chính thức ngay); trưởng phòng, chuyên viên bấm `Gửi số liệu` (mỗi dòng thành một báo cáo chờ duyệt ở CT-04).
 4. **`Kết quả đối soát`** — `Tổng dòng`, `Có thay đổi`, `Không đổi`, `Lỗi` và bảng số cũ → số mới hoặc nội dung lỗi từng dòng.
 5. **`Lịch sử nhập`** — các lượt nhập với tệp, phòng, người nộp, số dòng, trạng thái, thời gian.

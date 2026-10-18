@@ -111,7 +111,7 @@ Quy trình này dùng khi lãnh đạo UBND trực tiếp theo dõi một chỉ 
 #### Bước 2. Bổ sung văn bản chỉ đạo
 1. Trong hồ sơ chỉ tiêu, mở thẻ `Chỉ đạo điều hành` và bấm `Thêm văn bản`.
 2. Chọn `Loại văn bản` và nhập `Trích yếu` (bắt buộc). Nếu có, nhập thêm `Số hiệu`, `Ngày ban hành`, `Cơ quan ban hành` và `Nội dung chỉ đạo chính`.
-3. Nếu văn bản đã có trong Kho văn bản (DL-02), chọn văn bản đó tại ô `Văn bản trong kho`. Nếu chưa có, bấm `Chọn tệp` để đính kèm tệp ảnh hoặc PDF, tối đa 10MB mỗi tệp.
+3. Nếu văn bản đã có trong Kho văn bản (DL-02), chọn văn bản đó tại ô `Văn bản trong kho`. Nếu chưa có, bấm `Chọn tệp` để đính kèm tệp ảnh hoặc PDF, tối đa 10 MB mỗi tệp.
 4. Bấm `Lưu`. Văn bản hiện trong danh sách `Văn bản chỉ đạo` và dấu chấm trước tên thẻ `Chỉ đạo điều hành` chuyển sang màu xanh.
 
 Để gỡ văn bản nhập sai, bấm biểu tượng thùng rác (`Gỡ`) ở góc văn bản, rồi bấm `Gỡ` để xác nhận. Văn bản bị gỡ khỏi hồ sơ cùng các tệp đính kèm. Người được gỡ là người đã bổ sung văn bản, lãnh đạo UBND hoặc trưởng phòng chủ trì.
@@ -170,9 +170,9 @@ Yêu cầu không tự đóng, phòng chủ trì vẫn phải trả lời theo B
 
 > Phân quyền trong quy trình:
 > - Yêu cầu giải trình: chỉ lãnh đạo UBND và tài khoản quản trị hệ thống.
-> - Đánh giá, gỡ văn bản chỉ đạo do người khác bổ sung: lãnh đạo UBND và trưởng phòng chủ trì.
+> - Đánh giá, gỡ văn bản chỉ đạo do người khác bổ sung: lãnh đạo UBND, quản trị hệ thống và trưởng phòng chủ trì.
 > - Trả lời giải trình: trưởng phòng chủ trì hoặc chuyên viên đang phụ trách chỉ tiêu.
-> - Bổ sung văn bản chỉ đạo: lãnh đạo, văn thư, trưởng phòng và chuyên viên của phòng chủ trì.
+> - Bổ sung văn bản chỉ đạo: lãnh đạo UBND, quản trị hệ thống, văn thư, trưởng phòng và chuyên viên của phòng chủ trì.
 >
 > Người xem và cán bộ phòng phối hợp không làm được các thao tác này. Với chỉ tiêu `Đã lưu trữ`, các nút thêm, gỡ văn bản, yêu cầu giải trình và đánh giá bị ẩn.
 
@@ -258,7 +258,7 @@ Người duyệt là trưởng phòng của phòng xử lý, lãnh đạo hoặc
 4. Nếu chưa đạt, bấm `Trả lại`, nhập `Lý do trả lại`, bấm `Xác nhận`. Hồ sơ trở lại `Đang xử lý` để cán bộ hoàn thiện và trình lại. Lý do được lưu dưới dạng ghi chú nội bộ; người dân chỉ thấy mốc "kết quả được trả lại để hoàn thiện".
 
 #### Bước 8. Đánh giá và đóng hồ sơ
-1. Người dân tra cứu hồ sơ, đọc `Kết quả xử lý`, chọn số sao tại `Đánh giá kết quả xử lý`, nhập nhận xét nếu muốn, rồi bấm `Gửi đánh giá`. Hồ sơ tự chuyển sang `Đã đóng`. Mỗi hồ sơ chỉ được đánh giá một lần.
+1. Người dân tra cứu hồ sơ, đọc `Kết quả xử lý`, chọn số sao tại `Đánh giá kết quả xử lý`, nhập nhận xét nếu muốn, rồi bấm `Gửi đánh giá`. Hồ sơ tự chuyển sang `Đã đóng`. Mỗi lần có kết quả chỉ được đánh giá một lần; đánh giá đã gửi không sửa được.
 2. Nếu người dân chưa đánh giá, trưởng phòng hoặc lãnh đạo mở hồ sơ `Đã có kết quả`, bấm `Đóng hồ sơ`, nhập `Ghi chú` nếu cần, rồi bấm `Xác nhận`. Người dân vẫn đánh giá được sau khi hồ sơ đã đóng.
 
 Điểm đánh giá trung bình hiện ở ô `Hài lòng` trên ND-01.
@@ -432,7 +432,7 @@ Dòng chỉ tiêu có kỳ báo cáo đã quá hạn mà chưa báo cáo sẽ gh
 #### Hỏi Jarvis trong lúc họp
 Trang trình chiếu không có Jarvis. Khi cần số liệu ngoài nội dung đang chiếu, hoặc cần xem kỹ một chỉ tiêu:
 1. Chuyển sang thẻ trình duyệt của khu vực quản trị.
-2. Mở Jarvis bằng một trong các cách: bấm biểu tượng Jarvis trên thanh đầu trang; nhấn `Ctrl J`; hoặc nói "Jarvis" rồi nói câu hỏi (mục 1.6).
+2. Mở Jarvis bằng một trong các cách: bấm biểu tượng Jarvis trên thanh đầu trang; nhấn `Ctrl J`; hoặc nói "Hey Jarvis" rồi nói câu hỏi (mục 1.6).
 3. Đặt câu hỏi. Khi khung Jarvis chưa có hội thoại, có thể bấm một câu gợi ý như `Chỉ tiêu nào sắp trễ hạn?` hoặc `Chỉ tiêu nào chưa có số liệu?`.
 4. Để xem số liệu từng kỳ, minh chứng và dòng thời gian, bấm tên chỉ tiêu trong câu trả lời để mở hồ sơ (CT-06).
 5. Quay lại thẻ trình chiếu. Nhấn `F` nếu cần chiếu toàn màn hình trở lại.

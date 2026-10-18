@@ -44,7 +44,7 @@ Mở màn hình để xem tiến độ chỉ tiêu, việc đang chờ xử lý 
 
 1. Trong bảng `Bộ chỉ tiêu`, đọc cột `Kết quả`: bộ chấm điểm hiển thị điểm đạt trên điểm tối đa; bộ thống kê hiển thị tỷ lệ đã có số liệu; các bộ còn lại hiển thị tiến độ.
 2. Bấm dấu `+` ở đầu dòng để xem `Căn cứ`, `Cấp giao`, `Đã có số liệu`, `Có văn bản chỉ đạo`, `Đã đánh giá` và số lượng từng tình trạng.
-3. Với tài khoản xem toàn đơn vị, cuộn tới `Theo phòng ban`. Bấm tên phòng để mở danh mục của phòng; bấm số ở cột `Chưa giao` để xem những chỉ tiêu chưa có người phụ trách.
+3. Với tài khoản xem toàn địa phương, cuộn tới `Theo phòng ban`. Bấm tên phòng để mở danh mục của phòng; bấm số ở cột `Chưa giao` để xem những chỉ tiêu chưa có người phụ trách.
 4. Mở rộng dòng phòng để xem trưởng phòng, thời gian chờ duyệt lâu nhất, giải trình đang mở và các thông tin bổ sung.
 
 ![Theo dõi phòng ban, cảnh báo và hoạt động gần đây](anh/dh-01-theo-doi.png)
@@ -126,9 +126,9 @@ Màn hình dùng khi họp giao ban hoặc theo dõi trên màn hình lớn, m�
 
 | Phím | Tác dụng |
 |---|---|
-| Mũi tên phải hoặc `Page Down` | Sang trang sau |
-| Mũi tên trái hoặc `Page Up` | Về trang trước |
-| Phím cách | Tạm dừng hoặc chạy tiếp |
+| `→` hoặc `PageDown` | Sang trang sau |
+| `←` hoặc `PageUp` | Về trang trước |
+| `Phím cách` | Tạm dừng hoặc chạy tiếp |
 | `F` | Bật, tắt toàn màn hình |
 | `Esc` | Khi đang toàn màn hình, thoát toàn màn hình; khi đã ở khung trình duyệt, trở về Trung tâm điều hành |
 

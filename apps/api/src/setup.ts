@@ -137,7 +137,7 @@ export class SetupController {
         entityType: 'LocalityProfile',
         entityId: profile.id,
         departmentId: null,
-        metadata: { year: dto.year, documentCount: dto.departments.length, templateKey: dto.frameworkTemplates.join(',') },
+        metadata: { year: dto.year, departmentCount: dto.departments.length, templateKey: dto.frameworkTemplates.join(',') },
       });
       return { profile, created, updated };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30_000 });

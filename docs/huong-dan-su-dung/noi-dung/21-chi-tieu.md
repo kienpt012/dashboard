@@ -92,7 +92,7 @@ Bấm tiêu đề cột để sắp xếp. Bộ lọc được giữ trên đị
 
 #### Lưu trữ và khôi phục chỉ tiêu
 
-1. Ở menu ⋮ của dòng, chọn `Lưu trữ`, nhập lý do (mặc định "Kết thúc kỳ kế hoạch"), xác nhận. Chỉ tiêu chuyển sang danh sách `Lưu trữ`, không còn tính vào tiến độ và không nhận báo cáo; số liệu cũ được giữ.
+1. Ở menu ⋮ của dòng, chọn `Lưu trữ`, nhập lý do (mặc định "Kết thúc kỳ kế hoạch"), xác nhận. Chỉ tiêu chuyển sang danh sách `Lưu trữ`, không còn tính vào tiến độ và không nhận báo cáo; số liệu cũ được giữ. Chỉ tiêu còn báo cáo chờ duyệt thì chưa lưu trữ được; cần duyệt hoặc trả lại các báo cáo đó trước.
 2. Muốn dùng lại: chọn `Lưu trữ` ở góc phải bộ lọc, mở menu ⋮ của dòng, chọn `Khôi phục`.
 
 #### Hiển thị chỉ tiêu trên trang công khai

@@ -16,7 +16,7 @@ Quy trình áp dụng khi đưa hệ thống vào sử dụng lần đầu tại
 | 6 | Quản trị hệ thống | HT-01, bước `Áp dụng` | Kiểm tra tóm tắt, bấm `Áp dụng thiết lập` | `Đã thiết lập địa phương`; phòng ban và chỉ tiêu được tạo, chỉ tiêu chưa giao người |
 | 7 | Quản trị hệ thống | HT-02 | Bổ sung, sửa phòng ban ngoài mẫu | Phòng ban ở trạng thái `Hoạt động` |
 | 8 | Quản trị hệ thống | HT-03 | Tạo tài khoản theo vai trò | Tài khoản `Hoạt động`, `Chưa đăng nhập` |
-| 9 | Quản trị hệ thống | HT-04 | Rà soát ngưỡng cảnh báo, hạn phản ánh | `Đã lưu cấu hình` |
+| 9 | Quản trị hệ thống | HT-04 | Rà soát `Cảnh báo trước hạn`, `Ngưỡng có nguy cơ`, hạn phản ánh | `Đã lưu cấu hình` |
 | 10 | Mọi cán bộ | HT-07 | Đăng nhập lần đầu, đổi mật khẩu | Cột `Đăng nhập gần nhất` ở HT-03 có thời điểm |
 | 11 | Lãnh đạo UBND hoặc Quản trị hệ thống | CT-01, CT-02 | Nhập mức giao cho chỉ tiêu mẫu chưa có số | Chỉ tiêu có `Giá trị kế hoạch` |
 
@@ -30,7 +30,7 @@ Quy trình áp dụng khi đưa hệ thống vào sử dụng lần đầu tại
 
 #### Bước 2. Khai thông tin đơn vị
 1. Chọn `Loại đơn vị`: `Xã`, `Phường`, `Đặc khu`, `Trường học` hoặc `Cơ quan, đơn vị khác`. Loại đơn vị quyết định mẫu cơ cấu tổ chức ở bước 3; đổi loại đơn vị thì danh sách phòng ban được nạp lại theo mẫu mới.
-2. Nhập các trường bắt buộc `Tên đơn vị`, `Tên cơ quan`, `Tên ngắn`. Dòng gợi ý dưới `Tên ngắn` cho biết tên ứng dụng sẽ hiển thị.
+2. Nhập các trường bắt buộc `Tên đơn vị`, `Tên cơ quan`, `Tên ngắn`. Dòng gợi ý dưới `Tên ngắn` cho biết tên ứng dụng sẽ hiển thị. `Tên ngắn` còn dùng để nhận ra phần của địa phương trong văn bản giao chỉ tiêu cho nhiều xã, phường, nên nhập đúng địa danh như trên văn bản cấp trên (xem khung cảnh báo tại HT-01).
 3. Nhập các trường không bắt buộc nếu có (`Tỉnh / Thành phố`, `Mã đơn vị hành chính`, địa chỉ, thông tin liên hệ, `Màu chủ đạo`…). Chi tiết từng trường xem Phần 2, màn hình HT-01.
 4. Bấm `Tiếp tục`. Để lưu riêng phần này, bấm `Chỉ lưu thông tin địa phương`; hệ thống báo `Đã lưu thông tin địa phương`, nhưng cảnh báo ở DH-01 chỉ mất sau khi áp dụng thiết lập.
 
@@ -61,8 +61,8 @@ Các ô đã điền sẵn giá trị đang dùng (lần đầu là giá trị m
 | `Tự thông qua báo cáo sau` | 7 ngày (0–60) | Báo cáo số liệu chờ duyệt quá số ngày này được hệ thống tự thông qua và ghi trách nhiệm người duyệt; 0 là tắt |
 | `Tự thông qua đề xuất sau` | 3 ngày (0–30) | Đề xuất chỉ tiêu đã trình mà không được duyệt hoặc từ chối trong số ngày này tự thành chỉ tiêu; 0 là tắt |
 | `Hạn trả lời giải trình` | 3 ngày (1–30) | Hạn mặc định của yêu cầu giải trình do lãnh đạo gửi |
-| `Nhắc chưa giao người sau` | 3 ngày (0–30) | Chỉ tiêu chưa giao chuyên viên quá số ngày này thì nhắc trưởng phòng; 0 là tắt |
-| `Số lần chuyển việc tối đa` | 1 lần (0–5) | Số lần chuyên viên được chuyển chỉ tiêu cho đồng nghiệp; hết lượt thì chỉ được trả về trưởng phòng |
+| `Nhắc chưa giao người sau` | 3 ngày (0–30) | Chỉ tiêu nhập số liệu thủ công chưa có người phụ trách quá số ngày này (tính từ lúc tạo chỉ tiêu) thì nhắc trưởng phòng chủ trì; 0 là tắt |
+| `Số lần chuyển việc tối đa` | 1 lần (0–5) | Số lần người phụ trách được chuyển chỉ tiêu cho đồng nghiệp cùng phòng, tính từ lần giao gần nhất; hết lượt thì chỉ được trả về trưởng phòng |
 | `Trình chiếu chuyển trang sau` | 20 giây (5–300) | Thời gian hiển thị mỗi trang ở Trình chiếu (DH-03) |
 
 Bấm `Tiếp tục`. Giá trị ngoài khoảng cho phép bị báo lỗi ngay dưới ô. Sau khởi tạo, quản trị viên chỉnh các giá trị này tại Cấu hình (HT-04), nhóm `Thời hạn trách nhiệm`; thời gian chuyển trang nằm ở nhóm `Trình chiếu và Jarvis`, trường `Chuyển trang sau`.
@@ -78,7 +78,7 @@ Sau khi áp dụng:
 - Mỗi chỉ tiêu mẫu có phòng chủ trì, phòng phối hợp (nếu có), kỳ báo cáo theo văn bản giao và hạn hoàn thành 31/12 của năm nạp; chưa có chuyên viên phụ trách. Chỉ tiêu nhập tay ở tình trạng `Chưa bắt đầu`.
 - Bảng dữ liệu mà bộ mẫu cần nhưng chưa có được tạo trong Kho dữ liệu (DL-01); chỉ tiêu tự tính được tính ngay từ dữ liệu sẵn có.
 
-> Trình thiết lập chạy lại được nhiều lần: bộ đã nạp cho năm đó được bỏ qua, phòng đã có được cập nhật, phòng không chọn giữ nguyên. Nếu một bộ báo lỗi, thông tin đơn vị, phòng ban và thời hạn vẫn đã được lưu; khắc phục nguyên nhân rồi chạy lại. Khi chạy lại, tên, lĩnh vực phụ trách, màu và thứ tự của phòng đã có bị ghi đè theo bảng ở bước `Cơ cấu tổ chức` (bảng luôn lấy tên theo mẫu); nếu đã sửa phòng ban tại HT-02, cần sửa lại tên trong bảng trước khi áp dụng.
+> Trình thiết lập chạy lại được nhiều lần: bộ đã nạp cho năm đó được bỏ qua, phòng đã có được cập nhật, phòng không chọn giữ nguyên. Nếu một bộ báo lỗi, thông tin đơn vị, phòng ban và thời hạn vẫn đã được lưu; khắc phục nguyên nhân rồi chạy lại. Khi chạy lại, tên, tên ngắn, loại, lĩnh vực phụ trách, màu và thứ tự của phòng đã có bị ghi đè theo bảng ở bước `Cơ cấu tổ chức` (bảng luôn lấy tên theo mẫu); nếu đã sửa phòng ban tại HT-02, cần sửa lại tên trong bảng trước khi áp dụng.
 
 #### Bước 7. Rà soát, bổ sung phòng ban
 1. Mở `Phòng ban` (HT-02), kiểm tra danh sách và trạng thái `Hoạt động`.
@@ -160,7 +160,7 @@ Kết quả: khung `Trách nhiệm` hiện tên người phụ trách và thời
 #### Bước 3. Nhận việc
 1. Người được giao bấm thông báo trên chuông để mở hồ sơ chỉ tiêu, hoặc mở **Việc của tôi** (DH-02).
 2. Thẻ `Chỉ tiêu của tôi` liệt kê các chỉ tiêu mình đang phụ trách.
-3. Thẻ `Cần báo cáo` liệt kê các chỉ tiêu còn thiếu báo cáo kỳ hoặc chưa có số liệu. Bấm `Báo cáo` để báo cáo số liệu (xem quy trình báo cáo số liệu trong Phần 3).
+3. Thẻ `Cần báo cáo` liệt kê các chỉ tiêu còn thiếu báo cáo kỳ hoặc chưa có số liệu. Bấm `Báo cáo` để báo cáo số liệu (xem mục 3.3).
 4. Nếu chỉ tiêu không thuộc việc của mình, chuyển cho đồng nghiệp (bước 4a) hoặc trả về trưởng phòng (bước 4b).
 
 #### Bước 4a. Chuyển cho đồng nghiệp
@@ -237,7 +237,7 @@ Người được báo cáo: chuyên viên và trưởng phòng của phòng ch�
 3. Nhập `Giá trị thực hiện`. Dòng `Chỉ tiêu giao` dưới ô dùng để đối chiếu. Nếu kết quả cần ghi bằng lời, nhập thêm `Ghi bằng chữ`.
 4. Ghi `Nguồn số liệu` hoặc `Ghi chú`. Bắt buộc có ít nhất một trong hai ô.
 5. Ghi `Giải trình` khi hệ thống yêu cầu. Trường hợp kỳ đã quá hạn, nêu lý do nộp muộn. Trường hợp chỉ tiêu đang `Có nguy cơ` hoặc `Quá hạn` mà giá trị mới vẫn chưa đạt, nêu nguyên nhân và hướng khắc phục.
-6. Bấm `Đính kèm minh chứng`, chọn ảnh hoặc tệp PDF (tối đa 10MB mỗi tệp, 10 tệp mỗi lần). Nếu chỉ tiêu có `Yêu cầu minh chứng`, nội dung yêu cầu hiện dưới ô này.
+6. Bấm `Đính kèm minh chứng`, chọn ảnh hoặc tệp PDF (tối đa 10 MB mỗi tệp, 10 tệp mỗi lần). Nếu chỉ tiêu có `Yêu cầu minh chứng`, nội dung yêu cầu hiện dưới ô này.
 7. Bấm `Gửi báo cáo`.
 
 Kết quả:
@@ -257,7 +257,7 @@ Người duyệt:
 Duyệt tại màn hình Duyệt báo cáo (CT-04), thuận tiện khi có nhiều báo cáo:
 1. Mở `Duyệt báo cáo` (số đỏ trên menu là số báo cáo chờ duyệt). Cách khác: mở DH-02, tab `Chờ tôi duyệt`, hoặc bấm vào thông báo có báo cáo chờ duyệt. Báo cáo gửi sớm nhất xếp trên cùng.
 2. Bấm dấu `+` đầu dòng để xem `Nguồn số liệu`, `Giải trình`, `Ghi chú` và số tệp `Minh chứng`. Muốn mở tệp minh chứng, bấm tên chỉ tiêu để vào hồ sơ.
-3. So sánh giá trị cũ và mới ở cột `Hiện tại → Đề xuất`. Cột `Tự thông qua` cho biết thời gian còn lại trước khi hệ thống tự thông qua: màu cam khi còn dưới 2 ngày, màu đỏ khi còn dưới 1 ngày.
+3. So sánh giá trị cũ và mới ở cột `Hiện tại → Đề xuất`. Cột `Tự thông qua` cho biết thời gian còn lại trước khi hệ thống tự thông qua: màu cam khi còn không quá 2 ngày, màu đỏ khi còn không quá 1 ngày hoặc đã đến hạn.
 4. Nếu đồng ý: bấm `Duyệt`, ghi `Ghi chú duyệt` nếu cần, bấm `Duyệt`.
 5. Nếu không đồng ý: bấm `Trả lại`, nhập `Lý do trả lại` (ít nhất 3 ký tự), bấm `Trả lại`.
 
@@ -290,7 +290,7 @@ Báo cáo chờ duyệt quá thời hạn `Tự thông qua báo cáo sau` sẽ �
 
 > Thời hạn tự động: còn dưới 3 ngày đến hạn mà kỳ hiện tại chưa có báo cáo, hệ thống nhắc chuyên viên phụ trách; chỉ tiêu chưa giao người thì nhắc trưởng phòng. Nhắc trước hạn không áp dụng cho chỉ tiêu loại `Chấm điểm`. Qua hạn mà chưa có báo cáo, hệ thống thông báo cho chuyên viên phụ trách và trưởng phòng. Quá hạn trên 7 ngày, hệ thống báo lãnh đạo UBND và ghi vào `Dòng thời gian` của hồ sơ. Hai mốc 3 ngày và 7 ngày cố định, không chỉnh được trong Cấu hình. Báo cáo chờ duyệt tự thông qua sau mặc định 7 ngày, quản trị viên chỉnh tại Cấu hình (`Tự thông qua báo cáo sau`).
 
-> Giới hạn quyền: không ai duyệt hoặc trả lại báo cáo do chính mình gửi. Trưởng phòng chỉ duyệt báo cáo của phòng mình. Văn thư và người xem không báo cáo số liệu. Chỉ tiêu `Tự tính` và chỉ tiêu `Tổng hợp từ chỉ tiêu con` không nhận báo cáo tay. Chỉ tiêu đã lưu trữ không nhận báo cáo mới, và chỉ tiêu còn báo cáo chờ duyệt thì chưa lưu trữ được. Số liệu vừa duyệt chưa tự lên trang công khai: lãnh đạo UBND phải bấm `Cập nhật bản công khai` ở dòng chỉ tiêu trên CT-02.
+> Giới hạn quyền: không ai duyệt hoặc trả lại báo cáo do chính mình gửi. Trưởng phòng chỉ duyệt báo cáo của phòng mình. Văn thư và người xem không báo cáo số liệu. Chỉ tiêu `Tự tính` và chỉ tiêu `Tổng hợp từ chỉ tiêu con` không nhận báo cáo tay. Chỉ tiêu đã lưu trữ không nhận báo cáo mới, và chỉ tiêu còn báo cáo chờ duyệt thì chưa lưu trữ được. Số liệu vừa duyệt chưa tự lên trang công khai: lãnh đạo UBND hoặc quản trị phải bấm `Cập nhật bản công khai` ở dòng chỉ tiêu trên CT-02.
 
 ## 3.4 Văn bản giao chỉ tiêu: AI trích xuất, xác minh và duyệt thành chỉ tiêu
 
@@ -310,7 +310,7 @@ Quy trình dùng khi phường nhận văn bản giao chỉ tiêu (quyết đị
 
 #### Bước 1. Tải văn bản lên kho
 1. Mở `Kho văn bản` (DL-02), bấm `Tải văn bản lên`.
-2. Kéo tệp vào khung hoặc bấm để chọn. Hệ thống nhận PDF (kể cả bản scan), Word (.docx), Excel (.xlsx) và ảnh chụp JPEG, PNG, WEBP; tối đa 25MB mỗi tệp.
+2. Kéo tệp vào khung hoặc bấm để chọn. Hệ thống nhận PDF (kể cả bản quét), Word (.docx), Excel (.xlsx) và ảnh chụp JPEG, PNG, WEBP; tối đa 25 MB mỗi tệp.
 3. Nhập thông tin văn bản: `Trích yếu`, `Loại văn bản`, `Số hiệu`, `Cơ quan ban hành`, `Ngày ban hành`, `Năm áp dụng`, `Phòng liên quan`, `Ghi chú`. Trích yếu để trống thì lấy theo tên tệp.
 4. Chọn bật hoặc tắt `AI tự đề xuất chỉ tiêu từ văn bản này`:
    - Bật (mặc định) với văn bản giao chỉ tiêu cần đưa vào danh mục.
@@ -321,10 +321,10 @@ Quy trình dùng khi phường nhận văn bản giao chỉ tiêu (quyết đị
 
 #### Bước 2. Hệ thống đọc và trích xuất
 - Trạng thái văn bản đổi lần lượt `Chờ xử lý` › `Đang xử lý` › `Đã xử lý` (hoặc `Lỗi xử lý`, rê chuột lên nhãn để xem lý do). Trang DL-04 tự cập nhật; khi đang trích xuất có thanh tiến độ theo số đoạn văn bản.
-- PDF có lớp chữ được đọc trực tiếp. PDF scan và ảnh chụp được nhận dạng ký tự (OCR); độ tin cậy nhận dạng hiện ở chế độ `Chữ đã đọc`.
+- PDF có lớp chữ được đọc trực tiếp. PDF bản quét và ảnh chụp được nhận dạng ký tự (OCR); độ tin cậy nhận dạng hiện ở chế độ `Chữ đã đọc`.
 - Khi đọc, hệ thống ghi lại vị trí từng dòng chữ trên trang. Vị trí này dùng để mở đúng trang và tô sáng đúng dòng ở bước 3 và bước 7.
-- Văn bản giao chỉ tiêu cho nhiều xã, phường (mỗi đơn vị một phần, ví dụ phụ lục chỉ tiêu cấp xã của Thành phố): AI chỉ đọc phần của địa phương mình, theo tên đơn vị khai báo tại `Thiết lập địa phương` (HT-01). Thông tin "chỉ trích xuất phần của …, trang …" được ghi ở lượt trích xuất.
-- Muốn dừng lượt trích xuất đang chạy, bấm `Dừng trích xuất`, xác nhận `Dừng`. Các đề xuất đã tạo trước khi dừng được giữ lại.
+- Văn bản giao chỉ tiêu cho nhiều xã, phường (mỗi đơn vị một phần, ví dụ phụ lục chỉ tiêu cấp xã của Thành phố): AI chỉ đọc phần của địa phương mình, nhận ra theo `Tên ngắn` khai báo tại `Thiết lập địa phương` (HT-01). Thông tin "chỉ trích xuất phần của …, trang …" được ghi ở lượt trích xuất.
+- Muốn dừng lượt trích xuất đang chạy, bấm `Dừng trích xuất`, xác nhận `Dừng`. Kết quả chưa hoàn tất của lượt bị dừng không được áp dụng (lượt này không tạo đề xuất mới); các đề xuất đã có từ lượt trước được giữ nguyên.
 
 #### Bước 3. Đối chiếu từng đề xuất trên bản gốc
 1. Tại DL-04, cột phải liệt kê đề xuất. Mỗi thẻ có:
@@ -346,7 +346,7 @@ Quy trình dùng khi phường nhận văn bản giao chỉ tiêu (quyết đị
 Người được trình: người tạo đề xuất, trưởng phòng của phòng phụ trách, văn thư, lãnh đạo UBND, quản trị.
 
 #### Bước 5. Duyệt hoặc từ chối
-Người duyệt: trưởng phòng của phòng phụ trách và lãnh đạo UBND. Trưởng phòng không tự duyệt đề xuất do chính mình tạo.
+Người duyệt: trưởng phòng của phòng phụ trách, lãnh đạo UBND và quản trị. Trưởng phòng không tự duyệt đề xuất do chính mình tạo.
 
 1. Mở đề xuất tại DL-04 hoặc tại `Đề xuất chỉ tiêu` (CT-03).
 2. Duyệt: bấm `Duyệt`, kiểm tra `Trọng số` (mặc định 1, từ 0,1 đến 10), bấm `Duyệt`. Hệ thống báo "Đã tạo chỉ tiêu CT-…", bấm `Mở hồ sơ chỉ tiêu` để xem.
