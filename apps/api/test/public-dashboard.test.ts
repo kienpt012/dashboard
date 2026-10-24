@@ -46,23 +46,30 @@ function oneWidgetConfig(widget: PublicDashboardConfig['widgets'][number]): Publ
   };
 }
 
-test('bố cục mặc định dành đủ chiều cao cho số liệu tổng quan ở mọi thiết bị', () => {
+test('bố cục mặc định ưu tiên phản ánh, văn bản và dành đủ chiều cao cho số liệu', () => {
   const config = cloneDefault();
   assert.deepEqual(
     config.layouts.desktop.map(item => [item.i, item.y, item.h, item.minH]),
     [
-      ['overview', 0, 5, 5],
-      ['targets', 5, 8, 5],
-      ['departments', 5, 8, 5],
-      ['feedbacks', 13, 6, 4],
-      ['documents', 13, 6, 4],
-      ['citizen-cta', 19, 3, 2],
+      ['overview', 4, 5, 5],
+      ['targets', 9, 8, 5],
+      ['departments', 9, 8, 5],
+      ['feedbacks', 0, 4, 4],
+      ['documents', 0, 4, 4],
+      ['citizen-cta', 17, 3, 2],
     ],
   );
   assert.deepEqual(config.layouts.tablet[0], {
-    i: 'overview', x: 0, y: 0, w: 8, h: 6, minW: 4, minH: 6,
+    i: 'overview', x: 0, y: 5, w: 8, h: 6, minW: 4, minH: 6,
   });
   assert.equal(config.layouts.mobile[0].minH, 7);
+  // Chuẩn hóa không làm thay đổi bố cục mới, kể cả khi lưới có hai khối cùng hàng.
+  const normalized = normalizePublicDashboardConfig(config);
+  for (const breakpoint of ['desktop', 'tablet', 'mobile'] as const) {
+    const layout = normalized.layouts[breakpoint];
+    assert.equal(layout.find(item => item.i === 'feedbacks')!.y, 0);
+    assert.ok(layout.find(item => item.i === 'documents')!.y < layout.find(item => item.i === 'overview')!.y);
+  }
 });
 
 test('config cũ được nâng chiều cao theo loại widget và reflow mà không làm hỏng bản công khai', () => {
@@ -75,8 +82,15 @@ test('config cũ được nâng chiều cao theo loại widget và reflow mà kh
     { i: 'documents', x: 6, y: 11, w: 6, h: 6, minW: 4, minH: 4 },
     { i: 'citizen-cta', x: 0, y: 17, w: 12, h: 3, minW: 6, minH: 2 },
   ];
-  legacy.layouts.tablet[0] = { ...legacy.layouts.tablet[0], h: 4, minH: 3 };
-  legacy.layouts.tablet.slice(1).forEach(item => { item.y -= 2; });
+  // Fixture lịch sử cố định: không phụ thuộc thứ tự của mẫu mặc định hiện tại.
+  legacy.layouts.tablet = [
+    { i: 'overview', x: 0, y: 0, w: 8, h: 4, minW: 4, minH: 3 },
+    { i: 'targets', x: 0, y: 4, w: 8, h: 8, minW: 4, minH: 5 },
+    { i: 'departments', x: 0, y: 12, w: 8, h: 6, minW: 4, minH: 4 },
+    { i: 'feedbacks', x: 0, y: 18, w: 4, h: 7, minW: 4, minH: 4 },
+    { i: 'documents', x: 4, y: 18, w: 4, h: 7, minW: 4, minH: 4 },
+    { i: 'citizen-cta', x: 0, y: 25, w: 8, h: 3, minW: 4, minH: 2 },
+  ];
   legacy.layouts.mobile[0] = { ...legacy.layouts.mobile[0], minH: 4 };
 
   const normalized = normalizePublicDashboardConfig(legacy);

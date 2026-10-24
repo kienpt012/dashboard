@@ -8,10 +8,33 @@
 .fbp-band h1 {
   margin: 0;
   padding-top: 28px;
-  font-size: clamp(22px, 2.6vw, 28px);
+  font-size: clamp(26px, 2.6vw, 32px);
   font-weight: 700;
   line-height: 1.3;
+  color: var(--pub-heading);
 }
+
+.fbp-band-description { margin: 8px 0 0; color: var(--pub-muted); }
+.fbp-intro { margin: 0 0 20px; color: var(--pub-muted); line-height: 1.6; }
+.fbp-history summary { cursor: pointer; color: var(--ioc-color-primary); font-weight: 600; padding-block: 8px; }
+.fbp-history[open] summary { margin-bottom: 20px; }
+#feedback-conversation { scroll-margin-top: 84px; }
+.fbp-step-title { display: flex; align-items: center; gap: 12px; }
+.fbp-step-title b {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--ioc-color-primary);
+  font-size: 16px;
+}
+.fbp-filters { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; margin-bottom: 16px; }
+.fbp-result-label { display: block; font-size: 13px; font-weight: 700; color: var(--pub-heading); margin-bottom: 4px; }
+.fbp-read-result { color: var(--ioc-color-primary); font-weight: 600; margin-block: 8px; }
+.fbp-clamp { border-top: 1px solid var(--ioc-color-border-secondary); padding-top: 12px; margin-top: 6px; }
 
 .fbp-tabs.ant-tabs {
   margin-top: 8px;
@@ -264,8 +287,12 @@
 }
 
 .fbp-drop.ant-upload-wrapper .ant-upload-drag {
-  padding: 4px 0;
+  padding: 0;
 }
+
+.fbp-drop.ant-upload-wrapper .ant-upload-drag .ant-upload-drag-icon { margin-bottom: 4px; }
+.fbp-drop.ant-upload-wrapper .ant-upload-drag .ant-upload-drag-icon .anticon { font-size: 28px; }
+.fbp-drop.ant-upload-wrapper .ant-upload-drag .ant-upload-btn { padding: 16px; }
 
 .fbp-notes {
   display: flex;
@@ -368,7 +395,7 @@
 }
 
 .fbp-pub-card strong {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -397,6 +424,8 @@
 }
 
 @media (max-width: 575px) {
+  .fbp-filters { grid-template-columns: minmax(0, 1fr); }
+  .fbp-receipt-actions > .ant-btn { width: 100%; }
   .fbp-grid,
   .fbp-codes {
     grid-template-columns: minmax(0, 1fr);
@@ -410,6 +439,11 @@
   .fbp-tabs .ant-tabs-tab + .ant-tabs-tab {
     margin-inline-start: 20px !important;
   }
+}
+
+.pub :is(.fbp-sub, .fbp-meta dt, .fbp-event time, .fbp-msg-head time, .fbp-codes span) {
+  color: var(--pub-muted);
+  font-size: 14px;
 }
 
 /* In biên nhận: chỉ giữ thẻ biên nhận */

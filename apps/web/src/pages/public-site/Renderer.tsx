@@ -107,7 +107,6 @@ function TargetCard({ target }: { target: PublicTarget }) {
   return (
     <article className="pd-target">
       <div className="pd-target-top">
-        <span className="pd-code">{target.code}</span>
         <span className={`pd-status ${status.tone}`}>{status.label}</span>
       </div>
       <h3 title={target.title}>{target.title}</h3>
@@ -116,6 +115,7 @@ function TargetCard({ target }: { target: PublicTarget }) {
         {target.department}
       </span>
       <div className="pd-value">
+        <span>Thực hiện</span>
         <strong>{num(target.currentValue)}</strong>
         <span>
           / {num(target.targetValue)} {target.unit}
@@ -128,6 +128,7 @@ function TargetCard({ target }: { target: PublicTarget }) {
         <span>Tiến độ</span>
         <b>{progress}%</b>
       </div>
+      <span className="pd-code">Mã chỉ tiêu: {target.code}</span>
     </article>
   );
 }

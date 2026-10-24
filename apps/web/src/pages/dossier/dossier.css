@@ -315,11 +315,7 @@
   color: var(--ioc-color-text-secondary);
 }
 
-/* Cột phải */
-.side-card .ant-card-head-title {
-  font-size: 14px;
-}
-
+/* Cột phải: tiêu đề dùng chung thang chữ Card nhỏ của khu vực quản trị. */
 .side-card-warn {
   border-color: color-mix(in srgb, var(--ioc-color-warning) 55%, transparent);
 }

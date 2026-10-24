@@ -1,7 +1,7 @@
 /* Trang công khai do quản trị viên dựng. Màu lấy từ --pd-* (cấu hình), khoảng cách theo lưới 40px + 16px. */
 
 .pd {
-  --pd-muted: color-mix(in srgb, var(--pd-text) 62%, var(--pd-surface));
+  --pd-muted: color-mix(in srgb, var(--pd-text) 76%, var(--pd-surface));
   --pd-line: color-mix(in srgb, var(--pd-text) 12%, var(--pd-surface));
   --pd-soft: color-mix(in srgb, var(--pd-accent) 8%, var(--pd-surface));
   color: var(--pd-text);
@@ -47,11 +47,13 @@
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--pd-line);
 }
 
 .pd-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1.35;
   color: var(--pd-text);
@@ -217,9 +219,9 @@
 
 .pd-target h3 {
   margin: 0;
-  font-size: 14.5px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.6;
   text-wrap: pretty;
 }
 
@@ -350,7 +352,7 @@ a.pd-list-item:hover {
 }
 
 .pd-list-item strong {
-  font-size: 14.5px;
+  font-size: 17px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -361,7 +363,7 @@ a.pd-list-item:hover {
 }
 
 .pd-clamp {
-  font-size: 13.5px;
+  font-size: 15px;
   color: var(--pd-muted);
   white-space: pre-line;
 }

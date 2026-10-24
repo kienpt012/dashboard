@@ -280,12 +280,12 @@ export const TEMPLATES: { key: string; name: string; build: () => PublicDashboar
     name: 'Minh bạch điều hành',
     build: () =>
       build([
-        { id: 'overview', type: 'overviewMetrics', title: 'Kết quả thực hiện chỉ tiêu', at: { desktop: [0, 0, 12, 5], tablet: [0, 0, 8, 6], mobile: [0, 0, 4, 7] } },
-        { id: 'targets', type: 'targetList', title: 'Chỉ tiêu nổi bật', at: { desktop: [0, 5, 8, 8], tablet: [0, 6, 8, 8], mobile: [0, 7, 4, 12] } },
-        { id: 'departments', type: 'departmentProgress', title: 'Tiến độ theo đơn vị', at: { desktop: [8, 5, 4, 8], tablet: [0, 14, 8, 6], mobile: [0, 19, 4, 8] } },
-        { id: 'feedbacks', type: 'feedbackList', title: 'Kết quả phản ánh đã xử lý', at: { desktop: [0, 13, 6, 6], tablet: [0, 20, 4, 7], mobile: [0, 27, 4, 9] } },
-        { id: 'documents', type: 'documentList', title: 'Văn bản mới công bố', at: { desktop: [6, 13, 6, 6], tablet: [4, 20, 4, 7], mobile: [0, 36, 4, 9] } },
-        { id: 'citizen-cta', type: 'cta', title: 'Kênh phục vụ người dân', settings: CTA, at: { desktop: [0, 19, 12, 3], tablet: [0, 27, 8, 3], mobile: [0, 45, 4, 5] } },
+        { id: 'overview', type: 'overviewMetrics', title: 'Kết quả thực hiện chỉ tiêu', at: { desktop: [0, 4, 12, 5], tablet: [0, 5, 8, 6], mobile: [0, 10, 4, 7] } },
+        { id: 'targets', type: 'targetList', title: 'Chỉ tiêu nổi bật', at: { desktop: [0, 9, 8, 8], tablet: [0, 11, 8, 8], mobile: [0, 17, 4, 12] } },
+        { id: 'departments', type: 'departmentProgress', title: 'Tiến độ theo đơn vị', at: { desktop: [8, 9, 4, 8], tablet: [0, 19, 8, 6], mobile: [0, 29, 4, 8] } },
+        { id: 'feedbacks', type: 'feedbackList', title: 'Kết quả phản ánh đã xử lý', at: { desktop: [0, 0, 6, 4], tablet: [0, 0, 4, 5], mobile: [0, 0, 4, 5] } },
+        { id: 'documents', type: 'documentList', title: 'Văn bản mới công bố', at: { desktop: [6, 0, 6, 4], tablet: [4, 0, 4, 5], mobile: [0, 5, 4, 5] } },
+        { id: 'citizen-cta', type: 'cta', title: 'Kênh phục vụ người dân', settings: CTA, at: { desktop: [0, 17, 12, 3], tablet: [0, 25, 8, 3], mobile: [0, 37, 4, 5] } },
       ]),
   },
   {

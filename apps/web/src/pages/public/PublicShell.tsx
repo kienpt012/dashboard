@@ -1,10 +1,11 @@
 import { LoginOutlined, MenuOutlined } from '@ant-design/icons';
-import { Button, Drawer, Grid } from 'antd';
+import { Button, ConfigProvider, Drawer, Grid } from 'antd';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { agencyLines, localityInitials, localityTitle, useLocality } from '@/app/locality';
 import { BackToTop } from '@/components/Scroll';
 import { currentYear } from '@/lib/format';
+import { useThemeMode } from '@/app/theme';
 import './public.css';
 
 const LINKS = [
@@ -15,12 +16,13 @@ const LINKS = [
 /** Khung chung của khu vực dành cho người dân: đầu trang, điều hướng, chân trang. */
 export function PublicShell({ children, title, width, footer = true }: { children: ReactNode; title?: string; width?: number; footer?: boolean }) {
   const locality = useLocality();
+  const { dark } = useThemeMode();
   const screens = Grid.useBreakpoint();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const unit = locality.configured ? localityTitle(locality) : 'Trung tâm điều hành';
 
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {
     document.title = title ? `${title} · ${unit}` : `${locality.brandName} · ${unit}`;
   }, [title, unit, locality.brandName]);
@@ -32,6 +34,13 @@ export function PublicShell({ children, title, width, footer = true }: { childre
   ));
 
   return (
+    <ConfigProvider theme={{ token: {
+      fontSize: 16, lineHeight: 1.6, controlHeight: 44, controlHeightLG: 48,
+      colorTextSecondary: dark ? '#b6c2d2' : '#526174',
+      colorTextTertiary: dark ? '#9cabc0' : '#65748a',
+      colorTextPlaceholder: dark ? '#9cabc0' : '#69778a',
+      borderRadius: 10,
+    } }}>
     <div className="pub" style={width ? ({ '--pub-width': `${width}px` } as CSSProperties) : undefined}>
       <header className="pub-header">
         <div className="pub-container pub-header-inner">
@@ -94,6 +103,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
       )}
       <BackToTop />
     </div>
+    </ConfigProvider>
   );
 }
 

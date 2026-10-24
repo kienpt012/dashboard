@@ -9,6 +9,7 @@ import {
   PrinterOutlined,
   RedoOutlined,
   SendOutlined,
+  SearchOutlined,
   StarFilled,
 } from '@ant-design/icons';
 import { Alert, App, Button, Card, Checkbox, Col, Empty, Form, Grid, Input, Modal, Radio, Rate, Result, Row, Select, Skeleton, Space, Steps, Tabs, Tag, Upload, type UploadFile } from 'antd';
@@ -196,8 +197,8 @@ function Receipt({ created, onTrack, onAgain }: { created: Created; onTrack: () 
           </strong>
         </div>
       </div>
-      <Alert type="warning" showIcon title="Lưu biên nhận để tra cứu hồ sơ." className="fbp-gap" />
-      {created.fileError && <Alert type="error" showIcon title="Chưa gửi được tệp minh chứng" description={`${created.fileError}. Có thể bổ sung khi tra cứu hồ sơ.`} className="fbp-gap" />}
+      <Alert type="warning" showIcon title="Hãy lưu biên nhận trước khi rời trang" description="Bạn cần cả mã phản ánh và mã bảo mật để xem kết quả. Giữ riêng mã bảo mật, không chia sẻ công khai." className="fbp-gap" />
+      {created.fileError && <Alert type="error" showIcon title="Chưa gửi được tệp minh chứng" description={`${created.fileError}. Có thể bổ sung khi tra cứu phản ánh.`} className="fbp-gap" />}
       {!created.fileError && created.fileCount ? <Alert type="success" showIcon title={`Đã nhận ${created.fileCount} tệp minh chứng`} className="fbp-gap" /> : null}
       <div className="fbp-receipt-actions">
         <Button type="primary" icon={<FileSearchOutlined />} onClick={onTrack}>
@@ -291,14 +292,14 @@ function SubmitTab({ receipt: created, onCreated, onAgain, onTrack }: {
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={16}>
         <Form form={form} layout="vertical" requiredMark="optional" onFinish={values => void submit(values)} initialValues={{ preferredContact: 'PHONE' }} scrollToFirstError={{ block: 'center' }}>
-          <Card title="Nội dung phản ánh" className="fbp-gap">
+          <Card title={<span className="fbp-step-title"><b>1</b> Nội dung phản ánh</span>} className="fbp-gap">
             <Form.Item name="category" label="Lĩnh vực" rules={[{ required: true, message: 'Chọn lĩnh vực' }]}>
               <Select options={options(FEEDBACK_CATEGORY)} placeholder="Chọn lĩnh vực" />
             </Form.Item>
-            <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, whitespace: true, message: 'Nhập tiêu đề' }, { min: 8, transform: (value?: string) => value?.trim(), message: 'Tiêu đề cần ít nhất 8 ký tự' }]}>
-              <Input maxLength={200} showCount placeholder="Ví dụ: Đèn chiếu sáng hẻm 12 đường Nguyễn Trãi bị hỏng" />
+            <Form.Item name="title" label="Tiêu đề" extra="Ví dụ: Đèn chiếu sáng hẻm 12 đường Nguyễn Trãi bị hỏng." rules={[{ required: true, whitespace: true, message: 'Nhập tiêu đề' }, { min: 8, transform: (value?: string) => value?.trim(), message: 'Tiêu đề cần ít nhất 8 ký tự' }]}>
+              <Input maxLength={200} showCount placeholder="Tóm tắt vấn đề cần phản ánh" />
             </Form.Item>
-            <Form.Item name="content" label="Nội dung" rules={[{ required: true, whitespace: true, message: 'Nhập nội dung' }, { min: 20, transform: (value?: string) => value?.trim(), message: 'Nội dung cần ít nhất 20 ký tự' }]}>
+            <Form.Item name="content" label="Nội dung" extra="Mô tả sự việc, thời gian xảy ra và mức độ ảnh hưởng để đơn vị xử lý có đủ thông tin." rules={[{ required: true, whitespace: true, message: 'Nhập nội dung' }, { min: 20, transform: (value?: string) => value?.trim(), message: 'Nội dung cần ít nhất 20 ký tự' }]}>
               <Input.TextArea autoSize={{ minRows: 5, maxRows: 14 }} maxLength={5000} showCount placeholder="Sự việc, thời gian, mức độ ảnh hưởng" />
             </Form.Item>
             <Form.Item name="address" label="Địa điểm">
@@ -320,14 +321,14 @@ function SubmitTab({ receipt: created, onCreated, onAgain, onTrack }: {
               </Upload.Dragger>
             </Form.Item>
           </Card>
-          <Card title="Thông tin liên hệ" className="fbp-gap">
+          <Card title={<span className="fbp-step-title"><b>2</b> Thông tin liên hệ</span>} className="fbp-gap">
             <div className="fbp-grid">
               <Form.Item name="submitterName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: 'Nhập họ và tên' }, { min: 2, transform: (value?: string) => value?.trim(), message: 'Họ tên quá ngắn' }]}>
                 <Input maxLength={160} autoComplete="name" />
               </Form.Item>
               <Form.Item
                 name="submitterPhone"
-                label="Số điện thoại"
+                label="Số điện thoại liên hệ"
                 rules={[{ required: true, message: 'Nhập số điện thoại' }, { pattern: /^(?=(?:\D*\d){9,15}\D*$)\+?[0-9().\-\s]+$/, transform: (value?: string) => value?.trim(), message: 'Số điện thoại có 9–15 chữ số' }]}
               >
                 <Input maxLength={20} inputMode="tel" autoComplete="tel" />
@@ -345,7 +346,7 @@ function SubmitTab({ receipt: created, onCreated, onAgain, onTrack }: {
               </Form.Item>
             </div>
           </Card>
-          <Card className="fbp-gap">
+          <Card title={<span className="fbp-step-title"><b>3</b> Xác nhận và gửi</span>} className="fbp-gap">
             <Form.Item name="scopeConfirmed" valuePropName="checked" rules={[{ validator: (_, value) => (value ? Promise.resolve() : Promise.reject(new Error('Cần xác nhận'))) }]} style={{ marginBottom: 8 }}>
               <Checkbox>Nội dung không phải khiếu nại, tố cáo</Checkbox>
             </Form.Item>
@@ -378,7 +379,7 @@ function SubmitTab({ receipt: created, onCreated, onAgain, onTrack }: {
             <ul className="fbp-notes">
               <li>Kênh này không tiếp nhận khiếu nại, tố cáo.</li>
               <li>Thông tin cá nhân không được công khai.</li>
-              <li>Tra cứu hồ sơ bằng mã phản ánh và mã bảo mật.</li>
+              <li>Tra cứu phản ánh bằng mã phản ánh và mã bảo mật.</li>
             </ul>
           </Card>
         </div>
@@ -533,7 +534,10 @@ function TrackDetail({ item, credentials, showSecret, onUpdate, onReload, onRese
             showIcon
             className="fbp-gap"
             title="Đơn vị xử lý đề nghị bổ sung thông tin"
-            description={item.citizenResponseDueAt ? `Hạn bổ sung: ${dateTime(item.citizenResponseDueAt)}` : undefined}
+            description={<>
+              {item.citizenResponseDueAt && <div>Hạn bổ sung: {dateTime(item.citizenResponseDueAt)}</div>}
+              <a href="#feedback-conversation">Xem trao đổi và gửi thông tin bổ sung →</a>
+            </>}
           />
         )}
 
@@ -549,7 +553,7 @@ function TrackDetail({ item, credentials, showSecret, onUpdate, onReload, onRese
         </Card>
 
         {(thread.length > 0 || canMessage) && (
-          <Card title="Trao đổi" className="fbp-gap">
+          <Card id="feedback-conversation" title="Trao đổi" className="fbp-gap">
             {thread.length > 0 ? <MessageThread messages={thread} selfLabel="Bạn" /> : null}
             {canMessage && (
               <div className="fbp-composer">
@@ -649,7 +653,10 @@ function TrackDetail({ item, credentials, showSecret, onUpdate, onReload, onRese
       <Col xs={24} lg={8}>
         <div className="fbp-aside">
           <Card title="Quá trình xử lý">
-            <EventTimeline events={item.events} />
+            <details className="fbp-history">
+              <summary>Xem các mốc xử lý ({item.events.length})</summary>
+              <EventTimeline events={item.events} />
+            </details>
           </Card>
           <Card>
             <div className="fbp-cta">
@@ -662,7 +669,7 @@ function TrackDetail({ item, credentials, showSecret, onUpdate, onReload, onRese
                 Tải lại hồ sơ
               </Button>
               <Button block type="text" icon={<FileSearchOutlined />} disabled={Boolean(busy)} onClick={onReset}>
-                Tra cứu hồ sơ khác
+                Tra cứu phản ánh khác
               </Button>
             </div>
           </Card>
@@ -753,16 +760,17 @@ function TrackTab({ initial, onChange, showSecret }: { initial: Credentials | nu
   return (
     <Row justify="center">
       <Col xs={24} md={16} lg={10}>
-        <Card title="Tra cứu hồ sơ phản ánh">
+        <Card title="Tra cứu phản ánh">
+          <p className="fbp-intro">Nhập mã phản ánh và mã bảo mật trên biên nhận bạn nhận được sau khi gửi phản ánh.</p>
           {busy && initial?.secret && !error ? (
             <Skeleton active paragraph={{ rows: 3 }} />
           ) : (
             <Form form={form} layout="vertical" onFinish={values => void load(values)} requiredMark={false}>
               <Form.Item name="code" label="Mã phản ánh" rules={[{ required: true, whitespace: true, message: 'Nhập mã phản ánh' }, { min: 8, message: 'Mã phản ánh chưa đúng' }]}>
-                <Input maxLength={30} autoComplete="off" className="fbp-mono" placeholder="PA-2026-…" />
+                <Input maxLength={30} autoComplete="off" autoCapitalize="characters" spellCheck={false} className="fbp-mono" placeholder="PA-2026-…" />
               </Form.Item>
               <Form.Item name="secret" label="Mã bảo mật" rules={[{ required: true, whitespace: true, message: 'Nhập mã bảo mật' }, { min: 20, message: 'Mã bảo mật chưa đủ ký tự' }]}>
-                <Input.Password maxLength={64} autoComplete="off" className="fbp-mono" />
+                <Input.Password maxLength={64} autoComplete="off" spellCheck={false} className="fbp-mono" placeholder="Nhập hoặc dán mã bảo mật" />
               </Form.Item>
               {error && <Alert type="error" showIcon title={error} className="fbp-gap" />}
               <Button type="primary" htmlType="submit" icon={<FileSearchOutlined />} loading={busy} block size="large">
@@ -780,16 +788,31 @@ function TrackTab({ initial, onChange, showSecret }: { initial: Credentials | nu
 
 function PublishedTab() {
   const list = useApi<PublishedFeedback[]>('/public/feedbacks/published');
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<FeedbackCategory>();
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLocaleLowerCase('vi').trim();
+  const query = normalize(search);
+  const filtered = (list.data ?? []).filter(item =>
+    (!category || item.category === category) &&
+    normalize([item.publicTitle, item.publicSummary, item.code, item.department?.name].filter(Boolean).join(' ')).includes(query),
+  );
   if (list.isLoading) return <Skeleton active paragraph={{ rows: 6 }} />;
   if (list.error) return <Result status="warning" title="Chưa tải được danh sách" subTitle={errorText(list.error)} extra={<Button onClick={() => void list.refetch()}>Thử lại</Button>} />;
   if (!list.data?.length) return <Empty description="Chưa có kết quả được công khai" />;
   return (
+    <>
+    <div className="fbp-filters">
+      <Input aria-label="Tìm kết quả công khai" prefix={<SearchOutlined />} placeholder="Tìm theo nội dung, mã phản ánh, đơn vị…" allowClear value={search} onChange={event => setSearch(event.target.value)} />
+      <Select aria-label="Lọc theo lĩnh vực" placeholder="Tất cả lĩnh vực" allowClear options={options(FEEDBACK_CATEGORY)} value={category} onChange={setCategory} />
+    </div>
+    <p className="fbp-intro" role="status">{filtered.length} kết quả trong danh sách công khai</p>
     <div className="fbp-published">
-      {list.data.map(item => (
+      {filtered.map(item => (
         <Link key={item.code} to={`/phan-anh/cong-khai/${encodeURIComponent(item.code)}`} className="fbp-pub-card">
           <span className="fbp-sub">{[item.category ? FEEDBACK_CATEGORY[item.category] : null, item.department?.name].filter(Boolean).join(' · ')}</span>
           <strong>{item.publicTitle || 'Kết quả xử lý phản ánh'}</strong>
-          {item.publicSummary && <span className="fbp-clamp">{item.publicSummary}</span>}
+          {item.publicSummary && <span className="fbp-clamp"><span className="fbp-result-label">Tóm tắt phản ánh</span>{item.publicSummary}</span>}
+          <span className="fbp-read-result">Xem kết quả xử lý →</span>
           <span className="fbp-sub fbp-pub-foot">
             <span className="fbp-mono">{item.code}</span>
             <span>Công khai {date(item.publicPublishedAt)}</span>
@@ -797,6 +820,8 @@ function PublishedTab() {
         </Link>
       ))}
     </div>
+    {!filtered.length && <Empty description="Không có kết quả phù hợp"><Button onClick={() => { setSearch(''); setCategory(undefined); }}>Xóa bộ lọc</Button></Empty>}
+    </>
   );
 }
 
@@ -804,7 +829,7 @@ function PublishedTab() {
 
 const TABS = [
   { key: 'gui', label: 'Gửi phản ánh', short: 'Gửi phản ánh', icon: <FormOutlined /> },
-  { key: 'tra-cuu', label: 'Tra cứu hồ sơ', short: 'Tra cứu', icon: <FileSearchOutlined /> },
+  { key: 'tra-cuu', label: 'Tra cứu phản ánh', short: 'Tra cứu', icon: <FileSearchOutlined /> },
   { key: 'cong-khai', label: 'Kết quả đã công khai', short: 'Đã công khai', icon: <CheckCircleFilled /> },
 ];
 
@@ -827,6 +852,7 @@ export default function FeedbackPublic() {
       <section className="fbp-band">
         <div className="pub-container">
           <h1>Phản ánh, kiến nghị</h1>
+          <p className="fbp-band-description">Gửi ý kiến, theo dõi tiến độ và xem kết quả xử lý tại địa phương.</p>
           <Tabs
             activeKey={tab}
             onChange={open}
