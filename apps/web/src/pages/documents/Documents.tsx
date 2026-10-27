@@ -13,13 +13,7 @@ import { errorText, http, query, saveBlob } from '@/lib/api';
 import { currentYear, date, dateTime, fileSize, fromNow, num } from '@/lib/format';
 import { ADMINS, can, WORKING } from '@/lib/roles';
 import { documentTypeLabels, type DocumentStatus, type DocumentType, type SourceDocument } from '@/types/core';
-
-export const DOC_STATUS: Record<DocumentStatus, { label: string; badge: 'default' | 'processing' | 'success' | 'error' }> = {
-  UPLOADED: { label: 'Chờ xử lý', badge: 'default' },
-  PROCESSING: { label: 'Đang xử lý', badge: 'processing' },
-  PROCESSED: { label: 'Đã xử lý', badge: 'success' },
-  FAILED: { label: 'Lỗi xử lý', badge: 'error' },
-};
+import { DOC_STATUS } from './labels';
 
 const ACCEPT = '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp';
 const MAX = 25 * 1024 * 1024;

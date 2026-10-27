@@ -15,7 +15,7 @@ import { frequencyLabel } from '@/lib/periods';
 import { can, WORKING } from '@/lib/roles';
 import { documentTypeLabels, type DocumentTextResponse, type IndicatorCandidate, type SourceDocumentDetail } from '@/types/core';
 import { ApproveModal, ProposalForm, type Proposal } from '../proposals/Proposals';
-import { DOC_STATUS } from './Documents';
+import { DOC_STATUS } from './labels';
 import { LegalBasis } from '@/components/LegalBasis';
 import { LazyPdfViewer } from '@/components/pdf/LazyPdfViewer';
 import type { Box } from '@/components/pdf/PdfViewer';

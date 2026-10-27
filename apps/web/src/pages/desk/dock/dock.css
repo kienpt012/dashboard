@@ -1,0 +1,290 @@
+/* Dock lối tắt: thanh kính nổi ở đáy hoặc cạnh vùng bàn làm việc; biểu tượng lớn dần theo con trỏ (đổi kích thước thật
+   nên các biểu tượng bên cạnh dạt ra như dock macOS). */
+
+.dock {
+  --dock-icon: 42px;
+  position: fixed;
+  z-index: 28;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 7px 9px;
+  border: 1px solid var(--desk-border);
+  border-radius: 20px;
+  background: var(--desk-surface-strong);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: 0 22px 44px -22px rgba(2, 6, 23, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s, bottom 0.25s;
+}
+
+.dock.bottom {
+  bottom: 14px;
+  left: calc(var(--desk-left) + var(--desk-w) / 2);
+  max-width: calc(var(--desk-w) - 32px);
+  transform: translateX(-50%);
+}
+
+.dock.left,
+.dock.right {
+  top: 50%;
+  flex-direction: column;
+  max-height: calc(100vh - 140px);
+}
+
+.dock.left {
+  left: calc(var(--desk-left) + 12px);
+  align-items: flex-start;
+  transform: translateY(-50%);
+}
+
+.dock.right {
+  left: calc(var(--desk-left) + var(--desk-w) - 12px);
+  align-items: flex-end;
+  transform: translate(-100%, -50%);
+}
+
+.dock.bottom.tucked {
+  opacity: 0;
+  transform: translate(-50%, calc(100% + 24px));
+}
+
+.dock.left.tucked {
+  opacity: 0;
+  transform: translate(calc(-100% - 24px), -50%);
+}
+
+.dock.right.tucked {
+  opacity: 0;
+  transform: translate(24px, -50%);
+}
+
+/* Khi tùy biến, thanh công cụ nằm ở đáy: dock nhích lên */
+.dock.bottom.is-editing {
+  bottom: 84px;
+}
+
+.dock-item {
+  --tile-size: calc(var(--dock-icon) * var(--scale, 1));
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.dock .lt {
+  padding: 2px;
+  border-radius: 14px;
+}
+
+.dock .lt:hover {
+  background: transparent;
+}
+
+.dock .lt-icon {
+  transition: width 0.14s ease-out, height 0.14s ease-out, border-radius 0.14s ease-out, transform 0.15s;
+}
+
+.dock .lt:hover .lt-icon {
+  transform: none;
+}
+
+.dock .lt-external {
+  top: 0;
+}
+
+.dock .lt-count {
+  top: -4px;
+}
+
+.dock.is-editing .dock-item {
+  cursor: grab;
+}
+
+.dock.is-editing .dock-item .lt-icon {
+  animation: dock-wiggle 0.9s ease-in-out infinite;
+}
+
+.dock.is-editing .dock-item:nth-child(even) .lt-icon {
+  animation-delay: -0.45s;
+}
+
+@keyframes dock-wiggle {
+  0%,
+  100% {
+    transform: rotate(-1.4deg);
+  }
+
+  50% {
+    transform: rotate(1.4deg);
+  }
+}
+
+.dock-item.drop-before::before,
+.dock-item.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--desk-accent);
+}
+
+.dock-item.drop-before::before {
+  left: -4px;
+}
+
+.dock-item.drop-after::after {
+  right: -4px;
+}
+
+.dock.left .dock-item.drop-before::before,
+.dock.right .dock-item.drop-before::before,
+.dock.left .dock-item.drop-after::after,
+.dock.right .dock-item.drop-after::after {
+  top: auto;
+  bottom: auto;
+  left: 4px;
+  right: 4px;
+  width: auto;
+  height: 3px;
+}
+
+.dock.left .dock-item.drop-before::before,
+.dock.right .dock-item.drop-before::before {
+  top: -4px;
+}
+
+.dock.left .dock-item.drop-after::after,
+.dock.right .dock-item.drop-after::after {
+  bottom: -4px;
+}
+
+.dock-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #dc2626;
+  box-shadow: 0 0 0 2px var(--desk-surface-strong);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.dock-sep {
+  align-self: stretch;
+  width: 1px;
+  margin: 6px 3px;
+  background: var(--ioc-color-split);
+}
+
+.dock.left .dock-sep,
+.dock.right .dock-sep {
+  width: auto;
+  height: 1px;
+  margin: 3px 6px;
+}
+
+.dock-add {
+  display: grid;
+  place-items: center;
+  width: var(--dock-icon);
+  height: var(--dock-icon);
+  margin: 2px;
+  border: 1.5px dashed var(--ioc-color-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.dock-add:hover:not(:disabled),
+.dock-add:focus-visible {
+  border-color: var(--desk-accent);
+  color: var(--desk-accent);
+}
+
+.dock-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dock-hint {
+  align-self: center;
+  padding: 0 8px;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Điện thoại: thanh đáy năm ô */
+.dock.mobile {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  justify-content: space-around;
+  align-items: center;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-width: 1px 0 0;
+  border-radius: 18px 18px 0 0;
+  transform: none;
+}
+
+.dock.mobile .lt {
+  flex: 1;
+  padding: 4px 2px;
+}
+
+.dock.mobile .dock-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.dock.mobile .dock-badge {
+  top: 0;
+  right: calc(50% - 26px);
+}
+
+.dock-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 6px;
+}
+
+.dock-sheet-grid .dock-add {
+  justify-self: center;
+  width: 46px;
+  height: 46px;
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock,
+  .dock .lt-icon {
+    transition: none;
+  }
+
+  .dock.is-editing .dock-item .lt-icon {
+    animation: none;
+  }
+}
+
+/* Chừa lề cho vùng widget khi dock đứng cạnh */
+@media (min-width: 761px) {
+  .desk.dock-left .desk-body {
+    padding-left: 84px;
+  }
+
+  .desk.dock-right .desk-body {
+    padding-right: 84px;
+  }
+}

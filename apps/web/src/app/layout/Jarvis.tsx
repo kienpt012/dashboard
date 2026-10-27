@@ -157,6 +157,8 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
 export type JarvisHandle = {
   /** Gọi Jarvis: mở khung, hiệu ứng HUD, lời chào; gọi bằng giọng nói thì nghe tiếp câu lệnh. */
   summon: (byVoice: boolean) => void;
+  /** Mở khung và hỏi; có sẵn câu trả lời (từ widget Hỏi Jarvis) thì chỉ chuyển sang, không hỏi lại. */
+  ask: (question: string, answer?: CopilotResponse) => void;
 };
 
 export function Jarvis({
@@ -531,7 +533,20 @@ export function Jarvis({
 
   flow.current = { summon: byVoice => void summon(byVoice) };
 
-  useImperativeHandle(ref, () => ({ summon: byVoice => void summon(byVoice) }), [summon]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      summon: byVoice => void summon(byVoice),
+      ask: (question, answer) => {
+        onOpenRef.current();
+        if (!answer) return void send(question);
+        const userId = ++counter.current;
+        const replyId = ++counter.current;
+        setBubbles(list => [...list, { id: userId, role: 'user', text: question }, { id: replyId, role: 'assistant', answer, action: answer.pendingAction ? 'pending' : undefined }]);
+      },
+    }),
+    [summon, send],
+  );
 
   /** Bấm để nói trong khung Jarvis: nghe một câu tiếng Việt rồi gửi. */
   function talk() {

@@ -14,6 +14,7 @@ import {
   FileTextOutlined,
   FundProjectionScreenOutlined,
   GlobalOutlined,
+  HomeOutlined,
   HistoryOutlined,
   InboxOutlined,
   MessageOutlined,
@@ -46,7 +47,8 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Điều hành',
     items: [
-      { path: '/admin', label: 'Trung tâm điều hành', scopedLabel: 'Điều hành của phòng', icon: <DashboardOutlined />, roles: ALL, screen: 'DH-01', keywords: 'tong quan dieu hanh dashboard' },
+      { path: '/admin', label: 'Bàn làm việc', icon: <HomeOutlined />, roles: ALL, screen: 'DH-00', keywords: 'ban lam viec trang chu widget hinh nen loi tat' },
+      { path: '/admin/dieu-hanh', label: 'Trung tâm điều hành', scopedLabel: 'Điều hành của phòng', icon: <DashboardOutlined />, roles: ALL, screen: 'DH-01', keywords: 'tong quan dieu hanh dashboard' },
       { path: '/admin/viec-cua-toi', label: 'Việc của tôi', icon: <InboxOutlined />, roles: ALL, screen: 'DH-02', keywords: 'viec cua toi can lam' },
       { path: '/trinh-chieu', label: 'Trình chiếu', icon: <FundProjectionScreenOutlined />, roles: ALL, screen: 'DH-03', keywords: 'trinh chieu man hinh lon phong hop', standalone: true },
       { path: '/admin/trach-nhiem', label: 'Trách nhiệm', icon: <AuditOutlined />, roles: SUPERVISORS, screen: 'DH-04', keywords: 'trach nhiem cham duyet nguoi dung dau' },
@@ -107,15 +109,7 @@ export function routeInfo(pathname: string, scoped: boolean) {
   }
   const extra = EXTRA.find(entry => path.startsWith(entry.prefix));
   if (extra) return { label: extra.label, screen: extra.screen, group: extra.group, path };
-  return { label: 'Trung tâm điều hành', screen: 'IOC', group: 'Điều hành', path };
+  return { label: 'Bàn làm việc', screen: 'IOC', group: 'Điều hành', path };
 }
 
-/** Bỏ dấu tiếng Việt để tìm kiếm không cần gõ dấu. */
-export function fold(text: string) {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase();
-}
+export { fold } from '@/lib/fold';

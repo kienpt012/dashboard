@@ -34,6 +34,9 @@ import { SourceAnchorController, SourceLocatorService } from './source-anchor';
 import { NotificationsController } from './notifications';
 import { IocController } from './ioc';
 import { BugReportsController } from './bug-reports';
+import { DeskAssetsController } from './desk/assets';
+import { DeskDataController } from './desk/data';
+import { DeskController } from './desk/desk.controller';
 import { AccountabilityWorker } from './accountability-worker';
 import {
   PublicDashboardAdminController,
@@ -83,6 +86,9 @@ import {
     NotificationsController,
     IocController,
     BugReportsController,
+    DeskController,
+    DeskAssetsController,
+    DeskDataController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,

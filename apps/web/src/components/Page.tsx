@@ -2,6 +2,7 @@ import { FilterOutlined } from '@ant-design/icons';
 import { Badge, Breadcrumb, Button, Drawer, Flex, Grid, Typography } from 'antd';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { PinPage } from '@/pages/desk/PinPage';
 
 type Crumb = { label: ReactNode; to?: string };
 
@@ -33,6 +34,7 @@ export function Page({ title, tags, meta, extra, breadcrumb, children, wide }: P
           <Flex align="center" gap={10} wrap>
             <Typography.Title level={1}>{title}</Typography.Title>
             {tags}
+            <PinPage title={typeof title === 'string' ? title : undefined} />
           </Flex>
           {meta && <div className="page-meta">{meta}</div>}
         </div>

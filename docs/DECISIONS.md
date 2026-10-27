@@ -123,3 +123,43 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
   hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
 - **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
+
+## D-015 · 2026-10-27 · Bàn làm việc số: JSON theo đơn vị sửa + bảng cho thứ có vòng đời riêng
+
+- **Phương án**: (a) mỗi người một tài liệu JSON; (b) chuẩn hoá hoàn toàn (mỗi widget một dòng); (c) kết hợp.
+- **Chọn**: (c). `DeskProfile` (giao diện, dock, phím tắt, cảnh báo) và từng `DeskSpace` (widget + bố cục 3 cỡ màn
+  hình) là JSON có `version` riêng; dữ liệu widget hay thay đổi (sổ ghi chú, việc riêng) ở `DeskWidgetState`; ảnh,
+  note, thao tác, kết nối, khoá bí mật, webhook, quy tắc, mẫu có bảng riêng.
+- **Căn cứ**: kéo thả một lần chỉ là một lệnh ghi, hoàn tác/xuất/nhập/mẫu đơn giản như Trang công khai; hai tab sửa hai
+  không gian không đụng nhau; thứ có chủ sở hữu và quyền khác nhau (note của lãnh đạo, khoá bí mật) không nằm chung một
+  tài liệu. Đặc tả: [04-thiet-ke-ban-lam-viec-so.md](requirements/04-thiet-ke-ban-lam-viec-so.md).
+
+## D-016 · 2026-10-27 · Sổ widget ở máy chủ, cài đặt khai báo bằng ngôn ngữ trường nhỏ
+
+- **Chọn**: `desk/catalog.ts` khai báo mọi loại widget (kích thước, vai trò, trường cài đặt). Trình duyệt dựng ô cài đặt
+  từ khai báo và chỉ giữ phần vẽ; máy chủ dùng cùng khai báo để kiểm tra khi lưu.
+- **Căn cứ**: một chỗ sửa; không thể lưu cài đặt sai kiểu hay chèn URL `javascript:`; thêm widget mới chỉ cần khai báo
+  và một thành phần vẽ. Không dùng gói dùng chung giữa `apps/api` và `apps/web` vì Dockerfile đang dựng từng ứng dụng
+  độc lập.
+
+## D-017 · 2026-10-27 · Cập nhật trực tiếp: làm mới định kỳ cho số liệu, SSE có vé dùng một lần cho sự kiện
+
+- **Chọn**: widget số liệu làm mới theo chu kỳ (mặc định 60 giây) với đệm 30 giây phía máy chủ; note, webhook, quy tắc
+  đẩy qua SSE `GET /desk/stream?ticket=` (vé 60 giây, dùng một lần, lấy bằng JWT), dự phòng hỏi `/desk/pulse`.
+- **Căn cứ**: số liệu chỉ tiêu đổi theo ngày, làm mới định kỳ là đủ và đơn giản; note của lãnh đạo cần hiện ngay. Không
+  đưa JWT lên URL (lộ vào nhật ký); một tiến trình API nên bus sự kiện trong bộ nhớ (D-009, D-014).
+
+## D-018 · 2026-10-27 · Kết nối ngoài qua máy chủ, quản trị duyệt tên miền
+
+- **Chọn**: trình duyệt không gọi ra ngoài (CSP `connect-src 'self'` giữ nguyên). Quản trị lập danh sách tên miền được
+  phép (cờ API, nhúng, địa chỉ nội bộ) và kết nối dùng chung; người dùng tự tạo kết nối riêng chỉ tới tên miền trong
+  danh sách. `SafeFetcher` phân giải DNS, chặn địa chỉ nội bộ, kết nối thẳng tới IP đã kiểm tra, tự xử lý chuyển hướng,
+  giới hạn thời gian và dung lượng. Khoá bí mật AES-256-GCM với `DESK_SECRET_KEY`.
+- **Căn cứ**: chủ đầu tư chọn "quản trị duyệt tên miền" — cân bằng giữa tự do và an toàn; khoá bí mật không bao giờ
+  đến trình duyệt; chặn SSRF vào mạng nội bộ UBND.
+
+## D-019 · 2026-10-27 · Bàn làm việc là trang chủ khu vực quản trị
+
+- **Chọn**: `/admin` mở bàn làm việc (DH-00); Trung tâm điều hành chuyển sang `/admin/dieu-hanh` (giữ DH-01), liên kết
+  cũ có `?year=` tự chuyển; mỗi người chọn trang mở đầu.
+- **Căn cứ**: chủ đầu tư chọn; khối của Trung tâm điều hành đều có mặt dưới dạng widget nên không mất gì.

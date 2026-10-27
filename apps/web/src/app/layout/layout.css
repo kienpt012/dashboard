@@ -690,3 +690,50 @@
     animation: none !important;
   }
 }
+
+/* Bàn làm việc: khung kính mờ trên hình nền (hình nền do trang bàn làm việc vẽ, cố định phía sau). */
+.shell.desk-mode {
+  --desk-chrome-bg: rgba(255, 255, 255, 0.76);
+  --desk-chrome-border: rgba(255, 255, 255, 0.45);
+  --desk-chrome-ink: rgba(17, 24, 39, 0.62);
+  background: transparent;
+}
+
+[data-theme='dark'] .shell.desk-mode {
+  --desk-chrome-bg: rgba(14, 17, 24, 0.66);
+  --desk-chrome-border: rgba(255, 255, 255, 0.08);
+  --desk-chrome-ink: rgba(255, 255, 255, 0.6);
+}
+
+.shell.desk-mode .ant-layout {
+  background: transparent;
+}
+
+.shell.desk-mode .shell-sider.ant-layout-sider,
+.shell.desk-mode .shell-header {
+  background: var(--desk-chrome-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+}
+
+.shell.desk-mode .shell-sider {
+  border-inline-end-color: var(--desk-chrome-border);
+}
+
+.shell.desk-mode .shell-header {
+  border-bottom-color: var(--desk-chrome-border);
+}
+
+.shell.desk-mode .screen-strip,
+.shell.desk-mode .screen-strip .code {
+  color: var(--desk-chrome-ink);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .shell.desk-mode .shell-sider.ant-layout-sider,
+  .shell.desk-mode .shell-header {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--ioc-color-bg-container);
+  }
+}

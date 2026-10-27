@@ -1568,3 +1568,22 @@ a.donut-row:hover {
   background: transparent;
   cursor: crosshair;
 }
+
+/* Nút ghim trang vào bàn làm việc, cạnh tiêu đề: mờ cho tới khi rê chuột vào vùng tiêu đề. */
+.pin-page.ant-btn {
+  color: var(--ioc-color-text-quaternary);
+  opacity: 0.55;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.page-head:hover .pin-page.ant-btn,
+.pin-page.ant-btn:focus-visible {
+  opacity: 1;
+  color: var(--ioc-color-primary);
+}
+
+.icon-option {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}

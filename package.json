@@ -16,7 +16,8 @@
     "qa:access": "node scripts/qa-access.mjs",
     "qa:import": "node scripts/qa-import.mjs",
     "qa:documents": "node scripts/qa-documents.mjs",
-    "test": "npm run test -w @ioc/api"
+    "qa:desk": "node scripts/qa-desk.mjs",
+    "test": "npm run test -w @ioc/api && npm run test -w @ioc/web"
   },
   "devDependencies": {"concurrently": "^9.2.1"}
 }
