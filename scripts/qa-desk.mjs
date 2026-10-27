@@ -183,6 +183,32 @@ async function assets(tokens) {
   checks.push('Xoá ảnh xong không còn tải được');
 }
 
+async function departmentData(tokens) {
+  const primary = qaActors.departments.primary.id;
+  const secondary = qaActors.departments.secondary.id;
+  const pack = (await request(`/desk/data/department?departmentId=${primary}&year=2026`, { token: tokens.admin })).data;
+  check('Gói dữ liệu phòng có đủ phần cho widget', pack.department?.id === primary && typeof pack.totals?.targets === 'number' && Array.isArray(pack.deadlines) && Array.isArray(pack.team) && Array.isArray(pack.documents) && pack.feedback?.counts);
+  const overview = (await request(`/ioc/overview?year=2026&departmentId=${primary}`, { token: tokens.admin })).data;
+  check('Số liệu gói phòng khớp Trung tâm điều hành cùng phòng', pack.totals.targets === overview.totals.targets && pack.totals.progress === overview.totals.progress && pack.alerts.length === overview.alerts.length);
+  await request('/desk/data/department?year=2026', { token: tokens.admin, expected: [400] });
+  checks.push('Vai trò toàn địa phương phải chọn phòng');
+  const own = (await request('/desk/data/department?year=2026', { token: tokens.staff })).data;
+  check('Chuyên viên không truyền phòng thì xem phòng mình', own.department.id === primary);
+  await request(`/desk/data/department?departmentId=${secondary}&year=2026`, { token: tokens.staff, expected: [403] });
+  checks.push('Chuyên viên không xem được gói dữ liệu phòng khác');
+  const foreign = await prisma.target.findFirst({ where: { departmentId: secondary, year: 2026, isArchived: false }, select: { id: true } });
+  const mine = await prisma.target.findFirst({ where: { departmentId: primary, year: 2026, isArchived: false }, select: { id: true } });
+  if (foreign && mine) {
+    const series = (await request(`/desk/data/series?ids=${foreign.id},${mine.id}&year=2026`, { token: tokens.staff })).data;
+    check('Chuỗi số liệu bỏ chỉ tiêu phòng khác', series.targets.length === 1 && series.targets[0].id === mine.id);
+  }
+  await request('/desk/data/series?ids=a,b,c,d,e,f,g', { token: tokens.staff, expected: [400] });
+  checks.push('Chuỗi số liệu tối đa 6 chỉ tiêu');
+  const list = (await request('/desk/data/targets?year=2026', { token: tokens.staff })).data;
+  const departments = await prisma.target.findMany({ where: { id: { in: list.map(item => item.id) } }, select: { departmentId: true } });
+  check('Danh sách chọn chỉ tiêu chỉ trong phòng mình', list.length > 0 && departments.every(item => item.departmentId === primary));
+}
+
 async function runSuite() {
   qaActors = await createQaActors(prisma, 'desk');
   const [admin, manager, staff] = await Promise.all([
@@ -194,6 +220,7 @@ async function runSuite() {
   await profileAndSpaces(tokens);
   await widgetState(tokens);
   await assets(tokens);
+  await departmentData(tokens);
 }
 
 let failure = null;

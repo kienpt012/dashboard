@@ -35,6 +35,7 @@ import { NotificationsController } from './notifications';
 import { IocController } from './ioc';
 import { BugReportsController } from './bug-reports';
 import { DeskAssetsController } from './desk/assets';
+import { DeskDataController } from './desk/data';
 import { DeskController } from './desk/desk.controller';
 import { AccountabilityWorker } from './accountability-worker';
 import {
@@ -87,6 +88,7 @@ import {
     BugReportsController,
     DeskController,
     DeskAssetsController,
+    DeskDataController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,
