@@ -292,6 +292,9 @@ model User {
   notifications           Notification[]
   explanationRequests     ExplanationRequest[]     @relation("ExplanationRequester")
   bugReports              BugReport[]
+  deskProfile             DeskProfile?
+  deskWidgetStates        DeskWidgetState[]
+  deskAssets              DeskAsset[]
 }
 
 model PasswordResetChallenge {
@@ -1172,4 +1175,68 @@ model BugReport {
   createdAt      DateTime        @default(now())
 
   @@index([status, createdAt])
+}
+
+// Bàn làm việc số: cấu hình cá nhân chia theo đơn vị sửa (hồ sơ, từng không gian), mỗi phần một số phiên bản để hai
+// tab hay hai máy sửa cùng lúc không ghi đè nhau. Xem docs/requirements/04-thiet-ke-ban-lam-viec-so.md.
+model DeskProfile {
+  userId          String      @id
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // DeskProfileConfig: giao diện, hình nền, dock, trang mở đầu, phím tắt, cảnh báo.
+  config          Json
+  version         Int         @default(1)
+  templateId      String?
+  templateVersion Int?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  spaces          DeskSpace[]
+}
+
+model DeskSpace {
+  id        String      @id @default(cuid())
+  userId    String
+  profile   DeskProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  name      String      @db.VarChar(40)
+  icon      String      @db.VarChar(40)
+  position  Int
+  // DeskSpaceConfig: widget, bố cục ba cỡ màn hình, hình nền riêng, phòng đang xem.
+  config    Json
+  version   Int         @default(1)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId, position])
+}
+
+// Dữ liệu hay thay đổi của widget cá nhân (sổ ghi chú, việc riêng…) tách khỏi bố cục để gõ chữ không làm tăng phiên bản không gian.
+model DeskWidgetState {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  widgetId  String   @db.VarChar(64)
+  state     Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, widgetId])
+}
+
+// Ảnh nền và ảnh của widget: máy chủ giải mã rồi mã hoá lại WebP nên không còn siêu dữ liệu (EXIF, vị trí GPS).
+model DeskAsset {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Ảnh dùng chung của đơn vị do quản trị đăng, mọi người chọn làm nền được.
+  isShared  Boolean  @default(false)
+  name      String   @db.VarChar(120)
+  mimeType  String   @db.VarChar(40)
+  width     Int
+  height    Int
+  sizeBytes Int
+  sha256    String   @db.VarChar(64)
+  bytes     Bytes
+  thumb     Bytes
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, createdAt])
+  @@index([isShared])
 }
