@@ -1,4 +1,5 @@
 import type { CurrentUser } from '@/types/auth';
+import { clearDataCache } from './deskDataCache';
 
 // Lớp gọi API: một chỗ gắn token, đổi lỗi máy chủ thành thông báo tiếng Việt, tự đăng xuất khi phiên hết hạn.
 
@@ -57,6 +58,7 @@ export const session = {
   clear() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    clearDataCache(localStorage);
     cachedUser = null;
     listeners.forEach(listener => listener());
   },

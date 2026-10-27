@@ -257,3 +257,16 @@ export interface TargetOption {
   status: TargetStatusKey;
   progress: number;
 }
+
+/** Một dòng của widget "Chỉ tiêu theo dõi" (GET /desk/data/targets). */
+export interface WatchTarget extends TargetOption {
+  unit: string;
+  kind: string;
+  currentValue: number;
+  targetValue: number;
+  targetText: string | null;
+  dueDate: string;
+  assigneeName: string | null;
+}
+
+export type WatchMode = 'manual' | 'mine' | 'risk' | 'overdue';

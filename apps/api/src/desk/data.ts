@@ -114,6 +114,40 @@ export function buildTeam(snap: IocSnapshot, members: { id: string; fullName: st
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.fullName.localeCompare(b.fullName, 'vi'));
 }
 
+export type WatchMode = 'mine' | 'risk' | 'overdue';
+export const WATCH_MODES: WatchMode[] = ['mine', 'risk', 'overdue'];
+
+interface WatchCandidate {
+  code: string;
+  assigneeId: string | null;
+  kind: FrameworkKind;
+  status: TargetStatus;
+  progress: number;
+  dueDate: Date;
+  isLeaf: boolean;
+}
+
+/** Việc gấp lên trước: quá hạn, có nguy cơ, chưa bắt đầu, đúng tiến độ, đã xong. */
+const URGENCY: Record<TargetStatus, number> = { OVERDUE: 0, AT_RISK: 1, NOT_STARTED: 2, ON_TRACK: 3, COMPLETED: 4 };
+
+const byDue = (a: WatchCandidate, b: WatchCandidate) => a.dueDate.getTime() - b.dueDate.getTime() || a.code.localeCompare(b.code);
+
+/**
+ * Chỉ tiêu cho widget "Chỉ tiêu theo dõi" ở chế độ tự động: tôi phụ trách (việc gấp trước), tiến độ thấp nhất (bỏ
+ * thống kê, đã xong, chỉ tiêu cha — cha đã cộng từ con), quá hạn (quá hạn lâu nhất trước).
+ */
+export function pickWatchlist<T extends WatchCandidate>(items: T[], mode: WatchMode, actorId: string, take: number): T[] {
+  const list =
+    mode === 'mine'
+      ? items.filter(item => item.assigneeId === actorId).sort((a, b) => URGENCY[a.status] - URGENCY[b.status] || byDue(a, b))
+      : mode === 'risk'
+        ? items
+            .filter(item => item.isLeaf && item.kind !== FrameworkKind.STAT && item.status !== TargetStatus.COMPLETED)
+            .sort((a, b) => a.progress - b.progress || byDue(a, b))
+        : items.filter(item => item.status === TargetStatus.OVERDUE).sort(byDue);
+  return list.slice(0, take);
+}
+
 const OPEN_FEEDBACK: FeedbackStatus[] = [
   FeedbackStatus.RECEIVED, FeedbackStatus.ASSIGNED, FeedbackStatus.IN_PROGRESS, FeedbackStatus.PENDING_REVIEW,
   FeedbackStatus.REOPENED, FeedbackStatus.WAITING_CITIZEN,
@@ -237,14 +271,29 @@ export class DeskDataController {
     };
   }
 
-  /** Chọn chỉ tiêu trong ô cài đặt: tìm theo phòng/từ khoá, hoặc tra tên các chỉ tiêu đã chọn (`ids`). */
+  /**
+   * Danh sách chỉ tiêu: tìm theo phòng/từ khoá (ô cài đặt), tra theo `ids` (giữ thứ tự đã chọn), hoặc tự chọn theo
+   * `mode` cho widget theo dõi (mine | risk | overdue, tối đa `take` dòng).
+   */
   @Get('targets')
-  async targets(@Req() req: any, @Query('departmentId') departmentIdRaw?: string, @Query('search') searchRaw?: string, @Query('year') yearRaw?: string, @Query('ids') idsRaw?: string) {
+  async targets(
+    @Req() req: any,
+    @Query('departmentId') departmentIdRaw?: string,
+    @Query('search') searchRaw?: string,
+    @Query('year') yearRaw?: string,
+    @Query('ids') idsRaw?: string,
+    @Query('mode') modeRaw?: string,
+    @Query('take') takeRaw?: string,
+  ) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
     const ids = idsRaw ? parseIds(idsRaw, 50) : null;
+    const mode = modeRaw ? (WATCH_MODES.includes(modeRaw as WatchMode) ? (modeRaw as WatchMode) : null) : undefined;
+    if (mode === null) throw new BadRequestException('Chế độ lấy chỉ tiêu không hợp lệ');
+    const take = takeRaw === undefined ? 8 : Number(takeRaw);
+    if (!Number.isInteger(take) || take < 1 || take > 20) throw new BadRequestException('Số dòng không hợp lệ');
     const departmentId = ids ? (isGlobalRole(actor.role) ? undefined : actor.departmentId ?? '__none__') : resolveDepartmentScope(actor, departmentIdRaw);
-    const search = searchRaw?.trim().slice(0, 100);
+    const search = mode ? undefined : searchRaw?.trim().slice(0, 100);
     const [setting, targets] = await Promise.all([
       this.prisma.systemSetting.findUnique({ where: { id: 'default' } }),
       this.prisma.target.findMany({
@@ -253,20 +302,27 @@ export class DeskDataController {
           : {
               year, isArchived: false,
               ...(departmentId ? { departmentId } : {}),
+              ...(mode === 'mine' ? { assigneeId: actor.id } : {}),
               ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' as const } }, { code: { contains: search, mode: 'insensitive' as const } }] } : {}),
             },
         orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-        take: 50,
-        include: { department: { select: { name: true } } },
+        take: mode ? 2000 : 50,
+        include: { department: { select: { name: true } }, assignee: { select: { fullName: true } }, _count: { select: { children: true } } },
       }),
     ]);
     const now = new Date();
-    return targets.map(target => {
+    const rows = targets.map(target => {
       const metric = evaluateTarget({
         targetValue: target.targetValue, currentValue: target.currentValue, direction: target.direction, dueDate: target.dueDate,
         riskThreshold: setting?.riskThreshold ?? 70, hasReport: Boolean(target.lastReportedAt), kind: target.kind, now,
       });
-      return { id: target.id, code: target.code, title: target.title, departmentName: target.department.name, status: metric.status, progress: metric.progress };
+      return {
+        id: target.id, code: target.code, title: target.title, departmentName: target.department.name, status: metric.status, progress: metric.progress,
+        unit: target.unit, kind: target.kind, currentValue: target.currentValue, targetValue: target.targetValue, targetText: target.targetText,
+        dueDate: target.dueDate, assigneeId: target.assigneeId, assigneeName: target.assignee?.fullName ?? null, isLeaf: target._count.children === 0,
+      };
     });
+    const picked = mode ? pickWatchlist(rows, mode, actor.id, take) : ids ? ids.flatMap(id => rows.filter(row => row.id === id)) : rows;
+    return picked.map(({ assigneeId: _assigneeId, isLeaf: _isLeaf, ...row }) => row);
   }
 }

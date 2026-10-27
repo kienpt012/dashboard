@@ -1,0 +1,962 @@
+/* Nội dung widget. Thân widget là vùng chứa (container) nên bố cục tự đổi theo cỡ widget, không theo cỡ màn hình. */
+
+.dw-body {
+  container: dw / size;
+}
+
+/* Lời nhắn trạng thái: chưa chọn phòng, trống, lỗi */
+.wn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  min-height: 72px;
+  padding: 8px 12px;
+  text-align: center;
+  color: var(--ioc-color-text-secondary);
+  font-size: 13px;
+}
+
+.wn-icon {
+  font-size: 20px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.wn-ok .wn-icon {
+  color: var(--ioc-color-success);
+}
+
+.wn-warn .wn-icon {
+  color: var(--ioc-color-warning);
+}
+
+.dw-plain .wn,
+.dw-plain .wn-icon {
+  color: var(--desk-ink-soft);
+}
+
+.ws-stale {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px auto 0;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ioc-color-warning-bg);
+  color: var(--ioc-color-warning-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Danh sách */
+.wl {
+  display: flex;
+  flex-direction: column;
+}
+
+.wr {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.wr + .wr,
+.dws-event + .dws-event,
+.dws-watch + .dws-watch,
+.dws-framework + .dws-framework {
+  border-top: 1px solid var(--ioc-color-split);
+}
+
+.wr.compact {
+  align-items: center;
+  padding: 5px 0;
+}
+
+.wr-tone {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 3px;
+  min-height: 18px;
+  border-radius: 2px;
+  background: var(--ioc-color-border);
+}
+
+.wr-tone.critical {
+  background: #dc2626;
+}
+
+.wr-tone.warning {
+  background: #e08a00;
+}
+
+.wr-tone.info {
+  background: #2f6fed;
+}
+
+.wr-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wr-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ioc-color-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+a.wr-title:hover,
+a:hover > .wr-title,
+a:hover > * > .wr-title {
+  color: var(--ioc-color-primary);
+}
+
+.wr-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wr-trail {
+  flex-shrink: 0;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wr-kind {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--ioc-color-fill-tertiary);
+  font-size: 11px;
+}
+
+.wmore {
+  padding-top: 6px;
+  font-size: 12px;
+}
+
+.wmore button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ioc-color-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Tình trạng chỉ tiêu: vòng tròn + chú giải; hẹp thì xếp dọc */
+.dws-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+}
+
+.dws-donut {
+  position: relative;
+  flex-shrink: 0;
+  width: min(44cqw, 92cqh, 220px);
+  aspect-ratio: 1;
+}
+
+.dws-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dws-donut-center strong {
+  font-size: clamp(16px, 9cqw, 26px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.dws-donut-center span {
+  color: var(--ioc-color-text-tertiary);
+  font-size: 11px;
+}
+
+.dws-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dws-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--ioc-color-text);
+  font-size: 12.5px;
+}
+
+.dws-legend-row:hover {
+  background: var(--ioc-color-fill-tertiary);
+  color: var(--ioc-color-text);
+}
+
+.dws-legend-row > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.dws-legend-row i {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dws-legend-row b {
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-legend-row.zero {
+  opacity: 0.55;
+}
+
+.dws-legend-row.total {
+  margin-top: 4px;
+  padding-top: 7px;
+  border-top: 1px solid var(--ioc-color-split);
+  border-radius: 0 0 6px 6px;
+  color: var(--ioc-color-text-secondary);
+}
+
+@container dw (max-width: 300px) {
+  .dws-status {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dws-donut {
+    width: min(60cqw, 50cqh, 200px);
+  }
+
+  .dws-legend {
+    width: 100%;
+  }
+}
+
+/* Việc cần xử lý: tám ô số — 2, 4 hoặc 8 ô một hàng theo bề rộng widget để lưới luôn đều */
+.dws-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@container dw (min-width: 440px) {
+  .dws-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container dw (min-width: 1000px) {
+  .dws-tiles {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+.dws-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 11px;
+  border-radius: max(6px, calc(var(--desk-radius) - 6px));
+  background: var(--ioc-color-fill-quaternary);
+  color: var(--ioc-color-text);
+  transition: background 0.15s;
+}
+
+a.dws-tile:hover {
+  background: var(--ioc-color-fill-tertiary);
+  color: var(--ioc-color-text);
+}
+
+.dws-tile-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12px;
+}
+
+.dws-tile-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dws-tile-value {
+  flex-shrink: 0;
+  font-size: 21px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.dws-tile-value small {
+  color: var(--ioc-color-text-tertiary);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.dws-tile-foot {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 11px;
+}
+
+/* Dải cảnh báo chạy chữ */
+.dw-type-dept-ticker .dw-body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dws-ticker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.dws-ticker.calm {
+  color: var(--ioc-color-text-secondary);
+}
+
+.dws-ticker.calm .anticon {
+  color: var(--ioc-color-success);
+}
+
+.dws-ticker-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-ticker-window {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
+.dws-ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: dws-ticker var(--ticker-duration, 30s) linear infinite;
+}
+
+.dws-ticker:hover .dws-ticker-track,
+.dws-ticker:focus-within .dws-ticker-track {
+  animation-play-state: paused;
+}
+
+.dws-ticker-run {
+  display: inline-flex;
+  gap: 32px;
+  padding-right: 32px;
+}
+
+.dws-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.dws-ticker-item a {
+  color: inherit;
+}
+
+.dws-ticker-item a:hover {
+  color: var(--ioc-color-primary);
+}
+
+.dws-ticker-item i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f6fed;
+}
+
+.dws-ticker-item.critical i {
+  background: #dc2626;
+}
+
+.dws-ticker-item.warning i {
+  background: #e08a00;
+}
+
+.dws-ticker-item b {
+  font-weight: 600;
+}
+
+@keyframes dws-ticker {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dws-ticker-track {
+    animation: none;
+  }
+
+  .dws-ticker-window {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .dws-ticker-run[aria-hidden] {
+    display: none;
+  }
+}
+
+/* Hoạt động gần đây */
+.dws-event {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.dws-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--dw-accent) 14%, transparent);
+  color: var(--dw-accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.dws-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dws-event-body > span:first-child {
+  color: var(--ioc-color-text-secondary);
+}
+
+.dws-event-body b {
+  color: var(--ioc-color-text);
+  font-weight: 600;
+}
+
+.dws-event-body a {
+  color: var(--ioc-color-text);
+}
+
+.dws-event-body a:hover {
+  color: var(--ioc-color-primary);
+}
+
+.dws-avatar.system {
+  background: var(--ioc-color-fill-secondary);
+  color: var(--ioc-color-text-secondary);
+  font-size: 13px;
+}
+
+/* Hạn sắp tới */
+.dws-deadlines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dws-dgroup h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dws-dgroup h4 span {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ioc-color-fill-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-dgroup.overdue h4 {
+  color: var(--ioc-color-error);
+}
+
+.dws-dgroup.today h4 {
+  color: var(--ioc-color-warning);
+}
+
+.dws-deadline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 0;
+  color: inherit;
+}
+
+.dws-deadline-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--dw-accent) 12%, transparent);
+  color: var(--dw-accent);
+}
+
+.dws-dgroup.overdue .dws-deadline-icon {
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  color: #dc2626;
+}
+
+.dws-deadline-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dws-deadline-when {
+  flex-shrink: 0;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-dgroup.overdue .dws-deadline-when {
+  color: var(--ioc-color-error);
+}
+
+/* Bộ chỉ tiêu */
+.dws-framework {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 0;
+  color: inherit;
+}
+
+.dws-framework-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dws-framework-head b {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nhân sự trong phòng */
+.dws-team {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.dws-team-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px 62px 58px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 0;
+  border-top: 1px solid var(--ioc-color-split);
+}
+
+.dws-team-row > span:not(:first-child) {
+  text-align: right;
+}
+
+.dws-team-row.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 0;
+  border-top: 0;
+  background: inherit;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 11.5px;
+}
+
+.dws-team-person {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.dws-team-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dws-team-name b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+@container dw (max-width: 340px) {
+  .dws-team-row {
+    grid-template-columns: minmax(0, 1fr) 40px 44px 44px;
+  }
+}
+
+/* Phản ánh */
+.dws-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.dws-chips .ant-tag {
+  margin: 0;
+}
+
+/* Thẻ chỉ tiêu */
+.dws-kpi {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 6px;
+  height: 100%;
+  color: inherit;
+}
+
+.dws-kpi:hover {
+  color: inherit;
+}
+
+.dws-kpi-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.dws-kpi:hover .dws-kpi-title .clamp-2 {
+  color: var(--ioc-color-primary);
+}
+
+.dws-kpi-code {
+  color: var(--ioc-color-text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-kpi-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 0;
+}
+
+.dws-kpi-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.dws-kpi-value strong {
+  font-size: clamp(22px, 13cqw, 40px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.dws-kpi-value span {
+  color: var(--ioc-color-text-secondary);
+  font-size: 12px;
+}
+
+.dws-kpi .ant-progress-text {
+  font-size: 12px !important;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-kpi-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dws-kpi-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dws-kpi-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dws-kpi-trend {
+  display: block;
+  height: 36px;
+  margin: 0 calc(-1 * var(--desk-pad)) calc(-1 * var(--desk-pad));
+}
+
+.dws-kpi.large .dws-kpi-trend {
+  height: 140px;
+}
+
+@container dw (max-height: 150px) {
+  .dws-kpi-trend {
+    display: none;
+  }
+}
+
+/* Chỉ tiêu theo dõi */
+.dws-watch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  color: inherit;
+}
+
+.dws-watch-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dws-watch-pct {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dws-watch-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ioc-color-fill-secondary);
+}
+
+.dws-watch-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* Biểu đồ chỉ tiêu */
+.dws-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+}
+
+.dws-chart > div:first-child {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Việc của tôi */
+.dws-work {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dws-work-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 2px;
+  color: var(--ioc-color-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.dws-work-head:hover {
+  color: var(--ioc-color-primary);
+}
+
+.dws-work-empty {
+  display: block;
+  padding: 4px 0;
+}
+
+/* Thông báo */
+.dws-notifs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dws-notifs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12px;
+}
+
+.dws-notif {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dws-notif:hover {
+  background: var(--ioc-color-fill-tertiary);
+}
+
+.dws-notif.unread::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dw-accent);
+}
+
+.dws-notif.unread .wr-title {
+  font-weight: 650;
+}
+
+.dws-notif-body {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12.5px;
+}
+
+/* Văn bản mới */
+.dws-doc-status {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ioc-color-fill-tertiary);
+  font-size: 11px;
+}
+
+.dws-doc-status.processed {
+  background: color-mix(in srgb, #16a34a 14%, transparent);
+  color: #15803d;
+}
+
+.dws-doc-status.failed {
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+  color: #b91c1c;
+}
+
+.dws-doc-status.processing {
+  background: color-mix(in srgb, #2f6fed 14%, transparent);
+  color: #1d4ed8;
+}
+
+[data-theme='dark'] .dws-doc-status.processed {
+  color: #4ade80;
+}
+
+[data-theme='dark'] .dws-doc-status.failed {
+  color: #f87171;
+}
+
+[data-theme='dark'] .dws-doc-status.processing {
+  color: #93b4ff;
+}

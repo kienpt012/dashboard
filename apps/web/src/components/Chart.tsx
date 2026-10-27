@@ -19,38 +19,52 @@ export function chartColors(dark: boolean) {
   };
 }
 
+function apply(instance: echarts.ECharts, option: ChartOption, dark: boolean) {
+  const colors = chartColors(dark);
+  instance.setOption(
+    {
+      textStyle: { fontFamily: "'Be Vietnam Pro', system-ui, sans-serif", color: colors.text },
+      tooltip: { backgroundColor: colors.bg, borderColor: colors.line, textStyle: { color: colors.text, fontSize: 12 }, confine: true },
+      animationDuration: 400,
+      ...option,
+    },
+    true,
+  );
+}
+
 export function Chart({ option, height = 240, style, onClick }: { option: ChartOption; height?: number; style?: CSSProperties; onClick?: (params: { name?: string; seriesName?: string; dataIndex?: number; data?: unknown }) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const { dark } = useThemeMode();
   const clickRef = useRef(onClick);
   clickRef.current = onClick;
+  const latest = useRef({ option, dark });
+  latest.current = { option, dark };
 
   useEffect(() => {
-    if (!ref.current) return;
-    const instance = echarts.init(ref.current, undefined, { renderer: 'svg' });
-    chart.current = instance;
-    instance.on('click', params => clickRef.current?.(params as never));
-    const observer = new ResizeObserver(() => instance.resize());
-    observer.observe(ref.current);
+    const element = ref.current;
+    if (!element) return;
+    // Chỉ khởi tạo khi khung đã có kích thước (biểu đồ nằm trong thẻ đang ẩn, widget đang thu gọn…), rồi vẽ ngay
+    // tuỳ chọn mới nhất.
+    const start = () => {
+      if (chart.current || !element.clientWidth || !element.clientHeight) return;
+      const instance = echarts.init(element, undefined, { renderer: 'svg' });
+      chart.current = instance;
+      instance.on('click', params => clickRef.current?.(params as never));
+      apply(instance, latest.current.option, latest.current.dark);
+    };
+    const observer = new ResizeObserver(() => (chart.current ? chart.current.resize() : start()));
+    observer.observe(element);
+    start();
     return () => {
       observer.disconnect();
-      instance.dispose();
+      chart.current?.dispose();
       chart.current = null;
     };
   }, []);
 
   useEffect(() => {
-    const colors = chartColors(dark);
-    chart.current?.setOption(
-      {
-        textStyle: { fontFamily: "'Be Vietnam Pro', system-ui, sans-serif", color: colors.text },
-        tooltip: { backgroundColor: colors.bg, borderColor: colors.line, textStyle: { color: colors.text, fontSize: 12 }, confine: true },
-        animationDuration: 400,
-        ...option,
-      },
-      true,
-    );
+    if (chart.current) apply(chart.current, option, dark);
   }, [option, dark]);
 
   return <div ref={ref} style={{ height, width: '100%', cursor: onClick ? 'pointer' : undefined, ...style }} />;

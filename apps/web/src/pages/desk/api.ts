@@ -58,4 +58,5 @@ export const deskApi = {
   seriesPath: (ids: string[], year: number) => `/desk/data/series${query({ ids: ids.join(','), year })}`,
   targetsPath: (departmentId: string | null, search: string, year: number) => `/desk/data/targets${query({ departmentId, search, year })}`,
   targetsByIdsPath: (ids: string[]) => `/desk/data/targets${query({ ids: ids.join(',') })}`,
+  watchPath: (mode: 'mine' | 'risk' | 'overdue', departmentId: string | null, year: number, take: number) => `/desk/data/targets${query({ mode, departmentId, year, take })}`,
 };

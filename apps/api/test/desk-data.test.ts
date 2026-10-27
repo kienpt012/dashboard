@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { FrameworkKind, Role, TargetFrequency, TargetStatus, ValueSource } from '@prisma/client';
-import { buildDeadlines, buildTeam, TtlCache } from '../src/desk/data';
+import { buildDeadlines, buildTeam, pickWatchlist, TtlCache } from '../src/desk/data';
 import type { IocSnapshot } from '../src/ioc';
 
 const DAY = 86_400_000;
@@ -125,4 +125,66 @@ test('bộ đệm: hết hạn sau thời gian sống, bỏ mục cũ nhất khi
   } finally {
     Date.now = realNow;
   }
+});
+
+function watch(id: string, partial: { assigneeId?: string | null; kind?: FrameworkKind; status?: TargetStatus; progress?: number; dueDate?: string; isLeaf?: boolean } = {}) {
+  return {
+    id,
+    code: id.toUpperCase(),
+    assigneeId: partial.assigneeId ?? null,
+    kind: partial.kind ?? FrameworkKind.PLAN,
+    status: partial.status ?? TargetStatus.ON_TRACK,
+    progress: partial.progress ?? 50,
+    dueDate: new Date(partial.dueDate ?? '2026-12-31T00:00:00Z'),
+    isLeaf: partial.isLeaf ?? true,
+  };
+}
+
+test('chỉ tiêu theo dõi — của tôi: chỉ chỉ tiêu tôi phụ trách, việc gấp (quá hạn, nguy cơ) lên đầu rồi theo hạn', () => {
+  const list = pickWatchlist(
+    [
+      watch('a', { assigneeId: 'me', status: TargetStatus.ON_TRACK, dueDate: '2026-11-01T00:00:00Z' }),
+      watch('b', { assigneeId: 'other', status: TargetStatus.OVERDUE }),
+      watch('c', { assigneeId: 'me', status: TargetStatus.OVERDUE }),
+      watch('d', { assigneeId: 'me', status: TargetStatus.AT_RISK }),
+      watch('e', { assigneeId: 'me', status: TargetStatus.ON_TRACK, dueDate: '2026-10-20T00:00:00Z' }),
+      watch('f', { assigneeId: 'me', status: TargetStatus.COMPLETED }),
+    ],
+    'mine',
+    'me',
+    10,
+  );
+  assert.deepEqual(list.map(entry => entry.id), ['c', 'd', 'e', 'a', 'f']);
+});
+
+test('chỉ tiêu theo dõi — tiến độ thấp nhất: bỏ chỉ tiêu thống kê, đã hoàn thành và chỉ tiêu cha; lấy đủ số dòng', () => {
+  const list = pickWatchlist(
+    [
+      watch('a', { progress: 80 }),
+      watch('b', { progress: 10 }),
+      watch('stat', { kind: FrameworkKind.STAT, progress: 0 }),
+      watch('done', { status: TargetStatus.COMPLETED, progress: 0 }),
+      watch('parent', { progress: 1, isLeaf: false }),
+      watch('c', { progress: 10, dueDate: '2026-06-30T00:00:00Z' }),
+      watch('d', { progress: 40 }),
+    ],
+    'risk',
+    'me',
+    3,
+  );
+  assert.deepEqual(list.map(entry => entry.id), ['c', 'b', 'd']);
+});
+
+test('chỉ tiêu theo dõi — quá hạn: chỉ chỉ tiêu quá hạn, quá hạn lâu nhất trước', () => {
+  const list = pickWatchlist(
+    [
+      watch('a', { status: TargetStatus.OVERDUE, dueDate: '2026-09-30T00:00:00Z' }),
+      watch('b', { status: TargetStatus.AT_RISK }),
+      watch('c', { status: TargetStatus.OVERDUE, dueDate: '2026-06-30T00:00:00Z' }),
+    ],
+    'overdue',
+    'me',
+    10,
+  );
+  assert.deepEqual(list.map(entry => entry.id), ['c', 'a']);
 });

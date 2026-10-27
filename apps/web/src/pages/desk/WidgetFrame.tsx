@@ -53,7 +53,7 @@ const HEADERLESS = new Set(['hero', 'dept.ticker']);
 export interface WidgetFrameProps {
   widget: WidgetInstance;
   def: WidgetDefinition | undefined;
-  context: Omit<WidgetContextValue, 'widget' | 'def'>;
+  context: Omit<WidgetContextValue, 'widget' | 'def' | 'openSettings'>;
   spaces: { id: string; name: string }[];
   onSettings: () => void;
   onRemove: () => void;
@@ -67,7 +67,7 @@ export interface WidgetFrameProps {
 export function WidgetFrame({ widget, def, context, spaces, onSettings, onRemove, onDuplicate, onMove, onMaximize, onClose, onNudge }: WidgetFrameProps) {
   const client = useQueryClient();
   const { editing, maximized } = context;
-  const value = useMemo<WidgetContextValue | null>(() => (def ? { ...context, widget, def } : null), [context, widget, def]);
+  const value = useMemo<WidgetContextValue | null>(() => (def ? { ...context, widget, def, openSettings: onSettings } : null), [context, widget, def, onSettings]);
 
   if (!def || !value) {
     return (

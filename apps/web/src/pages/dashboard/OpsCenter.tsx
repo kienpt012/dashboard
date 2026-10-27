@@ -12,38 +12,10 @@ import { NoData, PageSkeleton, Query } from '@/components/States';
 import { LegalBasis } from '@/components/LegalBasis';
 import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
 import { useApi } from '@/hooks/useApi';
-import { currentYear, date, dateTime, fromNow, num, pct } from '@/lib/format';
+import { ALERT_KINDS, alertLink, alertWhen, DETAIL_KINDS } from '@/lib/alerts';
+import { currentYear, dateTime, fromNow, num, pct } from '@/lib/format';
 import { APPROVERS, can, FRAMEWORK_EDITORS, SUPERVISORS } from '@/lib/roles';
-import type { AlertItem, Overview, OverviewDepartment, TargetStatusKey } from '@/types/domain';
-
-const ALERT_KINDS: Record<string, string> = {
-  STALLED: 'Bị treo',
-  MISSING_REPORT: 'Thiếu báo cáo',
-  AT_RISK: 'Nguy cơ không đạt',
-  OVERDUE: 'Quá hạn',
-  UNASSIGNED: 'Chưa giao',
-  PROPOSAL_PENDING: 'Đề xuất chờ duyệt',
-  REPORT_PENDING: 'Báo cáo chờ duyệt',
-  EXPLANATION_OVERDUE: 'Giải trình quá hạn',
-};
-
-/** Chỉ các loại cảnh báo này có detail là tên chỉ tiêu/nội dung; loại khác detail là câu giải thích của máy chủ. */
-const DETAIL_KINDS = new Set(['OVERDUE', 'AT_RISK', 'MISSING_REPORT', 'EXPLANATION_OVERDUE', 'STALLED']);
-
-function alertLink(alert: AlertItem, departments: OverviewDepartment[]) {
-  if (alert.targetId) return `/admin/targets/${alert.targetId}`;
-  if (alert.candidateId) return `/admin/proposals?id=${encodeURIComponent(alert.candidateId)}`;
-  if (alert.kind === 'UNASSIGNED') {
-    const id = departments.find(item => item.name === alert.departmentName)?.id;
-    return `/admin/targets?assignee=none${id ? `&departmentId=${id}` : ''}`;
-  }
-  return undefined;
-}
-
-function alertWhen(alert: AlertItem) {
-  if (!alert.at) return '';
-  return alert.kind === 'OVERDUE' || alert.kind === 'EXPLANATION_OVERDUE' ? `Hạn ${date(alert.at)}` : fromNow(alert.at);
-}
+import type { Overview, OverviewDepartment, TargetStatusKey } from '@/types/domain';
 
 function StatusDonut({ data }: { data: Overview }) {
   const navigate = useNavigate();
@@ -324,7 +296,7 @@ function Alerts({ data }: { data: Overview }) {
       {list.length ? (
         <ScrollBox className="fill" bodyClassName="feed">
           {list.map((alert, index) => {
-            const to = alertLink(alert, data.departments);
+            const to = alertLink(alert, data.departments.find(item => item.name === alert.departmentName)?.id);
             return (
               <div className="feed-item" key={`${alert.kind}-${alert.targetId ?? alert.candidateId ?? index}`}>
                 <i className={`sev ${alert.severity}`} />

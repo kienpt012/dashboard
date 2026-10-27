@@ -16,6 +16,8 @@ export interface WidgetContextValue {
   editing: boolean;
   /** Đổi cài đặt widget (tự lưu, hoàn tác được). */
   setSettings: (patch: Record<string, unknown>, coalesce?: string) => void;
+  /** Mở ngăn cài đặt của widget (widget chưa cấu hình mời người dùng chọn). */
+  openSettings: () => void;
 }
 
 export const WidgetContext = createContext<WidgetContextValue | null>(null);

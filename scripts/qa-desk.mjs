@@ -211,6 +211,34 @@ async function departmentData(tokens) {
     const byIds = (await request(`/desk/data/targets?ids=${mine.id},${foreign.id}`, { token: tokens.staff })).data;
     check('Tra tên chỉ tiêu theo mã chỉ trả chỉ tiêu được xem', byIds.length === 1 && byIds[0].id === mine.id && typeof byIds[0].title === 'string');
   }
+  const two = await prisma.target.findMany({ where: { departmentId: primary, year: 2026, isArchived: false }, select: { id: true }, orderBy: { code: 'asc' }, take: 2 });
+  if (two.length === 2) {
+    const ordered = (await request(`/desk/data/targets?ids=${two[1].id},${two[0].id}`, { token: tokens.staff })).data;
+    check('Tra theo mã giữ đúng thứ tự đã chọn', ordered.map(item => item.id).join() === `${two[1].id},${two[0].id}`);
+  }
+  // Widget "Chỉ tiêu theo dõi" ở chế độ tự động
+  if (mine) {
+    const before = await prisma.target.findUnique({ where: { id: mine.id }, select: { assigneeId: true } });
+    await prisma.target.update({ where: { id: mine.id }, data: { assigneeId: qaActors.staff.id } });
+    try {
+      const assigned = (await request('/desk/data/targets?year=2026&mode=mine', { token: tokens.staff })).data;
+      check('Theo dõi "tôi phụ trách" trả đúng chỉ tiêu được giao', assigned.length === 1 && assigned[0].id === mine.id && assigned[0].assigneeName === qaActors.staff.fullName);
+    } finally {
+      await prisma.target.update({ where: { id: mine.id }, data: { assigneeId: before?.assigneeId ?? null } });
+    }
+  }
+  const risk = (await request(`/desk/data/targets?year=2026&mode=risk&take=3&departmentId=${primary}`, { token: tokens.admin })).data;
+  check(
+    'Theo dõi "tiến độ thấp nhất" bỏ thống kê và đã xong, tăng dần, đủ số dòng',
+    risk.length <= 3 && risk.every((item, index) => item.kind !== 'STAT' && item.status !== 'COMPLETED' && (index === 0 || risk[index - 1].progress <= item.progress)),
+    JSON.stringify(risk.map(item => [item.code, item.kind, item.status, item.progress])),
+  );
+  const overdue = (await request('/desk/data/targets?year=2026&mode=overdue&take=20', { token: tokens.staff })).data;
+  const overdueDepartments = await prisma.target.findMany({ where: { id: { in: overdue.map(item => item.id) } }, select: { departmentId: true } });
+  check('Theo dõi "quá hạn" chỉ có chỉ tiêu quá hạn của phòng mình', overdue.every(item => item.status === 'OVERDUE') && overdueDepartments.every(item => item.departmentId === primary));
+  await request('/desk/data/targets?mode=lung-tung', { token: tokens.staff, expected: [400] });
+  await request('/desk/data/targets?mode=risk&take=0', { token: tokens.staff, expected: [400] });
+  checks.push('Chế độ hoặc số dòng sai bị từ chối');
 }
 
 async function runSuite() {
