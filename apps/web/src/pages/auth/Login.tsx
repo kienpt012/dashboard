@@ -28,7 +28,16 @@ export default function Login() {
     try {
       const data = await http.post<{ accessToken: string; user: CurrentUser }>('/auth/login', { username: values.username.trim(), password: values.password });
       session.set(data.accessToken, data.user);
-      navigate(safeNext(params.get('next')), { replace: true });
+      const next = safeNext(params.get('next'));
+      // Về trang chủ sau đăng nhập: bàn làm việc sẽ chuyển tới "trang mở đầu" người dùng đã chọn.
+      if (next === '/admin') {
+        try {
+          sessionStorage.setItem('ioc_fresh_login', '1');
+        } catch {
+          /* trình duyệt chặn lưu trữ — ở lại bàn làm việc */
+        }
+      }
+      navigate(next, { replace: true });
     } catch (reason) {
       setError(errorText(reason, 'Không đăng nhập được'));
     } finally {

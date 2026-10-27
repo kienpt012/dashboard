@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useParams } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useParams, useSearchParams } from 'react-router-dom';
 import { Loading, PageSkeleton } from '@/components/States';
 import { ADMINS, ALL, APPROVERS, IMPORTERS, SUPERVISORS } from '@/lib/roles';
 import type { Role } from '@/types/auth';
@@ -10,6 +10,7 @@ const Login = lazy(() => import('@/pages/auth/Login'));
 const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'));
 
 const pages = {
+  Desk: lazy(() => import('@/pages/desk/Desk')),
   OpsCenter: lazy(() => import('@/pages/dashboard/OpsCenter')),
   MyWork: lazy(() => import('@/pages/work/MyWork')),
   Wallboard: lazy(() => import('@/pages/wallboard/Wallboard')),
@@ -65,6 +66,13 @@ function DossierRoute() {
   );
 }
 
+/** Trang chủ khu quản trị là bàn làm việc; liên kết cũ của Trung tâm điều hành (/admin?year=…) chuyển đúng chỗ. */
+function HomeRoute() {
+  const [params] = useSearchParams();
+  if (params.has('year')) return <Navigate to={`/admin/dieu-hanh?${params.toString()}`} replace />;
+  return guarded(pages.Desk);
+}
+
 const router = createBrowserRouter([
   {
     element: <Standalone />,
@@ -95,7 +103,8 @@ const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: guarded(pages.OpsCenter) },
+      { index: true, element: <HomeRoute /> },
+      { path: 'dieu-hanh', element: guarded(pages.OpsCenter) },
       { path: 'viec-cua-toi', element: guarded(pages.MyWork) },
       { path: 'trach-nhiem', element: guarded(pages.Accountability, SUPERVISORS) },
       { path: 'bo-chi-tieu', element: guarded(pages.Frameworks) },

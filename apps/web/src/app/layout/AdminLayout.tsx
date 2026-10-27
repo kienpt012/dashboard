@@ -21,6 +21,7 @@ import { useApi } from '@/hooks/useApi';
 import { session } from '@/lib/api';
 import { dateTime } from '@/lib/format';
 import { APPROVERS, can, initials, isGlobal, roleLabel } from '@/lib/roles';
+import { LauncherButton } from '@/pages/desk/LauncherButton';
 import { navGroups, routeInfo } from '../nav';
 import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
@@ -150,6 +151,8 @@ export default function AdminLayout() {
   copilotRef.current = copilot;
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const info = routeInfo(location.pathname, !isGlobal(user));
+  /** Ở bàn làm việc: thanh bên, thanh trên trong suốt kiểu kính mờ để thấy hình nền. */
+  const deskMode = location.pathname === '/admin';
 
   useEffect(() => {
     setDrawer(false);
@@ -236,7 +239,7 @@ export default function AdminLayout() {
   const siderWidth = collapsed ? 64 : 240;
 
   return (
-    <Layout className="shell" hasSider>
+    <Layout className={`shell${deskMode ? ' desk-mode' : ''}`} hasSider>
       {!mobile && (
         <Layout.Sider width={240} collapsedWidth={64} collapsed={collapsed} trigger={null} className="shell-sider" style={{ position: 'fixed', insetBlock: 0, insetInlineStart: 0 }}>
           <Brand collapsed={collapsed} />
@@ -275,6 +278,7 @@ export default function AdminLayout() {
                 aria-label="Jarvis"
               />
             </Tooltip>
+            <LauncherButton />
             <BugReport />
             <Notifications />
             <Dropdown menu={userMenu} trigger={['click']} placement="bottomRight">

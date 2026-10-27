@@ -1,0 +1,7 @@
+/* Bàn làm việc số: mặt bàn, lưới widget, lớp note, dock. Biến --desk-* do trang đặt theo cài đặt giao diện. */
+
+.desk {
+  position: relative;
+  min-height: calc(100vh - 56px - 80px);
+  padding: 16px 20px 120px;
+}
