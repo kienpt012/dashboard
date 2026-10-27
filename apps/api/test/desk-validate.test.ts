@@ -41,7 +41,7 @@ test('cấu hình hồ sơ rỗng được điền đủ mặc định', () => {
   assert.deepEqual(config.appearance.background, { kind: 'daylight' });
   assert.equal(config.appearance.dim, 25);
   assert.equal(config.appearance.surface, 'glass');
-  assert.equal(config.appearance.surfaceOpacity, 72);
+  assert.equal(config.appearance.surfaceOpacity, 82);
   assert.equal(config.startPage, 'desk');
   assert.equal(config.dock.position, 'bottom');
   assert.equal(config.greeting.show, true);

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Lưới: máy tính ≥ 1200 px → 12 cột; máy tính bảng 768–1199 px → 8 cột; điện thoại < 768 px → 4 cột; hàng cao 36 px; khoảng cách 14 px.
+- Lưới theo bề rộng vùng bàn làm việc (đã trừ thanh bên): ≥ 960 px → 12 cột; 600–959 px → 8 cột; < 600 px → 4 cột; hàng cao 36 px; khoảng cách 14 px.
 - ≤ 12 không gian/người; ≤ 40 widget/không gian; ≤ 40 mục dock; thư mục ≤ 12 mục, không lồng thư mục.
 - JSON hồ sơ ≤ 64 KB; JSON không gian ≤ 256 KB; trạng thái widget ≤ 64 KB.
 - Widget dữ liệu: làm mới mặc định 60 giây, tối thiểu 30 giây, tối đa 3600 giây; máy chủ đệm gói dữ liệu phòng 30 giây.
@@ -103,7 +103,7 @@
 
 - [ ] **Step 1: Viết test lỗi** — `isSafeUrl('javascript:alert(1)') === false`, `isSafeUrl('https://user:pw@a.vn') === false`, `isSafeUrl('https://dichvucong.gov.vn/p/home') === true`; `isInternalPath('/admin/targets?status=OVERDUE') === true`, `isInternalPath('//evil.com') === false`, `isInternalPath('/api/users') === false`; `normalizeProfileConfig({})` trả đủ mặc định (`appearance.dim === 25`, `appearance.surface === 'glass'`, `startPage === 'desk'`, `dock.position === 'bottom'`); `dim: 500` thành `80`; mục dock `{kind:'link', url:'javascript:…'}` bị bỏ; thư mục lồng thư mục bị bỏ phần lồng; nền `slideshow` trong `slideshow` bị loại; `normalizeSpaceConfig` với `STAFF` bỏ widget `dept.team` và giữ `dept.status`; widget `type:'khong-co'` bị bỏ; hai `hero` còn một; cài đặt `dept.alerts.maxItems: 999` thành `40`; `image.link: 'javascript:x'` thành `null`; JSON 300 KB ném `DeskConfigError`.
 - [ ] **Step 2:** Run `npm test -w @ioc/api -- --test-name-pattern="cấu hình|URL|đường dẫn"`. Expected: FAIL.
-- [ ] **Step 3:** Viết `validate.ts`. Mặc định hồ sơ: nền `{kind:'daylight'}`, `dim 25`, `blur 0`, `surface 'glass'`, `surfaceOpacity 72`, `accent null`, `density 'comfortable'`, `fontScale 100`, `radius 14`, `motion 'auto'`; `greeting {show:true, name:null, lunar:true, holidays:true}`; `dock {position:'bottom', autoHide:false, magnify:true, items:[]}`; `startPage 'desk'`; `searchProviders` = Google (`https://www.google.com/search?q={q}`), Thư viện pháp luật (`https://thuvienphapluat.vn/page/tim-van-ban.aspx?keyword={q}`), Cổng Dịch vụ công (`https://dichvucong.gov.vn/p/home/dvc-tim-kiem-thu-tuc-hanh-chinh.html?keyword={q}`).
+- [ ] **Step 3:** Viết `validate.ts`. Mặc định hồ sơ: nền `{kind:'daylight'}`, `dim 25`, `blur 0`, `surface 'glass'`, `surfaceOpacity 82`, `accent null`, `density 'comfortable'`, `fontScale 100`, `radius 14`, `motion 'auto'`; `greeting {show:true, name:null, lunar:true, holidays:true}`; `dock {position:'bottom', autoHide:false, magnify:true, items:[]}`; `startPage 'desk'`; `searchProviders` = Google (`https://www.google.com/search?q={q}`), Thư viện pháp luật (`https://thuvienphapluat.vn/page/tim-van-ban.aspx?keyword={q}`), Cổng Dịch vụ công (`https://dichvucong.gov.vn/p/home/dvc-tim-kiem-thu-tuc-hanh-chinh.html?keyword={q}`).
 - [ ] **Step 4:** Run lại. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(desk): kiểm tra và chuẩn hoá cấu hình bàn làm việc`.
 
@@ -253,7 +253,7 @@
 - Test: `apps/web/src/pages/desk/background/daylight.test.ts`
 
 **Interfaces:**
-- Produces: `PRESETS: { id: PresetId; name: string; tone: 'light' | 'dark'; animated?: boolean; render(): ReactNode }[]` (14 nền mục 5.8, vẽ bằng CSS/SVG); `daylightPhase(date: Date): { id: 'dawn' | 'day' | 'dusk' | 'night'; next: Date }` (bình minh 5:00–7:59, ngày 8:00–16:59, hoàng hôn 17:00–18:59, đêm 19:00–4:59); `<Backdrop background dim blur motion onTone />` (ảnh lỗi/không tìm thấy → nền `daylight`; trình chiếu đổi ảnh có hiệu ứng mờ dần); `<BackgroundPanel />` (ngăn kéo: Bộ sưu tập · Màu và dải màu · Ảnh của tôi · Ảnh của đơn vị · Trình chiếu · Hiệu ứng: mờ, tối, kiểu thẻ, độ đặc, màu nhấn, mật độ, cỡ chữ, bo góc, chuyển động); biến CSS đặt trên gốc bàn làm việc: `--desk-surface`, `--desk-surface-strong`, `--desk-border`, `--desk-blur`, `--desk-radius`, `--desk-accent`, `--desk-ink` (màu chữ trên nền), `--desk-font-scale`.
+- Produces: `PRESETS: { id: PresetId; name: string; tone: 'light' | 'dark'; animated?: boolean; render(): ReactNode }[]` (15 nền mục 5.8, vẽ bằng CSS/SVG); `daylightPhase(date: Date): { id: 'dawn' | 'day' | 'dusk' | 'night'; next: Date }` (bình minh 5:00–7:59, ngày 8:00–16:59, hoàng hôn 17:00–18:59, đêm 19:00–4:59); `<Backdrop background dim blur motion onTone />` (ảnh lỗi/không tìm thấy → nền `daylight`; trình chiếu đổi ảnh có hiệu ứng mờ dần); `<BackgroundPanel />` (ngăn kéo: Bộ sưu tập · Màu và dải màu · Ảnh của tôi · Ảnh của đơn vị · Trình chiếu · Hiệu ứng: mờ, tối, kiểu thẻ, độ đặc, màu nhấn, mật độ, cỡ chữ, bo góc, chuyển động); biến CSS đặt trên gốc bàn làm việc: `--desk-surface`, `--desk-surface-strong`, `--desk-border`, `--desk-blur`, `--desk-radius`, `--desk-accent`, `--desk-ink` (màu chữ trên nền), `--desk-font-scale`.
 - Quyết định: màu kính = trắng 72% (giao diện sáng) / `#121620` 62% (tối) nhân `surfaceOpacity`; khi `motion` là `reduced` hoặc máy bật `prefers-reduced-motion` thì tắt hoạt ảnh; khi `prefers-reduced-transparency` thì bỏ `backdrop-filter`.
 
 - [ ] **Step 1: Viết test lỗi** — `daylightPhase(07:59)` là `dawn`, `daylightPhase(08:00)` là `day`, `daylightPhase(23:00).next` là 5:00 sáng hôm sau.

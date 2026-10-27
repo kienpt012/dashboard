@@ -266,7 +266,7 @@ export function normalizeProfileConfig(input: unknown): DeskProfileConfig {
       dim: clamp(appearance.dim, 0, 80, 25),
       blur: clamp(appearance.blur, 0, 24, 0),
       surface: oneOf(appearance.surface, ['glass', 'solid', 'outline'] as const, 'glass'),
-      surfaceOpacity: clamp(appearance.surfaceOpacity, 40, 100, 72),
+      surfaceOpacity: clamp(appearance.surfaceOpacity, 40, 100, 82),
       accent: color(appearance.accent),
       density: oneOf(appearance.density, ['comfortable', 'compact'] as const, 'comfortable'),
       fontScale: clamp(appearance.fontScale, 90, 125, 100),

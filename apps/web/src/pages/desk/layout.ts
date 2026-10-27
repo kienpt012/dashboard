@@ -9,9 +9,10 @@ export const ROW_HEIGHT = 36;
 export const GAP = 14;
 export const MAX_ROWS_PER_WIDGET = 40;
 
+/** Cỡ lưới theo bề rộng vùng bàn làm việc (đã trừ thanh bên): laptop 1366px có thanh bên vẫn ra bố cục máy tính. */
 export function breakpointOf(width: number): DeskBreakpoint {
-  if (width >= 1200) return 'desktop';
-  if (width >= 768) return 'tablet';
+  if (width >= 960) return 'desktop';
+  if (width >= 600) return 'tablet';
   return 'mobile';
 }
 

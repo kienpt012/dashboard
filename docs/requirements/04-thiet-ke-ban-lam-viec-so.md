@@ -311,7 +311,7 @@ WidgetInstance = {
 LayoutItem = { i: widgetId, x, y, w, h }   // trong biên số cột; w/h ≥ tối thiểu của loại widget
 ```
 
-Lưới: máy tính ≥ 1200 px → 12 cột; máy tính bảng 768–1199 px → 8 cột; điện thoại < 768 px → 4 cột. Hàng cao 36 px,
+Lưới theo bề rộng vùng bàn làm việc (đã trừ thanh bên): ≥ 960 px → 12 cột; 600–959 px → 8 cột; < 600 px → 4 cột. Hàng cao 36 px,
 khoảng cách 14 px. Thêm widget thì máy tính toán vị trí trống cho cả 3 cỡ (xếp gọn theo chiều dọc). Giới hạn JSON
 không gian ≤ 256 KB; ≤ 12 không gian mỗi người.
 

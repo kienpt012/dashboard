@@ -31,9 +31,12 @@ test('bố cục web: chuẩn hoá kẹp vào biên, bỏ mục mồ côi và tr
   assert.deepEqual(result.mobile, [{ i: 'a', x: 0, y: 0, w: 4, h: 4 }]);
 });
 
-test('cỡ màn hình theo bề rộng khung', () => {
-  assert.equal(breakpointOf(1200), 'desktop');
-  assert.equal(breakpointOf(1199), 'tablet');
-  assert.equal(breakpointOf(768), 'tablet');
-  assert.equal(breakpointOf(767), 'mobile');
+test('cỡ lưới theo bề rộng vùng bàn làm việc (đã trừ thanh bên)', () => {
+  assert.equal(breakpointOf(1086), 'desktop', 'laptop 1366px có thanh bên vẫn là bố cục máy tính');
+  assert.equal(breakpointOf(960), 'desktop');
+  assert.equal(breakpointOf(959), 'tablet');
+  assert.equal(breakpointOf(728), 'tablet', 'máy tính bảng dọc 768px');
+  assert.equal(breakpointOf(600), 'tablet');
+  assert.equal(breakpointOf(599), 'mobile');
+  assert.equal(breakpointOf(350), 'mobile');
 });
