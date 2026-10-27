@@ -1,3 +1,4 @@
+import { createCanvas } from '@napi-rs/canvas';
 import { PrismaClient } from '@prisma/client';
 import { cleanupQaActors, createQaActors } from './qa-actors.mjs';
 
@@ -136,6 +137,52 @@ async function widgetState(tokens) {
   checks.push('Trạng thái widget quá 64 KB bị từ chối');
 }
 
+async function pngFile(width, height, name) {
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0ea5e9';
+  ctx.fillRect(0, 0, width, height);
+  const form = new FormData();
+  form.append('file', new Blob([await canvas.encode('png')], { type: 'image/png' }), name);
+  return form;
+}
+
+async function assets(tokens) {
+  const uploaded = (await request('/desk/assets', { method: 'POST', token: tokens.staff, expected: [201], body: await pngFile(3200, 1800, 'Ảnh nền phòng.png') })).data;
+  check('Tải ảnh lên được thu nhỏ về cạnh dài 2560', uploaded.width === 2560 && uploaded.height === 1440, JSON.stringify(uploaded));
+  check('Tên ảnh tiếng Việt giữ đúng, bỏ đuôi tệp', uploaded.name === 'Ảnh nền phòng', uploaded.name);
+  const again = (await request('/desk/assets', { method: 'POST', token: tokens.staff, expected: [201], body: await pngFile(3200, 1800, 'lại.png') })).data;
+  check('Tải lại đúng ảnh cũ không tạo bản trùng', again.id === uploaded.id);
+  const response = await request(`/desk/assets/${uploaded.id}`, { token: tokens.staff, raw: true });
+  const etag = response.headers.get('etag');
+  check('Ảnh trả về WebP kèm ETag', response.headers.get('content-type') === 'image/webp' && Boolean(etag));
+  const cached = await fetch(`${baseUrl}/desk/assets/${uploaded.id}`, { headers: { authorization: `Bearer ${tokens.staff}`, 'if-none-match': etag } });
+  if (cached.status !== 304) throw new Error(`ETag không cho 304: ${cached.status}`);
+  checks.push('Ảnh không đổi trả 304 theo ETag');
+  await request(`/desk/assets/${uploaded.id}`, { token: tokens.manager, raw: true, expected: [404] });
+  checks.push('Người khác không xem được ảnh riêng');
+  await request(`/desk/assets/${uploaded.id}`, { method: 'PATCH', token: tokens.staff, expected: [403], body: { isShared: true } });
+  checks.push('Chuyên viên không đăng được ảnh dùng chung');
+  const bad = new FormData();
+  bad.append('file', new Blob([Buffer.from('%PDF-1.7 không phải ảnh')], { type: 'image/png' }), 'gia-mao.png');
+  await request('/desk/assets', { method: 'POST', token: tokens.staff, expected: [400], body: bad });
+  checks.push('Tệp đội lốt ảnh bị từ chối');
+
+  const adminAsset = (await request('/desk/assets', { method: 'POST', token: tokens.admin, expected: [201], body: await pngFile(1200, 800, 'Toàn cảnh phường.png') })).data;
+  const shared = (await request(`/desk/assets/${adminAsset.id}`, { method: 'PATCH', token: tokens.admin, body: { isShared: true } })).data;
+  check('Quản trị đăng ảnh dùng chung', shared.isShared === true);
+  const list = (await request('/desk/assets', { token: tokens.staff })).data;
+  check('Chuyên viên thấy ảnh dùng chung và ảnh của mình', list.shared.some(item => item.id === adminAsset.id) && list.mine.some(item => item.id === uploaded.id) && list.usedBytes > 0);
+  await request(`/desk/assets/${adminAsset.id}`, { token: tokens.staff, raw: true });
+  checks.push('Chuyên viên tải được ảnh dùng chung');
+  await request(`/desk/assets/${adminAsset.id}`, { method: 'DELETE', token: tokens.staff, expected: [404] });
+  checks.push('Chuyên viên không xoá được ảnh dùng chung');
+  await request(`/desk/assets/${adminAsset.id}`, { method: 'DELETE', token: tokens.admin });
+  await request(`/desk/assets/${uploaded.id}`, { method: 'DELETE', token: tokens.staff });
+  await request(`/desk/assets/${uploaded.id}`, { token: tokens.staff, raw: true, expected: [404] });
+  checks.push('Xoá ảnh xong không còn tải được');
+}
+
 async function runSuite() {
   qaActors = await createQaActors(prisma, 'desk');
   const [admin, manager, staff] = await Promise.all([
@@ -146,6 +193,7 @@ async function runSuite() {
   const tokens = { admin, manager, staff };
   await profileAndSpaces(tokens);
   await widgetState(tokens);
+  await assets(tokens);
 }
 
 let failure = null;
