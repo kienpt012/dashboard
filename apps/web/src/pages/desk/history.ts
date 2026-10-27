@@ -26,6 +26,11 @@ export class History<T> {
     return entry;
   }
 
+  /** Bước gần nhất (để gộp các thay đổi liên tiếp như gõ chữ vào cùng một bước). */
+  peek(): T | undefined {
+    return this.done.at(-1);
+  }
+
   get canUndo(): boolean {
     return this.done.length > 0;
   }

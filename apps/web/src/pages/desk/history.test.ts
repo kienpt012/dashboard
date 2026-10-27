@@ -39,3 +39,13 @@ test('lịch sử thao tác: chỉ giữ 50 bước gần nhất', () => {
   assert.equal(count, 50);
   assert.equal(last, 11);
 });
+
+test('lịch sử thao tác: xem bước gần nhất mà không lấy ra (để gộp các thay đổi liên tiếp)', () => {
+  const history = new History<{ value: number }>(50);
+  assert.equal(history.peek(), undefined);
+  history.push({ value: 1 });
+  const last = history.peek();
+  assert.deepEqual(last, { value: 1 });
+  last!.value = 2;
+  assert.deepEqual(history.undo(), { value: 2 });
+});
