@@ -6,9 +6,10 @@ import { useThemeMode } from '@/app/theme';
 import { PageSkeleton } from '@/components/States';
 import { deskStyle } from './appearance';
 import { Backdrop } from './background/Backdrop';
-import { BackgroundPanel } from './background/BackgroundPanel';
+import { BackgroundPanel, type PanelTab } from './background/BackgroundPanel';
 import type { Tone } from './background/tone';
 import { ConflictDialog, DeskHeader, EditToolbar } from './DeskHeader';
+import { Dock } from './dock/Dock';
 import { DeskGrid, MaximizedWidget } from './DeskGrid';
 import { DeskProvider, useActiveSpace, useDesk } from './useDesk';
 import { WidgetLibrary } from './WidgetLibrary';
@@ -92,6 +93,7 @@ function DeskView() {
   const { dark } = useThemeMode();
   const [tone, setTone] = useState<Tone>('dark');
   const [panel, setPanel] = useState(false);
+  const [panelTab, setPanelTab] = useState<PanelTab>('background');
   const [library, setLibrary] = useState(false);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [settingsSide, setSettingsSide] = useState<'left' | 'right'>('right');
@@ -109,9 +111,10 @@ function DeskView() {
     setSettingsFor(null);
     setLibrary(true);
   }, [desk.store]);
-  const openPanel = useCallback(() => {
+  const openPanel = useCallback((tab: PanelTab = 'background') => {
     setLibrary(false);
     setSettingsFor(null);
+    setPanelTab(tab);
     setPanel(true);
   }, []);
   const closeMaximized = useCallback(() => setMaximized(null), []);
@@ -141,16 +144,19 @@ function DeskView() {
   }
   const appearance = profile.appearance;
   const side = library || panel ? 'right' : settingsFor ? settingsSide : null;
+  // Dock đứng cạnh trái/phải (không tự ẩn): chừa lề để dock không đè lên widget.
+  const dockSide = (profile.dock.position === 'left' || profile.dock.position === 'right') && !profile.dock.autoHide ? ` dock-${profile.dock.position}` : '';
   const view = (
-    <div className={`desk tone-${tone}${appearance.density === 'compact' ? ' desk-compact' : ''}${desk.editing ? ' is-editing' : ''}${side ? ` side-${side}` : ''}`} style={style}>
+    <div className={`desk tone-${tone}${appearance.density === 'compact' ? ' desk-compact' : ''}${desk.editing ? ' is-editing' : ''}${side ? ` side-${side}` : ''}${dockSide}`} style={style}>
       <Backdrop background={space?.config.background ?? appearance.background} dim={appearance.dim} blur={appearance.blur} motion={appearance.motion} onTone={setTone} />
       <div className="desk-body">
-        {space && <DeskHeader space={space} onBackground={openPanel} onLibrary={openLibrary} />}
+        {space && <DeskHeader space={space} onBackground={() => openPanel()} onLibrary={openLibrary} />}
         {space && <DeskGrid space={space} onSettings={openSettings} onMaximize={setMaximized} onOpenLibrary={openLibrary} />}
       </div>
-      <EditToolbar onLibrary={openLibrary} onBackground={openPanel} />
+      <EditToolbar onLibrary={openLibrary} onBackground={() => openPanel()} />
+      <Dock onSettings={() => openPanel('general')} />
       {space && maximized && <MaximizedWidget space={space} widgetId={maximized} onClose={closeMaximized} onSettings={() => openSettings(maximized)} />}
-      <BackgroundPanel open={panel} onClose={() => setPanel(false)} />
+      <BackgroundPanel open={panel} tab={panelTab} onClose={() => setPanel(false)} />
       <ConflictDialog />
       {space && <WidgetLibrary open={library} onClose={() => setLibrary(false)} space={space} onAdded={revealWidget} />}
       {space && <WidgetSettings space={space} widgetId={settingsFor} placement={settingsSide} onClose={() => setSettingsFor(null)} />}

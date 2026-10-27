@@ -1,7 +1,7 @@
 /* Ô lối tắt (widget Lối tắt, dock): biểu tượng bo góc, tên một dòng; web ngoài có dấu mở thẻ mới. */
 
 .lt {
-  --lt-size: 46px;
+  --lt-size: var(--tile-size, 46px);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -30,11 +30,11 @@
 }
 
 .lt-s {
-  --lt-size: 38px;
+  --lt-size: var(--tile-size, 38px);
 }
 
 .lt-l {
-  --lt-size: 58px;
+  --lt-size: var(--tile-size, 58px);
 }
 
 .lt-icon {

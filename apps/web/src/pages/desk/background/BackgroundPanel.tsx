@@ -70,7 +70,9 @@ function Row({ label, children, hint }: { label: string; children: ReactNode; hi
   );
 }
 
-export function BackgroundPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export type PanelTab = 'background' | 'effects' | 'general';
+
+export function BackgroundPanel({ open, onClose, tab = 'background' }: { open: boolean; onClose: () => void; tab?: PanelTab }) {
   const desk = useDesk();
   const space = useActiveSpace();
   const user = useMe();
@@ -403,6 +405,27 @@ export function BackgroundPanel({ open, onClose }: { open: boolean; onClose: () 
           </Flex>
         </Flex>
       </Row>
+      <Row label="Dock lối tắt" hint="Chuột phải một biểu tượng trên dock để sửa, chuyển vào thư mục hoặc gỡ">
+        <Flex vertical gap={10}>
+          <Segmented
+            block
+            value={profile.dock.position}
+            onChange={value => setProfile({ dock: { ...profile.dock, position: value as DeskProfileConfig['dock']['position'] } })}
+            options={[
+              { value: 'bottom', label: 'Dưới' },
+              { value: 'left', label: 'Trái' },
+              { value: 'right', label: 'Phải' },
+              { value: 'hidden', label: 'Ẩn' },
+            ]}
+          />
+          <Flex gap={8} align="center">
+            <Switch size="small" checked={profile.dock.autoHide} disabled={profile.dock.position === 'hidden'} onChange={autoHide => setProfile({ dock: { ...profile.dock, autoHide } })} /> Tự ẩn, hiện khi đưa chuột tới mép
+          </Flex>
+          <Flex gap={8} align="center">
+            <Switch size="small" checked={profile.dock.magnify} disabled={profile.dock.position === 'hidden'} onChange={magnify => setProfile({ dock: { ...profile.dock, magnify } })} /> Phóng to biểu tượng khi rê chuột
+          </Flex>
+        </Flex>
+      </Row>
       <Row label="Trang mở đầu" hint="Trang mở ra ngay sau khi đăng nhập">
         <Radio.Group
           value={profile.startPage}
@@ -425,6 +448,8 @@ export function BackgroundPanel({ open, onClose }: { open: boolean; onClose: () 
   return (
     <Drawer title="Hình nền và giao diện" open={open} onClose={onClose} size={460} className="bgp-drawer" mask={false} destroyOnHidden>
       <Tabs
+        key={tab}
+        defaultActiveKey={tab}
         items={[
           { key: 'background', label: 'Hình nền', children: backgroundTab },
           { key: 'effects', label: 'Hiệu ứng', children: effectsTab },

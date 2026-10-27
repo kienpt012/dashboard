@@ -20,7 +20,7 @@ import { ErrorBoundary, PageSkeleton } from '@/components/States';
 import { useApi } from '@/hooks/useApi';
 import { session } from '@/lib/api';
 import { dateTime } from '@/lib/format';
-import { APPROVERS, can, initials, isGlobal, roleLabel } from '@/lib/roles';
+import { can, initials, isGlobal, roleLabel } from '@/lib/roles';
 import { LauncherButton } from '@/pages/desk/LauncherButton';
 import { navGroups, routeInfo } from '../nav';
 import { BugReport } from './BugReport';
@@ -29,6 +29,7 @@ import { Jarvis, JarvisMark, type JarvisHandle, type JarvisVoiceState } from './
 import { Notifications } from './Notifications';
 import './layout.css';
 import { JARVIS_ASK_EVENT, type JarvisAsk } from './jarvis/ask';
+import { useNavCounts } from './navCounts';
 
 const COLLAPSE_KEY = 'ioc_nav_collapsed';
 
@@ -55,21 +56,11 @@ function Brand({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
-function useCounts() {
-  const user = useMe();
-  const approvals = useApi<unknown[]>(can(user, APPROVERS) ? '/targets/pending-updates' : null, { refetchInterval: 120_000 });
-  const feedback = useApi<{ received?: number; reopenRequested?: number }>('/feedbacks/stats', { refetchInterval: 120_000 });
-  return {
-    '/admin/approvals': approvals.data?.length ?? 0,
-    '/admin/feedback': (feedback.data?.received ?? 0) + (feedback.data?.reopenRequested ?? 0),
-  } as Record<string, number>;
-}
-
 function NavMenu({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const user = useMe();
   const location = useLocation();
   const navigate = useNavigate();
-  const counts = useCounts();
+  const counts = useNavCounts();
   const scoped = !isGlobal(user);
 
   const items = useMemo<MenuProps['items']>(
