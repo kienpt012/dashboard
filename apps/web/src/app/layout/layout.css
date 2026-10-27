@@ -693,14 +693,14 @@
 
 /* Bàn làm việc: khung kính mờ trên hình nền (hình nền do trang bàn làm việc vẽ, cố định phía sau). */
 .shell.desk-mode {
-  --desk-chrome-bg: rgba(255, 255, 255, 0.58);
+  --desk-chrome-bg: rgba(255, 255, 255, 0.76);
   --desk-chrome-border: rgba(255, 255, 255, 0.45);
   --desk-chrome-ink: rgba(17, 24, 39, 0.62);
   background: transparent;
 }
 
 [data-theme='dark'] .shell.desk-mode {
-  --desk-chrome-bg: rgba(14, 17, 24, 0.5);
+  --desk-chrome-bg: rgba(14, 17, 24, 0.66);
   --desk-chrome-border: rgba(255, 255, 255, 0.08);
   --desk-chrome-ink: rgba(255, 255, 255, 0.6);
 }

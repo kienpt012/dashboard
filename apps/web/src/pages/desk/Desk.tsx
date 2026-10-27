@@ -1,8 +1,13 @@
-import { ReloadOutlined } from '@ant-design/icons';
-import { Button, Result } from 'antd';
-import { useEffect, useRef } from 'react';
+import { BgColorsOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, ConfigProvider, Result } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useThemeMode } from '@/app/theme';
 import { PageSkeleton } from '@/components/States';
+import { deskStyle } from './appearance';
+import { Backdrop } from './background/Backdrop';
+import { BackgroundPanel } from './background/BackgroundPanel';
+import type { Tone } from './background/tone';
 import { DeskProvider, useActiveSpace, useDesk } from './useDesk';
 import type { DeskProfileConfig } from './types';
 import './desk.css';
@@ -33,9 +38,16 @@ function useStartPage(profile: DeskProfileConfig | undefined) {
 function DeskView() {
   const desk = useDesk();
   const space = useActiveSpace();
-  useStartPage(desk.profile?.config);
+  const { dark } = useThemeMode();
+  const [tone, setTone] = useState<Tone>('dark');
+  const [panel, setPanel] = useState(false);
+  const profile = desk.profile?.config;
+  useStartPage(profile);
 
-  if (desk.status === 'loading') return <PageSkeleton />;
+  const style = useMemo(() => (profile ? deskStyle(profile.appearance, dark) : undefined), [profile, dark]);
+  const accent = profile?.appearance.accent;
+
+  if (desk.status === 'loading' || !profile) return <PageSkeleton />;
   if (desk.status === 'error') {
     return (
       <Result
@@ -50,18 +62,22 @@ function DeskView() {
       />
     );
   }
-  return (
-    <div className="desk">
+  const appearance = profile.appearance;
+  const view = (
+    <div className={`desk tone-${tone}${appearance.density === 'compact' ? ' desk-compact' : ''}`} style={style}>
+      <Backdrop background={space?.config.background ?? appearance.background} dim={appearance.dim} blur={appearance.blur} motion={appearance.motion} onTone={setTone} />
       <div className="desk-body">
-        <h2>{space?.name}</h2>
-        <ul>
-          {space?.config.widgets.map(widget => (
-            <li key={widget.id}>{desk.store.widgetDef(widget.type)?.title ?? widget.type}</li>
-          ))}
-        </ul>
+        <div className="desk-toolbar">
+          <Button icon={<BgColorsOutlined />} onClick={() => setPanel(true)}>
+            Hình nền và giao diện
+          </Button>
+        </div>
+        <h2 className="desk-temp-title">{space?.name}</h2>
       </div>
+      <BackgroundPanel open={panel} onClose={() => setPanel(false)} />
     </div>
   );
+  return accent ? <ConfigProvider theme={{ token: { colorPrimary: accent, colorInfo: accent } }}>{view}</ConfigProvider> : view;
 }
 
 export default function Desk() {

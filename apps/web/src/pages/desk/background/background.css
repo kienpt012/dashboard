@@ -1,0 +1,212 @@
+/* Hình nền dựng sẵn của bàn làm việc. Mỗi nền phủ kín khung chứa; phần hoạ tiết vẽ bằng SVG trong presets.tsx. */
+
+.bg-preset {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.bg-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.bg-binh-minh {
+  background:
+    radial-gradient(60% 55% at 12% 18%, #ffd9c6 0%, transparent 62%),
+    radial-gradient(55% 55% at 88% 12%, #f8c8db 0%, transparent 60%),
+    radial-gradient(70% 60% at 62% 95%, #c9d5f7 0%, transparent 66%),
+    linear-gradient(160deg, #fde9de 0%, #f4dce9 46%, #dde3f8 100%);
+}
+
+.bg-trua {
+  background:
+    radial-gradient(38% 26% at 18% 26%, rgba(255, 255, 255, 0.92), transparent 72%),
+    radial-gradient(34% 22% at 72% 34%, rgba(255, 255, 255, 0.78), transparent 72%),
+    radial-gradient(52% 30% at 44% 74%, rgba(255, 255, 255, 0.62), transparent 72%),
+    linear-gradient(180deg, #86bfee 0%, #b6daf6 46%, #e9f4fc 100%);
+}
+
+.bg-hoang-hon {
+  background: linear-gradient(180deg, #23275f 0%, #5d3480 28%, #b8487a 54%, #ec8248 78%, #ffc468 100%);
+}
+
+.bg-sun {
+  position: absolute;
+  left: 64%;
+  top: 70%;
+  width: 34vmax;
+  height: 34vmax;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 236, 190, 0.95) 0%, rgba(255, 196, 120, 0.45) 30%, transparent 65%);
+}
+
+.bg-dem-sao {
+  background: linear-gradient(180deg, #040920 0%, #0a1537 56%, #18244f 100%);
+}
+
+.bg-cuc-quang {
+  background: linear-gradient(180deg, #030b12 0%, #071a26 60%, #0c2433 100%);
+}
+
+.bg-aurora {
+  position: absolute;
+  width: 70vmax;
+  height: 38vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.42;
+  mix-blend-mode: screen;
+  animation: bg-drift 26s ease-in-out infinite alternate;
+}
+
+.bg-aurora.a1 {
+  left: -12%;
+  top: 6%;
+  background: radial-gradient(closest-side, #2dd4bf, transparent);
+}
+
+.bg-aurora.a2 {
+  left: 30%;
+  top: -4%;
+  background: radial-gradient(closest-side, #4ade80, transparent);
+  animation-duration: 32s;
+  animation-delay: -8s;
+}
+
+.bg-aurora.a3 {
+  left: 48%;
+  top: 26%;
+  background: radial-gradient(closest-side, #a78bfa, transparent);
+  animation-duration: 38s;
+  animation-delay: -16s;
+}
+
+@keyframes bg-drift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
+  }
+  to {
+    transform: translate3d(8%, 6%, 0) rotate(8deg) scale(1.18);
+  }
+}
+
+.bg-twinkle {
+  animation: bg-twinkle 4.8s ease-in-out infinite;
+}
+
+@keyframes bg-twinkle {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.bg-bien {
+  background: linear-gradient(180deg, #d7ebf5 0%, #bcdcec 40%, #9ccfe2 70%, #165c82 100%);
+}
+
+.bg-rung-tram {
+  background: linear-gradient(180deg, #24443a 0%, #1b3a2f 45%, #102619 100%);
+}
+
+.bg-sen {
+  background:
+    radial-gradient(60% 60% at 90% 90%, #f6e1e7 0%, transparent 70%),
+    linear-gradient(135deg, #fbf3f4 0%, #f2f6ee 60%, #e5efe9 100%);
+}
+
+.bg-trong-dong {
+  background: radial-gradient(circle at 50% 55%, #4b3622 0%, #2b1e12 55%, #140e08 100%);
+}
+
+.bg-gom {
+  background: radial-gradient(ellipse at 38% 30%, #fcfdfc 0%, #eef4f2 55%, #dbe7e4 100%);
+}
+
+.bg-dia-hinh {
+  background: linear-gradient(160deg, #172636 0%, #22384e 55%, #2b4660 100%);
+}
+
+.bg-kinh {
+  background:
+    radial-gradient(45% 45% at 18% 20%, #c9d8f3 0%, transparent 70%),
+    radial-gradient(42% 46% at 80% 30%, #e1d6f1 0%, transparent 70%),
+    radial-gradient(50% 50% at 55% 85%, #d2ebe4 0%, transparent 70%),
+    #e8edf4;
+}
+
+.bg-than-chi {
+  background: linear-gradient(145deg, #1d2127 0%, #2a2f37 50%, #16191e 100%);
+}
+
+.bg-giay {
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(60, 64, 52, 0.12) 100%),
+    #eceee7;
+}
+
+.bg-luoi-xanh {
+  background-color: #0c2a50;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.11) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(ellipse at 30% 20%, #134079 0%, transparent 70%);
+  background-size: 160px 160px, 160px 160px, 32px 32px, 32px 32px, 100% 100%;
+}
+
+/* Lớp mặt bàn cố định phía sau khung quản trị. */
+.desk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #1e293b;
+}
+
+.desk-backdrop-layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 1.2s ease;
+}
+
+.desk-backdrop-layer.blurred {
+  inset: -40px;
+}
+
+.desk-backdrop-layer.leaving {
+  opacity: 0;
+}
+
+.desk-backdrop-image {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+}
+
+.desk-backdrop-dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+.motion-off .bg-aurora,
+.motion-off .bg-twinkle {
+  animation: none;
+}
+
+.motion-off .desk-backdrop-layer {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-auto .bg-aurora,
+  .motion-auto .bg-twinkle {
+    animation: none;
+  }
+}

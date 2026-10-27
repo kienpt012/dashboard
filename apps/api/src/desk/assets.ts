@@ -195,7 +195,8 @@ export class DeskAssetsController {
       : await this.prisma.deskAsset.findFirst({ where, select: { sha256: true, mimeType: true, bytes: true } }).then(row => row && { ...row, data: row.bytes });
     if (!asset) throw new NotFoundException('Không tìm thấy ảnh');
     const etag = `"${asset.sha256}${thumb ? '-t' : ''}"`;
-    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    // Luôn hỏi lại bằng ETag (304 rất nhẹ): ảnh bị xoá hay mất quyền dùng chung thì không còn hiện từ bộ đệm.
+    res.setHeader('Cache-Control', 'private, no-cache');
     res.setHeader('ETag', etag);
     if (ifNoneMatch === etag) {
       res.status(304).end();

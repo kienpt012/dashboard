@@ -68,7 +68,7 @@ export interface WidgetDefinition {
 
 export const PRESET_IDS = [
   'binh-minh', 'trua', 'hoang-hon', 'dem-sao', 'cuc-quang', 'bien', 'rung-tram',
-  'sen', 'trong-dong', 'dia-hinh', 'kinh', 'than-chi', 'giay', 'luoi-xanh',
+  'sen', 'trong-dong', 'gom', 'dia-hinh', 'kinh', 'than-chi', 'giay', 'luoi-xanh',
 ] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
 

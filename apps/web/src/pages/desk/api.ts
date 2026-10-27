@@ -1,20 +1,15 @@
 import { apiBaseUrl, http, query, session } from '@/lib/api';
 import type { AssetList, AssetMeta, DeskPayload, DeskProfileConfig, DeskSpace, DeskSpaceConfig, WidgetDefinition } from './types';
 
-// Gọi API Bàn làm việc số. Ảnh nền tải bằng fetch có JWT rồi tạo blob: URL (thẻ <img> không gửi được header), ảnh
-// bất biến nên giữ trong Cache Storage để lần sau hiện ngay.
+// Gọi API Bàn làm việc số. Ảnh nền tải bằng fetch có JWT rồi tạo blob: URL (thẻ <img> không gửi được header); trình
+// duyệt giữ ảnh trong bộ đệm HTTP và hỏi lại bằng ETag, ảnh đã xoá trả 404 nên không hiện lại.
 
-const ASSET_CACHE = 'ioc-desk-assets';
 const blobUrls = new Map<string, Promise<string>>();
 
 async function fetchAsset(id: string, size: 'full' | 'thumb') {
   const url = `${apiBaseUrl}/desk/assets/${encodeURIComponent(id)}${size === 'thumb' ? '?size=thumb' : ''}`;
-  const cache = typeof caches !== 'undefined' ? await caches.open(ASSET_CACHE).catch(() => null) : null;
-  const cached = await cache?.match(url).catch(() => undefined);
-  if (cached) return cached.blob();
   const response = await fetch(url, { headers: session.token ? { Authorization: `Bearer ${session.token}` } : {} });
   if (!response.ok) throw new Error(`Không tải được ảnh (${response.status})`);
-  await cache?.put(url, response.clone()).catch(() => undefined);
   return response.blob();
 }
 
@@ -43,9 +38,6 @@ export const deskApi = {
     await http.delete<{ ok: true }>(`/desk/assets/${encodeURIComponent(id)}`);
     blobUrls.delete(`${id}:full`);
     blobUrls.delete(`${id}:thumb`);
-    const cache = typeof caches !== 'undefined' ? await caches.open(ASSET_CACHE).catch(() => null) : null;
-    await cache?.delete(`${apiBaseUrl}/desk/assets/${encodeURIComponent(id)}`).catch(() => undefined);
-    await cache?.delete(`${apiBaseUrl}/desk/assets/${encodeURIComponent(id)}?size=thumb`).catch(() => undefined);
   },
   /** blob: URL của ảnh; lỗi (ảnh đã xoá, mất quyền) trả chuỗi rỗng để bên gọi rơi về nền mặc định. */
   assetBlobUrl: (id: string, size: 'full' | 'thumb' = 'full'): Promise<string> => {

@@ -1,7 +1,32 @@
-/* Bàn làm việc số: mặt bàn, lưới widget, lớp note, dock. Biến --desk-* do trang đặt theo cài đặt giao diện. */
+/* Bàn làm việc số: mặt bàn, lưới widget, lớp note, dock. Biến --desk-* đặt theo cài đặt giao diện (appearance.ts). */
 
 .desk {
+  --desk-ink: #f8fafc;
+  --desk-ink-soft: rgba(248, 250, 252, 0.78);
+  --desk-ink-shadow: 0 1px 2px rgba(2, 6, 23, 0.45), 0 0 18px rgba(2, 6, 23, 0.25);
   position: relative;
   min-height: calc(100vh - 56px - 80px);
+}
+
+.desk.tone-light {
+  --desk-ink: #0f1c2b;
+  --desk-ink-soft: rgba(15, 28, 43, 0.72);
+  --desk-ink-shadow: 0 1px 1px rgba(255, 255, 255, 0.55);
+}
+
+.desk-body {
+  position: relative;
+  z-index: 1;
   padding: 16px 20px 120px;
+}
+
+.desk-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.desk-temp-title {
+  color: var(--desk-ink);
+  text-shadow: var(--desk-ink-shadow);
 }
