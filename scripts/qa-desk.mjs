@@ -207,6 +207,10 @@ async function departmentData(tokens) {
   const list = (await request('/desk/data/targets?year=2026', { token: tokens.staff })).data;
   const departments = await prisma.target.findMany({ where: { id: { in: list.map(item => item.id) } }, select: { departmentId: true } });
   check('Danh sách chọn chỉ tiêu chỉ trong phòng mình', list.length > 0 && departments.every(item => item.departmentId === primary));
+  if (foreign && mine) {
+    const byIds = (await request(`/desk/data/targets?ids=${mine.id},${foreign.id}`, { token: tokens.staff })).data;
+    check('Tra tên chỉ tiêu theo mã chỉ trả chỉ tiêu được xem', byIds.length === 1 && byIds[0].id === mine.id && typeof byIds[0].title === 'string');
+  }
 }
 
 async function runSuite() {

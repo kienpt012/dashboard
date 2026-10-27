@@ -119,6 +119,7 @@ export function WidgetFrame({ widget, def, context, spaces, onSettings, onRemove
     <div
       className={`dw dw-${appearance} dw-type-${def.type.replace('.', '-')}${editing ? ' editing' : ''}${maximized ? ' maximized' : ''}`}
       style={widget.style.accent ? ({ '--dw-accent': widget.style.accent } as React.CSSProperties) : undefined}
+      data-widget={widget.id}
       tabIndex={editing ? 0 : undefined}
       onKeyDown={onKeyDown}
       role="region"

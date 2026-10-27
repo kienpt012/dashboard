@@ -494,3 +494,190 @@
     background: var(--ioc-color-bg-container);
   }
 }
+
+/* Ngăn bên đang mở: dời thanh tùy biến vào phần bàn còn nhìn thấy */
+@media (min-width: 1100px) {
+  .desk-edit-bar {
+    transition: left 0.25s ease;
+  }
+
+  .desk.side-right .desk-edit-bar {
+    left: calc(50% - 220px);
+    max-width: calc(100vw - 500px);
+  }
+
+  .desk.side-left .desk-edit-bar {
+    left: calc(50% + 220px);
+    max-width: calc(100vw - 500px);
+  }
+}
+
+/* Widget vừa thêm */
+.dw.dw-flash {
+  animation: dw-flash 1.8s ease-out;
+}
+
+@keyframes dw-flash {
+  0%,
+  45% {
+    outline: 3px solid var(--desk-accent);
+    outline-offset: 2px;
+  }
+
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dw.dw-flash {
+    animation-duration: 0.01s;
+    outline: 3px solid var(--desk-accent);
+  }
+}
+
+/* Kho widget */
+.wl-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+
+.wl-hint {
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.wl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wl-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 12px;
+  background: var(--ioc-color-bg-container);
+  cursor: grab;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.wl-card:hover {
+  border-color: var(--ioc-color-primary-border);
+  box-shadow: 0 6px 16px -12px rgba(15, 23, 42, 0.5);
+}
+
+.wl-card.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.wl-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--ioc-color-primary-bg);
+  color: var(--ioc-color-primary);
+}
+
+.wl-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wl-text span {
+  font-size: 12px;
+  color: var(--ioc-color-text-secondary);
+}
+
+.wl-text em {
+  font-size: 12px;
+  font-style: normal;
+  color: var(--ioc-color-warning);
+}
+
+/* Cài đặt widget */
+.ws-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-footer {
+  display: flex;
+  justify-content: space-between;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-form .bgp-row > .ant-switch {
+  align-self: flex-start;
+}
+
+.links-editor,
+.list-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.links-row,
+.list-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.links-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ioc-color-fill-tertiary);
+}
+
+.links-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.links-label:hover {
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.links-label span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ioc-color-text-tertiary);
+}

@@ -162,3 +162,29 @@ export function hashColor(text: string) {
   for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) | 0;
   return palette[Math.abs(hash) % palette.length];
 }
+
+/** Biểu tượng mặc định khi ghim một chức năng hệ thống. */
+export const SCREEN_ICONS: Record<string, string> = {
+  '/admin': 'home',
+  '/admin/dieu-hanh': 'dashboard',
+  '/admin/viec-cua-toi': 'inbox',
+  '/trinh-chieu': 'fund-projection-screen',
+  '/admin/trach-nhiem': 'audit',
+  '/admin/bo-chi-tieu': 'appstore',
+  '/admin/targets': 'aim',
+  '/admin/proposals': 'file-add',
+  '/admin/approvals': 'file-done',
+  '/admin/reports': 'bar-chart',
+  '/admin/kho-du-lieu': 'database',
+  '/admin/documents': 'file-text',
+  '/admin/imports': 'file-excel',
+  '/admin/feedback': 'message',
+  '/admin/public-dashboard': 'global',
+  '/admin/thiet-lap': 'tool',
+  '/admin/departments': 'apartment',
+  '/admin/users': 'team',
+  '/admin/settings': 'control',
+  '/admin/audit-logs': 'history',
+  '/admin/bao-loi': 'bug',
+  '/admin/profile': 'user',
+};

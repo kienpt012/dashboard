@@ -11,6 +11,8 @@ import type { Tone } from './background/tone';
 import { ConflictDialog, DeskHeader, EditToolbar } from './DeskHeader';
 import { DeskGrid, MaximizedWidget } from './DeskGrid';
 import { DeskProvider, useActiveSpace, useDesk } from './useDesk';
+import { WidgetLibrary } from './WidgetLibrary';
+import { WidgetSettings } from './WidgetSettings';
 import type { DeskProfileConfig } from './types';
 import './desk.css';
 
@@ -35,6 +37,18 @@ function useStartPage(profile: DeskProfileConfig | undefined) {
     const target = START_PATHS[profile.startPage];
     if (fresh && target) navigate(target, { replace: true });
   }, [profile, navigate]);
+}
+
+/** Cuộn tới widget vừa thêm và nháy viền để mắt bắt được ngay. */
+function revealWidget(widgetId: string) {
+  window.setTimeout(() => {
+    const element = document.querySelector<HTMLElement>(`.desk-grid .dw[data-widget="${widgetId}"]`);
+    if (!element) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'nearest' });
+    element.classList.add('dw-flash');
+    window.setTimeout(() => element.classList.remove('dw-flash'), 1800);
+  }, 80);
 }
 
 const typing = (target: EventTarget | null) =>
@@ -80,6 +94,7 @@ function DeskView() {
   const [panel, setPanel] = useState(false);
   const [library, setLibrary] = useState(false);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const [settingsSide, setSettingsSide] = useState<'left' | 'right'>('right');
   const [maximized, setMaximized] = useState<string | null>(null);
   const profile = desk.profile?.config;
   useStartPage(profile);
@@ -87,11 +102,27 @@ function DeskView() {
 
   const style = useMemo(() => (profile ? deskStyle(profile.appearance, dark) : undefined), [profile, dark]);
   const accent = profile?.appearance.accent;
+  // Mỗi lúc chỉ mở một ngăn bên (kho widget, hình nền, cài đặt widget) để chúng không chồng lên nhau.
   const openLibrary = useCallback(() => {
     desk.store.setEditing(true);
+    setPanel(false);
+    setSettingsFor(null);
     setLibrary(true);
   }, [desk.store]);
+  const openPanel = useCallback(() => {
+    setLibrary(false);
+    setSettingsFor(null);
+    setPanel(true);
+  }, []);
   const closeMaximized = useCallback(() => setMaximized(null), []);
+  // Ngăn cài đặt mở ở phía không che widget đang sửa, để thấy thay đổi ngay.
+  const openSettings = useCallback((widgetId: string) => {
+    const rect = document.querySelector(`.desk-grid .dw[data-widget="${widgetId}"]`)?.getBoundingClientRect();
+    setSettingsSide(rect && rect.left + rect.width / 2 > window.innerWidth * 0.55 ? 'left' : 'right');
+    setLibrary(false);
+    setPanel(false);
+    setSettingsFor(widgetId);
+  }, []);
 
   if (desk.status === 'loading' || (desk.status === 'ready' && !profile)) return <PageSkeleton />;
   if (desk.status === 'error' || !profile) {
@@ -109,18 +140,20 @@ function DeskView() {
     );
   }
   const appearance = profile.appearance;
+  const side = library || panel ? 'right' : settingsFor ? settingsSide : null;
   const view = (
-    <div className={`desk tone-${tone}${appearance.density === 'compact' ? ' desk-compact' : ''}${desk.editing ? ' is-editing' : ''}`} style={style}>
+    <div className={`desk tone-${tone}${appearance.density === 'compact' ? ' desk-compact' : ''}${desk.editing ? ' is-editing' : ''}${side ? ` side-${side}` : ''}`} style={style}>
       <Backdrop background={space?.config.background ?? appearance.background} dim={appearance.dim} blur={appearance.blur} motion={appearance.motion} onTone={setTone} />
       <div className="desk-body">
-        {space && <DeskHeader space={space} onBackground={() => setPanel(true)} onLibrary={openLibrary} />}
-        {space && <DeskGrid space={space} onSettings={setSettingsFor} onMaximize={setMaximized} onOpenLibrary={openLibrary} />}
+        {space && <DeskHeader space={space} onBackground={openPanel} onLibrary={openLibrary} />}
+        {space && <DeskGrid space={space} onSettings={openSettings} onMaximize={setMaximized} onOpenLibrary={openLibrary} />}
       </div>
-      <EditToolbar onLibrary={openLibrary} onBackground={() => setPanel(true)} />
-      {space && maximized && <MaximizedWidget space={space} widgetId={maximized} onClose={closeMaximized} onSettings={() => setSettingsFor(maximized)} />}
+      <EditToolbar onLibrary={openLibrary} onBackground={openPanel} />
+      {space && maximized && <MaximizedWidget space={space} widgetId={maximized} onClose={closeMaximized} onSettings={() => openSettings(maximized)} />}
       <BackgroundPanel open={panel} onClose={() => setPanel(false)} />
       <ConflictDialog />
-      <span hidden data-library={library} data-settings={settingsFor ?? ''} />
+      {space && <WidgetLibrary open={library} onClose={() => setLibrary(false)} space={space} onAdded={revealWidget} />}
+      {space && <WidgetSettings space={space} widgetId={settingsFor} placement={settingsSide} onClose={() => setSettingsFor(null)} />}
     </div>
   );
   return accent ? <ConfigProvider theme={{ token: { colorPrimary: accent, colorInfo: accent } }}>{view}</ConfigProvider> : view;

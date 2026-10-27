@@ -237,20 +237,24 @@ export class DeskDataController {
     };
   }
 
+  /** Chọn chỉ tiêu trong ô cài đặt: tìm theo phòng/từ khoá, hoặc tra tên các chỉ tiêu đã chọn (`ids`). */
   @Get('targets')
-  async targets(@Req() req: any, @Query('departmentId') departmentIdRaw?: string, @Query('search') searchRaw?: string, @Query('year') yearRaw?: string) {
+  async targets(@Req() req: any, @Query('departmentId') departmentIdRaw?: string, @Query('search') searchRaw?: string, @Query('year') yearRaw?: string, @Query('ids') idsRaw?: string) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const departmentId = resolveDepartmentScope(actor, departmentIdRaw);
+    const ids = idsRaw ? parseIds(idsRaw, 50) : null;
+    const departmentId = ids ? (isGlobalRole(actor.role) ? undefined : actor.departmentId ?? '__none__') : resolveDepartmentScope(actor, departmentIdRaw);
     const search = searchRaw?.trim().slice(0, 100);
     const [setting, targets] = await Promise.all([
       this.prisma.systemSetting.findUnique({ where: { id: 'default' } }),
       this.prisma.target.findMany({
-        where: {
-          year, isArchived: false,
-          ...(departmentId ? { departmentId } : {}),
-          ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' as const } }, { code: { contains: search, mode: 'insensitive' as const } }] } : {}),
-        },
+        where: ids
+          ? { id: { in: ids }, ...(departmentId ? { departmentId } : {}) }
+          : {
+              year, isArchived: false,
+              ...(departmentId ? { departmentId } : {}),
+              ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' as const } }, { code: { contains: search, mode: 'insensitive' as const } }] } : {}),
+            },
         orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
         take: 50,
         include: { department: { select: { name: true } } },
