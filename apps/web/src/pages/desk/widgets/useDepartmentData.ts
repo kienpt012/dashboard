@@ -20,7 +20,8 @@ function storage() {
 
 export const statusOf = (error: unknown) => (error instanceof ApiError ? error.status : 0);
 
-export function useDepartmentData() {
+/** `enabled = false`: không tải (widget đã tắt phần cần số liệu phòng). */
+export function useDepartmentData(enabled = true) {
   const { departmentId, year, refreshMs } = useWidget();
   const user = useMe();
   const path = departmentId ? deskApi.departmentPath(departmentId, year) : null;
@@ -38,7 +39,7 @@ export function useDepartmentData() {
       if (local && key) writeDataCache(local, user.id, key, data);
       return data;
     },
-    enabled: Boolean(path),
+    enabled: Boolean(path) && enabled,
     refetchInterval: refreshMs,
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.savedAt,

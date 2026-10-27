@@ -55,6 +55,28 @@ export function parseInline(text: string): Inline[] {
   return out.filter(inline => inline.type !== 'text' || inline.text.length > 0);
 }
 
+const ITEM = /^\s*[-*+]\s+(?:\[( |x|X)\]\s+)?(.*)$/;
+const RULE = /^\s*(-{3,}|\*{3,})\s*$/;
+const HEADING = /^(#{1,3})\s+(.*)$/;
+
+/** Đổi trạng thái ô đánh dấu thứ `index` (đếm như khi vẽ) trong nguồn Markdown; ngoài phạm vi thì giữ nguyên. */
+export function toggleCheck(source: string, index: number): string {
+  const lines = source.split('\n');
+  let seen = 0;
+  for (let at = 0; at < lines.length; at += 1) {
+    const line = lines[at].replace(/\r$/, '').trimEnd();
+    if (!line.trim() || RULE.test(line) || HEADING.test(line)) continue;
+    const item = ITEM.exec(line);
+    if (!item || item[1] === undefined) continue;
+    if (seen === index) {
+      lines[at] = lines[at].replace(/\[( |x|X)\]/, item[1] === ' ' ? '[x]' : '[ ]');
+      return lines.join('\n');
+    }
+    seen += 1;
+  }
+  return source;
+}
+
 export function parseMarkdown(source: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
@@ -69,12 +91,12 @@ export function parseMarkdown(source: string): Block[] {
   };
   for (const raw of source.replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.trimEnd();
-    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
-    const item = /^\s*[-*+]\s+(?:\[( |x|X)\]\s+)?(.*)$/.exec(line);
+    const heading = HEADING.exec(line);
+    const item = ITEM.exec(line);
     if (!line.trim()) {
       flushParagraph();
       flushList();
-    } else if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
+    } else if (RULE.test(line)) {
       flushParagraph();
       flushList();
       blocks.push({ type: 'rule' });

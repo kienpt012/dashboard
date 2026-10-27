@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseMarkdown, type Inline } from './markdown';
+import { parseMarkdown, toggleCheck, type Inline } from './markdown';
 
 function flat(inlines: Inline[]): string {
   return inlines.map(inline => ('children' in inline ? flat(inline.children) : inline.text)).join('');
@@ -38,4 +38,12 @@ test('markdown: thẻ HTML hiện nguyên văn, không thành thẻ', () => {
   assert.ok(block.type === 'paragraph');
   if (block.type !== 'paragraph') return;
   assert.equal(flat(block.inlines), '<img src=x onerror=alert(1)>');
+});
+
+test('bấm ô đánh dấu thứ n đổi đúng dòng nguồn, bỏ qua mục danh sách thường và dòng kẻ', () => {
+  const source = '# Việc\n- mục thường\n- [ ] gọi điện\n---\n* [x] gửi công văn\n  - [ ] họp giao ban';
+  assert.equal(toggleCheck(source, 0), '# Việc\n- mục thường\n- [x] gọi điện\n---\n* [x] gửi công văn\n  - [ ] họp giao ban');
+  assert.equal(toggleCheck(source, 1), '# Việc\n- mục thường\n- [ ] gọi điện\n---\n* [ ] gửi công văn\n  - [ ] họp giao ban');
+  assert.equal(toggleCheck(source, 2), '# Việc\n- mục thường\n- [ ] gọi điện\n---\n* [x] gửi công văn\n  - [x] họp giao ban');
+  assert.equal(toggleCheck(source, 3), source);
 });

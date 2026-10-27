@@ -38,3 +38,13 @@ registerGroup(() => import('./mine'), {
   'my.notifications': 'MyNotifications',
   'docs.recent': 'RecentDocuments',
 });
+
+registerGroup(() => import('./personal'), {
+  hero: 'Hero',
+  clock: 'Clock',
+  calendar: 'CalendarWidget',
+  notepad: 'Notepad',
+  todo: 'Todo',
+  countdown: 'Countdown',
+  focus: 'Focus',
+});

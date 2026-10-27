@@ -28,8 +28,10 @@ function renderInline(inline: Inline, key: number): ReactNode {
   }
 }
 
-export function Markdown({ text, className }: { text: string; className?: string }) {
+/** `onToggle`: bấm ô đánh dấu thứ n (đếm theo thứ tự hiện) — sổ ghi chú dùng để đánh dấu xong ngay khi đang xem. */
+export function Markdown({ text, className, onToggle }: { text: string; className?: string; onToggle?: (index: number) => void }) {
   const blocks = useMemo(() => parseMarkdown(text), [text]);
+  let checks = 0;
   return (
     <div className={`md${className ? ` ${className}` : ''}`}>
       {blocks.map((block, index) => {
@@ -45,12 +47,23 @@ export function Markdown({ text, className }: { text: string; className?: string
           case 'list':
             return (
               <ul key={index} className={block.items.some(item => item.checked !== null) ? 'md-checks' : undefined}>
-                {block.items.map((item, itemIndex) => (
-                  <li key={itemIndex} className={item.checked ? 'done' : undefined}>
-                    {item.checked !== null && (item.checked ? <CheckSquareOutlined /> : <BorderOutlined />)}
-                    <span>{item.inlines.map(renderInline)}</span>
-                  </li>
-                ))}
+                {block.items.map((item, itemIndex) => {
+                  const icon = item.checked ? <CheckSquareOutlined /> : <BorderOutlined />;
+                  const check = item.checked === null ? -1 : checks++;
+                  return (
+                    <li key={itemIndex} className={item.checked ? 'done' : undefined}>
+                      {item.checked !== null &&
+                        (onToggle ? (
+                          <button type="button" className="md-check" aria-pressed={item.checked} aria-label={item.checked ? 'Bỏ đánh dấu xong' : 'Đánh dấu xong'} onClick={() => onToggle(check)}>
+                            {icon}
+                          </button>
+                        ) : (
+                          icon
+                        ))}
+                      <span>{item.inlines.map(renderInline)}</span>
+                    </li>
+                  );
+                })}
               </ul>
             );
         }
