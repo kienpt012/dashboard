@@ -48,3 +48,14 @@ registerGroup(() => import('./personal'), {
   countdown: 'Countdown',
   focus: 'Focus',
 });
+
+registerGroup(() => import('./tools'), {
+  launcher: 'Launcher',
+  search: 'Search',
+  jarvis: 'JarvisWidget',
+});
+
+registerGroup(() => import('./content'), {
+  text: 'TextBlock',
+  image: 'ImageBlock',
+});

@@ -112,12 +112,4 @@ export function routeInfo(pathname: string, scoped: boolean) {
   return { label: 'Bàn làm việc', screen: 'IOC', group: 'Điều hành', path };
 }
 
-/** Bỏ dấu tiếng Việt để tìm kiếm không cần gõ dấu. */
-export function fold(text: string) {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase();
-}
+export { fold } from '@/lib/fold';

@@ -28,6 +28,7 @@ import { CommandPalette } from './CommandPalette';
 import { Jarvis, JarvisMark, type JarvisHandle, type JarvisVoiceState } from './Jarvis';
 import { Notifications } from './Notifications';
 import './layout.css';
+import { JARVIS_ASK_EVENT, type JarvisAsk } from './jarvis/ask';
 
 const COLLAPSE_KEY = 'ioc_nav_collapsed';
 
@@ -159,6 +160,16 @@ export default function AdminLayout() {
     setLoadedAt(new Date());
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
+
+  // Widget Hỏi Jarvis trên bàn làm việc chuyển câu hỏi (kèm câu trả lời nếu có) sang khung Jarvis.
+  useEffect(() => {
+    const onAsk = (event: Event) => {
+      const detail = (event as CustomEvent<JarvisAsk>).detail;
+      if (detail?.question) jarvisRef.current?.ask(detail.question, detail.answer);
+    };
+    window.addEventListener(JARVIS_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(JARVIS_ASK_EVENT, onAsk);
+  }, []);
 
   // Liên kết cũ /admin/copilot: mở sẵn Jarvis.
   useEffect(() => {

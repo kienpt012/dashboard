@@ -1,0 +1,130 @@
+/* Ô lối tắt (widget Lối tắt, dock): biểu tượng bo góc, tên một dòng; web ngoài có dấu mở thẻ mới. */
+
+.lt {
+  --lt-size: 46px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ioc-color-text);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lt:hover {
+  background: var(--ioc-color-fill-tertiary);
+  color: var(--ioc-color-text);
+}
+
+.lt:focus-visible {
+  outline: 2px solid var(--desk-accent, var(--ioc-color-primary));
+  outline-offset: 1px;
+}
+
+.lt-s {
+  --lt-size: 38px;
+}
+
+.lt-l {
+  --lt-size: 58px;
+}
+
+.lt-icon {
+  --lt-color: var(--ioc-color-primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--lt-size);
+  height: var(--lt-size);
+  border-radius: calc(var(--lt-size) * 0.28);
+  background: color-mix(in srgb, var(--lt-color) 13%, var(--ioc-color-bg-container));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lt-color) 18%, transparent);
+  color: var(--lt-color);
+  font-size: calc(var(--lt-size) * 0.42);
+  transition: transform 0.15s;
+}
+
+.lt-icon.mono {
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+  color: #fff;
+  font-size: calc(var(--lt-size) * 0.44);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.lt:hover .lt-icon {
+  transform: translateY(-1px);
+}
+
+.lt-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lt-s .lt-label {
+  font-size: 11px;
+}
+
+.lt-external {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - var(--lt-size) / 2 - 6px);
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--ioc-color-bg-container);
+  color: var(--ioc-color-text-tertiary);
+  font-size: 9px;
+}
+
+.lt-count {
+  position: absolute;
+  top: 2px;
+  right: calc(50% - var(--lt-size) / 2 - 8px);
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ioc-color-text-secondary);
+  color: var(--ioc-color-bg-container);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.lt.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lt-folder {
+  display: grid;
+  grid-template-columns: repeat(4, 76px);
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.lt-empty {
+  grid-column: 1 / -1;
+  padding: 12px;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.dw-plain .lt {
+  color: var(--desk-ink);
+  text-shadow: var(--desk-ink-shadow);
+}

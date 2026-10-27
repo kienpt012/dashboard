@@ -1882,3 +1882,313 @@ a.dws-tile:hover {
     transition: none;
   }
 }
+
+/* ───────── Lối tắt, tìm kiếm, Jarvis ───────── */
+
+.tw-launcher {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 4px;
+  align-content: start;
+}
+
+.tw-launcher.tw-s {
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+}
+
+.tw-launcher.tw-l {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+
+.tw-launcher.no-label {
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+}
+
+.tw-add .lt-icon {
+  border: 1.5px dashed var(--ioc-color-border);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ioc-color-text-tertiary);
+}
+
+.tw-search {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+
+.tw-search-box {
+  width: 100%;
+}
+
+.tw-search-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tw-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tw-search-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ioc-color-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tw-search-all:hover {
+  background: var(--ioc-color-fill-tertiary);
+}
+
+.tw-providers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--ioc-color-split);
+}
+
+.tw-providers > span {
+  width: 100%;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 11.5px;
+}
+
+.tw-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--ioc-color-fill-tertiary);
+  color: var(--ioc-color-text);
+  font-size: 12px;
+}
+
+.tw-provider .anticon {
+  color: var(--ioc-color-text-tertiary);
+  font-size: 10px;
+}
+
+.tw-provider:hover {
+  background: color-mix(in srgb, var(--dw-accent) 14%, transparent);
+  color: var(--ioc-color-text);
+}
+
+.tw-provider.idle {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tw-suggest-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--ioc-color-bg-container);
+  color: var(--dw-accent);
+}
+
+.tw-suggest-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tw-none {
+  display: block;
+  padding: 8px 12px 2px;
+  color: var(--ioc-color-text-tertiary);
+  font-size: 12.5px;
+}
+
+.tw-jarvis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.tw-jarvis > :first-child {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tw-prompts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.tw-prompt {
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--ioc-color-border-secondary);
+  border-radius: 14px 14px 14px 4px;
+  background: var(--ioc-color-bg-container);
+  color: var(--ioc-color-text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.tw-prompt:hover,
+.tw-prompt:focus-visible {
+  border-color: var(--dw-accent);
+  color: var(--dw-accent);
+}
+
+.tw-jarvis-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tw-jarvis-q {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 5px 11px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--dw-accent);
+  color: #fff;
+  font-size: 12.5px;
+}
+
+.tw-jarvis-a {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tw-jarvis-thinking,
+.tw-jarvis-error,
+.tw-jarvis-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ioc-color-text-secondary);
+  font-size: 12.5px;
+}
+
+.tw-jarvis-thinking .jarvis-mark,
+.tw-jarvis-thinking svg {
+  animation: tw-spin 1.6s linear infinite;
+}
+
+.tw-jarvis-error {
+  color: var(--ioc-color-error);
+}
+
+.tw-jarvis-note {
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: var(--ioc-color-fill-quaternary);
+}
+
+.tw-jarvis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tw-jarvis-input {
+  flex-shrink: 0;
+}
+
+@keyframes tw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-jarvis-thinking svg {
+    animation: none;
+  }
+}
+
+/* ───────── Khối chữ, ảnh ───────── */
+
+.dw .md.cw-text {
+  font-size: 14px;
+}
+
+.dw .md.cw-text.center {
+  text-align: center;
+}
+
+.dw-plain .md.cw-text {
+  color: var(--desk-ink);
+  text-shadow: var(--desk-ink-shadow);
+}
+
+.dw-type-image .dw-body {
+  padding: 0;
+}
+
+.dw-type-image .dw-head + .dw-body {
+  padding: 0 var(--desk-pad) var(--desk-pad);
+}
+
+.cw-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  border-radius: max(4px, calc(var(--desk-radius) - 6px));
+}
+
+.cw-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.3s;
+}
+
+.cw-image.contain img {
+  object-fit: contain;
+}
+
+.cw-image img.thumb {
+  filter: blur(6px);
+}
+
+.cw-image.linked {
+  cursor: pointer;
+}
+
+.cw-image.linked:focus-visible {
+  outline: 2px solid var(--dw-accent);
+  outline-offset: -2px;
+}
+
+.cw-image figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 18px 12px 8px;
+  background: linear-gradient(transparent, rgba(2, 6, 23, 0.7));
+  color: #fff;
+  font-size: 12.5px;
+}
