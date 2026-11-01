@@ -32,6 +32,10 @@ export class OllamaService {
   readonly embedModel: string;
   readonly requestTimeoutMs: number;
   readonly numCtx: number;
+  /** Giữ model nạp sẵn giữa các lần gọi (B8, B11), vd "30m"; rỗng = mặc định của Ollama. */
+  readonly keepAlive: string | null;
+  /** OLLAMA_THINK=false gửi think:false (model có bước suy nghĩ); bỏ trống thì không gửi (qwen3 instruct không có). */
+  readonly think: boolean | null;
 
   constructor(config: ConfigService) {
     this.baseUrl = (config.get<string>('OLLAMA_BASE_URL') || 'http://127.0.0.1:11434').replace(/\/+$/, '');
@@ -42,6 +46,10 @@ export class OllamaService {
     // tuyến intent) tự kết thúc sớm hơn nhiều.
     this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 900_000);
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
+    const keepAlive = (config.get<string>('OLLAMA_KEEP_ALIVE') ?? '').trim();
+    this.keepAlive = /^-?\d+(\.\d+)?(ms|s|m|h)?$/.test(keepAlive) ? keepAlive : null;
+    const think = (config.get<string>('OLLAMA_THINK') ?? '').trim().toLowerCase();
+    this.think = think === 'true' ? true : think === 'false' ? false : null;
   }
 
   async isAvailable(signal?: AbortSignal): Promise<boolean> {
@@ -77,6 +85,8 @@ export class OllamaService {
           model,
           stream: true,
           format: schema,
+          ...(this.keepAlive ? { keep_alive: this.keepAlive } : {}),
+          ...(this.think !== null ? { think: this.think } : {}),
           options: {
             temperature: options?.temperature ?? 0.1,
             num_ctx: options?.numCtx ?? this.numCtx,
@@ -139,7 +149,7 @@ export class OllamaService {
       response = await fetch(`${this.baseUrl}/api/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, input: texts }),
+        body: JSON.stringify({ model, input: texts, ...(this.keepAlive ? { keep_alive: this.keepAlive } : {}) }),
         signal: AbortSignal.timeout(this.requestTimeoutMs),
       });
     } catch {

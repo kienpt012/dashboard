@@ -51,6 +51,8 @@ import {
   WORKING_ROLES,
 } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
+import { validateRecord, type ValidationFlag } from './extraction-validation';
+import { catalogEntries } from './indicator-matching';
 import { PrismaService } from './prisma.service';
 import { createTargetInTransaction, isTargetCodeAllocationError } from './target-create';
 import { departmentManagerIds, leaderIds, notifyUsers, recordWorkEvent, targetLink } from './work';
@@ -165,6 +167,14 @@ class ApproveCandidateDto {
   weight?: number;
 }
 
+class MergeCandidateDto {
+  @IsInt() @Min(1)
+  expectedVersion!: number;
+
+  @Trim() @IsString() @MinLength(1, { message: 'Chọn chỉ tiêu có sẵn để gộp' })
+  targetId!: string;
+}
+
 class RejectCandidateDto {
   @IsInt() @Min(1)
   expectedVersion!: number;
@@ -215,7 +225,19 @@ export const CANDIDATE_SELECT = {
   warnings: true,
   isDuplicateSuspect: true,
   matchedTargetId: true,
-  matchedTarget: { select: { id: true, code: true, title: true } },
+  matchedTarget: { select: { id: true, code: true, title: true, unit: true, year: true } },
+  sourceElementIds: true,
+  headingPath: true,
+  validationFlags: true,
+  ocrFlags: true,
+  ocrReadings: true,
+  matchClass: true,
+  matchScore: true,
+  similarTargets: true,
+  suggestedCode: true,
+  suggestedCodeScore: true,
+  mergedTargetId: true,
+  mergedTarget: { select: { id: true, code: true, title: true } },
   humanEdited: true,
   editedFields: true,
   proposedById: true,
@@ -481,6 +503,12 @@ export class CandidatesController {
         if (changed.count !== 1) {
           throw new ConflictException('Đề xuất vừa được người khác thay đổi. Vui lòng tải lại.');
         }
+        // B10 chạy lại trên bản đã sửa trước khi lưu: cờ phản ánh đúng bản ghi người duyệt sẽ duyệt.
+        const edited = await tx.indicatorCandidate.findUniqueOrThrow({ where: { id }, select: REVALIDATE_SELECT });
+        await tx.indicatorCandidate.update({
+          where: { id },
+          data: { validationFlags: revalidatedFlags(edited, mergedEdited) as unknown as Prisma.InputJsonValue ?? Prisma.DbNull },
+        });
         const fresh = await tx.indicatorCandidate.findUniqueOrThrow({
           where: { id },
           select: CANDIDATE_SELECT,
@@ -557,6 +585,86 @@ export class CandidatesController {
       expectedVersion: dto.expectedVersion,
       weight: dto.weight,
     });
+  }
+
+  /**
+   * B15: gộp đề xuất vào chỉ tiêu có sẵn (trùng hoặc gần trùng ở B14) thay vì tạo chỉ tiêu mới. Văn bản của đề xuất được
+   * ghi thêm làm nguồn của chỉ tiêu; giá trị chỉ tiêu có sẵn giữ nguyên (sửa trong hồ sơ chỉ tiêu nếu cần).
+   */
+  @Post(':id/merge')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER)
+  async merge(@Req() req: any, @Param('id') id: string, @Body() dto: MergeCandidateDto) {
+    const actor = getActor(req);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const candidate = await tx.indicatorCandidate.findUnique({ where: { id }, select: CANDIDATE_SELECT });
+        if (!candidate) throw new NotFoundException('Không tìm thấy đề xuất chỉ tiêu');
+        if (candidate.status !== CandidateStatus.PROPOSED && candidate.status !== CandidateStatus.SUBMITTED) {
+          throw new ConflictException('Đề xuất đã được xử lý trước đó');
+        }
+        if (!canDecideCandidate(actor, candidate)) {
+          throw new ForbiddenException('Chỉ lãnh đạo UBND hoặc trưởng phòng phụ trách được gộp đề xuất này');
+        }
+        if (candidate.version !== dto.expectedVersion) {
+          throw new ConflictException('Đề xuất vừa được thay đổi. Vui lòng tải lại.');
+        }
+        const target = await tx.target.findUnique({
+          where: { id: dto.targetId },
+          select: { id: true, code: true, title: true, isArchived: true, departmentId: true },
+        });
+        if (!target || target.isArchived) throw new BadRequestException('Chỉ tiêu có sẵn không tồn tại hoặc đã lưu trữ');
+        const claimed = await tx.indicatorCandidate.updateMany({
+          where: { id, version: dto.expectedVersion, status: candidate.status },
+          data: {
+            status: CandidateStatus.APPROVED,
+            mergedTargetId: target.id,
+            reviewedById: actor.id,
+            reviewedAt: new Date(),
+            autoApproveAt: null,
+            reviewNote: `Gộp vào chỉ tiêu ${target.code}`,
+            version: { increment: 1 },
+          },
+        });
+        if (claimed.count !== 1) throw new ConflictException('Đề xuất vừa được xử lý ở nơi khác. Vui lòng tải lại.');
+        if (candidate.document) {
+          await tx.targetDirective.create({
+            data: {
+              targetId: target.id, kind: 'KHAC', title: candidate.document.title, docNumber: candidate.document.docNumber,
+              sourceDocumentId: candidate.document.id, createdById: actor.id, createdByName: actor.fullName,
+              note: candidate.sourceQuote ? `Trích: "${candidate.sourceQuote.slice(0, 500)}"` : null,
+            },
+          });
+        }
+        await recordWorkEvent(tx, {
+          action: 'PROPOSAL_MERGED',
+          actor,
+          candidateId: id,
+          targetId: target.id,
+          departmentId: target.departmentId,
+          note: `Gộp vào chỉ tiêu có sẵn ${target.code}`,
+        });
+        await audit(tx, actor, {
+          action: 'AI_CANDIDATE_MERGED',
+          entityType: 'IndicatorCandidate',
+          entityId: id,
+          departmentId: candidate.responsibleDepartmentId,
+          metadata: {
+            candidateName: candidate.name,
+            targetCode: target.code,
+            matchClass: candidate.matchClass,
+            matchScore: candidate.matchScore,
+            documentCode: candidate.document?.code ?? null,
+          },
+        });
+        return tx.indicatorCandidate.findUniqueOrThrow({ where: { id }, select: CANDIDATE_SELECT });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (isConcurrencyError(error)) {
+        throw new ConflictException('Đề xuất vừa thay đổi. Vui lòng tải lại và thử lại.');
+      }
+      throw error;
+    }
   }
 
   @Post(':id/reject')
@@ -779,4 +887,52 @@ function buildCandidateDescription(candidate: {
     ? `${candidate.sourceQuote.slice(0, 297)}...`
     : candidate.sourceQuote;
   return `Trích từ ${candidate.document.code} (${candidate.document.title}): "${quote}"`;
+}
+
+const REVALIDATE_SELECT = {
+  name: true,
+  unit: true,
+  targetValue: true,
+  targetYear: true,
+  deadline: true,
+  sourceQuote: true,
+  parentName: true,
+  ocrFlags: true,
+  validationFlags: true,
+  matchClass: true,
+  suggestedCode: true,
+  matchedTarget: { select: { unit: true } },
+  chunk: { select: { text: true } },
+} satisfies Prisma.IndicatorCandidateSelect;
+
+/**
+ * Chạy lại luật B10 trên bản đã sửa. Cờ Nhất quán (cần cả văn bản) giữ lại khi giá trị chưa sửa; cờ Chất lượng OCR theo
+ * độ tin cậy giữ lại khi người duyệt chưa sửa tên, giá trị, đơn vị.
+ */
+export function revalidatedFlags(
+  candidate: Prisma.IndicatorCandidateGetPayload<{ select: typeof REVALIDATE_SELECT }>,
+  editedFields: string[],
+): ValidationFlag[] | null {
+  const previous = Array.isArray(candidate.validationFlags) ? (candidate.validationFlags as unknown as ValidationFlag[]) : [];
+  const catalogUnit = candidate.suggestedCode
+    ? catalogEntries().find(entry => entry.code === candidate.suggestedCode)?.unit
+    : undefined;
+  const flags = validateRecord({
+    name: candidate.name,
+    unit: candidate.unit,
+    targetValue: candidate.targetValue,
+    targetYear: candidate.targetYear,
+    deadline: null,
+    sourceQuote: candidate.sourceQuote,
+    parentName: candidate.parentName,
+    expectedUnits: [catalogUnit, candidate.matchClass && candidate.matchClass !== 'MOI' ? candidate.matchedTarget?.unit : null],
+    ocr: Array.isArray(candidate.ocrFlags) ? { flags: candidate.ocrFlags as string[], minConfidence: null } : null,
+    humanEditedFields: editedFields,
+  }, candidate.chunk?.text ?? null);
+  const keep = previous.filter(flag =>
+    (flag.rule === 'nhat_quan' && !editedFields.includes('targetValue'))
+    || (flag.rule === 'chat_luong_ocr' && !flags.some(item => item.rule === 'chat_luong_ocr')
+      && !['name', 'targetValue', 'unit'].some(field => editedFields.includes(field))));
+  const result = [...flags, ...keep];
+  return result.length ? result : null;
 }

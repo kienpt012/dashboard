@@ -302,8 +302,13 @@ export function fallbackElements(page: ParsedPage): StructuredElement[] {
  * Chia đoạn cho văn bản đọc bằng bộ dự phòng. Văn bản dạng bảng chỉ tiêu (phụ lục giao chỉ tiêu) giữ bộ chia theo
  * hàng đã tinh chỉnh cho PL QĐ 333; văn xuôi dùng bộ chia theo mục.
  */
-export function chunkFallbackPages(pages: ParsedPage[], options: ChunkingOptions = resolveChunkingOptions()): StructuredChunk[] {
-  const tableLike = pages.filter(page => isTableLikePage(page.text)).length >= Math.max(1, Math.ceil(pages.length / 2));
+export function chunkFallbackPages(
+  pages: ParsedPage[],
+  options: ChunkingOptions = resolveChunkingOptions(),
+  forceTable = false,
+): StructuredChunk[] {
+  const tableLike = forceTable
+    || pages.filter(page => isTableLikePage(page.text)).length >= Math.max(1, Math.ceil(pages.length / 2));
   if (!tableLike) {
     return chunkStructuredPages(pages.map(page => ({ page: page.pageNumber, elements: fallbackElements(page) })), options);
   }

@@ -186,10 +186,13 @@ function normalizeQuoteForComparison(value: string): string {
     .trim();
 }
 
-// Tiêu đề mục được chunking gắn vào đầu đoạn dạng "[Mục: II Chỉ tiêu văn hóa - xã hội]".
+// Tiêu đề mục được chunking gắn vào đầu đoạn dạng "[Mục: II Chỉ tiêu văn hóa - xã hội]". Bộ chia đoạn theo mục
+// (B7) ghi cả chuỗi đề mục "[Mục: Điều 2 > 1. Chỉ tiêu về kinh tế]": lấy đề mục gần nhất (cấp cuối).
 export function parseSectionHeader(chunkText: string): string | null {
   const match = chunkText.match(/^\[Mục:\s*([^\]]+)\]/u);
-  return match ? match[1].trim() : null;
+  if (!match) return null;
+  const parts = match[1].split(' > ').map(part => part.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : null;
 }
 
 // Suy lĩnh vực từ tiêu đề mục: "II Chỉ tiêu văn hóa - xã hội" → "văn hóa - xã hội".
@@ -376,7 +379,7 @@ export function sanitizeLlmIndicators(
       warnings,
     });
   }
-  return { indicators, parseError: false };
+  return { indicators, parseError: false, repaired };
 }
 
 export class LlmIndicatorExtractor {
@@ -384,22 +387,36 @@ export class LlmIndicatorExtractor {
 
   constructor(private readonly ollama: OllamaService) {}
 
+  /**
+   * B8: một đoạn → JSON chỉ tiêu, temperature 0. Luật Cấu trúc (B10): JSON hỏng thì gọi lại Qwen đúng một lần;
+   * vẫn hỏng thì trả parseError để worker dùng bộ luật và ghi rõ trên bản ghi.
+   */
   async extractFromChunk(
     chunkText: string,
     context: LlmExtractionContext,
     signal?: AbortSignal,
-  ): Promise<{ indicators: LlmExtractedIndicator[]; model: string; durationMs: number }> {
-    const result = await this.ollama.chatStructured(
-      buildExtractionMessages(chunkText, context),
-      EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
-      // Trích xuất cần ngân sách sinh lớn (mỗi chỉ tiêu ~180 token đầu ra):
-      // 8192 để chunk bảng 8 dòng không bao giờ bị cắt — bài học PL1 QĐ333.
-      { temperature: 0.1, numCtx: 8192, signal },
-    );
-    const { indicators, parseError } = sanitizeLlmIndicators(result.content, chunkText);
-    if (parseError) {
-      this.logger.warn('Kết quả LLM không đúng định dạng JSON mong đợi, bỏ qua đoạn này');
+    onAttempt?: () => Promise<void>,
+  ): Promise<{ indicators: LlmExtractedIndicator[]; model: string; durationMs: number; parseError: boolean; repaired: boolean; retried: boolean }> {
+    let durationMs = 0;
+    let retried = false;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const result = await this.ollama.chatStructured(
+        buildExtractionMessages(chunkText, context),
+        EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
+        // Trích xuất cần ngân sách sinh lớn (mỗi chỉ tiêu ~180 token đầu ra):
+        // 8192 để chunk bảng 8 dòng không bao giờ bị cắt — bài học PL1 QĐ333.
+        { temperature: 0, numCtx: Math.max(8192, this.ollama.numCtx), signal },
+      );
+      durationMs += result.durationMs;
+      await onAttempt?.();
+      const { indicators, parseError, repaired } = sanitizeLlmIndicators(result.content, chunkText);
+      if (!parseError || attempt === 2) {
+        if (parseError) this.logger.warn('Kết quả LLM vẫn không đúng định dạng JSON sau khi gọi lại');
+        return { indicators, model: result.model, durationMs, parseError, repaired: Boolean(repaired), retried };
+      }
+      this.logger.warn('Kết quả LLM không đúng định dạng JSON mong đợi, gọi lại một lần');
+      retried = true;
     }
-    return { indicators, model: result.model, durationMs: result.durationMs };
+    throw new Error('unreachable');
   }
 }
