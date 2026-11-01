@@ -1,6 +1,10 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostgreSQL 17 Alpine + pgvector (B13–B14). Image dựng một lần từ deploy/postgres/Dockerfile, cùng nền với
+    # postgres:17-alpine cũ nên dùng tiếp volume dữ liệu hiện có.
+    image: ${IOC_INSTANCE:-ioc-laithieu}-db:pg17-pgvector-0.8.7
+    build:
+      context: deploy/postgres
     container_name: ${IOC_INSTANCE:-ioc-laithieu}-db
     restart: unless-stopped
     environment:
@@ -58,9 +62,23 @@ services:
       TESSERACT_LANGS: ${TESSERACT_LANGS:-vie+eng}
       EXTRACTION_POLL_MS: ${EXTRACTION_POLL_MS:-4000}
       EXTRACTION_MAX_ATTEMPTS: ${EXTRACTION_MAX_ATTEMPTS:-3}
-      EXTRACTION_MAX_OCR_PAGES: ${EXTRACTION_MAX_OCR_PAGES:-20}
+      # 0 = không giới hạn số trang OCR của bộ đọc dự phòng (bản cũ dừng ở 20 trang và để trống các trang sau).
+      EXTRACTION_MAX_OCR_PAGES: ${EXTRACTION_MAX_OCR_PAGES:-0}
       EXTRACTION_MAX_LLM_CHUNKS: ${EXTRACTION_MAX_LLM_CHUNKS:-40}
       DISABLE_EXTRACTION_WORKER: ${DISABLE_EXTRACTION_WORKER:-false}
+      # Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR) đọc B2–B6. Để trống thì dùng bộ đọc dự phòng
+      # (pdf.js + Tesseract). Bật bằng COMPOSE_PROFILES=ocr và OCR_SERVICE_URL=http://ocr:8000 trong .env.
+      OCR_SERVICE_URL: ${OCR_SERVICE_URL:-}
+      OCR_SERVICE_PAGE_BATCH: ${OCR_SERVICE_PAGE_BATCH:-8}
+      OCR_SERVICE_TIMEOUT_MS: ${OCR_SERVICE_TIMEOUT_MS:-900000}
+      CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-1400}
+      CHUNK_TABLE_FORMAT: ${CHUNK_TABLE_FORMAT:-plain}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      MATCH_DUPLICATE_THRESHOLD: ${MATCH_DUPLICATE_THRESHOLD:-0.95}
+      MATCH_NEAR_THRESHOLD: ${MATCH_NEAR_THRESHOLD:-0.85}
+    networks:
+      - default
+      - ocr_internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -94,6 +112,28 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+  ocr:
+    # B2–B6: Docling (bố cục, bảng, cấu trúc), RapidOCR (tìm dòng), VietOCR (đọc chữ), OpenCV (chuẩn bị ảnh).
+    # Chỉ nằm trong mạng nội bộ, không mở cổng ra máy và không ra được Internet.
+    profiles: ["ocr"]
+    image: "${IOC_INSTANCE:-ioc-laithieu}-ocr:${IMAGE_TAG:-local}"
+    build:
+      context: .
+      dockerfile: services/ocr/Dockerfile
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-ocr
+    restart: unless-stopped
+    environment:
+      OCR_DPI: ${OCR_DPI:-216}
+      OCR_SECOND_READER: ${OCR_SECOND_READER:-rapidocr}
+      OCR_THREADS: ${OCR_THREADS:-4}
+      OCR_TABLE_MODE: ${OCR_TABLE_MODE:-accurate}
+    networks:
+      - ocr_internal
+
+networks:
+  ocr_internal:
+    internal: true
 
 volumes:
   ioc_postgres_data:
