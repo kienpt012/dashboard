@@ -59,8 +59,12 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
     CREATE EXTENSION IF NOT EXISTS vector;
-    EXECUTE 'CREATE INDEX IF NOT EXISTS "IndicatorEmbedding_vector_hnsw_idx" ON "IndicatorEmbedding" '
-      || 'USING hnsw ((("vector")::vector(1024)) vector_cosine_ops) WHERE "dims" = 1024';
+    -- Một chỉ mục riêng cho mỗi loại: HNSW lọc sau khi quét, nên trộn chỉ tiêu và danh mục trong một chỉ mục sẽ
+    -- bỏ sót kết quả khi lọc theo loại.
+    EXECUTE 'CREATE INDEX IF NOT EXISTS "IndicatorEmbedding_target_hnsw_idx" ON "IndicatorEmbedding" '
+      || 'USING hnsw ((("vector")::vector(1024)) vector_cosine_ops) WHERE "dims" = 1024 AND "kind" = ''TARGET''';
+    EXECUTE 'CREATE INDEX IF NOT EXISTS "IndicatorEmbedding_catalog_hnsw_idx" ON "IndicatorEmbedding" '
+      || 'USING hnsw ((("vector")::vector(1024)) vector_cosine_ops) WHERE "dims" = 1024 AND "kind" = ''CATALOG''';
   ELSE
     RAISE NOTICE 'pgvector chưa được cài: bỏ qua chỉ mục HNSW, API so trùng bằng cosine trong bộ nhớ.';
   END IF;

@@ -23,9 +23,10 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 t
  && pip install -r requirements.txt \
  && pip install --no-deps vietocr==0.3.13
 
+# Tải mô hình trước khi chép mã nguồn: sửa mã không làm tải lại vài GB mô hình (lớp cache giữ nguyên).
 COPY services/ocr/scripts ./scripts
-COPY services/ocr/ocr_service ./ocr_service
 RUN python scripts/download_models.py
+COPY services/ocr/ocr_service ./ocr_service
 
 # Từ đây không tải gì thêm: Hugging Face và RapidOCR chỉ đọc mô hình đã có.
 ENV HF_HUB_OFFLINE=1 \

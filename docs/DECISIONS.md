@@ -123,3 +123,30 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
   hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
 - **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
+
+## D-015 · 2026-11-01 · Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR), chia đoạn theo mục, B10, bge-m3 + pgvector
+
+- **Bối cảnh**: đánh giá VB-2026-0007 cho thấy bộ đọc cũ bỏ trống trang scan sau trang 20, cắt đôi tên chỉ tiêu ở chỗ
+  xuống dòng của PDF, ghi job COMPLETED kèm tên model dù Qwen hết giờ ở mọi đoạn, và so trùng chỉ bằng Dice. Bản quy
+  trình chốt 26/10 (17 bước B1–B17) là căn cứ thiết kế.
+- **Chọn**:
+  - B2–B6 ở dịch vụ Python riêng `services/ocr`: Docling đọc thẳng PDF có lớp chữ và Word, dựng bảng bằng TableFormer
+    và cấu trúc tài liệu; trang scan và ảnh qua OpenCV (xoay thẳng, gỡ dấu đỏ), RapidOCR tìm dòng, VietOCR đọc, bộ đọc
+    thứ hai PP-OCRv5 latin để so; dòng hai bộ đọc lệch nhau hoặc có âm tiết sai luật tiếng Việt mang cờ `can_ra_soat`.
+    Dịch vụ là tùy chọn (profile `ocr`); API giữ bộ đọc pdf.js + Tesseract làm dự phòng, bỏ trần 20 trang.
+  - B7 ở API (cần cả văn bản): đoạn theo mục, mang `heading_path`, câu đầu mục, id phần tử nguồn; giữ định dạng
+    `[Mục: …]` và bảng dạng chữ để mô hình fine-tune `qwen3-chitieu` đọc được.
+  - B8: temperature 0, gọi lại một lần khi JSON hỏng; Qwen lỗi thì dùng luật và ghi rõ trên job và bản ghi; đoạn không
+    có chữ số và ô biểu mẫu cố định không gửi Qwen.
+  - B10: 8 luật (cấu trúc, bám nguồn, đơn vị, miền giá trị, năm và hạn, tên, nhất quán, chất lượng OCR) gắn cờ, chạy
+    lại khi người duyệt sửa.
+  - B11–B14: bge-m3 qua Ollama, vector lưu `double precision[]` + chỉ mục HNSW biểu thức `vector(1024)` riêng cho chỉ
+    tiêu và danh mục; xếp TRUNG / GAN_TRUNG / MOI theo ngưỡng 0,95 / 0,85; gợi ý mã từ thư viện bộ chỉ tiêu mẫu.
+  - pgvector biên dịch trên `postgres:17-alpine` để giữ volume (không đổi sang image Debian).
+- **Khác với bản quy trình**: (1) bản ghi TRUNG không tự gộp vào kho; mọi đề xuất AI vẫn qua người duyệt theo D-006,
+  người duyệt có thêm nút "Gộp vào" chỉ tiêu có sẵn. (2) Danh mục chỉ tiêu chưa đưa vào prompt Qwen (giữ đúng định
+  dạng mô hình đang fine-tune); mã được gợi ý bằng vector. (3) Prisma chưa có kiểu vector nên cột là mảng số thực, chỉ
+  mục HNSW trên biểu thức ép kiểu. (4) Ảnh dòng OCR đã sửa chưa được lưu thành dữ liệu huấn luyện VietOCR.
+- **Câu hỏi mở**: CER của VietOCR trên dataset1, ngưỡng gộp hai bộ đọc, ngưỡng B14 trên vài trăm cặp đã gán nhãn, thời
+  gian mỗi trang trên CPU máy chủ, dung lượng image ocr-service.
+

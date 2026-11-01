@@ -208,12 +208,14 @@ export class IndicatorMatcher {
     return this.pgvector;
   }
 
-  private async nearestPg(kind: string, vector: number[], limit: number): Promise<{ refKey: string; score: number }[]> {
+  private async nearestPg(kind: 'TARGET' | 'CATALOG', vector: number[], limit: number): Promise<{ refKey: string; score: number }[]> {
     const literal = `[${vector.map(value => (Number.isFinite(value) ? value : 0)).join(',')}]`;
+    // "kind" viết thẳng (không qua tham số) để Postgres chọn đúng chỉ mục HNSW riêng của loại đó.
+    const kindLiteral = Prisma.raw(kind === 'TARGET' ? `'TARGET'` : `'CATALOG'`);
     return this.prisma.$queryRaw<{ refKey: string; score: number }[]>(Prisma.sql`
       SELECT "refKey", 1 - ((("vector")::vector(1024)) <=> ${literal}::vector(1024)) AS score
       FROM "IndicatorEmbedding"
-      WHERE "kind" = ${kind} AND "model" = ${this.ollama.embedModel} AND "dims" = 1024
+      WHERE "kind" = ${kindLiteral} AND "model" = ${this.ollama.embedModel} AND "dims" = 1024
       ORDER BY (("vector")::vector(1024)) <=> ${literal}::vector(1024)
       LIMIT ${limit}
     `);

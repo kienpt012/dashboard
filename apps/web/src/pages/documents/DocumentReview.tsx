@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, DownloadOutlined, EditOutlined, PauseCircleOutlined, RedoOutlined, RobotOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, DownloadOutlined, EditOutlined, FileSyncOutlined, PauseCircleOutlined, RedoOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Alert, App, Badge, Button, Card, Col, Descriptions, Empty, Flex, Pagination, Progress, Result, Row, Segmented, Space, Tag, Tooltip, Typography } from 'antd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +19,7 @@ import { DOC_STATUS } from './Documents';
 import { LegalBasis } from '@/components/LegalBasis';
 import { LazyPdfViewer } from '@/components/pdf/LazyPdfViewer';
 import type { Box } from '@/components/pdf/PdfViewer';
+import { CandidateSignals, flagCountTag, matchTag, methodTag } from './ReviewSignals';
 
 type Location = { pageNumber: number; box: Box | null; matchBox: Box | null; quote: string; score: number };
 
@@ -52,8 +53,49 @@ function confidenceColor(value: number) {
   return value >= 0.8 ? 'green' : value >= 0.6 ? 'gold' : 'red';
 }
 
+/** Tóm tắt một lượt xử lý từ số liệu job (bộ đọc, Qwen đọc bao nhiêu đoạn, đoạn bỏ qua, cờ kiểm tra). */
+function jobSummary(job: SourceDocumentDetail['jobs'][number]) {
+  const stats = (job.stats ?? {}) as Record<string, number | string | Record<string, number> | undefined>;
+  const n = (key: string) => (typeof stats[key] === 'number' ? (stats[key] as number) : 0);
+  if (job.kind === 'DOCUMENT_PARSE') {
+    const parts = [
+      n('pages') ? `${n('pages')} trang` : null,
+      n('ocrPages') ? `${n('ocrPages')} trang OCR` : null,
+      n('ocrElements') ? `${n('ocrFlaggedElements')}/${n('ocrElements')} dòng OCR cần rà soát` : null,
+      n('msPerPage') ? `${(n('msPerPage') / 1000).toFixed(1)} giây/trang` : null,
+      stats.parser === 'fallback' ? 'bộ đọc dự phòng' : null,
+    ];
+    return parts.filter(Boolean).join(' · ');
+  }
+  const parts = [
+    n('llmChunks') ? `Qwen đọc ${n('llmSucceeded')}/${n('llmChunks')} đoạn` : null,
+    n('skipped') ? `bỏ qua ${n('skipped')} đoạn không có số liệu` : null,
+    n('formChunks') ? `${n('formChunks')} đoạn biểu mẫu` : null,
+    n('flaggedCandidates') ? `${n('flaggedCandidates')} đề xuất có cờ kiểm tra` : null,
+  ];
+  return parts.filter(Boolean).join(' · ');
+}
+
 function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onReject }: { item: IndicatorCandidate; active: boolean; screen: boolean; onSelect: () => void; onEdit: () => void; onApprove: () => void; onReject: () => void }) {
+  const { modal } = App.useApp();
   const submit = useAction(() => http.post(`/candidates/${item.id}/submit`, { expectedVersion: item.version }), { success: 'Đã trình đề xuất', refresh: ['/candidates', '/my-work', '/documents'] });
+  const merge = useAction((targetId: string) => http.post(`/candidates/${item.id}/merge`, { expectedVersion: item.version, targetId }), {
+    success: 'Đã gộp vào chỉ tiêu có sẵn',
+    refresh: ['/candidates', '/my-work', '/documents', '/targets'],
+  });
+  const applyCode = useAction((code: string) => http.patch(`/candidates/${item.id}`, { expectedVersion: item.version, standardCode: code }), {
+    success: 'Đã gắn mã chỉ tiêu',
+    refresh: ['/candidates'],
+  });
+  const confirmMerge = (targetId: string) => {
+    const target = item.similarTargets?.items.find(entry => entry.id === targetId);
+    modal.confirm({
+      title: 'Gộp vào chỉ tiêu có sẵn?',
+      content: `Đề xuất "${item.name}" không tạo chỉ tiêu mới; văn bản nguồn được ghi thêm vào hồ sơ chỉ tiêu ${target?.code ?? ''}. Giá trị của chỉ tiêu có sẵn giữ nguyên.`,
+      okText: 'Gộp',
+      onOk: () => merge.mutateAsync(targetId),
+    });
+  };
   const target = item.targetValue !== null && item.targetValue !== undefined ? `${num(item.targetValue)}${item.unit ? ` ${item.unit}` : ''}` : item.unit || '—';
   return (
     <div className={`candidate${active ? ' active' : ''}`} onClick={onSelect} role="button" tabIndex={0} onKeyDown={event => event.key === 'Enter' && onSelect()}>
@@ -72,11 +114,9 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
         <Tag color={item.kind === 'PROGRESS_UPDATE' ? 'cyan' : 'geekblue'}>{item.kind === 'PROGRESS_UPDATE' ? 'Cập nhật số liệu' : 'Chỉ tiêu mới'}</Tag>
         {item.pageNumber && <Tag>Trang {item.pageNumber}</Tag>}
         {item.humanEdited && <Tag color="blue">Đã hiệu chỉnh</Tag>}
-        {item.isDuplicateSuspect && (
-          <Tag color="orange" icon={<WarningOutlined />}>
-            Có thể trùng
-          </Tag>
-        )}
+        {methodTag(item)}
+        {matchTag(item)}
+        {flagCountTag(item)}
       </Space>
       <Descriptions
         size="small"
@@ -94,7 +134,10 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
         ]}
       />
       {item.warnings?.length ? <Alert type="warning" showIcon title={item.warnings.join('; ')} style={{ marginTop: 6 }} /> : null}
-      {item.matchedTarget && (
+      {active || item.validationFlags?.length || item.ocrReadings?.length || item.similarTargets?.items.length || item.mergedTarget ? (
+        <CandidateSignals item={item} onMerge={confirmMerge} onUseCode={code => applyCode.mutate(code)} merging={merge.isPending} usingCode={applyCode.isPending} />
+      ) : null}
+      {item.matchedTarget && !item.similarTargets?.items.length && !item.mergedTarget && (
         <div className="entry-meta" style={{ marginTop: 6 }}>
           Gần giống <Link to={`/admin/targets/${item.matchedTarget.id}`}>{item.matchedTarget.code}</Link> — {item.matchedTarget.title}
         </div>
@@ -190,6 +233,7 @@ export default function DocumentReview() {
   }, [isPdf, view, bytes, id, message]);
 
   const reextract = useAction(() => http.post(`/documents/${id}/extract`), { success: 'Đã yêu cầu trích xuất lại', refresh: [`/documents/${id}`, '/candidates'] });
+  const reparse = useAction(() => http.post(`/documents/${id}/reparse`), { success: 'Đã yêu cầu đọc lại văn bản', refresh: [`/documents/${id}`, '/documents'] });
   const cancel = useAction((jobId: string) => http.post(`/documents/${id}/extraction-jobs/${jobId}/cancel`), { success: 'Đã dừng trích xuất', refresh: [`/documents/${id}`, '/candidates'] });
   const reject = useAction(({ item, reason }: { item: IndicatorCandidate; reason: string }) => http.post(`/candidates/${item.id}/reject`, { expectedVersion: item.version, reason }), {
     success: 'Đã từ chối đề xuất',
@@ -318,6 +362,24 @@ export default function DocumentReview() {
               Trích xuất lại
             </Button>
           )}
+          {can(user, WORKING) && !activeJob && (detail.status === 'PROCESSED' || detail.status === 'FAILED') && (
+            <Tooltip title={detail.parserVersion ? `Đang đọc bằng: ${detail.parserVersion}` : undefined}>
+              <Button
+                icon={<FileSyncOutlined />}
+                loading={reparse.isPending}
+                onClick={() =>
+                  modal.confirm({
+                    title: 'Đọc lại văn bản?',
+                    content: 'Hệ thống đọc lại toàn bộ văn bản bằng bộ đọc hiện tại (OCR, bảng, cấu trúc mục) rồi trích xuất lại. Đề xuất đã duyệt hoặc đã hiệu chỉnh được giữ nguyên.',
+                    okText: 'Đọc lại',
+                    onOk: () => reparse.mutateAsync(),
+                  })
+                }
+              >
+                Đọc lại
+              </Button>
+            </Tooltip>
+          )}
         </>
       }
       wide
@@ -326,7 +388,9 @@ export default function DocumentReview() {
         <Card size="small" style={{ marginBottom: 16 }}>
           <Flex align="center" gap={16} wrap>
             <Badge status="processing" text={`${JOB_LABEL[activeJob.kind] ?? activeJob.kind}${activeJob.status === 'PENDING' ? ' (đang chờ)' : ''}`} />
-            {activeJob.chunksTotal ? (
+            {activeJob.kind === 'DOCUMENT_PARSE' && activeJob.pagesTotal ? (
+              <Progress style={{ flex: 1, minWidth: 200, margin: 0 }} percent={Math.round(((activeJob.pagesDone ?? 0) / activeJob.pagesTotal) * 100)} format={() => `${activeJob.pagesDone ?? 0}/${activeJob.pagesTotal} trang`} />
+            ) : activeJob.chunksTotal ? (
               <Progress style={{ flex: 1, minWidth: 200, margin: 0 }} percent={Math.round(((activeJob.chunksDone ?? 0) / activeJob.chunksTotal) * 100)} format={() => `${activeJob.chunksDone ?? 0}/${activeJob.chunksTotal} đoạn`} />
             ) : null}
             {activeJob.startedAt && <span className="muted">Bắt đầu {fromNow(activeJob.startedAt)}</span>}
@@ -426,6 +490,7 @@ export default function DocumentReview() {
                       {job.model ? ` · ${job.model}` : ''}
                     </span>
                     <span>{dateTime(job.finishedAt ?? job.startedAt ?? job.createdAt)}</span>
+                    {job.status === 'COMPLETED' && jobSummary(job) && <Typography.Text type="secondary" style={{ flexBasis: '100%', fontSize: 12 }}>{jobSummary(job)}</Typography.Text>}
                     {job.note && <Typography.Text type="secondary" style={{ flexBasis: '100%', fontSize: 12 }}>{job.note}</Typography.Text>}
                   </Flex>
                 ))}

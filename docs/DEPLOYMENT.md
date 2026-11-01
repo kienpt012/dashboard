@@ -59,10 +59,15 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `TESSERACT_LANGS` | `vie+eng` | Ngôn ngữ OCR |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Endpoint Ollama |
 | `OLLAMA_EXTRACT_MODEL` | `qwen3:4b-instruct-2507-q4_K_M` | Model trích xuất |
-| `OLLAMA_EMBED_MODEL` | `bge-m3` | Model embedding đã chuẩn bị cho RAG; ứng dụng hiện chưa gọi |
+| `OLLAMA_EMBED_MODEL` | `bge-m3` | Model nhúng tên chỉ tiêu để tìm trùng và gợi ý mã (B11–B14) |
+| `OLLAMA_KEEP_ALIVE` / `OLLAMA_THINK` | 30m / (trống) | Giữ model nạp sẵn; `false` gửi `think:false` cho model có bước suy nghĩ |
 | `OLLAMA_TIMEOUT_MS` / `OLLAMA_NUM_CTX` | 480000 / 4096 | Timeout và context |
 | `EXTRACTION_MAX_LLM_CHUNKS` | 40 | Số chunk tối đa gửi qua LLM trong một tài liệu |
-| `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 20 | Cấu hình worker |
+| `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 0 | Cấu hình worker; trần trang OCR của bộ đọc dự phòng, 0 = không giới hạn |
+| `OCR_SERVICE_URL` | (trống) | `http://ocr:8000` để đọc văn bản bằng ocr-service (Docling + VietOCR); trống thì dùng pdf.js + Tesseract |
+| `OCR_SERVICE_PAGE_BATCH` / `OCR_SERVICE_TIMEOUT_MS` | 8 / 900000 | Số trang mỗi lần gọi ocr-service và thời gian chờ mỗi lô |
+| `CHUNK_TARGET_CHARS` / `CHUNK_TABLE_FORMAT` | 1400 / plain | Độ dài đoạn gửi Qwen (B7), cách viết bảng |
+| `MATCH_DUPLICATE_THRESHOLD` / `MATCH_NEAR_THRESHOLD` | 0.95 / 0.85 | Ngưỡng cosine trùng / gần trùng (B14) |
 | `DISABLE_EXTRACTION_WORKER` | (trống) | `true` để tắt worker (chạy test/API thuần) |
 
 Kiểm tra: `npm run build`, `npm test` (**103/103** test), API `http://localhost:3100/api/health`.
@@ -93,7 +98,9 @@ Các màn hình AI sau đăng nhập:
 
 **Kết nối Ollama từ container API** dùng mô hình Ollama chạy trên host để tận dụng trực tiếp GPU Windows; Compose không tạo một container Ollama thứ hai. Launcher một chạm chịu trách nhiệm khởi động Ollama và kiểm tra model trước khi bàn giao hệ thống ở trạng thái sẵn sàng.
 
-**pgvector (giai đoạn RAG — quyết định D-005)**: đổi image `postgres:17-alpine` → `pgvector/pgvector:pg17` là thao tác **phá vỡ volume hiện có** (musl → glibc làm sai lệch collation index). Quy trình bắt buộc: `pg_dump` toàn bộ dữ liệu → dừng stack → xóa/tạo volume mới → khởi động image pgvector → `restore` → chạy migration bật extension + thêm cột vector cho `DocumentChunk`. Chỉ thực hiện cùng lúc với giai đoạn 7, kèm hướng dẫn chi tiết tại thời điểm đó.
+**pgvector (B13–B14, quyết định D-015)**: không đổi sang image `pgvector/pgvector:pg17` (Debian), vì đổi musl → glibc làm sai lệch collation index của volume hiện có. Thay vào đó `deploy/postgres/Dockerfile` biên dịch pgvector 0.8.7 trên chính `postgres:17-alpine`, nên volume cũ dùng tiếp, không cần dump/restore. Lần deploy đầu sau khi gộp, `docker compose up` tự build image `…-db:pg17-pgvector-0.8.7` (cần Internet để tải mã pgvector) và khởi động lại container Postgres. Migration `20261101090000_document_pipeline_v2` bật extension và tạo hai chỉ mục HNSW `vector_cosine_ops` nếu Postgres có pgvector; chưa có thì bỏ qua và API so trùng bằng cosine trong bộ nhớ.
+
+**ocr-service (B2–B6)**: dịch vụ Python trong profile `ocr`, mặc định không chạy. Bật bằng `COMPOSE_PROFILES=ocr` và `OCR_SERVICE_URL=http://ocr:8000` trong `.env`. Image tải sẵn mô hình lúc build (vài GB, cần Internet), khi chạy chỉ nằm trong mạng nội bộ `ocr_internal` không ra được Internet. Chi tiết: [services/ocr/README.md](../services/ocr/README.md). API gọi `/parse` theo lô 8 trang, gia hạn lease sau mỗi lô; dịch vụ tắt hoặc lỗi thì API dùng bộ đọc dự phòng và ghi rõ trên lượt xử lý.
 
 ## 4. Lưu ý vận hành
 
