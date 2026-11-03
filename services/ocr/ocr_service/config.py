@@ -40,6 +40,8 @@ class Settings:
     second_reader: str = field(default_factory=lambda: os.environ.get("OCR_SECOND_READER", "rapidocr"))
     second_reader_lang: str = field(default_factory=lambda: os.environ.get("OCR_SECOND_READER_LANG", "latin"))
     second_reader_version: str = field(default_factory=lambda: os.environ.get("OCR_SECOND_READER_VERSION", "PP-OCRv5"))
+    # PP-OCRv5 latin chỉ có bản mobile; rapidocr 3.10 mặc định "small" thì báo cấu hình không hợp lệ.
+    second_reader_model_type: str = field(default_factory=lambda: os.environ.get("OCR_SECOND_READER_MODEL_TYPE", "mobile"))
     rapidocr_model_dir: Path | None = field(default_factory=lambda: _path("RAPIDOCR_MODEL_DIR", None))
     vietocr_config: Path | None = field(default_factory=lambda: _path("VIETOCR_CONFIG", "/models/vietocr/config.yml"))
     vietocr_weights: Path | None = field(default_factory=lambda: _path("VIETOCR_WEIGHTS", "/models/vietocr/vgg_transformer.pth"))

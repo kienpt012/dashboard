@@ -72,6 +72,7 @@ RapidOCR) nên cần Internet lúc build. Khi chạy, `HF_HUB_OFFLINE=1` và m�
 | `OCR_MIN_SYLLABLE_RATIO` | 0.6 | Tỷ lệ âm tiết tiếng Việt hợp lệ tối thiểu; thấp hơn là lớp chữ hỏng phông, phải OCR |
 | `OCR_MAX_DISAGREEMENT` | 0.10 | Hai bộ đọc khác nhau hơn ngưỡng này thì dòng mang cờ `can_ra_soat` |
 | `OCR_SECOND_READER` | rapidocr | Giá trị khác `rapidocr` (vd `none`) tắt bộ đọc thứ hai: nhanh hơn nhưng mất cờ so hai bộ đọc |
+| `OCR_SECOND_READER_MODEL_TYPE` | mobile | Cỡ mô hình của bộ đọc thứ hai; PP-OCRv5 latin chỉ có bản `mobile` |
 | `OCR_TABLE_MODE` | accurate | `fast` cho TableFormer nhanh hơn |
 | `OCR_THREADS` | 4 trong compose (0 = để thư viện tự chọn) | Số luồng CPU cho PyTorch và ONNX Runtime |
 | `OCR_FORMS_DIR` | `ocr_service/forms` | Thư mục mẫu biểu mẫu cố định (xem `ocr_service/forms/README.md`) |

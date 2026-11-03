@@ -53,7 +53,7 @@ def vietocr_model(folder: Path) -> None:
 
 def rapidocr_models(folder: Path) -> None:
     import numpy as np
-    from rapidocr import LangRec, OCRVersion, RapidOCR
+    from rapidocr import LangRec, ModelType, OCRVersion, RapidOCR
 
     folder.mkdir(parents=True, exist_ok=True)
     base = {"Global.log_level": "error", "Global.model_root_dir": str(folder)}
@@ -62,6 +62,8 @@ def rapidocr_models(folder: Path) -> None:
         **base,
         "Rec.lang_type": LangRec(os.environ.get("OCR_SECOND_READER_LANG", "latin")),
         "Rec.ocr_version": OCRVersion(os.environ.get("OCR_SECOND_READER_VERSION", "PP-OCRv5")),
+        # PP-OCRv5 latin chỉ có bản mobile; mặc định "small" của rapidocr 3.10 không có mô hình.
+        "Rec.model_type": ModelType(os.environ.get("OCR_SECOND_READER_MODEL_TYPE", "mobile")),
     })
     second(np.full((48, 320, 3), 255, np.uint8), use_det=False, use_cls=False, use_rec=True)
     print(f"RapidOCR: đã tải bộ đọc thứ hai vào {folder}")

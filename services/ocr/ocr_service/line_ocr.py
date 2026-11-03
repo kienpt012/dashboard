@@ -152,11 +152,12 @@ class LineReader:
         if self.settings.second_reader != "rapidocr":
             return None
         if self._second is None:
-            from rapidocr import LangRec, OCRVersion, RapidOCR
+            from rapidocr import LangRec, ModelType, OCRVersion, RapidOCR
 
             params = self._rapid_params()
             params["Rec.lang_type"] = LangRec(self.settings.second_reader_lang)
             params["Rec.ocr_version"] = OCRVersion(self.settings.second_reader_version)
+            params["Rec.model_type"] = ModelType(self.settings.second_reader_model_type)
             self._second = RapidOCR(params=params)
         return self._second
 
