@@ -17,4 +17,4 @@ python-multipart==0.0.32
 einops==0.8.2
 gdown==6.4.1
 pyyaml==6.0.3
-requests==2.32.5
+requests==2.34.2

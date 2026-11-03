@@ -1,6 +1,6 @@
 # ocr-service: B2–B6 của quy trình xử lý văn bản (Docling + RapidOCR + VietOCR + OpenCV).
 # Mô hình được tải sẵn lúc build; khi chạy, container không cần và không được ra Internet.
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
