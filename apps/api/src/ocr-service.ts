@@ -1,4 +1,6 @@
 import { Logger } from '@nestjs/common';
+import http from 'node:http';
+import https from 'node:https';
 import type { LayoutSpan } from './source-locator';
 
 // Client gọi ocr-service (Python: Docling + RapidOCR + VietOCR), phụ trách B2–B6 của quy trình xử lý văn bản.
@@ -88,7 +90,8 @@ export function resolveOcrServiceConfig(env: Record<string, string | undefined> 
   const timeout = Number.parseInt(env.OCR_SERVICE_TIMEOUT_MS ?? '', 10);
   return {
     baseUrl: raw ? raw.replace(/\/+$/, '') : null,
-    pageBatch: Number.isSafeInteger(batch) ? Math.min(50, Math.max(1, batch)) : 8,
+    // 4 trang mỗi lô: trên CPU một trang scan mất 40–50 giây, lô nhỏ giữ mỗi lần gọi dưới vài phút và gia hạn lease đều.
+    pageBatch: Number.isSafeInteger(batch) ? Math.min(50, Math.max(1, batch)) : 4,
     timeoutMs: Number.isSafeInteger(timeout) ? Math.min(3_600_000, Math.max(30_000, timeout)) : 900_000,
   };
 }
@@ -112,7 +115,7 @@ export function pageBatches(pageCount: number, batchSize: number): { from: numbe
 export class OcrServiceClient {
   private readonly logger = new Logger(OcrServiceClient.name);
 
-  constructor(readonly config: OcrServiceConfig = resolveOcrServiceConfig(), private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(readonly config: OcrServiceConfig = resolveOcrServiceConfig(), private readonly fetchImpl: typeof fetch = longRequestFetch) {}
 
   get enabled() {
     return Boolean(this.config.baseUrl);
@@ -154,7 +157,7 @@ export class OcrServiceClient {
       });
     } catch (error) {
       if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : error;
-      throw new OcrServiceUnavailableError(`Không kết nối được ocr-service: ${error instanceof Error ? error.name : 'lỗi'}`);
+      throw new OcrServiceUnavailableError(`Không kết nối được ocr-service: ${describeError(error)}`);
     }
     if (response.status === 503) throw new OcrServiceUnavailableError('ocr-service chưa nạp xong mô hình');
     if (!response.ok) {
@@ -169,4 +172,45 @@ export class OcrServiceClient {
 function combine(timeoutMs: number, signal?: AbortSignal) {
   const timeout = AbortSignal.timeout(timeoutMs);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+/** Tên lỗi kèm nguyên nhân gốc (fetch chỉ báo "TypeError: fetch failed", lý do thật nằm trong cause). */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return 'lỗi';
+  const cause = error.cause as { code?: string; message?: string } | undefined;
+  const detail = cause?.code ?? cause?.message ?? error.message;
+  return detail && detail !== error.name ? `${error.name}: ${detail}` : error.name;
+}
+
+/**
+ * Gọi HTTP bằng node:http thay cho fetch toàn cục. fetch của Node (undici) tự ngắt khi chờ header phản hồi quá
+ * 300 giây (headersTimeout), bất kể AbortSignal; ocr-service đọc một lô scan trên CPU có thể lâu hơn thế. Ở đây
+ * thời gian chờ chỉ do AbortSignal (OCR_SERVICE_TIMEOUT_MS) quyết định.
+ */
+export async function longRequestFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const request = new Request(input, init);
+  const body = request.body ? Buffer.from(await request.arrayBuffer()) : undefined;
+  const target = new URL(request.url);
+  const transport = target.protocol === 'https:' ? https : http;
+  const headers: Record<string, string> = Object.fromEntries(request.headers.entries());
+  if (body) headers['content-length'] = String(body.length);
+  return new Promise<Response>((resolve, reject) => {
+    const outgoing = transport.request(target, { method: request.method, headers, signal: request.signal }, incoming => {
+      const chunks: Buffer[] = [];
+      incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
+      incoming.on('error', reject);
+      incoming.on('end', () => {
+        const status = incoming.statusCode ?? 502;
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (value === undefined) continue;
+          for (const item of Array.isArray(value) ? value : [value]) responseHeaders.append(name, item);
+        }
+        const nullBody = status === 204 || status === 205 || status === 304;
+        resolve(new Response(nullBody ? null : Buffer.concat(chunks), { status, headers: responseHeaders }));
+      });
+    });
+    outgoing.on('error', reject);
+    outgoing.end(body);
+  });
 }

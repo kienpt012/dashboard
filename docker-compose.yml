@@ -69,7 +69,7 @@ services:
       # Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR) đọc B2–B6. Để trống thì dùng bộ đọc dự phòng
       # (pdf.js + Tesseract). Bật bằng COMPOSE_PROFILES=ocr và OCR_SERVICE_URL=http://ocr:8000 trong .env.
       OCR_SERVICE_URL: ${OCR_SERVICE_URL:-}
-      OCR_SERVICE_PAGE_BATCH: ${OCR_SERVICE_PAGE_BATCH:-8}
+      OCR_SERVICE_PAGE_BATCH: ${OCR_SERVICE_PAGE_BATCH:-4}
       OCR_SERVICE_TIMEOUT_MS: ${OCR_SERVICE_TIMEOUT_MS:-900000}
       CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-1400}
       CHUNK_TABLE_FORMAT: ${CHUNK_TABLE_FORMAT:-plain}

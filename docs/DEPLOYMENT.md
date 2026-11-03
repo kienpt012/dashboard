@@ -65,7 +65,7 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `EXTRACTION_MAX_LLM_CHUNKS` | 40 | Số chunk tối đa gửi qua LLM trong một tài liệu |
 | `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 0 | Cấu hình worker; trần trang OCR của bộ đọc dự phòng, 0 = không giới hạn |
 | `OCR_SERVICE_URL` | (trống) | `http://ocr:8000` để đọc văn bản bằng ocr-service (Docling + VietOCR); trống thì dùng pdf.js + Tesseract |
-| `OCR_SERVICE_PAGE_BATCH` / `OCR_SERVICE_TIMEOUT_MS` | 8 / 900000 | Số trang mỗi lần gọi ocr-service và thời gian chờ mỗi lô |
+| `OCR_SERVICE_PAGE_BATCH` / `OCR_SERVICE_TIMEOUT_MS` | 4 / 900000 | Số trang mỗi lần gọi ocr-service và thời gian chờ mỗi lô (CPU: 40–50 giây mỗi trang scan) |
 | `CHUNK_TARGET_CHARS` / `CHUNK_TABLE_FORMAT` | 1400 / plain | Độ dài đoạn gửi Qwen (B7), cách viết bảng |
 | `MATCH_DUPLICATE_THRESHOLD` / `MATCH_NEAR_THRESHOLD` | 0.95 / 0.85 | Ngưỡng cosine trùng / gần trùng (B14) |
 | `DISABLE_EXTRACTION_WORKER` | (trống) | `true` để tắt worker (chạy test/API thuần) |

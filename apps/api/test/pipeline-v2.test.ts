@@ -23,6 +23,7 @@ import {
   resolveMatchingConfig,
 } from '../src/indicator-matching';
 import {
+  longRequestFetch,
   OcrServiceClient,
   OcrServiceUnavailableError,
   pageBatches,
@@ -305,6 +306,41 @@ test('ocr-service: cấu hình, chia lô trang, lỗi 503 là chưa sẵn sàng'
   }) as typeof fetch);
   await assert.rejects(client.parse(Buffer.from('%PDF-1.7'), 'a.pdf', { from: 9, to: 16 }), OcrServiceUnavailableError);
   assert.equal(requests[0], 'http://ocr:8000/parse?pages=9-16');
+});
+
+test('ocr-service: gửi multipart qua node:http, thời gian chờ chỉ theo AbortSignal', async () => {
+  const { createServer } = await import('node:http');
+  let received = '';
+  let contentType = '';
+  const server = createServer((req, res) => {
+    contentType = String(req.headers['content-type']);
+    const chunks: Buffer[] = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      received = Buffer.concat(chunks).toString('latin1');
+      if (req.url?.startsWith('/slow')) return; // không trả lời: chỉ AbortSignal được ngắt
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ pageCount: 3, kind: 'pdf', pages: [] }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as { port: number };
+  try {
+    const client = new OcrServiceClient({ baseUrl: `http://127.0.0.1:${port}`, pageBatch: 4, timeoutMs: 60_000 });
+    const inspected = await client.inspect(Buffer.from('%PDF-1.7 nội dung'), 'văn bản.pdf');
+    assert.equal(inspected.pageCount, 3);
+    assert.match(contentType, /^multipart\/form-data; boundary=/);
+    assert.ok(received.includes('%PDF-1.7'));
+    assert.ok(received.includes('name="filename"'));
+    const controller = new AbortController();
+    const pending = longRequestFetch(`http://127.0.0.1:${port}/slow`, { method: 'POST', body: 'x', signal: controller.signal });
+    setTimeout(() => controller.abort(), 50);
+    await assert.rejects(pending, (error: Error) => error.name === 'AbortError');
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+  assert.equal(resolveOcrServiceConfig({}).pageBatch, 4);
 });
 
 test('Nhận diện TIFF, .doc, .xls bằng chữ ký nội dung', () => {
