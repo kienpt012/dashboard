@@ -420,6 +420,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           notes.push(`ocr-service lỗi (${reason}): dùng bộ đọc dự phòng pdf.js + Tesseract.`);
         }
       } else {
+        this.logger.warn(`ocr-service chưa sẵn sàng (${this.ocrClient.config.baseUrl}/health): tài liệu ${document.id} dùng bộ đọc dự phòng`);
         notes.push('ocr-service chưa sẵn sàng: dùng bộ đọc dự phòng pdf.js + Tesseract.');
       }
     }

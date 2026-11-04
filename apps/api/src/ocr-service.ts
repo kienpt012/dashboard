@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
-import http from 'node:http';
-import https from 'node:https';
+import * as http from 'node:http';
+import * as https from 'node:https';
 import type { LayoutSpan } from './source-locator';
 
 // Client gọi ocr-service (Python: Docling + RapidOCR + VietOCR), phụ trách B2–B6 của quy trình xử lý văn bản.

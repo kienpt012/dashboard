@@ -343,6 +343,39 @@ test('ocr-service: gửi multipart qua node:http, thời gian chờ chỉ theo A
   assert.equal(resolveOcrServiceConfig({}).pageBatch, 4);
 });
 
+test('ocr-service: bản biên dịch CommonJS (không esModuleInterop) vẫn gọi được dịch vụ', async () => {
+  // tsx tự xử lý import mặc định nên test thường không bắt được lỗi `import http from 'node:http'` trong bản build.
+  const ts = await import('typescript');
+  const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { createRequire } = await import('node:module');
+  const { createServer } = await import('node:http');
+  const config = ts.readConfigFile(join(__dirname, '..', 'tsconfig.json'), ts.sys.readFile).config;
+  const { options } = ts.convertCompilerOptionsFromJson(config.compilerOptions, join(__dirname, '..'));
+  const source = readFileSync(join(__dirname, '..', 'src', 'ocr-service.ts'), 'utf8');
+  const output = ts.transpileModule(source, { compilerOptions: { ...options, module: ts.ModuleKind.CommonJS } }).outputText;
+  const dir = mkdtempSync(join(__dirname, '..', '.tmp-ocr-'));
+  const server = createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(req.url === '/health' ? '{"status":"ok"}' : '{"pageCount":1,"kind":"pdf","pages":[]}');
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    writeFileSync(join(dir, 'ocr-service.js'), output);
+    const compiled = createRequire(join(dir, 'index.js'))('./ocr-service.js') as typeof import('../src/ocr-service');
+    const { port } = server.address() as { port: number };
+    const client = new compiled.OcrServiceClient({ baseUrl: `http://127.0.0.1:${port}`, pageBatch: 4, timeoutMs: 60_000 });
+    assert.equal(await client.isReady(), true);
+    assert.equal((await client.inspect(Buffer.from('%PDF-1.7'), 'a.pdf')).pageCount, 1);
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('Nhận diện TIFF, .doc, .xls bằng chữ ký nội dung', () => {
   assert.equal(detectDocumentKind(Buffer.from([0x49, 0x49, 0x2a, 0x00, 8, 0, 0, 0]))?.mimeType, 'image/tiff');
   const ole = (name: string) => {
