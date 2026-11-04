@@ -36,7 +36,7 @@ def test_tone_placement_normalized_but_codes_untouched():
 def test_strip_and_disagreement():
     assert strip_diacritics("Đồng Nai") == "Dong Nai"
     assert disagreement("Tỷ lệ hộ nghèo", "Ty le ho ngheo") == 0.0
-    assert disagreement("Tỷ lệ hộ nghèo", "Thu ngân sách") > 0.5
+    assert disagreement("Tỷ lệ hộ nghèo", "Thu ngân sách") > 0.3
 
 
 def test_merge_takes_vietocr_and_restores_punctuation():
@@ -56,3 +56,14 @@ def test_merge_flags_large_disagreement():
 def test_merge_without_second_reader():
     assert merge_readings("Tỷ lệ", None) == {"text": "Tỷ lệ", "source": "vietocr", "flags": [], "disagreement": None}
     assert merge_readings("", "Ty le")["source"] == "paddle"
+
+
+def test_second_reader_dropping_vietnamese_vowels_is_not_flagged():
+    # PP-OCRv5 latin rơi nguyên âm mang dấu; chữ số và phụ âm giữ nguyên thì không phải lệch thật.
+    merged = merge_readings("Tỉ lệ hoàn thành cấp THCS đạt 99,2%", "Ti l hohn thnh cp THCS dt 99,2%")
+    assert "hai_ban_doc_lech" not in merged["flags"]
+
+
+def test_different_digits_always_flagged():
+    merged = merge_readings("Tỷ lệ tham gia bảo hiểm y tế đạt 95%", "Ty le tham gia bao hiem y te dat 85%")
+    assert {"can_ra_soat", "hai_ban_doc_lech", "so_lech"} <= set(merged["flags"])

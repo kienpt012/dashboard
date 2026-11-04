@@ -233,10 +233,21 @@ def normalize_text(text: str) -> str:
 PUNCT_FROM_SECOND = set("–—-“”\"‘’'")
 
 
+def _skeleton(text: str) -> str:
+    """Bỏ dấu, chữ thường, bỏ nguyên âm. Bộ đọc thứ hai (PP-OCRv5 latin) không có bảng chữ tiếng Việt: hay rơi
+    hẳn nguyên âm mang dấu ("hoàn" thành "hohn", "đạt" thành "da"), nên chỉ so phụ âm, chữ số và dấu câu."""
+    skeleton = re.sub(r"[aeiouy]", "", strip_diacritics(text).lower())
+    return re.sub(r"\s+", " ", skeleton).strip()
+
+
+def digit_sequence(text: str) -> str:
+    return re.sub(r"\D", "", text)
+
+
 def disagreement(first: str, second: str) -> float:
-    """Tỉ lệ lệch giữa phần chữ đã bỏ dấu của hai bản đọc (0 = giống hệt, 1 = khác hoàn toàn)."""
-    a = re.sub(r"\s+", " ", strip_diacritics(first).lower()).strip()
-    b = re.sub(r"\s+", " ", strip_diacritics(second).lower()).strip()
+    """Tỉ lệ lệch giữa khung phụ âm và chữ số của hai bản đọc (0 = giống hệt, 1 = khác hoàn toàn)."""
+    a = _skeleton(first)
+    b = _skeleton(second)
     if not a and not b:
         return 0.0
     if not a or not b:
@@ -264,7 +275,8 @@ def restore_punctuation(primary: str, second: str) -> str:
 def merge_readings(primary: str, second: str | None, max_disagreement: float = 0.10) -> dict:
     """Gộp bản đọc VietOCR (chính) với bản đọc thứ hai.
 
-    - Lệch không quá 10% (sau khi bỏ dấu): lấy VietOCR, vá các dấu "?" từ bản thứ hai.
+    - Chữ số khác nhau: lấy VietOCR, gắn cờ cần rà soát và "so_lech".
+    - Khung phụ âm lệch không quá 10%: lấy VietOCR, vá các dấu "?" từ bản thứ hai.
     - Lệch hơn: vẫn lấy VietOCR, giữ cả hai bản và gắn cờ cần rà soát.
     - VietOCR rỗng mà bản thứ hai có chữ: lấy bản thứ hai, gắn cờ.
     """
@@ -276,6 +288,10 @@ def merge_readings(primary: str, second: str | None, max_disagreement: float = 0
     if not primary and second_text:
         return {"text": second_text, "source": "paddle", "flags": ["can_ra_soat", "chi_co_ban_doc_thu_hai"], "disagreement": 1.0}
     gap = disagreement(primary, second_text)
+    if digit_sequence(primary) != digit_sequence(second_text):
+        # Chữ số là phần quan trọng nhất của chỉ tiêu: hai bản đọc khác số thì luôn đưa người rà soát.
+        flags.extend(["can_ra_soat", "hai_ban_doc_lech", "so_lech"])
+        return {"text": primary, "source": "vietocr", "flags": flags, "disagreement": round(gap, 3)}
     if gap <= max_disagreement:
         repaired = restore_punctuation(primary, second_text)
         return {"text": repaired, "source": "merged" if repaired != primary else "vietocr", "flags": flags, "disagreement": round(gap, 3)}
