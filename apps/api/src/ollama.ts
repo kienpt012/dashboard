@@ -32,6 +32,8 @@ export class OllamaService {
   readonly embedModel: string;
   readonly requestTimeoutMs: number;
   readonly numCtx: number;
+  /** Thời gian chờ một lần hỏi /api/version. Máy thiếu RAM đang nạp model có thể trả lời chậm hơn 3 giây. */
+  readonly healthTimeoutMs: number;
   /** Giữ model nạp sẵn giữa các lần gọi (B8, B11), vd "30m"; rỗng = mặc định của Ollama. */
   readonly keepAlive: string | null;
   /** OLLAMA_THINK=false gửi think:false (model có bước suy nghĩ); bỏ trống thì không gửi (qwen3 instruct không có). */
@@ -46,22 +48,40 @@ export class OllamaService {
     // tuyến intent) tự kết thúc sớm hơn nhiều.
     this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 900_000);
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
+    this.healthTimeoutMs = boundedInteger(config.get<string>('OLLAMA_HEALTH_TIMEOUT_MS'), 10_000, 1_000, 120_000);
     const keepAlive = (config.get<string>('OLLAMA_KEEP_ALIVE') ?? '').trim();
     this.keepAlive = /^-?\d+(\.\d+)?(ms|s|m|h)?$/.test(keepAlive) ? keepAlive : null;
     const think = (config.get<string>('OLLAMA_THINK') ?? '').trim().toLowerCase();
     this.think = think === 'true' ? true : think === 'false' ? false : null;
   }
 
-  async isAvailable(signal?: AbortSignal): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/version`, {
-        signal: combineAbortSignals(3_000, signal),
-      });
-      return response.ok;
-    } catch {
-      rethrowExternalAbort(signal);
-      return false;
+  /**
+   * Ollama có trả lời không. Copilot gọi một lần, chờ ngắn (mặc định 3 giây) để không làm chậm câu trả lời.
+   * Job trích xuất chạy nền nên gọi với `attempts` > 1: máy thiếu RAM có thể chậm vài chục giây, và nếu kết luận
+   * sai là "không hoạt động" thì cả văn bản rơi về bộ luật dù Qwen vẫn chạy được.
+   */
+  async isAvailable(signal?: AbortSignal, options: { timeoutMs?: number; attempts?: number; retryDelayMs?: number } = {}): Promise<boolean> {
+    const timeoutMs = options.timeoutMs ?? 3_000;
+    const attempts = Math.max(1, Math.floor(options.attempts ?? 1));
+    const retryDelayMs = options.retryDelayMs ?? 2_000;
+    let lastError = 'không rõ';
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        const response = await fetch(`${this.baseUrl}/api/version`, {
+          signal: combineAbortSignals(timeoutMs, signal),
+        });
+        if (response.ok) return true;
+        lastError = `HTTP ${response.status}`;
+      } catch (error) {
+        rethrowExternalAbort(signal);
+        lastError = error instanceof Error ? error.name : 'lỗi';
+      }
+      if (attempt < attempts) await sleep(retryDelayMs * attempt, signal);
     }
+    if (attempts > 1) {
+      this.logger.warn(`Ollama không trả lời ${this.baseUrl}/api/version sau ${attempts} lần (mỗi lần chờ ${timeoutMs} ms, lỗi cuối: ${lastError})`);
+    }
+    return false;
   }
 
   // Sinh JSON theo schema bằng grammar-constrained decoding của Ollama (tham số format).
@@ -175,6 +195,21 @@ function boundedInteger(raw: string | number | undefined, fallback: number, min:
 function combineAbortSignals(timeoutMs: number, externalSignal?: AbortSignal): AbortSignal {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   return externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 function rethrowExternalAbort(signal?: AbortSignal): void {

@@ -7,16 +7,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import threading
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from . import __version__
 from .config import SETTINGS
 from .line_ocr import get_line_reader
-from .pipeline import docling_version, get_converter, inspect, parse
+from .pipeline import ParseCancelled, docling_version, get_converter, inspect, parse
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 log = logging.getLogger("ocr_service")
@@ -68,12 +70,31 @@ async def inspect_endpoint(file: UploadFile = File(...), filename: str = Form(""
         raise HTTPException(status_code=415, detail=str(error)) from error
 
 
+async def _watch_disconnect(request: Request, cancelled: threading.Event, interval: float = 1.0) -> None:
+    while not cancelled.is_set():
+        if await request.is_disconnected():
+            cancelled.set()
+            return
+        await asyncio.sleep(interval)
+
+
 @app.post("/parse")
-async def parse_endpoint(file: UploadFile = File(...), filename: str = Form(""), pages: str | None = Query(None)) -> dict:
+async def parse_endpoint(request: Request, file: UploadFile = File(...), filename: str = Form(""),
+                         pages: str | None = Query(None)):
     if not _STATE["ready"] and os.environ.get("OCR_SKIP_WARMUP") != "1":
         raise HTTPException(status_code=503, detail=f"Mô hình chưa sẵn sàng: {_STATE['error'] or 'đang nạp'}")
     data = await _read_upload(file)
+    # API ngắt kết nối (hết giờ, huỷ job) thì dừng ở mốc gần nhất và nhả khoá cho lô kế tiếp,
+    # thay vì đọc tiếp hàng chục phút cho một yêu cầu không còn ai chờ.
+    cancelled = threading.Event()
+    watcher = asyncio.create_task(_watch_disconnect(request, cancelled))
     try:
-        return await run_in_threadpool(parse, data, filename or file.filename or "", pages)
+        return await run_in_threadpool(parse, data, filename or file.filename or "", pages, should_stop=cancelled.is_set)
+    except ParseCancelled as stop:
+        log.warning("Bỏ /parse pages=%s vì API đã ngắt kết nối (dừng tại: %s)", pages, stop)
+        return Response(status_code=499)
     except ValueError as error:
         raise HTTPException(status_code=415, detail=str(error)) from error
+    finally:
+        cancelled.set()
+        watcher.cancel()

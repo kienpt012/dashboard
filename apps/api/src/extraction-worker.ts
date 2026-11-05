@@ -704,7 +704,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       for (const element of elements) if (element?.id) elementById.set(element.id, element);
     }
 
-    const llmAvailable = await this.ollama.isAvailable(signal);
+    // Hỏi lại tối đa 3 lần với thời gian chờ dài: kết luận nhầm "Ollama không hoạt động" sẽ đẩy cả văn bản sang bộ luật.
+    const llmAvailable = await this.ollama.isAvailable(signal, { timeoutMs: this.ollama.healthTimeoutMs, attempts: 3 });
     const initialized = await this.prisma.extractionJob.updateMany({
       where: {
         id: job.id,

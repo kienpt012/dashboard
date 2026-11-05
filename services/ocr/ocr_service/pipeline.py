@@ -11,7 +11,7 @@ import io
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 from PIL import Image, ImageOps
@@ -79,6 +79,18 @@ def get_converter():
             },
         )
         return _CONVERTER
+
+
+class ParseCancelled(Exception):
+    """API đã bỏ yêu cầu (ngắt kết nối, hết giờ): dừng ở mốc gần nhất thay vì đọc tiếp cho không ai nhận."""
+
+
+StopCheck = Callable[[], bool] | None
+
+
+def _check(should_stop: StopCheck, where: str) -> None:
+    if should_stop is not None and should_stop():
+        raise ParseCancelled(where)
 
 
 def _convert(data: bytes, name: str):
@@ -225,10 +237,11 @@ def _finalize_elements(raw: list[dict], page_number: int, width: float | None, h
 
 
 def _pdf_like(pdf_bytes: bytes, original_pages: list[int], classes: dict[int, PageClass], prepared: dict[int, dict],
-              settings: Settings, warnings: list[str]) -> list[dict]:
+              settings: Settings, warnings: list[str], should_stop: StopCheck = None) -> list[dict]:
     result = _convert(pdf_bytes, "document.pdf")
     doc = result.document
     ledger = LEDGER.pop(result.input.document_hash)
+    _check(should_stop, "sau Docling")
     raw = document_to_elements(doc, default_source="pdf_text")
     by_page: dict[int, list[dict]] = {n: [] for n in range(1, len(original_pages) + 1)}
     for element in raw:
@@ -237,6 +250,7 @@ def _pdf_like(pdf_bytes: bytes, original_pages: list[int], classes: dict[int, Pa
     templates = load_templates()
     pages: list[dict] = []
     for rebuilt_number, original in enumerate(original_pages, start=1):
+        _check(should_stop, f"trang {original}")
         page_item = doc.pages.get(rebuilt_number)
         width = page_item.size.width if page_item and page_item.size else None
         height = page_item.size.height if page_item and page_item.size else None
@@ -252,6 +266,7 @@ def _pdf_like(pdf_bytes: bytes, original_pages: list[int], classes: dict[int, Pa
                 element["source"] = "vietocr"
             if element["type"] == "table":
                 if ocr_page:
+                    _check(should_stop, f"bảng trang {original}")
                     try:
                         _fix_table(element, page_image, settings)
                     except Exception:
@@ -301,8 +316,9 @@ def _pdf_like(pdf_bytes: bytes, original_pages: list[int], classes: dict[int, Pa
     return pages
 
 
-def _parse_docx(data: bytes, settings: Settings, warnings: list[str]) -> list[dict]:
+def _parse_docx(data: bytes, settings: Settings, warnings: list[str], should_stop: StopCheck = None) -> list[dict]:
     result = _convert(data, "document.docx")
+    _check(should_stop, "sau Docling")
     doc = result.document
     raw = document_to_elements(doc, default_source="docx")
     reader = None
@@ -320,6 +336,7 @@ def _parse_docx(data: bytes, settings: Settings, warnings: list[str]) -> list[di
             image = None
         if image is None or image.width * image.height < settings.min_embedded_image_px:
             continue
+        _check(should_stop, "ảnh nhúng")
         reader = reader or get_line_reader()
         prepared = prepare_image(image.convert("RGB"), photo=False)
         for line in reader.read_region(np.asarray(prepared.image)):
@@ -352,12 +369,17 @@ def inspect(data: bytes, filename: str = "") -> dict[str, Any]:
     return {"kind": kind, "pageCount": None, "pages": []}
 
 
-def parse(data: bytes, filename: str = "", pages_spec: str | None = None, settings: Settings = SETTINGS) -> dict[str, Any]:
+def parse(data: bytes, filename: str = "", pages_spec: str | None = None, settings: Settings = SETTINGS,
+          should_stop: StopCheck = None) -> dict[str, Any]:
+    """`should_stop` được hỏi ở các mốc (trước khi đọc, sau Docling, từng trang, từng bảng); trả True thì dừng bằng
+    ParseCancelled. Một lần gọi Docling không ngắt giữa chừng được, nên lô trang nhỏ thì dừng nhanh hơn."""
     started = time.monotonic()
     warnings: list[str] = []
     kind = detect_kind(data, filename)
     original_kind = kind
     with _PARSE_LOCK:
+        # Yêu cầu chờ khoá trong lúc API đã bỏ đi (ví dụ lô trước bị hết giờ) thì không đọc nữa.
+        _check(should_stop, "trước khi đọc")
         if kind in ("doc", "xls"):
             data = convert_legacy(data, kind)
             kind = "docx" if kind == "doc" else "xlsx"
@@ -369,7 +391,7 @@ def parse(data: bytes, filename: str = "", pages_spec: str | None = None, settin
                             text="\n".join(e["text"] for e in page["elements"]))
             page_count = len(pages)
         elif kind == "docx":
-            pages = _parse_docx(data, settings, warnings)
+            pages = _parse_docx(data, settings, warnings, should_stop)
             page_count = len(pages)
         elif kind == "image":
             images = load_images(data)
@@ -379,7 +401,7 @@ def parse(data: bytes, filename: str = "", pages_spec: str | None = None, settin
             pdf_bytes, prepared = images_to_pdf([images[n - 1] for n in selected], settings)
             # images_to_pdf đánh số lại từ 1: đổi về số trang gốc.
             prepared = {selected[k - 1]: v for k, v in prepared.items()}
-            pages = _pdf_like(pdf_bytes, selected, classes, prepared, settings, warnings)
+            pages = _pdf_like(pdf_bytes, selected, classes, prepared, settings, warnings, should_stop)
         else:
             classes_list = classify_pdf(data, settings)
             page_count = len(classes_list)
@@ -388,7 +410,7 @@ def parse(data: bytes, filename: str = "", pages_spec: str | None = None, settin
             if not selected:
                 raise ValueError("Không có trang nào trong khoảng yêu cầu")
             pdf_bytes, prepared = rebuild_pdf(data, selected, classes, settings)
-            pages = _pdf_like(pdf_bytes, selected, classes, prepared, settings, warnings)
+            pages = _pdf_like(pdf_bytes, selected, classes, prepared, settings, warnings, should_stop)
     elapsed = time.monotonic() - started
     return {
         "parser": {"name": "ocr-service", "version": __version__, "docling": docling_version(),

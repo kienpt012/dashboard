@@ -62,6 +62,7 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `OLLAMA_EMBED_MODEL` | `bge-m3` | Model nhúng tên chỉ tiêu để tìm trùng và gợi ý mã (B11–B14) |
 | `OLLAMA_KEEP_ALIVE` / `OLLAMA_THINK` | 30m / (trống) | Giữ model nạp sẵn; `false` gửi `think:false` cho model có bước suy nghĩ |
 | `OLLAMA_TIMEOUT_MS` / `OLLAMA_NUM_CTX` | 480000 / 4096 | Timeout và context |
+| `OLLAMA_HEALTH_TIMEOUT_MS` | 10000 | Job trích xuất hỏi Ollama tối đa 3 lần, mỗi lần chờ chừng này, rồi mới chuyển sang bộ luật |
 | `EXTRACTION_MAX_LLM_CHUNKS` | 40 | Số chunk tối đa gửi qua LLM trong một tài liệu |
 | `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 0 | Cấu hình worker; trần trang OCR của bộ đọc dự phòng, 0 = không giới hạn |
 | `OCR_SERVICE_URL` | (trống) | `http://ocr:8000` để đọc văn bản bằng ocr-service (Docling + VietOCR); trống thì dùng pdf.js + Tesseract |

@@ -554,3 +554,27 @@ test('Worker B8: Qwen hết giờ thì dùng luật, ghi rõ trên job và bản
   assert.deepEqual(record.sourceElementIds, ['p1-e2']);
   assert.equal(record.matchClass, 'MOI');
 });
+
+test('Ollama: kiểm tra sẵn sàng của job hỏi lại khi Ollama trả lời chậm, không rơi ngay về luật', async () => {
+  const { OllamaService } = await import('../src/ollama');
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (calls < 3) throw Object.assign(new Error('timeout'), { name: 'TimeoutError' });
+    return new Response('{"version":"0.40.14"}', { status: 200 });
+  }) as typeof fetch;
+  try {
+    const ollama = new OllamaService(new ConfigService({ OLLAMA_HEALTH_TIMEOUT_MS: '20000' }));
+    assert.equal(ollama.healthTimeoutMs, 20_000);
+    assert.equal(await ollama.isAvailable(undefined, { attempts: 1 }), false);
+    calls = 0;
+    assert.equal(await ollama.isAvailable(undefined, { attempts: 3, retryDelayMs: 1 }), true);
+    assert.equal(calls, 3);
+    calls = -10;
+    assert.equal(await ollama.isAvailable(undefined, { attempts: 2, retryDelayMs: 1 }), false);
+    assert.equal(new OllamaService(new ConfigService({})).healthTimeoutMs, 10_000);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
