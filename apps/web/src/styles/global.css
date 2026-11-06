@@ -1042,9 +1042,28 @@ a.donut-row:hover {
 
 /* Tiêu đề thẻ dài được xuống dòng thay vì cắt */
 .ant-card .ant-card-head-title {
+  min-width: 0;
   white-space: normal;
+  overflow-wrap: anywhere;
   line-height: 1.4;
   padding-block: 12px;
+}
+
+@media (max-width: 767px) {
+  .shell .ant-card > .ant-card-head .ant-card-head-wrapper {
+    flex-wrap: wrap;
+    gap: 0 12px;
+  }
+
+  .shell .ant-card > .ant-card-head .ant-card-head-title {
+    flex: 1 1 180px;
+  }
+
+  .shell .ant-card > .ant-card-head .ant-card-extra {
+    max-width: 100%;
+    margin-inline-start: 0;
+    padding-block: 8px;
+  }
 }
 
 /* Dùng chung nhiều màn hình */
@@ -1329,6 +1348,24 @@ a.donut-row:hover {
     mask-image: none !important;
     -webkit-mask-image: none !important;
   }
+}
+
+/* Tách nhóm phụ trách, số liệu và tình trạng mà không tăng chiều cao bảng. */
+.shell {
+  --ioc-table-group-divider: #cfdae8;
+}
+
+[data-theme='dark'] .shell {
+  --ioc-table-group-divider: #3b4d66;
+}
+
+.shell .ant-table-wrapper .ant-table-thead > tr > th.table-group-end,
+.shell .ant-table-wrapper .ant-table-tbody > tr.ant-table-row > td.table-group-end {
+  border-inline-end: 2px solid var(--ioc-table-group-divider);
+}
+
+.shell .ant-table-wrapper .ant-table-thead > tr > th.table-group-end::before {
+  display: none;
 }
 
 /* Cột số hẹp có sắp xếp: tiêu đề ở trên, mũi tên ở dưới để chữ có đủ bề ngang. */

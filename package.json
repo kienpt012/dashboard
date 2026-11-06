@@ -16,6 +16,7 @@
     "qa:access": "node scripts/qa-access.mjs",
     "qa:import": "node scripts/qa-import.mjs",
     "qa:documents": "node scripts/qa-documents.mjs",
+    "test:workspace": "node --import tsx --test scripts/qa-workspace-*.test.ts apps/web/src/lib/lunar.test.ts apps/web/src/lib/holidays.test.ts apps/web/src/lib/markdown.test.ts apps/web/src/lib/session-state.test.ts",
     "test": "npm run test -w @ioc/api"
   },
   "devDependencies": {"concurrently": "^9.2.1"}

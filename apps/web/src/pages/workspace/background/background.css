@@ -1,0 +1,49 @@
+/* Scoped artwork for the personal workspace; all rendering stays on device. */
+.ws-artwork {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ws-artwork > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ws-artwork::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, rgb(3 12 20 / 18%), transparent 64%);
+}
+
+.ws-artwork--gom {
+  background: radial-gradient(ellipse at 85% 12%, #315866 0%, transparent 60%),
+    radial-gradient(ellipse at 15% 95%, #2a554c 0%, transparent 65%), #112f35;
+}
+
+.ws-artwork--trong-dong {
+  background: radial-gradient(ellipse at 72% 56%, #4b3622 0%, #2b2119 48%, #151b20 100%);
+}
+
+.ws-artwork--dem-sao {
+  background: radial-gradient(ellipse at 80% 65%, #222d57 0%, transparent 60%),
+    linear-gradient(180deg, #060e23 0%, #101b3c 70%, #172341 100%);
+}
+
+.ws-artwork--rung-tram {
+  background: radial-gradient(ellipse at 75% 15%, #355949 0%, transparent 65%),
+    linear-gradient(160deg, #132f2c 0%, #1b3a2f 55%, #102619 100%);
+}
+
+.ws-artwork--sen {
+  background: radial-gradient(ellipse at 90% 95%, #4d384a 0%, transparent 65%),
+    radial-gradient(ellipse at 20% 20%, #193f3e 0%, transparent 65%), #142b32;
+}
+
+.ws-artwork--dia-hinh {
+  background: radial-gradient(ellipse at 85% 80%, #2b4660 0%, transparent 65%),
+    linear-gradient(160deg, #172636 0%, #22384e 100%);
+}
+
+.ws-artwork--binh-minh {
+  background: radial-gradient(ellipse at 82% 60%, #9b7369 0%, transparent 55%),
+    linear-gradient(150deg, #172d46 0%, #3a465e 50%, #9d776d 100%);
+}

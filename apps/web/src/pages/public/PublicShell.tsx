@@ -20,7 +20,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
   const [open, setOpen] = useState(false);
   const unit = locality.configured ? localityTitle(locality) : 'Trung tâm điều hành';
 
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {
     document.title = title ? `${title} · ${unit}` : `${locality.brandName} · ${unit}`;
   }, [title, unit, locality.brandName]);
@@ -49,7 +49,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
           ) : null}
           <div className="pub-actions">
             {screens.md ? (
-              <Link to="/admin/login">
+              <Link reloadDocument to="/admin/login">
                 <Button icon={<LoginOutlined />}>Cán bộ đăng nhập</Button>
               </Link>
             ) : (
@@ -60,7 +60,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
       </header>
       <Drawer open={open} onClose={() => setOpen(false)} placement="right" size={280} title={unit}>
         <nav className="pub-nav vertical">{nav}</nav>
-        <Link to="/admin/login" style={{ display: 'block', marginTop: 16 }}>
+        <Link reloadDocument to="/admin/login" style={{ display: 'block', marginTop: 16 }}>
           <Button block icon={<LoginOutlined />}>
             Cán bộ đăng nhập
           </Button>

@@ -10,6 +10,7 @@ const Login = lazy(() => import('@/pages/auth/Login'));
 const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'));
 
 const pages = {
+  Workspace: lazy(() => import('@/pages/workspace/Workspace')),
   OpsCenter: lazy(() => import('@/pages/dashboard/OpsCenter')),
   MyWork: lazy(() => import('@/pages/work/MyWork')),
   Wallboard: lazy(() => import('@/pages/wallboard/Wallboard')),
@@ -95,7 +96,8 @@ const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: guarded(pages.OpsCenter) },
+      { index: true, element: guarded(pages.Workspace) },
+      { path: 'dieu-hanh', element: guarded(pages.OpsCenter) },
       { path: 'viec-cua-toi', element: guarded(pages.MyWork) },
       { path: 'trach-nhiem', element: guarded(pages.Accountability, SUPERVISORS) },
       { path: 'bo-chi-tieu', element: guarded(pages.Frameworks) },
