@@ -27,9 +27,9 @@ function candidate(id: string, overrides: Partial<SheetCandidate> = {}): SheetCa
 }
 
 const sheetCandidates: SheetCandidate[] = [
-  candidate('c1', { ordinal: '1', name: 'Tổng thu ngân sách nhà nước', unit: 'tỷ đồng', targetValue: 125.5 }),
+  candidate('c1', { ordinal: '1', name: 'Tổng thu ngân sách nhà nước', unit: 'tỷ đồng', targetValue: 125.5, sourceQuote: 'Tổng thu ngân sách nhà nước đạt ít nhất 125,5 tỷ đồng.' }),
   candidate('c2', { ordinal: '2', name: 'Thành lập mới doanh nghiệp', unit: 'doanh nghiệp', targetValue: 45, flagged: true }),
-  candidate('c3', { name: 'Số giường bệnh/10.000 dân', parentName: 'Đến cuối năm 2026,', unit: 'giường', targetValue: 30, groupName: '2. Chỉ tiêu về y tế', category: 'Y tế', departmentName: 'Trạm Y tế' }),
+  candidate('c3', { name: 'Số giường bệnh/10.000 dân', parentName: 'Đến cuối năm 2026,', unit: 'giường', targetValue: 30, sourceQuote: 'Số giường bệnh/10.000 dân đạt 30 giường.', groupName: '2. Chỉ tiêu về y tế', category: 'Y tế', departmentName: 'Trạm Y tế' }),
   candidate('c4', { ordinal: '9', name: 'Tỷ lệ người dân tham gia bảo hiểm y tế', targetText: '≥ 95,5', targetValue: 95.5, groupName: '2. Chỉ tiêu về y tế', category: 'Y tế', departmentName: 'Trạm Y tế' }),
 ];
 
@@ -64,10 +64,11 @@ test('Bảng PL1: tiêu đề, hàng nhóm La Mã, hàng dẫn cho dòng "-", gi
   assert.equal(sheet.getCell(5, 4).value, 'Kế hoạch năm 2026');
   const cells = (row: number) => [1, 2, 3, 4].map(column => sheet.getCell(row, column).value);
   assert.deepEqual(cells(6), ['I', '1. Chỉ tiêu về kinh tế', null, null]);
-  assert.deepEqual(cells(7), ['1', 'Tổng thu ngân sách nhà nước', 'tỷ đồng', 125.5]);
+  assert.deepEqual(cells(7), ['1', 'Tổng thu ngân sách nhà nước', 'tỷ đồng', '>= 125,5'], 'ký hiệu ngưỡng đọc từ câu trích dẫn');
+  assert.deepEqual(cells(8).slice(3), [45], 'không thấy con số trong câu trích thì để nguyên số');
   assert.deepEqual(cells(9), ['II', '2. Chỉ tiêu về y tế', null, null]);
   assert.deepEqual(cells(10), [null, 'Đến cuối năm 2026,', null, null], 'hàng dẫn không phải đề xuất');
-  assert.deepEqual(cells(11), ['-', 'Số giường bệnh/10.000 dân', 'giường', 30]);
+  assert.deepEqual(cells(11), ['-', 'Số giường bệnh/10.000 dân', 'giường', '= 30']);
   assert.deepEqual(cells(12), ['9', 'Tỷ lệ người dân tham gia bảo hiểm y tế', '%', '≥ 95,5']);
   assert.equal((sheet.getCell(8, 2).fill as any)?.fgColor?.argb, 'FFFEF3C7', 'hàng có cờ được tô vàng');
   assert.ok(sheet.getColumn(14).hidden, 'cột mã đề xuất ẩn');
@@ -82,6 +83,7 @@ test('Đọc lại bảng không sửa: không có thay đổi', async () => {
   assert.equal(parsed.rows[2].parentName, 'Đến cuối năm 2026,');
   assert.equal(parsed.rows[3].targetText, '≥ 95,5');
   assert.equal(parsed.rows[3].targetValue, 95.5);
+  assert.deepEqual([parsed.rows[0].targetValue, parsed.rows[0].targetText], [125.5, '>= 125,5']);
   assert.equal(parsed.rows[0].deadline, '2026-12-31');
   const plan = planSheet(parsed.rows, parsed.issues, existing(), departments, admin);
   assert.equal(plan.updates.length, 0);
@@ -106,7 +108,7 @@ function existing() {
 test('Chuyên viên sửa giá trị, đổi phòng, thêm hàng mới, bỏ một hàng: xem trước đúng từng thay đổi', async () => {
   const workbook = await roundTrip(sheet => {
     const rows = rowsByName(sheet);
-    sheet.getCell(rows.get('Tổng thu ngân sách nhà nước')!, 4).value = '130';
+    sheet.getCell(rows.get('Tổng thu ngân sách nhà nước')!, 4).value = '>= 130';
     sheet.getCell(rows.get('Thành lập mới doanh nghiệp')!, 11).value = 'Bỏ';
     sheet.getCell(rows.get('Tỷ lệ người dân tham gia bảo hiểm y tế')!, 8).value = 'Quý';
     const added = sheet.addRow([]);
@@ -121,8 +123,9 @@ test('Chuyên viên sửa giá trị, đổi phòng, thêm hàng mới, bỏ m�
   const plan = planSheet(parsed.rows, parsed.issues, existing(), departments, admin);
   assert.deepEqual(plan.errors, []);
   const edited = plan.updates.filter(item => item.fields.length);
-  assert.deepEqual(edited.map(item => [item.id, item.fields]), [['c1', ['targetValue']], ['c4', ['frequency']]]);
+  assert.deepEqual(edited.map(item => [item.id, item.fields]), [['c1', ['targetValue', 'targetText']], ['c4', ['frequency']]]);
   assert.equal(edited[0].data.targetValue, 130);
+  assert.equal(edited[0].data.targetText, '>= 130');
   assert.equal(edited[1].data.frequency, TargetFrequency.QUARTERLY);
   assert.deepEqual(plan.drops.map(item => item.id), ['c2']);
   assert.equal(plan.creates.length, 1);

@@ -10,7 +10,7 @@ import { DeptTag, KindTag, StatusTag, STATUS } from '@/components/Tags';
 import { useApi } from '@/hooks/useApi';
 import { ApiError, http } from '@/lib/api';
 import { can, LEADERSHIP, REPORTERS } from '@/lib/roles';
-import { date, dateTime, num, until } from '@/lib/format';
+import { date, dateTime, num, until, planWithUnit } from '@/lib/format';
 import { frequencyLabel, periodLabel } from '@/lib/periods';
 import type { TargetStatusKey } from '@/types/domain';
 import { DossierContext, useDossier, useDossierRun, type DossierData } from './context';
@@ -35,7 +35,7 @@ function Figures() {
       <div className="figure-row">
         <div className="figure">
           <span className="figure-label">Chỉ tiêu giao</span>
-          <span className="figure-value">{stat ? 'Theo dõi số liệu' : d.targetText || valueText(d.targetValue, d.unit)}</span>
+          <span className="figure-value">{stat ? 'Theo dõi số liệu' : d.targetText ? planWithUnit(d.targetText, d.unit) : valueText(d.targetValue, d.unit)}</span>
           <span className="figure-foot">
             {stat ? 'Chỉ tiêu thống kê' : `${d.targetText ? `Quy đổi ${valueText(d.targetValue, d.unit)} · ` : ''}${d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}`}
           </span>

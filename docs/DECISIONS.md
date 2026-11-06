@@ -183,3 +183,16 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   xuất của phòng mình (D-006 giữ nguyên: vẫn phải duyệt).
 - **Quy tắc**: phiên bản trong file khác trên hệ thống thì báo lỗi, không ghi đè; xoá hàng không loại đề xuất (phải
   chọn "Bỏ"); quyền sửa, chuyển phòng, loại giống các nút trên màn hình duyệt; không thêm bảng lưu lần nhập.
+
+## D-019 · 2026-11-06 · Ký hiệu ngưỡng ở cột Kế hoạch đọc từ câu trích dẫn bằng bảng cụm từ
+
+- **Bối cảnh**: văn bản ghi "ít nhất 125,5 tỷ đồng", "từ 8% trở lên", "không vượt quá 2%"; bảng PL1 chỉ có con số
+  thì mất nghĩa ngưỡng. Người dùng cần cột Kế hoạch có ký hiệu >=, >, <=, <, =.
+- **Chọn**: không dạy model hay thêm bảng giải thích vào prompt. `target-threshold.ts` dò cụm từ sát ngay con số mục
+  tiêu trong câu trích dẫn (cụm phủ định và cụm dài xét trước; "từ 60 tuổi trở lên", "trẻ em dưới năm tuổi" không
+  tính vì không đứng sát con số mục tiêu) và cho ">= 125,5", "< 6,5", "= 100", "70 - 75", "khoảng 12.000". Không
+  thấy con số trong câu trích thì để nguyên số, không đoán.
+- **Phạm vi**: chỉ điền khi xuất bảng (đề xuất có `targetText` thì dùng chữ đó); ký hiệu tự điền mà chuyên viên giữ
+  nguyên thì không tính là sửa. Chuyên viên sửa thành ">= 130" thì lưu `targetText`, màn hình chỉ tiêu ghép thêm
+  đơn vị tính. Không ghi vào CSDL lúc bóc tách để các màn hình đang hiển thị `targetText` không mất đơn vị.
+- **Câu hỏi mở**: đánh giá hoàn thành theo ký hiệu chưa làm; "khoảng X" tính đạt từ mức nào chờ người dùng chốt.

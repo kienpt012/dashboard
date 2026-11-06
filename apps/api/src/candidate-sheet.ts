@@ -25,6 +25,7 @@ import {
 } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
+import { detectThreshold, thresholdText } from './target-threshold';
 import { audit, getActor, isGlobalRole, WORKING_ROLES, type Actor } from './access';
 import {
   approverIds,
@@ -129,9 +130,14 @@ function excelDate(value: Date): Date {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
 }
 
-function formatPlan(candidate: SheetCandidate): string | number | null {
+/** Kế hoạch có ký hiệu ngưỡng (">= 125,5", "< 6,5"); đề xuất cũ chưa có targetText thì đọc ngưỡng từ câu trích dẫn. */
+export function derivedPlanText(candidate: { targetText: string | null; targetValue: number | null; sourceQuote: string | null }): string | null {
   if (candidate.targetText?.trim()) return candidate.targetText.trim();
-  return candidate.targetValue;
+  return thresholdText(detectThreshold(candidate.sourceQuote, candidate.targetValue));
+}
+
+function formatPlan(candidate: SheetCandidate): string | number | null {
+  return derivedPlanText(candidate) ?? candidate.targetValue;
 }
 
 /** Dựng bảng theo khuôn PL1: nhóm theo đề mục (số La Mã), chỉ tiêu theo thứ tự văn bản, dòng "-" dưới chỉ tiêu cha. */
@@ -564,6 +570,8 @@ export function planSheet(
     const fields = (Object.keys(next) as Editable[]).filter(field => {
       if (field === 'deadline') return !sameDate(current.deadline, row.deadline);
       if (field === 'documentOrder') return false;
+      // Ký hiệu do hệ thống tự điền khi tải về ("≥ 8" từ "8% trở lên") không tính là sửa.
+      if (field === 'targetText' && !current.targetText && row.targetText === derivedPlanText(current)) return false;
       return (current[field] ?? null) !== (next[field] ?? null);
     });
     const reordered = renumber && current.documentOrder !== row.order;
