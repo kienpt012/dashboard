@@ -192,6 +192,9 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   tiêu trong câu trích dẫn (cụm phủ định và cụm dài xét trước; "từ 60 tuổi trở lên", "trẻ em dưới năm tuổi" không
   tính vì không đứng sát con số mục tiêu) và cho ">= 125,5", "< 6,5", "= 100", "70 - 75", "khoảng 12.000". Không
   thấy con số trong câu trích thì để nguyên số, không đoán.
+- **Số trần** (bảng PL2 chỉ ghi "% | 60", khoảng một nửa số hàng): văn bản không ghi ký hiệu nên model hay code đều
+  không "nhận ra" được. Tạm suy theo chiều đánh giá (càng cao càng tốt → >=, càng thấp càng tốt → <=), ô tô xanh kèm
+  chú thích "hệ thống suy ra" để chuyên viên rà; chờ người dùng chốt quy ước này.
 - **Phạm vi**: chỉ điền khi xuất bảng (đề xuất có `targetText` thì dùng chữ đó); ký hiệu tự điền mà chuyên viên giữ
   nguyên thì không tính là sửa. Chuyên viên sửa thành ">= 130" thì lưu `targetText`, màn hình chỉ tiêu ghép thêm
   đơn vị tính. Không ghi vào CSDL lúc bóc tách để các màn hình đang hiển thị `targetText` không mất đơn vị.

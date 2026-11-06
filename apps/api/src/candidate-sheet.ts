@@ -131,13 +131,23 @@ function excelDate(value: Date): Date {
 }
 
 /** Kế hoạch có ký hiệu ngưỡng (">= 125,5", "< 6,5"); đề xuất cũ chưa có targetText thì đọc ngưỡng từ câu trích dẫn. */
-export function derivedPlanText(candidate: { targetText: string | null; targetValue: number | null; sourceQuote: string | null }): string | null {
-  if (candidate.targetText?.trim()) return candidate.targetText.trim();
-  return thresholdText(detectThreshold(candidate.sourceQuote, candidate.targetValue));
+type PlanSource = { targetText: string | null; targetValue: number | null; sourceQuote: string | null; direction: TargetDirection | null };
+
+/** Ký hiệu hệ thống tự điền; `inferred` khi văn bản chỉ ghi số trần và ký hiệu được suy theo chiều đánh giá. */
+function derivedPlan(candidate: PlanSource): { text: string; inferred: boolean } | null {
+  if (candidate.targetText?.trim()) return { text: candidate.targetText.trim(), inferred: false };
+  const threshold = detectThreshold(candidate.sourceQuote, candidate.targetValue, candidate.direction);
+  const text = thresholdText(threshold);
+  return text ? { text, inferred: Boolean(threshold?.inferred) } : null;
 }
 
-function formatPlan(candidate: SheetCandidate): string | number | null {
-  return derivedPlanText(candidate) ?? candidate.targetValue;
+export function derivedPlanText(candidate: PlanSource): string | null {
+  return derivedPlan(candidate)?.text ?? null;
+}
+
+function formatPlan(candidate: SheetCandidate): { value: string | number | null; inferred: boolean } {
+  const derived = derivedPlan(candidate);
+  return derived ? { value: derived.text, inferred: derived.inferred } : { value: candidate.targetValue, inferred: false };
 }
 
 /** Dựng bảng theo khuôn PL1: nhóm theo đề mục (số La Mã), chỉ tiêu theo thứ tự văn bản, dòng "-" dưới chỉ tiêu cha. */
@@ -172,7 +182,7 @@ export function buildCandidateWorkbook(input: {
   sheet.getRow(2).height = 34;
   sheet.mergeCells(4, 1, 4, COLUMNS.length);
   const guide = sheet.getCell(4, 1);
-  guide.value = 'Sửa trực tiếp trong bảng; thêm hàng mới thì để trống "Mã đề xuất". Hàng tô vàng cần đối chiếu kỹ. Cột "Xử lý" chọn "Bỏ" để loại chỉ tiêu. '
+  guide.value = 'Sửa trực tiếp trong bảng; thêm hàng mới thì để trống "Mã đề xuất". Hàng tô vàng cần đối chiếu kỹ; ô Kế hoạch tô xanh là ký hiệu hệ thống suy ra vì văn bản chỉ ghi số. Cột "Xử lý" chọn "Bỏ" để loại chỉ tiêu. '
     + 'Hàng số La Mã là nhóm; hàng "-" là chỉ tiêu thành phần của hàng phía trên. Không sửa cột "Mã đề xuất" và "Phiên bản".';
   guide.font = { italic: true, size: 10, color: { argb: 'FF475569' } };
   guide.alignment = { wrapText: true, vertical: 'middle' };
@@ -235,7 +245,7 @@ export function buildCandidateWorkbook(input: {
     row.getCell(COL.stt).value = parent ? '-' : candidate.ordinal ?? '';
     row.getCell(COL.name).value = candidate.name;
     row.getCell(COL.unit).value = candidate.unit ?? '';
-    const plan = formatPlan(candidate);
+    const { value: plan, inferred } = formatPlan(candidate);
     row.getCell(COL.plan).value = plan ?? '';
     // Ô có ký hiệu để dạng Text: chuyên viên gõ "= 100" thì Excel giữ nguyên chữ, không biến thành công thức.
     row.getCell(COL.plan).numFmt = typeof plan === 'number' ? (Number.isInteger(plan) ? '#,##0' : '#,##0.0##') : '@';
@@ -257,6 +267,11 @@ export function buildCandidateWorkbook(input: {
       for (const column of [COL.name, COL.unit, COL.plan]) {
         row.getCell(column).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
       }
+    }
+    if (inferred) {
+      // Văn bản chỉ ghi số trần: ký hiệu suy theo chiều đánh giá, tô xanh để chuyên viên rà.
+      row.getCell(COL.plan).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+      row.getCell(COL.plan).note = 'Văn bản không ghi ký hiệu; hệ thống suy theo chiều đánh giá. Hãy kiểm tra lại.';
     }
     if (!parent) lastParent = candidate.name;
   }

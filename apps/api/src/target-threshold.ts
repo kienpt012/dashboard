@@ -9,7 +9,11 @@ export interface Threshold {
   value: number;
   /** Cận trên khi là khoảng giá trị. */
   upper: number | null;
+  /** Văn bản chỉ ghi số trần; ký hiệu do hệ thống suy theo chiều đánh giá, chuyên viên cần rà. */
+  inferred?: boolean;
 }
+
+export type ThresholdDirection = 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER';
 
 /** 125.5 → "125,5"; 12000 → "12.000". */
 export function formatVietnameseNumber(value: number): string {
@@ -41,10 +45,19 @@ const BEFORE: [ThresholdOperator, RegExp][] = [
   ['~', /(khoảng|xấp\s+xỉ|ước\s+(khoảng|đạt)|gần)\s*$/u],
   ['>', /(trên|hơn|vượt|cao\s+hơn|lớn\s+hơn|>)\s*(mức\s+)?$/u],
   ['<', /(dưới|thấp\s+hơn|nhỏ\s+hơn|ít\s+hơn|<)\s*(mức\s+)?$/u],
+  // Văn bản ghi rõ mức cần đạt ("đạt 100%", "duy trì ở mức 0 vụ", "phấn đấu 100%", "giảm 10%").
+  ['=', /((đạt|duy\s+trì|phấn\s+đấu|giảm|tăng|bằng|=)\s*(là\s+|ở\s+)?(mức\s+)?|ở\s+mức\s*)$/u],
 ];
 
-/** Ngưỡng của giá trị mục tiêu trong câu trích; không tìm thấy con số trong câu thì null. */
-export function detectThreshold(quote: string | null | undefined, value: number | null | undefined): Threshold | null {
+/**
+ * Ngưỡng của giá trị mục tiêu trong câu trích; không tìm thấy con số trong câu thì null. Văn bản chỉ ghi số trần (bảng
+ * "Tỷ lệ trường đạt chuẩn | % | 60"): có chiều đánh giá thì suy >= hoặc <= và đánh dấu `inferred`, không thì "=".
+ */
+export function detectThreshold(
+  quote: string | null | undefined,
+  value: number | null | undefined,
+  direction?: ThresholdDirection | null,
+): Threshold | null {
   if (value === null || value === undefined || !Number.isFinite(value)) return null;
   const text = (quote ?? '').normalize('NFC').replace(/\s+/g, ' ');
   if (!text) return null;
@@ -68,7 +81,8 @@ export function detectThreshold(quote: string | null | undefined, value: number 
       for (const [operator, pattern] of BEFORE) {
         if (pattern.test(before)) return { operator, value, upper: null };
       }
-      return { operator: '=', value, upper: null };
+      if (direction) return { operator: direction === 'LOWER_IS_BETTER' ? '<=' : '>=', value, upper: null, inferred: true };
+      return { operator: '=', value, upper: null, inferred: true };
     }
   }
   return null;

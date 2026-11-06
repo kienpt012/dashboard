@@ -32,6 +32,19 @@ test('ngưỡng: cụm từ về đối tượng không phải ngưỡng của c
   assert.equal(text('Trẻ em dưới 5 tuổi được tiêm chủng đầy đủ đạt 98%.', 98), '= 98');
 });
 
+test('ngưỡng: số trần trong bảng thì suy theo chiều đánh giá và đánh dấu suy ra', () => {
+  const higher = detectThreshold('Tỷ lệ trường Tiểu học đạt chuẩn % 60', 60, 'HIGHER_IS_BETTER');
+  assert.deepEqual(higher, { operator: '>=', value: 60, upper: null, inferred: true });
+  assert.equal(thresholdText(detectThreshold('Tỷ lệ hộ nghèo % 1,5', 1.5, 'LOWER_IS_BETTER')), '<= 1,5');
+  assert.deepEqual(detectThreshold('Tỷ lệ hộ nghèo % 1,5', 1.5), { operator: '=', value: 1.5, upper: null, inferred: true });
+  // Văn bản ghi rõ thì không suy, dù có chiều đánh giá.
+  assert.equal(detectThreshold('Phấn đấu đạt 100% xã đạt chuẩn.', 100, 'HIGHER_IS_BETTER')?.operator, '=');
+  assert.equal(detectThreshold('Duy trì 100% trường đạt chuẩn.', 100, 'HIGHER_IS_BETTER')?.inferred, undefined);
+  assert.equal(text('Số vụ ngộ độc thực phẩm duy trì ở mức 0 vụ.', 0), '= 0');
+  assert.equal(thresholdText(detectThreshold('Duy trì số vụ ngộ độc tập thể ở mức 0 vụ.', 0, 'LOWER_IS_BETTER')), '= 0');
+  assert.equal(thresholdText(detectThreshold('Tỷ lệ hộ nghèo không vượt quá 2%.', 2, 'HIGHER_IS_BETTER')), '<= 2');
+});
+
 test('ngưỡng: không tìm thấy con số trong câu thì không đoán', () => {
   assert.equal(detectThreshold('Hoàn thành chỉ tiêu được giao.', 50), null);
   assert.equal(detectThreshold('', 50), null);
