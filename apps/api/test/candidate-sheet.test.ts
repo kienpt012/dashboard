@@ -111,6 +111,8 @@ test('Chuyên viên sửa giá trị, đổi phòng, thêm hàng mới, bỏ m�
     sheet.getCell(rows.get('Tổng thu ngân sách nhà nước')!, 4).value = '>= 130';
     sheet.getCell(rows.get('Thành lập mới doanh nghiệp')!, 11).value = 'Bỏ';
     sheet.getCell(rows.get('Tỷ lệ người dân tham gia bảo hiểm y tế')!, 8).value = 'Quý';
+    // Chuyên viên gõ "= 30" vào ô số: Excel lưu thành công thức.
+    sheet.getCell(rows.get('Số giường bệnh/10.000 dân')!, 4).value = { formula: '30', result: 30 } as any;
     const added = sheet.addRow([]);
     added.getCell(1).value = '10';
     added.getCell(2).value = 'Tỷ lệ trẻ em được tiêm chủng đầy đủ';
@@ -120,6 +122,7 @@ test('Chuyên viên sửa giá trị, đổi phòng, thêm hàng mới, bỏ m�
     added.getCell(8).value = 'Năm';
   });
   const parsed = readCandidateWorkbook(workbook);
+  assert.equal(parsed.rows.find(row => row.id === 'c3')?.targetText, '= 30', 'gõ "= 30" vẫn giữ ký hiệu');
   const plan = planSheet(parsed.rows, parsed.issues, existing(), departments, admin);
   assert.deepEqual(plan.errors, []);
   const edited = plan.updates.filter(item => item.fields.length);

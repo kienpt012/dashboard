@@ -25,7 +25,7 @@ import {
 } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import { detectThreshold, thresholdText } from './target-threshold';
+import { detectThreshold, formatVietnameseNumber, thresholdText } from './target-threshold';
 import { audit, getActor, isGlobalRole, WORKING_ROLES, type Actor } from './access';
 import {
   approverIds,
@@ -237,7 +237,8 @@ export function buildCandidateWorkbook(input: {
     row.getCell(COL.unit).value = candidate.unit ?? '';
     const plan = formatPlan(candidate);
     row.getCell(COL.plan).value = plan ?? '';
-    if (typeof plan === 'number') row.getCell(COL.plan).numFmt = Number.isInteger(plan) ? '#,##0' : '#,##0.0##';
+    // Ô có ký hiệu để dạng Text: chuyên viên gõ "= 100" thì Excel giữ nguyên chữ, không biến thành công thức.
+    row.getCell(COL.plan).numFmt = typeof plan === 'number' ? (Number.isInteger(plan) ? '#,##0' : '#,##0.0##') : '@';
     row.getCell(COL.department).value = candidate.departmentName ?? '';
     row.getCell(COL.note).value = candidate.description ?? '';
     row.getCell(COL.category).value = candidate.category ?? '';
@@ -312,6 +313,14 @@ export interface SheetRow {
 export interface SheetIssue {
   row: number;
   message: string;
+}
+
+/** Gõ "= 100" vào ô số thì Excel lưu thành công thức "100": đọc lại đúng ý là kế hoạch "= 100". */
+function typedEquals(value: unknown): string | null {
+  const formula = (value as { formula?: unknown } | null)?.formula;
+  if (typeof formula !== 'string') return null;
+  const constant = formula.trim().replace(/^\+/, '');
+  return /^\d+(\.\d+)?$/.test(constant) ? `= ${formatVietnameseNumber(Number(constant))}` : null;
 }
 
 function cellText(cell: ExcelJS.Cell): string {
@@ -395,7 +404,7 @@ export function readCandidateWorkbook(workbook: ExcelJS.Workbook): { documentId:
     const name = text('name');
     const id = text('id') || null;
     const planCell = row.getCell(COL.plan).value as unknown;
-    const plan = parsePlan(typeof planCell === 'number' ? planCell : text('plan'));
+    const plan = parsePlan(typeof planCell === 'number' ? planCell : typedEquals(planCell) ?? text('plan'));
     const unit = text('unit') || null;
     if (!stt && !name && !id && !unit && plan.targetValue === null && !plan.targetText) continue;
     if (!id && !unit && plan.targetValue === null && !plan.targetText) {
