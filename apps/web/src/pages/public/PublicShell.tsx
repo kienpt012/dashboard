@@ -49,7 +49,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
           ) : null}
           <div className="pub-actions">
             {screens.md ? (
-              <Link to="/admin/login">
+              <Link reloadDocument to="/admin/login">
                 <Button icon={<LoginOutlined />}>Cán bộ đăng nhập</Button>
               </Link>
             ) : (
@@ -60,7 +60,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
       </header>
       <Drawer open={open} onClose={() => setOpen(false)} placement="right" size={280} title={unit}>
         <nav className="pub-nav vertical">{nav}</nav>
-        <Link to="/admin/login" style={{ display: 'block', marginTop: 16 }}>
+        <Link reloadDocument to="/admin/login" style={{ display: 'block', marginTop: 16 }}>
           <Button block icon={<LoginOutlined />}>
             Cán bộ đăng nhập
           </Button>

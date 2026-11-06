@@ -8,6 +8,7 @@ import {
   ControlOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  DesktopOutlined,
   FileAddOutlined,
   FileDoneOutlined,
   FileExcelOutlined,
@@ -46,7 +47,8 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Điều hành',
     items: [
-      { path: '/admin', label: 'Trung tâm điều hành', scopedLabel: 'Điều hành của phòng', icon: <DashboardOutlined />, roles: ALL, screen: 'DH-01', keywords: 'tong quan dieu hanh dashboard' },
+      { path: '/admin', label: 'Bàn làm việc', icon: <DesktopOutlined />, roles: ALL, screen: 'BLV-01', keywords: 'ban lam viec ca nhan workspace widget tien ich hinh nen loi tat' },
+      { path: '/admin/dieu-hanh', label: 'Trung tâm điều hành', scopedLabel: 'Điều hành của phòng', icon: <DashboardOutlined />, roles: ALL, screen: 'DH-01', keywords: 'tong quan dieu hanh dashboard' },
       { path: '/admin/viec-cua-toi', label: 'Việc của tôi', icon: <InboxOutlined />, roles: ALL, screen: 'DH-02', keywords: 'viec cua toi can lam' },
       { path: '/trinh-chieu', label: 'Trình chiếu', icon: <FundProjectionScreenOutlined />, roles: ALL, screen: 'DH-03', keywords: 'trinh chieu man hinh lon phong hop', standalone: true },
       { path: '/admin/trach-nhiem', label: 'Trách nhiệm', icon: <AuditOutlined />, roles: SUPERVISORS, screen: 'DH-04', keywords: 'trach nhiem cham duyet nguoi dung dau' },
