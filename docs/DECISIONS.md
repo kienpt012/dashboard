@@ -167,4 +167,5 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
     bge-m3 với mô tả lĩnh vực, gợi ý của model, từ khoá trong tên; không đủ căn cứ thì để trống cho người duyệt chọn;
   - duyệt thành chỉ tiêu thì mang theo số thứ tự, nhóm và thứ tự sang `Target.ordinal/groupName/sortOrder`.
 - **Câu hỏi mở**: ngưỡng so nghĩa bge-m3 (0,45 và cách biệt 0,02) chưa đo trên dữ liệu thật; chỉ tiêu cha
-  (`parentId`) chưa tự nối khi duyệt; màn hình duyệt mặc định gom theo đề mục văn bản, chờ người dùng chốt.
+  (`parentId`) chưa tự nối khi duyệt.
+- **Đã chốt (06/11)**: màn hình duyệt mặc định gom theo đề mục văn bản; dashboard gom theo lĩnh vực chuẩn.
