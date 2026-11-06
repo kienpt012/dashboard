@@ -83,6 +83,7 @@ export function validateWorkspaceConfig(value: unknown): Prisma.InputJsonObject 
   const config = object(value, 'cấu hình');
   if (config.schemaVersion !== 1) invalid('phiên bản định dạng');
   const appearance = object(config.appearance, 'giao diện');
+  if (appearance.daylight !== undefined && typeof appearance.daylight !== 'boolean') invalid('chế độ hình nền theo giờ');
   string(appearance.wallpaper, 100, 'mẫu hình nền');
   wallpaper(appearance.customWallpaper);
   const accent = string(appearance.accent, 30, 'màu chủ đạo');

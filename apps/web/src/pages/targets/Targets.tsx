@@ -196,6 +196,7 @@ export default function Targets() {
     {
       title: 'Phụ trách',
       key: 'owner',
+      className: 'table-group-end',
       width: 200,
       sorter: (a, b) => a.department.name.localeCompare(b.department.name, 'vi') || (a.assignee?.fullName ?? '').localeCompare(b.assignee?.fullName ?? '', 'vi'),
       render: (_, target) => (
@@ -238,6 +239,7 @@ export default function Targets() {
     {
       title: 'Tiến độ',
       key: 'progress',
+      className: 'table-group-end',
       width: 150,
       sorter: (a, b) => (a.progress ?? 0) - (b.progress ?? 0),
       sortDirections: ['descend', 'ascend'],

@@ -33,6 +33,7 @@ test('workspace validates current frontend contract, bounds and unique ids', () 
     (c: any) => { c.appearance.customWallpaper = 'data:image/svg+xml;base64,PHN2Zz4='; },
     (c: any) => { c.appearance.customWallpaper = `data:image/png;base64,${Buffer.from('not an actual image').toString('base64')}`; },
     (c: any) => { c.shortcuts[0].hotkey = 'Control'; },
+    (c: any) => { c.appearance.daylight = 'true'; },
   ];
   for (const alter of variants) {
     const value = config(); alter(value);

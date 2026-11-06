@@ -20,7 +20,7 @@ export function PublicShell({ children, title, width, footer = true }: { childre
   const [open, setOpen] = useState(false);
   const unit = locality.configured ? localityTitle(locality) : 'Trung tâm điều hành';
 
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {
     document.title = title ? `${title} · ${unit}` : `${locality.brandName} · ${unit}`;
   }, [title, unit, locality.brandName]);

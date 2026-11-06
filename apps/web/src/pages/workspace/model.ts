@@ -4,7 +4,7 @@ export type WorkspaceSpace = { id: string; name: string; widgets: WorkspaceWidge
 export type Shortcut = { id: string; title: string; url: string; icon: string; color: string; hotkey?: string };
 export type WorkspaceConfig = {
   schemaVersion: 1;
-  appearance: { wallpaper: string; customWallpaper: string; accent: string; blur: number; overlay: number };
+  appearance: { wallpaper: string; customWallpaper: string; accent: string; blur: number; overlay: number; daylight?: boolean };
   activeSpace: string;
   spaces: WorkspaceSpace[];
   shortcuts: Shortcut[];
@@ -61,6 +61,7 @@ export function validConfig(value: unknown): value is WorkspaceConfig {
   const ids = (items: { id: string }[]) => items.every(item => object(item) && id(item.id)) && new Set(items.map(item => item.id)).size === items.length;
   if (c.schemaVersion !== 1 || !object(c.appearance) || !Array.isArray(c.spaces) || !c.spaces.length || c.spaces.length > 8 || !Array.isArray(c.shortcuts) || c.shortcuts.length > 80) return false;
   const a = c.appearance;
+  if (a.daylight !== undefined && typeof a.daylight !== 'boolean') return false;
   if (!text(a.wallpaper, 100) || !text(a.customWallpaper, 1_500_000, true) || !/^#[0-9a-f]{6}$/i.test(a.accent) || !Number.isFinite(a.blur) || a.blur < 0 || a.blur > 40 || !Number.isFinite(a.overlay) || a.overlay < 0 || a.overlay > 90) return false;
   if (a.customWallpaper && !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.customWallpaper)) return false;
   return ids(c.spaces) && c.spaces.some(s => s.id === c.activeSpace) && c.spaces.every(s => id(s.id) && text(s.name, 80) && Array.isArray(s.widgets) && s.widgets.length <= 40 && ids(s.widgets) && s.widgets.every(w => id(w.id) && WIDGETS.some(e => e.type === w.type) && text(w.title, 120) && [w.x,w.y,w.w,w.h].every(Number.isInteger) && w.x >= 0 && w.x < 12 && w.y >= 0 && w.y <= 1000 && w.w >= 1 && w.w <= 12 && w.x + w.w <= 12 && w.h >= 2 && w.h <= 24 && !!w.settings && typeof w.settings === 'object' && !Array.isArray(w.settings))) && ids(c.shortcuts) && c.shortcuts.every(s => id(s.id) && text(s.title, 80) && text(s.url, 2048) && safeShortcut(s.url) && text(s.icon, 40) && /^#[0-9a-f]{6}$/i.test(s.color) && (!s.hotkey || /^[1-9]$/.test(s.hotkey)));

@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Tooltip } from 'antd';
 import { Link } from 'react-router-dom';
 import { ArrowRightOutlined, CheckOutlined, CloudOutlined, DeleteOutlined, LeftOutlined, PauseOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useMe } from '@/app/session';
 import { Chart, type ChartOption } from '@/components/Chart';
+import { Markdown } from '@/components/Markdown';
 import { errorText, http } from '@/lib/api';
+import { holidaysOn } from '@/lib/holidays';
+import { lunarLabel, solarToLunar, vietnamDateParts } from '@/lib/lunar';
+import { toggleCheck } from '@/lib/markdown';
 import type { MyWork, Overview } from '@/types/domain';
 import type { WorkspaceWidget } from './model';
 import { apiRows, calculateExpression, readJsonPath } from './widget-utils';
@@ -94,7 +99,28 @@ function WeatherWidget({ widget }: Props) {
 
 function NotesWidget({ widget, onChange }: Props) {
   const value = text(widget.settings.text);
-  return <div className="ws-widget-notes"><textarea aria-label="Nội dung ghi chú" placeholder="Một ý tưởng, một điều cần nhớ…\nViết ra để dành tâm trí cho điều quan trọng." value={value} maxLength={20_000} onChange={event => onChange({ ...widget.settings, text: event.target.value })} /><div className="ws-widget-note-footer"><span>Ghi chú riêng của bạn</span><span>{value.length.toLocaleString('vi-VN')} ký tự</span></div></div>;
+  const preview = widget.settings.preview === true;
+  return (
+    <div className="ws-widget-notes">
+      <div className="ws-widget-line ws-note-toolbar">
+        <div className="ws-widget-segment" role="group" aria-label="Chế độ ghi chú">
+          <button type="button" className={!preview ? 'active' : ''} aria-pressed={!preview} onClick={() => onChange({ ...widget.settings, preview: false })}>Viết</button>
+          <button type="button" className={preview ? 'active' : ''} aria-pressed={preview} onClick={() => onChange({ ...widget.settings, preview: true })}>Xem trước</button>
+        </div>
+        <Tooltip title={<span>Dùng # cho tiêu đề, **chữ đậm**, _chữ nghiêng_, - cho danh sách, - [ ] cho ô đánh dấu và [tên](https://...) cho liên kết.</span>}>
+          <button type="button" className="ws-widget-icon-btn ws-note-help" aria-label="Hướng dẫn định dạng Markdown">M↓</button>
+        </Tooltip>
+      </div>
+      {preview ? (
+        <div className="ws-note-preview">
+          {value.trim() ? <Markdown text={value} onToggle={index => onChange({ ...widget.settings, text: toggleCheck(value, index) })} /> : <State>Ghi chú đang trống. Chọn Viết để lưu một ý tưởng.</State>}
+        </div>
+      ) : (
+        <textarea aria-label="Nội dung ghi chú" placeholder="Một ý tưởng, một điều cần nhớ…\nDùng **chữ đậm**, # tiêu đề hoặc - [ ] việc cần làm." value={value} maxLength={20_000} onChange={event => onChange({ ...widget.settings, text: event.target.value })} />
+      )}
+      <div className="ws-widget-note-footer"><span>Ghi chú riêng · hỗ trợ Markdown</span><span>{value.length.toLocaleString('vi-VN')} ký tự</span></div>
+    </div>
+  );
 }
 
 function TasksWidget({ widget, onChange }: Props) {
@@ -124,14 +150,50 @@ function FocusWidget({ widget }: Props) {
   return <div className="ws-widget-focus"><div className="ws-widget-segment"><button type="button" className={mode === 'focus' ? 'active' : ''} onClick={() => setMode('focus')}>Tập trung</button><button type="button" className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>Nghỉ ngắn</button></div><div className="ws-widget-focus-ring" style={{ '--ws-ring-progress': `${(1 - remaining / duration) * 360}deg` } as CSSProperties}><div><strong>{String(Math.floor(remaining / 60)).padStart(2, '0')}<span>:</span>{String(remaining % 60).padStart(2, '0')}</strong><span>{completed ? 'Bạn đã hoàn thành!' : mode === 'focus' ? 'Dành trọn tâm trí' : 'Hít thở, thư giãn'}</span></div></div><div className="ws-widget-focus-actions"><button className="ws-widget-primary" type="button" onClick={() => { if (deadline) { setRemaining(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))); setDeadline(null); } else { setCompleted(false); setDeadline(Date.now() + (remaining > 0 ? remaining : duration) * 1000); } }}>{deadline ? <PauseOutlined /> : <PlayCircleOutlined />}{deadline ? 'Tạm dừng' : 'Bắt đầu'}</button><button className="ws-widget-icon-btn" type="button" title="Bắt đầu lại" aria-label="Bắt đầu lại bộ đếm" onClick={() => { setDeadline(null); setRemaining(duration); setCompleted(false); }}><ReloadOutlined /></button></div><span className="ws-widget-live" role="status">{completed ? 'Hết giờ. Hãy dành một chút thời gian nghỉ ngơi.' : 'Bộ đếm hoạt động khi bạn ở không gian này.'}</span></div>;
 }
 
-function CalendarWidget() {
+function CalendarWidget({ widget }: Props) {
   const now = useNow(60_000);
-  const today = new Date(now);
+  const today = vietnamDateParts(new Date(now));
   const [offset, setOffset] = useState(0);
-  const month = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-  const start = (month.getDay() + 6) % 7;
-  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  return <div className="ws-widget-calendar"><div className="ws-widget-line"><strong>{month.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}</strong><div><button className="ws-widget-icon-btn" type="button" aria-label="Tháng trước" onClick={() => setOffset(value => value - 1)}><LeftOutlined /></button><button className="ws-widget-icon-btn" type="button" aria-label="Tháng sau" onClick={() => setOffset(value => value + 1)}><RightOutlined /></button></div></div><div className="ws-widget-calendar-grid">{['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(day => <span className="ws-widget-weekday" key={day}>{day}</span>)}{Array.from({ length: Math.ceil((start + days) / 7) * 7 }, (_, index) => { const day = index - start + 1; const visible = day > 0 && day <= days; const current = offset === 0 && day === today.getDate(); return <span key={index} className={`${current ? 'today' : ''} ${index % 7 >= 5 ? 'weekend' : ''}`} aria-current={current ? 'date' : undefined}>{visible ? day : ''}</span>; })}</div><button type="button" className="ws-widget-text-btn" onClick={() => setOffset(0)}>Về hôm nay · {today.toLocaleDateString('vi-VN')}</button></div>;
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const showLunar = widget.settings.showLunar !== false;
+  const showHolidays = widget.settings.showHolidays !== false;
+  // Build every calendar cell at noon in Vietnam, independently of the device timezone.
+  const month = new Date(Date.UTC(today.year, today.month - 1 + offset, 1, 5));
+  const year = month.getUTCFullYear();
+  const monthIndex = month.getUTCMonth();
+  const start = (month.getUTCDay() + 6) % 7;
+  const days = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const selected = Math.min(selectedDay ?? (offset === 0 ? today.day : 1), days);
+  const selectedDate = new Date(Date.UTC(year, monthIndex, selected, 5));
+  const selectedHolidays = showHolidays ? holidaysOn(selectedDate) : [];
+  const changeMonth = (amount: number) => { setOffset(value => value + amount); setSelectedDay(null); };
+  return (
+    <div className={`ws-widget-calendar${showLunar ? ' ws-calendar-lunar' : ''}`}>
+      <div className="ws-widget-line"><strong>{month.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}</strong><div><button className="ws-widget-icon-btn" type="button" aria-label="Tháng trước" onClick={() => changeMonth(-1)}><LeftOutlined /></button><button className="ws-widget-icon-btn" type="button" aria-label="Tháng sau" onClick={() => changeMonth(1)}><RightOutlined /></button></div></div>
+      <div className="ws-widget-calendar-grid">
+        {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(day => <span className="ws-widget-weekday" key={day}>{day}</span>)}
+        {Array.from({ length: Math.ceil((start + days) / 7) * 7 }, (_, index) => {
+          const day = index - start + 1;
+          if (day < 1 || day > days) return <span key={index} aria-hidden />;
+          const date = new Date(Date.UTC(year, monthIndex, day, 5));
+          const lunar = solarToLunar(date);
+          const holidays = showHolidays ? holidaysOn(date) : [];
+          const current = offset === 0 && day === today.day;
+          const label = `${day}/${monthIndex + 1}/${year}${showLunar ? ` · Âm lịch ${lunarLabel(date)}` : ''}${holidays.length ? ` · ${holidays.map(item => item.name).join(', ')}` : ''}`;
+          return <Tooltip key={index} title={label}>
+            <button type="button" className={`ws-calendar-day${current ? ' today' : ''}${index % 7 >= 5 ? ' weekend' : ''}${selected === day ? ' selected' : ''}${holidays.length ? ' holiday' : ''}`} aria-label={label} aria-current={current ? 'date' : undefined} aria-pressed={selected === day} onClick={() => setSelectedDay(day)}>
+              <span>{day}</span>{showLunar && <small>{lunar.day === 1 || day === 1 ? `${lunar.day}/${lunar.month}` : lunar.day}{lunar.leap ? '⁺' : ''}</small>}{holidays.length > 0 && <i aria-hidden />}
+            </button>
+          </Tooltip>;
+        })}
+      </div>
+      <div className="ws-calendar-detail" aria-live="polite">
+        <span>{selected}/{monthIndex + 1}{showLunar ? ` · Âm lịch ${lunarLabel(selectedDate)}` : ''}</span>
+        {selectedHolidays.length > 0 && <strong>{selectedHolidays.map(item => item.name).join(' · ')}</strong>}
+      </div>
+      <button type="button" className="ws-widget-text-btn" onClick={() => { setOffset(0); setSelectedDay(null); }}>Hôm nay · {today.day}/{today.month}/{today.year} · Giờ Việt Nam</button>
+    </div>
+  );
 }
 
 function IocWidget({ widget }: Props) {
@@ -201,7 +263,7 @@ export function WorkspaceWidgetBody(props: Props) {
     case 'notes': return <NotesWidget {...props} />;
     case 'tasks': return <TasksWidget {...props} />;
     case 'focus': return <FocusWidget {...props} />;
-    case 'calendar': return <CalendarWidget />;
+    case 'calendar': return <CalendarWidget {...props} />;
     case 'ioc': return <IocWidget {...props} />;
     case 'work': return <WorkWidget {...props} />;
     case 'api': return <ApiWidget {...props} />;
@@ -240,9 +302,9 @@ export function WidgetSettings({ widget, onChange }: Props) {
     case 'api': fields = <><button type="button" className="ws-settings-preset-button" onClick={() => patch({ url: PUBLIC_FORECAST, path: 'hourly', xKey: 'time', yKey: 'temperature_2m', display: 'line', unit: '°C', interval: 900 })}>✦ Dùng mẫu: Nhiệt độ Lái Thiêu trong ngày</button><Field label="Địa chỉ API JSON (HTTPS)" help="API công khai, phương thức GET. Không nhập khóa bí mật hoặc mã truy cập vào URL.">{input('url', '', 'https://api.example.com/data')}</Field><Field label="Kiểu hiển thị"><select value={text(settings.display, 'line')} onChange={event => patch({ display: event.target.value })}>{[['line', 'Biểu đồ đường'], ['bar', 'Biểu đồ cột'], ['pie', 'Biểu đồ tròn'], ['metric', 'Một chỉ số'], ['table', 'Bảng số liệu']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Đường dẫn dữ liệu" help="Ví dụ: data.items, hourly hoặc current.temperature_2m. Để trống để lấy toàn bộ JSON.">{input('path', '', 'data.items')}</Field>{settings.display !== 'metric' && <div className="ws-settings-two"><Field label="Khóa nhãn / trục X" help="Tên trường của từng dòng hoặc mảng nhãn.">{input('xKey', 'name')}</Field><Field label="Khóa số / trục Y" help="Tên trường số của từng dòng hoặc mảng số.">{input('yKey', 'value')}</Field></div>}<div className="ws-settings-two"><Field label="Đơn vị">{input('unit', '', '%, người, °C…')}</Field><Field label="Làm mới sau (giây)">{numericInput('interval', 300, 60, 86400)}</Field></div><p className="ws-settings-hint">Hỗ trợ mảng đối tượng, hai mảng song song hoặc đối tượng chứa số. Biểu đồ dùng tối đa 240 điểm; bảng hiển thị 50 dòng. Dữ liệu chỉ làm mới khi mở không gian này.</p></>; break;
     case 'embed': fields = <><Field label="Địa chỉ trang web (HTTPS)">{input('url', '', 'https://example.com')}</Field><p className="ws-settings-hint">Trang được nhúng trong khung cô lập, hỗ trợ tiện ích tương tác. Một số website chặn nhúng hoặc yêu cầu đăng nhập; bạn có thể mở bằng liên kết bên dưới tiện ích.</p></>; break;
     case 'countdown': fields = <><Field label="Tên sự kiện">{input('label', '', 'Một cột mốc đáng chờ đợi')}</Field><Field label="Ngày và giờ"><input type="datetime-local" value={text(settings.date).slice(0, 16)} onChange={event => patch({ date: event.target.value })} /></Field><p className="ws-settings-hint">Thời gian sử dụng múi giờ trên thiết bị của bạn.</p></>; break;
-    case 'notes': fields = <p className="ws-settings-hint">Viết trực tiếp trên tờ ghi chú. Nội dung được lưu cùng bàn làm việc riêng của tài khoản.</p>; break;
+    case 'notes': fields = <p className="ws-settings-hint">Viết trực tiếp rồi chọn Xem trước để đọc ghi chú đã định dạng. Dùng # cho tiêu đề, **chữ đậm**, _chữ nghiêng_, - [ ] cho việc cần làm và [tên](https://...) cho liên kết. Có thể đánh dấu việc ngay trong bản xem trước. Nội dung được lưu riêng theo tài khoản.</p>; break;
     case 'tasks': fields = <p className="ws-settings-hint">Thêm, đánh dấu hoàn tất và dọn việc ngay trên tiện ích. Đây là danh sách riêng của bạn, tối đa 100 việc.</p>; break;
-    case 'calendar': fields = <p className="ws-settings-hint">Dùng mũi tên để xem các tháng. Ngày hiện tại luôn được đánh dấu theo múi giờ của thiết bị.</p>; break;
+    case 'calendar': fields = <><label className="ws-settings-check"><input type="checkbox" checked={settings.showLunar !== false} onChange={event => patch({ showLunar: event.target.checked })} />Hiện âm lịch Việt Nam</label><label className="ws-settings-check"><input type="checkbox" checked={settings.showHolidays !== false} onChange={event => patch({ showHolidays: event.target.checked })} />Đánh dấu ngày lễ, ngày kỷ niệm</label><p className="ws-settings-hint">Chọn một ngày để xem âm lịch và ngày lễ. Lịch dùng múi giờ Việt Nam (UTC+7); dấu ⁺ chỉ tháng âm lịch nhuận. Các mốc kỷ niệm không thay thế lịch nghỉ và nghỉ bù được công bố hằng năm.</p></>; break;
     case 'calculator': fields = <p className="ws-settings-hint">Hỗ trợ cộng, trừ, nhân, chia, ngoặc và phần trăm. Có thể nhập bằng bàn phím và nhấn Enter để tính.</p>; break;
   }
   return <div className="ws-widget-settings">{fields}</div>;

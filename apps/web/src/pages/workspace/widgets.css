@@ -3,3 +3,39 @@
 .ws-widget-focus-ring>div{background:#1b353d}
 @container(max-width:290px){.ws-widget-ioc-main{flex-direction:column;gap:3px}.ws-widget-ioc-donut{width:145px}.ws-widget-ioc-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;width:100%;gap:9px}.ws-widget-ioc-stats>div{gap:5px}.ws-widget-ioc-stats span{font-size:9px}.ws-widget-ioc-bottom{flex-wrap:wrap}}
 @container(max-width:220px){.ws-widget-countdown>div{gap:6px}.ws-widget-countdown>div>span{min-width:30px}.ws-widget-countdown b{font-size:25px}}
+
+/* Ghi chú định dạng và lịch Việt Nam, dùng chung cấu hình workspace hiện có. */
+.ws-note-toolbar { margin-bottom: 7px; flex-shrink: 0; }
+.ws-note-help { font-size: 11px; font-weight: 700; }
+.ws-note-preview { flex: 1; min-height: 90px; overflow: auto; padding: 4px 2px; }
+.ws-note-preview .md { color: var(--ws-text, #e9edfa); font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.ws-note-preview .md > :first-child { margin-top: 0; }
+.ws-note-preview .md > :last-child { margin-bottom: 0; }
+.ws-note-preview .md h3 { font-size: 17px; margin: 12px 0 5px; font-weight: 650; }
+.ws-note-preview .md h4 { font-size: 15px; margin: 10px 0 4px; font-weight: 600; }
+.ws-note-preview .md h5 { font-size: 13px; margin: 8px 0 3px; font-weight: 600; }
+.ws-note-preview .md p { margin: 0 0 9px; }
+.ws-note-preview .md ul { margin: 0 0 9px; padding-left: 20px; }
+.ws-note-preview .md li { margin: 3px 0; }
+.ws-note-preview .md a { color: var(--ws-accent, #b5b9ff); text-decoration: underline; text-underline-offset: 3px; }
+.ws-note-preview .md code { background: #ffffff0d; border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.ws-note-preview .md hr { border: 0; border-top: 1px solid #ffffff16; margin: 12px 0; }
+.ws-note-preview .md ul.md-checks { list-style: none; padding-left: 0; }
+.ws-note-preview .md-checks li { display: flex; align-items: flex-start; gap: 8px; }
+.ws-note-preview .md-checks li > span:last-child { min-width: 0; }
+.ws-note-preview .md-check { flex-shrink: 0; color: var(--ws-accent, #b5b9ff); background: none; border: 0; padding: 3px 0; margin-top: 3px; font-size: 14px; cursor: pointer; line-height: 1; }
+.ws-note-preview .md-checks li.done > span { text-decoration: line-through; opacity: .55; }
+.ws-widget-calendar-grid > .ws-calendar-day { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; aspect-ratio: 1; width: 100%; max-width: 33px; max-height: 33px; margin: auto; padding: 1px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--ws-text, #e6ebf9); font-family: inherit; font-size: 11px; line-height: 1.15; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ws-widget-calendar-grid > .ws-calendar-day:hover { background: #ffffff0e; }
+.ws-widget-calendar-grid > .ws-calendar-day.selected { border-color: var(--ws-accent, #b1adff); }
+.ws-widget-calendar-grid > .ws-calendar-day.weekend { color: #d3a5bb; }
+.ws-widget-calendar-grid > .ws-calendar-day.today { background: var(--ws-accent, #b1adff); color: #171b2e; }
+.ws-calendar-day small { font-size: 8px; opacity: .65; }
+.ws-calendar-day.holiday > span { color: #f5cb87; }
+.ws-calendar-day.today.holiday > span { color: inherit; }
+.ws-calendar-day i { position: absolute; right: 2px; top: 3px; width: 3px; height: 3px; border-radius: 50%; background: #f5cb87; }
+.ws-calendar-detail { display: flex; flex-direction: column; flex-shrink: 0; gap: 3px; padding-top: 5px; border-top: 1px solid #ffffff09; color: var(--ws-muted, #a8b3cd); font-size: 9px; line-height: 1.5; }
+.ws-calendar-detail strong { font-size: 10px; font-weight: 500; color: #f5cb87; max-height: 30px; overflow: auto; }
+.ws-calendar-lunar .ws-widget-calendar-grid { min-height: 0; gap: 1px; }
+.ws-calendar-lunar .ws-widget-calendar-grid > .ws-calendar-day { aspect-ratio: auto; min-height: 24px; height: 100%; max-height: 33px; }
+.ws-note-toolbar button:focus-visible, .ws-note-preview button:focus-visible, .ws-calendar-day:focus-visible { outline: 2px solid var(--ws-accent, #b1adff); outline-offset: 2px; }

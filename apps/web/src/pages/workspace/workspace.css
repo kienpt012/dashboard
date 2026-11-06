@@ -130,6 +130,8 @@
 .ws-wallpaper-option { text-align: left; background: none; border: 0; padding: 0; cursor: pointer; color: #d2e3e9; }
 .ws-wallpaper-preview { display: block; height: 78px; border-radius: 10px; position: relative; overflow: hidden; border: 2px solid transparent; }
 .ws-wallpaper-option.selected .ws-wallpaper-preview { border-color: #96d4bf; }
+.ws-daylight-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; margin-bottom: 18px; background: #ffffff08; border: 1px solid #ffffff14; border-radius: 12px; }
+.ws-daylight-toggle small { display: block; margin-top: 5px; font-weight: 400; color: #9baebc; }
 .ws-wallpaper-preview .anticon { position: absolute; bottom: 8px; right: 8px; color: #b2efdb; z-index: 1; }
 .ws-wallpaper-option strong { font-size: 11px; font-weight: 500; display: block; padding-top: 8px; }
 .ws-wallpaper-option small { display: block; font-size: 9px; color: #7e9baa; margin-top: 3px; }

@@ -4,7 +4,7 @@ import {
   FullscreenExitOutlined, HolderOutlined, LinkOutlined, PlusOutlined, SearchOutlined,
   SettingOutlined, ThunderboltOutlined, UploadOutlined,
 } from '@ant-design/icons';
-import { Alert, App, Button, ConfigProvider, Drawer, Dropdown, Empty, Input, Modal, Select, Slider, Spin, Tooltip, theme } from 'antd';
+import { Alert, App, Button, ConfigProvider, Drawer, Dropdown, Empty, Input, Modal, Select, Slider, Spin, Switch, Tooltip, theme } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { GridLayout, useContainerWidth, type Layout } from 'react-grid-layout';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,8 @@ import { errorText, saveBlob } from '@/lib/api';
 import { WIDGETS, makeWidget, safeShortcut, templateWidgets, uid, validConfig, type Shortcut, type WidgetType, type WorkspaceConfig, type WorkspaceWidget } from './model';
 import { useWorkspace } from './useWorkspace';
 import { WidgetSettings, WorkspaceWidgetBody, widgetSettingsError } from './Widgets';
+import { EXTRA_WALLPAPERS, WallpaperArtwork } from './background/presets';
+import { resolveDaylightPreset } from './background/daylight';
 import 'react-grid-layout/css/styles.css';
 import './workspace.css';
 
@@ -25,6 +27,7 @@ const WALLPAPERS = [
   { id: 'cosmos', name: 'Vũ trụ', caption: 'Không gian sáng tạo' },
   { id: 'ocean', name: 'Đại dương', caption: 'Trong trẻo, thư thái' },
   { id: 'graphite', name: 'Tối giản', caption: 'Tập trung vào điều chính' },
+  ...EXTRA_WALLPAPERS,
 ];
 const ACCENTS = ['#7ce6c5', '#9bbcff', '#c4a6ff', '#f2b7cc', '#f4ce8b', '#9ddbe7'];
 const ICONS = ['◈', '☑', '▤', '▦', '▥', '↗', '✦', '⌘', '◎', '⚑', '✉', '☀', '⌁', '▶', '✎'];
@@ -139,7 +142,7 @@ function WorkspaceForUser() {
       canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
       const data = canvas.toDataURL('image/jpeg', 0.8);
       if (data.length > 1_350_000) throw new Error('Ảnh còn quá lớn sau khi tối ưu. Hãy chọn ảnh nhẹ hơn.');
-      change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: 'custom', customWallpaper: data } }));
+      change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: 'custom', customWallpaper: data, daylight: false } }));
       void message.success('Đã đặt hình nền của bạn.');
     } catch (err) { void message.error(errorText(err)); }
     if (wallpaperRef.current) wallpaperRef.current.value = '';
@@ -186,11 +189,12 @@ function WorkspaceForUser() {
   const filtered = useMemo(() => WIDGETS.filter(w => (category === 'Tất cả' || category === w.category) && fold(`${w.title} ${w.description}`).includes(fold(search))), [category, search]);
   const greeting = now.getHours() < 11 ? 'Chào buổi sáng' : now.getHours() < 14 ? 'Chào buổi trưa' : now.getHours() < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
   const name = me.fullName.trim().split(/\s+/).slice(-2).join(' ');
+  const visibleWallpaper = config.appearance.daylight ? resolveDaylightPreset(now) : config.appearance.wallpaper;
   const backgroundStyle = { '--ws-accent': config.appearance.accent, '--ws-blur': `${config.appearance.blur}px`, '--ws-overlay': config.appearance.overlay / 100 } as CSSProperties;
 
   return <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: config.appearance.accent, colorBgBase: '#101e29', borderRadius: 12, fontFamily: "'Be Vietnam Pro', system-ui, sans-serif" } }}>
-    <section className={`ws-root ws-theme-${config.appearance.wallpaper}${focus ? ' ws-is-focused' : ''}`} style={backgroundStyle} aria-label="Bàn làm việc cá nhân">
-      <div className="ws-background" style={config.appearance.wallpaper === 'custom' && config.appearance.customWallpaper ? { backgroundImage: `url("${config.appearance.customWallpaper}")` } : undefined}><Landscape /></div>
+    <section className={`ws-root ws-theme-${visibleWallpaper}${focus ? ' ws-is-focused' : ''}`} style={backgroundStyle} aria-label="Bàn làm việc cá nhân">
+      <div className="ws-background" style={visibleWallpaper === 'custom' && config.appearance.customWallpaper ? { backgroundImage: `url("${config.appearance.customWallpaper}")` } : undefined}><Landscape /><WallpaperArtwork preset={visibleWallpaper} /></div>
       <div className="ws-shade" />
       <main className="ws-main">
         <header className="ws-toolbar">
@@ -255,7 +259,7 @@ function WorkspaceForUser() {
     </Drawer>
 
     <Drawer title="Cá nhân hóa không gian" open={appearance} onClose={() => setAppearance(false)} size={460} className="ws-drawer">
-      <section className="ws-settings-section"><h3>Hình nền</h3><p>Một không gian khiến bạn muốn bắt đầu.</p><div className="ws-wallpapers">{WALLPAPERS.map(w => <button key={w.id} className={`ws-wallpaper-option${config.appearance.wallpaper === w.id ? ' selected' : ''}`} onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: w.id } }))}><span className={`ws-wallpaper-preview ws-theme-${w.id}`}><span className="ws-background"/>{config.appearance.wallpaper === w.id && <CheckOutlined />}</span><strong>{w.name}</strong><small>{w.caption}</small></button>)}</div><Button block icon={<UploadOutlined />} onClick={() => wallpaperRef.current?.click()}>Tải hình nền của bạn</Button><small className="ws-setting-note">JPG, PNG, WebP · tối đa 15 MB · tự tối ưu trước khi lưu</small>{config.appearance.customWallpaper && <Button block onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: 'custom' } }))}>Dùng lại ảnh đã tải</Button>}</section>
+      <section className="ws-settings-section"><h3>Hình nền</h3><p>Một không gian khiến bạn muốn bắt đầu.</p><label className="ws-daylight-toggle"><span>Theo nhịp ngày đêm<small>Tự đổi cảnh sáng, trưa, chiều và đêm</small></span><Switch aria-label="Hình nền theo nhịp ngày đêm" checked={!!config.appearance.daylight} onChange={daylight => change(c => ({ ...c, appearance: { ...c.appearance, daylight } }))}/></label><div className="ws-wallpapers">{WALLPAPERS.map(w => <button key={w.id} className={`ws-wallpaper-option${visibleWallpaper === w.id ? ' selected' : ''}`} onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: w.id, daylight: false } }))}><span className={`ws-wallpaper-preview ws-theme-${w.id}`}><span className="ws-background"><WallpaperArtwork preset={w.id}/></span>{visibleWallpaper === w.id && <CheckOutlined />}</span><strong>{w.name}</strong><small>{w.caption}</small></button>)}</div><Button block icon={<UploadOutlined />} onClick={() => wallpaperRef.current?.click()}>Tải hình nền của bạn</Button><small className="ws-setting-note">JPG, PNG, WebP · tối đa 15 MB · tự tối ưu trước khi lưu</small>{config.appearance.customWallpaper && <Button block onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: 'custom', daylight: false } }))}>Dùng lại ảnh đã tải</Button>}</section>
       <section className="ws-settings-section"><h3>Màu nhấn</h3><div className="ws-colors">{ACCENTS.map(color => <button key={color} aria-label={`Màu ${color}`} style={{ background: color }} className={config.appearance.accent === color ? 'selected' : ''} onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, accent: color } }))}>{config.appearance.accent === color && <CheckOutlined />}</button>)}<input type="color" aria-label="Chọn màu nhấn riêng" value={config.appearance.accent} onChange={e => change(c => ({ ...c, appearance: { ...c.appearance, accent: e.target.value } }))}/></div><label>Độ tối hình nền <span>{config.appearance.overlay}%</span></label><Slider value={config.appearance.overlay} min={0} max={90} onChange={overlay => change(c => ({ ...c, appearance: { ...c.appearance, overlay } }))}/><label>Độ mờ kính <span>{config.appearance.blur}px</span></label><Slider value={config.appearance.blur} min={0} max={40} onChange={blur => change(c => ({ ...c, appearance: { ...c.appearance, blur } }))}/></section>
       <section className="ws-settings-section"><h3>Bắt đầu từ một bố cục</h3><p>Áp dụng cho không gian “{space.name}”.</p><div className="ws-template-list">{[{id:'default',icon:'◈',name:'Ngày làm việc',text:'Điều hành, ghi chú, việc cần làm & thời tiết'},{id:'focus',icon:'◷',name:'Tập trung sâu',text:'Pomodoro, việc ưu tiên & góc ghi chú'},{id:'data',icon:'⌁',name:'Góc dữ liệu',text:'IOC, công việc & kết nối API'}].map(t => <button key={t.id} onClick={() => applyTemplate(t.id)}><b>{t.icon}</b><span><strong>{t.name}</strong><small>{t.text}</small></span><span>↗</span></button>)}</div></section>
     </Drawer>

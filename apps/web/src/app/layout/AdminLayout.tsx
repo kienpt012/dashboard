@@ -26,6 +26,7 @@ import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
 import { Jarvis, JarvisMark, type JarvisHandle, type JarvisVoiceState } from './Jarvis';
 import { Notifications } from './Notifications';
+import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
 import './layout.css';
 
 const COLLAPSE_KEY = 'ioc_nav_collapsed';
@@ -295,6 +296,7 @@ export default function AdminLayout() {
             <kbd>Ctrl K</kbd>
           </button>
           <div className="head-actions">
+            {!isWorkspace && <PinToWorkspace key={user.id} title={info.label} />}
             <Tooltip title={voice === 'idle' ? 'Jarvis đang nghe — nói “Jarvis” để gọi (Ctrl J)' : 'Jarvis (Ctrl J)'}>
               <Button
                 type="text"
