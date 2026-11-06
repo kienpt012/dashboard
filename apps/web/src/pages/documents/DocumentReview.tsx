@@ -19,6 +19,7 @@ import { DOC_STATUS } from './Documents';
 import { LegalBasis } from '@/components/LegalBasis';
 import { LazyPdfViewer } from '@/components/pdf/LazyPdfViewer';
 import type { Box } from '@/components/pdf/PdfViewer';
+import { CandidateSheetActions } from './CandidateSheet';
 import { CandidateSignals, flagCountTag, matchTag, methodTag } from './ReviewSignals';
 
 type Location = { pageNumber: number; box: Box | null; matchBox: Box | null; quote: string; score: number };
@@ -361,6 +362,7 @@ export default function DocumentReview() {
           <Button icon={<DownloadOutlined />} onClick={() => void download()}>
             Tệp gốc
           </Button>
+          {can(user, WORKING) && (candidates.data?.length ?? 0) > 0 && <CandidateSheetActions documentId={id!} documentCode={detail.code} />}
           {can(user, WORKING) && extractJob && (
             <Button
               icon={<PauseCircleOutlined />}

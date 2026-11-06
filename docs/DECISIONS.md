@@ -169,3 +169,17 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Câu hỏi mở**: ngưỡng so nghĩa bge-m3 (0,45 và cách biệt 0,02) chưa đo trên dữ liệu thật; chỉ tiêu cha
   (`parentId`) chưa tự nối khi duyệt.
 - **Đã chốt (06/11)**: màn hình duyệt mặc định gom theo đề mục văn bản; dashboard gom theo lĩnh vực chuẩn.
+
+## D-018 · 2026-11-06 · Bảng chỉ tiêu Excel theo khuôn Phụ lục 1 để chuyên viên chuẩn hoá rồi tải lên
+
+- **Bối cảnh**: chuyên viên cần xem kết quả bóc tách trực quan như phụ lục giao chỉ tiêu, sửa hàng loạt trong Excel,
+  rồi đưa lên hệ thống để gửi các phòng chuyên môn.
+- **Chọn**: `GET /documents/:id/candidate-sheet` xuất các đề xuất chưa duyệt theo khuôn PL1 (STT | Chỉ tiêu | Đơn vị
+  tính | Kế hoạch năm | Đơn vị chủ trì báo cáo | Ghi chú), hàng nhóm số La Mã theo đề mục văn bản, hàng "-" cho chỉ
+  tiêu thành phần, kế hoạch giữ chữ gốc ("≥ 95,5", "9.800 USD/người"); thêm cột Lĩnh vực, Kỳ báo cáo, Hạn, Chiều đánh
+  giá, Xử lý (Giữ/Bỏ), trang và trích dẫn nguồn; mã và phiên bản đề xuất ở cột ẩn. `POST` cùng đường dẫn đọc file đã
+  sửa: mặc định chỉ xem trước (sửa, thêm, loại, đổi thứ tự, lỗi); `apply=1` mới ghi, có lỗi thì không ghi gì;
+  `submit=1` trình các đề xuất đủ thông tin, mỗi phòng chủ trì (trưởng phòng) và lãnh đạo nhận một thông báo cho đề
+  xuất của phòng mình (D-006 giữ nguyên: vẫn phải duyệt).
+- **Quy tắc**: phiên bản trong file khác trên hệ thống thì báo lỗi, không ghi đè; xoá hàng không loại đề xuất (phải
+  chọn "Bỏ"); quyền sửa, chuyển phòng, loại giống các nút trên màn hình duyệt; không thêm bảng lưu lần nhập.

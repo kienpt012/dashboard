@@ -257,12 +257,12 @@ export const CANDIDATE_SELECT = {
   updatedAt: true,
 } satisfies Prisma.IndicatorCandidateSelect;
 
-function isConcurrencyError(error: unknown) {
+export function isConcurrencyError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError
     && (error.code === 'P2025' || error.code === 'P2034');
 }
 
-function deadlineDate(value: string) {
+export function deadlineDate(value: string) {
   return new Date(`${value}T16:59:59.999Z`);
 }
 
@@ -278,7 +278,7 @@ function candidateScope(actor: Actor): Prisma.IndicatorCandidateWhereInput {
 }
 
 /** Người được sửa đề xuất đang ở bản nháp/đã trình: văn thư, lãnh đạo; trưởng phòng của phòng phụ trách; người đề xuất. */
-function canEditCandidate(actor: Actor, candidate: { responsibleDepartmentId: string | null; proposedById: string | null }) {
+export function canEditCandidate(actor: Actor, candidate: { responsibleDepartmentId: string | null; proposedById: string | null }) {
   if (isGlobalRole(actor.role)) return true;
   if (candidate.proposedById === actor.id) return true;
   return Boolean(candidate.responsibleDepartmentId && canSuperviseDepartment(actor, candidate.responsibleDepartmentId));
@@ -291,7 +291,7 @@ export function canDecideCandidate(actor: Actor, candidate: { responsibleDepartm
   return Boolean(candidate.responsibleDepartmentId && canSuperviseDepartment(actor, candidate.responsibleDepartmentId));
 }
 
-async function approverIds(tx: Prisma.TransactionClient, departmentId: string | null) {
+export async function approverIds(tx: Prisma.TransactionClient, departmentId: string | null) {
   return [...await leaderIds(tx), ...await departmentManagerIds(tx, departmentId)];
 }
 
@@ -899,7 +899,7 @@ function buildCandidateDescription(candidate: {
   return `Trích từ ${candidate.document.code} (${candidate.document.title}): "${quote}"`;
 }
 
-const REVALIDATE_SELECT = {
+export const REVALIDATE_SELECT = {
   name: true,
   unit: true,
   targetValue: true,
