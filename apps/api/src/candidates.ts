@@ -201,6 +201,8 @@ export const CANDIDATE_SELECT = {
   parentName: true,
   description: true,
   category: true,
+  groupName: true,
+  documentOrder: true,
   unit: true,
   targetValue: true,
   targetText: true,
@@ -315,11 +317,15 @@ export class CandidatesController {
     if (documentId?.trim()) where.documentId = documentId.trim();
     if (frameworkId?.trim()) where.frameworkId = frameworkId.trim();
     if (scopedDepartment && isGlobalRole(actor.role)) where.responsibleDepartmentId = scopedDepartment;
+    // Xem một văn bản: theo thứ tự đọc của văn bản (như người soạn sắp), không theo thời điểm ghi.
+    const orderBy: Prisma.IndicatorCandidateOrderByWithRelationInput[] = documentId?.trim()
+      ? [{ documentOrder: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'asc' }]
+      : [{ createdAt: 'desc' }, { id: 'desc' }];
     const rows = await this.prisma.indicatorCandidate.findMany({
       where,
       select: CANDIDATE_SELECT,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 300,
+      orderBy,
+      take: documentId?.trim() ? 1000 : 300,
     });
     const proposerIds = [...new Set(rows.map(row => row.proposedById).filter((id): id is string => Boolean(id)))];
     const proposers = proposerIds.length ? await this.prisma.user.findMany({ where: { id: { in: proposerIds } }, select: { id: true, fullName: true } }) : [];
@@ -796,6 +802,10 @@ export async function approveCandidateById(
           issuingLevel: candidate.issuingLevel ?? undefined,
           standardCode: candidate.standardCode,
           targetText: candidate.targetText,
+          // Giữ số thứ tự, nhóm và thứ tự như văn bản giao để dashboard hiện đúng mục.
+          ordinal: candidate.ordinal,
+          groupName: candidate.groupName ?? candidate.category,
+          sortOrder: candidate.documentOrder ?? undefined,
         }, {
           fromCandidate: candidate.id,
           documentCode: candidate.document?.code ?? null,

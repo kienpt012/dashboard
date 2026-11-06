@@ -553,6 +553,81 @@ test('Worker B8: Qwen hết giờ thì dùng luật, ghi rõ trên job và bản
   assert.deepEqual(record.headingPath, ['Điều 2', '1. Chỉ tiêu kinh tế']);
   assert.deepEqual(record.sourceElementIds, ['p1-e2']);
   assert.equal(record.matchClass, 'MOI');
+  // Bản ghi của luật dự phòng cũng có số thứ tự, nhóm, lĩnh vực và thứ tự đọc lấy từ văn bản.
+  assert.equal(record.ordinal, '1');
+  assert.equal(record.groupName, '1. Chỉ tiêu kinh tế');
+  assert.equal(record.category, 'Kinh tế');
+  assert.ok(record.documentOrder >= 10_000 && record.documentOrder < 20_000);
+});
+
+test('Worker: đề xuất theo thứ tự văn bản, số thứ tự và nhóm lấy từ văn bản, không theo độ tin cậy hay thứ tự model trả', async () => {
+  const workerRef: { id?: string } = {};
+  let created: any[] = [];
+  const economy = '[Mục: QUYẾT ĐỊNH > Điều 3. Chỉ tiêu phát triển kinh tế - xã hội năm 2026 > 1. Chỉ tiêu về kinh tế]\n'
+    + 'Bộ phận Kinh tế chủ trì. (1) Tổng thu ngân sách nhà nước đạt ít nhất 125,5 tỷ đồng. (2) Thành lập mới ít nhất 45 doanh nghiệp.';
+  const health = '[Mục: QUYẾT ĐỊNH > Điều 3. Chỉ tiêu phát triển kinh tế - xã hội năm 2026 > 2. Chỉ tiêu về y tế và chăm sóc sức khỏe]\n'
+    + '(9) Tỷ lệ người dân tham gia bảo hiểm y tế đạt ≥ 95,5%. Tỷ lệ cơ sở ăn uống được kiểm tra an toàn thực phẩm đạt 100%.';
+  const llmItem = (name: string, value: number, unit: string, quote: string, confidence: number, category: string | null = null) => ({
+    indicatorName: name, ordinalNumber: null, parentIndicator: null, description: null, category, targetValue: value, unit,
+    valueDirection: 'HIGHER_IS_BETTER', reportingFrequency: 'YEARLY', deadline: null, targetYear: 2026,
+    responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null, sourceQuote: quote, confidence,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+  });
+  const tx = {
+    extractionJob: { updateMany: async () => ({ count: 1 }), findUnique: async () => null },
+    indicatorCandidate: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { created = data; } },
+  };
+  const prisma = {
+    extractionJob: {
+      findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+      updateMany: async () => ({ count: 1 }),
+    },
+    sourceDocument: { findUnique: async () => ({ id: 'doc-2', title: 'QĐ 015', docNumber: '015/QĐ-UBND', year: 2026, status: 'PROCESSED' }) },
+    documentChunk: {
+      findMany: async () => [
+        { id: 'c0', chunkIndex: 0, pageFrom: 1, pageTo: 1, text: economy, kind: 'section', hasDigits: true, headingPath: ['QUYẾT ĐỊNH', 'Điều 3. Chỉ tiêu phát triển kinh tế - xã hội năm 2026', '1. Chỉ tiêu về kinh tế'], elementIds: [], leadSentence: null },
+        { id: 'c1', chunkIndex: 1, pageFrom: 2, pageTo: 2, text: health, kind: 'section', hasDigits: true, headingPath: ['QUYẾT ĐỊNH', 'Điều 3. Chỉ tiêu phát triển kinh tế - xã hội năm 2026', '2. Chỉ tiêu về y tế và chăm sóc sức khỏe'], elementIds: [], leadSentence: null },
+      ],
+    },
+    documentPage: { findMany: async () => [] },
+    localityProfile: { findUnique: async () => null },
+    department: { findMany: async () => [] },
+    ...fakeEmbeddingPrisma([]),
+    $transaction: async (fn: any) => fn(tx),
+  };
+  const ollama = {
+    ...fakeOllama(),
+    extractModel: 'qwen3-chitieu',
+    numCtx: 8192,
+    isAvailable: async () => true,
+    // Model trả ngược thứ tự văn bản, độ tin cậy tăng dần và gắn sai lĩnh vực cho chỉ tiêu an toàn thực phẩm.
+    chatStructured: async (messages: { content: string }[]) => {
+      const text = messages[messages.length - 1].content;
+      const indicators = text.includes('bảo hiểm y tế')
+        ? [
+          llmItem('Tỷ lệ cơ sở ăn uống được kiểm tra an toàn thực phẩm', 100, '%', 'Tỷ lệ cơ sở ăn uống được kiểm tra an toàn thực phẩm đạt 100%', 0.95, 'an ninh - quốc phòng'),
+          llmItem('Tỷ lệ người dân tham gia bảo hiểm y tế', 95.5, '%', 'Tỷ lệ người dân tham gia bảo hiểm y tế đạt ≥ 95,5%', 0.6),
+        ]
+        : [
+          llmItem('Thành lập mới doanh nghiệp', 45, 'doanh nghiệp', 'Thành lập mới ít nhất 45 doanh nghiệp', 0.99),
+          llmItem('Tổng thu ngân sách nhà nước', 125.5, 'tỷ đồng', 'Tổng thu ngân sách nhà nước đạt ít nhất 125,5 tỷ đồng', 0.7),
+        ];
+      return { content: JSON.stringify({ indicators }), model: 'qwen3-chitieu', durationMs: 1 };
+    },
+  };
+  const worker = workerWith(prisma, ollama);
+  workerRef.id = worker.workerId;
+  await worker.processExtractJob(
+    { id: 'job-3', documentId: 'doc-2', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' },
+    new AbortController().signal,
+  );
+  const llm = created.filter(row => row.extractionMethod === ExtractionMethod.LLM);
+  assert.deepEqual(llm.map(row => row.targetValue), [125.5, 45, 95.5, 100], 'đúng thứ tự xuất hiện trong văn bản');
+  assert.deepEqual(llm.map(row => row.ordinal), ['1', '2', '9', '9'], 'số thứ tự lấy từ văn bản, hai chỉ tiêu cùng mục dùng chung số');
+  assert.deepEqual(llm.map(row => row.groupName), ['1. Chỉ tiêu về kinh tế', '1. Chỉ tiêu về kinh tế', '2. Chỉ tiêu về y tế và chăm sóc sức khỏe', '2. Chỉ tiêu về y tế và chăm sóc sức khỏe']);
+  assert.deepEqual(llm.map(row => row.category), ['Kinh tế', 'Kinh tế', 'Y tế', 'Y tế'], 'đề mục văn bản thắng gợi ý sai của model');
+  const orders = created.map(row => row.documentOrder);
+  assert.deepEqual([...orders].sort((a, b) => a - b), orders, 'bản ghi được ghi theo thứ tự đọc');
 });
 
 test('Ollama: kiểm tra sẵn sàng của job hỏi lại khi Ollama trả lời chậm, không rơi ngay về luật', async () => {

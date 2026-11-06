@@ -150,3 +150,21 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Câu hỏi mở**: CER của VietOCR trên dataset1, ngưỡng gộp hai bộ đọc, ngưỡng B14 trên vài trăm cặp đã gán nhãn, thời
   gian mỗi trang trên CPU máy chủ, dung lượng image ocr-service.
 
+
+## D-017 · 2026-11-06 · Thứ tự, số thứ tự, nhóm và lĩnh vực của đề xuất lấy từ cấu trúc văn bản
+
+- **Bối cảnh**: chạy thử file mẫu QĐ 015 (32 chỉ tiêu, 3 mục) cho thấy màn hình duyệt không theo thứ tự văn bản và
+  không gom theo mục. Nguyên nhân ở lớp ứng dụng: bước bỏ trùng sắp theo độ tin cậy, API trả theo thời điểm tạo, giao
+  diện chỉ in đề mục thành một dòng chữ; số thứ tự do model điền (model gốc 0/32, bản fine-tune 22/31) và lĩnh vực
+  do model đoán từng đoạn (từng xếp chỉ tiêu an toàn thực phẩm vào an ninh - quốc phòng dù đề mục ghi y tế).
+- **Chọn**: không train hay viết prompt theo mẫu văn bản, mà lấy từ chính văn bản (`extraction-structure.ts`):
+  - thứ tự đọc `documentOrder` = số đoạn × 10000 + vị trí câu trích trong đoạn; API sắp theo cột này khi xem một văn
+    bản; bỏ trùng vẫn giữ bản tin cậy cao nhưng không đổi thứ tự;
+  - số thứ tự dò trong văn bản gốc trước ("(9)", "9.", "a)", ô STT đầu hàng bảng), model là phương án phụ; hai chỉ
+    tiêu cùng một mục dùng chung số như văn bản;
+  - `groupName` = cấp đề mục đầu tiên mà các chỉ tiêu bắt đầu khác nhau, giữ đúng chữ của văn bản;
+  - `category` là lĩnh vực chuẩn (8 lĩnh vực, sửa danh sách ở một chỗ), theo thứ tự: từ khoá trong đề mục, so nghĩa
+    bge-m3 với mô tả lĩnh vực, gợi ý của model, từ khoá trong tên; không đủ căn cứ thì để trống cho người duyệt chọn;
+  - duyệt thành chỉ tiêu thì mang theo số thứ tự, nhóm và thứ tự sang `Target.ordinal/groupName/sortOrder`.
+- **Câu hỏi mở**: ngưỡng so nghĩa bge-m3 (0,45 và cách biệt 0,02) chưa đo trên dữ liệu thật; chỉ tiêu cha
+  (`parentId`) chưa tự nối khi duyệt; màn hình duyệt mặc định gom theo đề mục văn bản, chờ người dùng chốt.

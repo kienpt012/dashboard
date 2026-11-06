@@ -439,8 +439,14 @@ export type IndicatorCandidate={
   model?:string|null;
   promptVersion?:string|null;
   name:string;
+  /** Số thứ tự như văn bản ghi ("9", "a"), chỉ tiêu cha của dòng thành phần. */
+  ordinal?:string|null;
+  parentName?:string|null;
   description?:string|null;
+  /** Lĩnh vực chuẩn (Kinh tế, Y tế…); groupName là đề mục nhóm như văn bản; documentOrder là thứ tự đọc. */
   category?:string|null;
+  groupName?:string|null;
+  documentOrder?:number|null;
   unit?:string|null;
   targetValue?:number|null;
   actualValue?:number|null;

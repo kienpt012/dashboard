@@ -946,6 +946,46 @@ a.donut-row:hover {
   gap: 10px;
 }
 
+/* Đề xuất gom theo đề mục của văn bản hoặc theo lĩnh vực */
+.candidate-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.candidate-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+  background: transparent;
+  color: var(--ioc-color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidate-group-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.candidate-group-count {
+  color: var(--ioc-color-text-tertiary);
+  font-weight: 400;
+  font-size: 12.5px;
+}
+
+.candidate-ordinal {
+  margin-right: 6px;
+  color: var(--ioc-color-text-tertiary);
+  font-weight: 500;
+}
+
 .candidate {
   padding: 12px 14px;
   border: 1px solid var(--ioc-color-border-secondary);

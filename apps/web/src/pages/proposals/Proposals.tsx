@@ -17,6 +17,7 @@ import { ApiError, http, query } from '@/lib/api';
 import { currentYear, date, dateTime, fromNow, msUntil, num, pct, until } from '@/lib/format';
 import { frequencyLabel } from '@/lib/periods';
 import { can, isGlobal, WORKING } from '@/lib/roles';
+import { CATEGORY_OPTIONS } from '@/lib/categories';
 import type { FrameworkKind, Frequency, IssuingLevel, Proposal as BaseProposal } from '@/types/domain';
 import { DIRECTION_OPTIONS, FREQUENCY_OPTIONS, KIND_OPTIONS } from '../targets/TargetForm';
 
@@ -61,6 +62,7 @@ function targetOf(item: Proposal) {
 type FormValues = {
   name: string;
   description?: string;
+  category?: string | null;
   targetKind: FrameworkKind;
   frameworkId?: string;
   unit?: string;
@@ -106,6 +108,7 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
       form.setFieldsValue({
         name: item.name,
         description: item.description ?? '',
+        category: item.category ?? undefined,
         targetKind: item.targetKind ?? 'PLAN',
         frameworkId: item.frameworkId ?? undefined,
         unit: item.unit ?? '',
@@ -153,7 +156,7 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         legalBasis: values.legalBasis?.trim() || undefined,
       };
       if (item) {
-        const saved = await http.patch<Pick<Proposal, 'version' | 'status'>>(`/candidates/${item.id}`, { ...body, expectedVersion: version.current ?? item.version });
+        const saved = await http.patch<Pick<Proposal, 'version' | 'status'>>(`/candidates/${item.id}`, { ...body, category: values.category || null, expectedVersion: version.current ?? item.version });
         version.current = saved.version;
         try {
           if (submit && saved.status === 'PROPOSED') {
@@ -228,6 +231,11 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         <Form.Item name="frameworkId" label="Bộ chỉ tiêu">
           <Select allowClear options={frameworkOptions(frameworks.data)} showSearch={{ optionFilterProp: 'label' }} />
         </Form.Item>
+        {item && (
+          <Form.Item name="category" label="Lĩnh vực" className="span-2" extra="Dùng để gom chỉ tiêu trên dashboard; hệ thống tự gợi ý theo đề mục của văn bản.">
+            <Select allowClear options={CATEGORY_OPTIONS} placeholder="Chọn lĩnh vực" />
+          </Form.Item>
+        )}
         <Form.Item name="targetValue" label="Giá trị mục tiêu" rules={[requiredForSubmit, { type: 'number', min: 0 }]}>
           <InputNumber min={0} style={{ width: '100%' }} decimalSeparator="," />
         </Form.Item>

@@ -885,7 +885,11 @@ model IndicatorCandidate {
   ordinal                   String?
   parentName                String?
   description               String?
+  // Lĩnh vực chuẩn cho dashboard (Kinh tế, Y tế…); groupName là đề mục nhóm đúng như văn bản ghi.
   category                  String?
+  groupName                 String?
+  // Thứ tự đọc trong văn bản (số đoạn × 10000 + vị trí câu trích trong đoạn) để hiển thị đúng thứ tự văn bản.
+  documentOrder             Int?
   unit                      String?
   targetValue               Float?
   actualValue               Float?
@@ -939,6 +943,7 @@ model IndicatorCandidate {
 
   @@index([status, createdAt])
   @@index([documentId, status])
+  @@index([documentId, documentOrder])
   @@index([status, autoApproveAt])
 }
 

@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, DownloadOutlined, EditOutlined, FileSyncOutlined, PauseCircleOutlined, RedoOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, DownloadOutlined, DownOutlined, EditOutlined, FileSyncOutlined, PauseCircleOutlined, RedoOutlined, RightOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Alert, App, Badge, Button, Card, Col, Descriptions, Empty, Flex, Pagination, Progress, Result, Row, Segmented, Space, Tag, Tooltip, Typography } from 'antd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -47,6 +47,25 @@ function Highlighted({ text, quote }: { text: string; quote?: string | null }) {
       {text.slice(match.index + match[0].length)}
     </>
   );
+}
+
+type GroupBy = 'section' | 'category' | 'none';
+
+/**
+ * Gom đề xuất theo đề mục của văn bản (như người soạn chia) hoặc theo lĩnh vực chuẩn. Danh sách đã theo thứ tự đọc
+ * của văn bản, nên nhóm xếp theo lần xuất hiện đầu tiên và trong nhóm giữ nguyên thứ tự.
+ */
+function groupCandidates(list: IndicatorCandidate[], by: GroupBy) {
+  const label = (item: IndicatorCandidate) => (by === 'section' ? item.groupName : item.category)?.trim() || null;
+  if (by === 'none' || !list.some(label)) return [{ key: '', title: '', items: list }];
+  const groups = new Map<string, { key: string; title: string; items: IndicatorCandidate[] }>();
+  for (const item of list) {
+    const title = label(item) ?? (by === 'section' ? 'Chưa rõ đề mục' : 'Chưa xếp lĩnh vực');
+    const group = groups.get(title) ?? { key: title, title, items: [] };
+    group.items.push(item);
+    groups.set(title, group);
+  }
+  return [...groups.values()];
 }
 
 function confidenceColor(value: number) {
@@ -100,7 +119,10 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
   return (
     <div className={`candidate${active ? ' active' : ''}`} onClick={onSelect} role="button" tabIndex={0} onKeyDown={event => event.key === 'Enter' && onSelect()}>
       <Flex justify="space-between" gap={8} align="flex-start">
-        <Typography.Text strong>{item.name}</Typography.Text>
+        <Typography.Text strong>
+          {item.ordinal ? <span className="candidate-ordinal">({item.ordinal})</span> : null}
+          {item.name}
+        </Typography.Text>
         <Space size={4}>
           <Tag color={STATUS[item.status]?.color}>{item.autoApproved ? 'Tự thông qua' : STATUS[item.status]?.label}</Tag>
         </Space>
@@ -113,6 +135,7 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
         </Tooltip>
         <Tag color={item.kind === 'PROGRESS_UPDATE' ? 'cyan' : 'geekblue'}>{item.kind === 'PROGRESS_UPDATE' ? 'Cập nhật số liệu' : 'Chỉ tiêu mới'}</Tag>
         {item.pageNumber && <Tag>Trang {item.pageNumber}</Tag>}
+        {item.category && <Tag color="purple">{item.category}</Tag>}
         {item.humanEdited && <Tag color="blue">Đã hiệu chỉnh</Tag>}
         {methodTag(item)}
         {matchTag(item)}
@@ -207,6 +230,8 @@ export default function DocumentReview() {
   const text = useApi<DocumentTextResponse>(detail && detail.status === 'PROCESSED' ? `/documents/${id}/text` : null);
   const candidates = useApi<IndicatorCandidate[]>(`/candidates?documentId=${id}`, { refetchInterval: processing ? 5000 : false });
   const [filter, setFilter] = useState('OPEN');
+  const [groupBy, setGroupBy] = useState<GroupBy>('section');
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Proposal | null | undefined>(undefined);
@@ -248,6 +273,13 @@ export default function DocumentReview() {
       ),
     [candidates.data, filter],
   );
+  const groups = useMemo(() => groupCandidates(list, groupBy), [list, groupBy]);
+  const toggleGroup = (key: string) => setCollapsed(current => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   const selected = (candidates.data ?? []).find(item => item.id === selectedId) ?? null;
   const quoteOf = (item: IndicatorCandidate) => (item.sourceQuote?.trim().length ?? 0) >= 6 ? item.sourceQuote!.trim().slice(0, 1000) : item.name;
   const located = useQuery({
@@ -446,7 +478,7 @@ export default function DocumentReview() {
             className="card-flush"
             title={`Đề xuất trích xuất (${num(candidates.data?.length ?? detail.counts.candidates)})`}
           >
-            <div className="card-filter">
+            <Flex className="card-filter" gap={8} wrap>
               <Segmented
                 size="small"
                 value={filter}
@@ -458,23 +490,47 @@ export default function DocumentReview() {
                   { value: 'ALL', label: 'Tất cả' },
                 ]}
               />
-            </div>
+              <Segmented
+                size="small"
+                value={groupBy}
+                onChange={value => setGroupBy(value as GroupBy)}
+                options={[
+                  { value: 'section', label: 'Theo đề mục' },
+                  { value: 'category', label: 'Theo lĩnh vực' },
+                  { value: 'none', label: 'Không nhóm' },
+                ]}
+              />
+            </Flex>
             <ScrollBox bodyClassName="candidate-list">
               {candidates.error && !candidates.data ? (
                 <LoadError error={candidates.error} retry={() => void candidates.refetch()} />
               ) : list.length ? (
-                list.map(item => (
-                  <CandidateCard
-                    key={item.id}
-                    item={item}
-                    active={item.id === selectedId}
-                    screen={clerk && item.origin === 'AI' && item.status === 'PROPOSED'}
-                    onSelect={() => setSelectedId(item.id)}
-                    onEdit={() => setEditing(item as unknown as Proposal)}
-                    onApprove={() => setApproving(item as unknown as Proposal)}
-                    onReject={() => setRejecting(item)}
-                  />
-                ))
+                groups.map(group => {
+                  const open = !collapsed.has(group.key);
+                  return (
+                    <div key={group.key || 'all'} className="candidate-group">
+                      {group.title && (
+                        <button type="button" className="candidate-group-head" aria-expanded={open} onClick={() => toggleGroup(group.key)}>
+                          {open ? <DownOutlined /> : <RightOutlined />}
+                          <span className="candidate-group-title">{group.title}</span>
+                          <span className="candidate-group-count">{group.items.length}</span>
+                        </button>
+                      )}
+                      {open && group.items.map(item => (
+                        <CandidateCard
+                          key={item.id}
+                          item={item}
+                          active={item.id === selectedId}
+                          screen={clerk && item.origin === 'AI' && item.status === 'PROPOSED'}
+                          onSelect={() => setSelectedId(item.id)}
+                          onEdit={() => setEditing(item as unknown as Proposal)}
+                          onApprove={() => setApproving(item as unknown as Proposal)}
+                          onReject={() => setRejecting(item)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })
               ) : (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={processing ? 'Đang trích xuất' : 'Không có đề xuất'} style={{ padding: 32 }} />
               )}

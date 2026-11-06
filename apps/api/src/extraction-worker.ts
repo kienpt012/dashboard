@@ -21,13 +21,7 @@ import {
   type ParsedDocument,
   type ParsedPage,
 } from './document-processing';
-import {
-  categoryFromSectionHeader,
-  EXTRACTION_PROMPT_VERSION,
-  LlmIndicatorExtractor,
-  parseSectionHeader,
-  type LlmExtractedIndicator,
-} from './extraction-llm';
+import { EXTRACTION_PROMPT_VERSION, LlmIndicatorExtractor, type LlmExtractedIndicator } from './extraction-llm';
 import {
   chunkLikelyHasIndicators,
   detectDeadline,
@@ -35,8 +29,19 @@ import {
   parseVietnameseNumber,
   type RuleExtractedIndicator,
 } from './extraction-rules';
+import {
+  categoryByKeywords,
+  categoryFromHeadings,
+  chunkBody,
+  detectOrdinal,
+  documentGroups,
+  documentOrderKey,
+  locateQuote,
+  pickCategoryByScore,
+  STANDARD_CATEGORIES,
+} from './extraction-structure';
 import { adjustedConfidence, validateConsistency, validateRecord, type ValidationFlag, type ValidationRecord } from './extraction-validation';
-import { IndicatorMatcher } from './indicator-matching';
+import { dot, IndicatorMatcher, normalizeVector } from './indicator-matching';
 import { diceSimilarity, matchDepartmentByName } from './matching';
 import {
   OcrServiceClient,
@@ -650,6 +655,38 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     return { pages: new Set(section.pages), note: `Văn bản giao cho ${units} đơn vị: chỉ trích xuất phần của ${term} (trang ${ranges}).` };
   }
 
+  /**
+   * Lĩnh vực chuẩn của từng chỉ tiêu, theo thứ tự ưu tiên: từ khoá trong đề mục của văn bản; so nghĩa (bge-m3)
+   * giữa "đề mục + tên chỉ tiêu" với mô tả từng lĩnh vực; gợi ý của mô hình; từ khoá trong tên chỉ tiêu.
+   * Không đủ căn cứ thì để trống cho người duyệt chọn.
+   */
+  private async resolveCategories(
+    items: { headingPath: string[]; group: string | null; name: string; modelCategory: string | null }[],
+    canEmbed: boolean,
+    signal: AbortSignal,
+  ): Promise<(string | null)[]> {
+    const result = items.map(item => categoryFromHeadings(item.headingPath));
+    const missing = result.map((value, index) => (value ? -1 : index)).filter(index => index >= 0);
+    if (missing.length && canEmbed) {
+      try {
+        const prototypes = (await this.ollama.embed(STANDARD_CATEGORIES.map(category => category.prototype))).map(normalizeVector);
+        for (let start = 0; start < missing.length; start += 32) {
+          throwIfAborted(signal);
+          const batch = missing.slice(start, start + 32);
+          const vectors = await this.ollama.embed(batch.map(index => [items[index].group, items[index].name].filter(Boolean).join(': ')));
+          vectors.forEach((vector, offset) => {
+            const unit = normalizeVector(vector);
+            result[batch[offset]] = pickCategoryByScore(prototypes.map(prototype => dot(prototype, unit)));
+          });
+        }
+      } catch (error) {
+        if (signal.aborted) throw error;
+        this.logger.warn(`Không so nghĩa được lĩnh vực bằng ${this.ollama.embedModel}: dùng gợi ý của mô hình và từ khoá.`);
+      }
+    }
+    return result.map((value, index) => value ?? categoryByKeywords(items[index].modelCategory) ?? categoryByKeywords(items[index].name));
+  }
+
   /** Gia hạn lease job trích xuất giữa hai lần gọi Qwen (một đoạn có thể gọi hai lần, mỗi lần tới 8 phút). */
   private async touchExtractJob(job: ClaimedJob, chunksDone?: number): Promise<void> {
     const touched = await this.prisma.extractionJob.updateMany({
@@ -855,12 +892,23 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       if (!nearDuplicate) deduplicated.push(item);
     }
     const seenKeys = new Set<string>();
-    const unique = deduplicated.filter((item) => {
+    const distinct = deduplicated.filter((item) => {
       const key = `${item.payload.name.toLowerCase().trim()}|${item.payload.targetValue ?? ''}|${item.payload.unit ?? ''}`;
       if (seenKeys.has(key)) return false;
       seenKeys.add(key);
       return true;
     });
+    // Thứ tự đọc của văn bản: mô hình chỉ thấy từng đoạn, nên app tự xếp theo vị trí câu trích dẫn trong văn bản.
+    // Bỏ trùng ở trên giữ bản tin cậy cao nhưng không được làm đổi thứ tự hiển thị.
+    const pendingIndex = new Map(pending.map((item, index) => [item, index]));
+    const placed = distinct
+      .map((item) => {
+        const body = chunkBody(item.chunk.text);
+        const position = locateQuote(body, item.payload.sourceQuote, item.payload.targetValue);
+        return { item, body, position, order: documentOrderKey(item.chunk.chunkIndex, position) };
+      })
+      .sort((a, b) => a.order - b.order || (pendingIndex.get(a.item) ?? 0) - (pendingIndex.get(b.item) ?? 0));
+    const unique = placed.map(entry => entry.item);
 
     // B11–B14: so trùng với chỉ tiêu đang có và gợi ý mã trong danh mục (bge-m3; Ollama tắt thì Dice).
     throwIfAborted(signal);
@@ -892,7 +940,19 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     });
     const consistency = validateConsistency(validationInputs);
 
-    const chunkTextById = new Map(chunks.map(chunk => [chunk.id, chunk.text]));
+    // Nhóm theo đề mục của chính văn bản; lĩnh vực chuẩn (cho dashboard) ưu tiên đề mục, rồi so nghĩa, rồi mô hình.
+    const headingPaths = unique.map(item => (Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []));
+    const groups = documentGroups(headingPaths);
+    const categories = await this.resolveCategories(
+      unique.map((item, index) => ({
+        headingPath: headingPaths[index],
+        group: groups[index],
+        name: item.payload.name,
+        modelCategory: item.method === ExtractionMethod.LLM ? (item.payload as LlmExtractedIndicator).category : null,
+      })),
+      matching.method !== 'dice',
+      signal,
+    );
     const candidateRows: Prisma.IndicatorCandidateCreateManyInput[] = [];
     const ruleCounts: Record<string, number> = {};
     for (const [index, item] of unique.entries()) {
@@ -914,7 +974,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       if (item.fallbackReason) {
         warnings.unshift(`${item.fallbackReason} ở đoạn này: bản ghi do bộ luật dự phòng tạo, cần đối chiếu kỹ với văn bản.`);
       }
-      const headingPath = Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : [];
+      const headingPath = headingPaths[index];
+      // Số thứ tự như văn bản ghi ("(9)", "9.", ô STT): dò trong văn bản gốc trước, mô hình chỉ là phương án phụ.
+      const ordinal = detectOrdinal(placed[index].body, placed[index].position, item.chunk.kind) ?? llmPayload?.ordinal ?? null;
 
       candidateRows.push({
         documentId: document.id,
@@ -926,12 +988,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         model: isLlm ? this.ollama.extractModel : null,
         promptVersion: isLlm ? EXTRACTION_PROMPT_VERSION : item.method === ExtractionMethod.FORM_TEMPLATE ? `form:${item.formTemplate ?? 'mau'}` : 'rule-v1',
         name: payload.name,
-        ordinal: llmPayload?.ordinal ?? null,
+        ordinal,
         parentName: llmPayload?.parentName ?? null,
         description: llmPayload?.description ?? null,
-        // Lĩnh vực: model điền, không có thì suy tất định từ tiêu đề mục của chunk.
-        category: llmPayload?.category
-          ?? categoryFromSectionHeader(parseSectionHeader(chunkTextById.get(item.chunk.id) ?? '')),
+        category: categories[index],
+        groupName: groups[index],
+        documentOrder: placed[index].order,
         unit: payload.unit,
         targetValue: payload.targetValue,
         targetYear: payload.targetYear ?? document.year ?? null,
