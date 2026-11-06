@@ -14,6 +14,10 @@ Mỗi tài khoản có bố cục, hình nền, ghi chú, danh sách việc riê
 
 Có tối đa 8 không gian, 40 tiện ích mỗi không gian và 80 lối tắt. Các mẫu mặc định phục vụ tổng quan, tập trung và theo dõi dữ liệu. Lối tắt có thể trỏ đến màn hình nội bộ hoặc trang HTTP/HTTPS bên ngoài. Phân quyền của màn hình nội bộ vẫn được kiểm tra khi mở.
 
+Nút ghim trên thanh đầu các màn hình IOC lưu trang hiện tại kèm bộ lọc vào lối tắt. Ghi chú có chế độ Viết/Xem trước Markdown và ô đánh dấu tương tác; lịch tháng hỗ trợ âm lịch Việt Nam, ngày lễ và kỷ niệm (không phải lịch nghỉ bù hằng năm).
+
+Kho hình nền có 13 mẫu, gồm các cảnh SVG ngoại tuyến như Men gốm Lái Thiêu, Trống đồng, Rừng tràm và Sen thanh. Bật “Theo nhịp ngày đêm” để nền đổi theo giờ trên thiết bị; chọn một nền riêng sẽ tắt chế độ tự động.
+
 Hình nền tải lên dùng PNG, JPEG hoặc WebP, tối đa 1 MB sau xử lý. Tổng cấu hình tối đa 2 MB. Mỗi tiện ích có thiết lập riêng; một trang web ngoài có thể từ chối nhúng bằng chính sách của nhà cung cấp. Không nhập HTML hoặc JavaScript để chạy trong bàn làm việc.
 
 ## Đồng bộ và quyền riêng tư
@@ -23,6 +27,8 @@ Cấu hình được lưu trong bảng `UserWorkspace`, khóa theo `userId` lấ
 Thay đổi chưa đồng bộ được giữ thành bản nháp trên thiết bị, tách theo tài khoản và thẻ trình duyệt. Rời sang màn hình IOC khác rồi quay lại sẽ khôi phục bản nháp. Chỉ bản nháp dựa trên cùng phiên bản máy chủ mới được lưu tiếp tự động; bản cũ được giữ để xuất bản sao và không ghi đè dữ liệu mới trên máy chủ.
 
 Ghi chú và danh sách việc cá nhân không trở thành dữ liệu nghiệp vụ IOC. Nhật ký chỉ ghi nhận việc cập nhật cấu hình và phiên bản, không chép nội dung ghi chú, lối tắt hoặc ảnh nền vào nhật ký chung.
+
+Khi đổi tài khoản hoặc đăng xuất trong một tab khác, các tab còn lại đồng bộ phiên và tải lại trang để bỏ dữ liệu đệm và biểu mẫu của tài khoản cũ. Bản nháp bàn làm việc vẫn được tách theo tài khoản.
 
 ## Kết nối API bên ngoài
 
@@ -47,7 +53,7 @@ Kiểm tra mã nguồn:
 ```powershell
 npm run build
 npm test
-node --import tsx --test scripts/qa-workspace-draft.test.ts
+npm run test:workspace
 ```
 
 Kiểm tra API trên hệ thống đang chạy:

@@ -38,6 +38,9 @@ jobs:
       - name: Run API tests
         run: npm test
 
+      - name: Run workspace regression tests
+        run: npm run test:workspace
+
       - name: Build API and web
         run: npm run build
 
