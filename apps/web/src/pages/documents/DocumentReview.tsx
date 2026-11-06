@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, DownloadOutlined, EditOutlined, PauseCircleOutlined, RedoOutlined, RobotOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, DownloadOutlined, DownOutlined, EditOutlined, FileSyncOutlined, PauseCircleOutlined, RedoOutlined, RightOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Alert, App, Badge, Button, Card, Col, Descriptions, Empty, Flex, Pagination, Progress, Result, Row, Segmented, Space, Tag, Tooltip, Typography } from 'antd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +19,8 @@ import { DOC_STATUS } from './Documents';
 import { LegalBasis } from '@/components/LegalBasis';
 import { LazyPdfViewer } from '@/components/pdf/LazyPdfViewer';
 import type { Box } from '@/components/pdf/PdfViewer';
+import { CandidateSheetActions } from './CandidateSheet';
+import { CandidateSignals, flagCountTag, matchTag, methodTag } from './ReviewSignals';
 
 type Location = { pageNumber: number; box: Box | null; matchBox: Box | null; quote: string; score: number };
 
@@ -48,17 +50,80 @@ function Highlighted({ text, quote }: { text: string; quote?: string | null }) {
   );
 }
 
+type GroupBy = 'section' | 'category' | 'none';
+
+/**
+ * Gom đề xuất theo đề mục của văn bản (như người soạn chia) hoặc theo lĩnh vực chuẩn. Danh sách đã theo thứ tự đọc
+ * của văn bản, nên nhóm xếp theo lần xuất hiện đầu tiên và trong nhóm giữ nguyên thứ tự.
+ */
+function groupCandidates(list: IndicatorCandidate[], by: GroupBy) {
+  const label = (item: IndicatorCandidate) => (by === 'section' ? item.groupName : item.category)?.trim() || null;
+  if (by === 'none' || !list.some(label)) return [{ key: '', title: '', items: list }];
+  const groups = new Map<string, { key: string; title: string; items: IndicatorCandidate[] }>();
+  for (const item of list) {
+    const title = label(item) ?? (by === 'section' ? 'Chưa rõ đề mục' : 'Chưa xếp lĩnh vực');
+    const group = groups.get(title) ?? { key: title, title, items: [] };
+    group.items.push(item);
+    groups.set(title, group);
+  }
+  return [...groups.values()];
+}
+
 function confidenceColor(value: number) {
   return value >= 0.8 ? 'green' : value >= 0.6 ? 'gold' : 'red';
 }
 
+/** Tóm tắt một lượt xử lý từ số liệu job (bộ đọc, Qwen đọc bao nhiêu đoạn, đoạn bỏ qua, cờ kiểm tra). */
+function jobSummary(job: SourceDocumentDetail['jobs'][number]) {
+  const stats = (job.stats ?? {}) as Record<string, number | string | Record<string, number> | undefined>;
+  const n = (key: string) => (typeof stats[key] === 'number' ? (stats[key] as number) : 0);
+  if (job.kind === 'DOCUMENT_PARSE') {
+    const parts = [
+      n('pages') ? `${n('pages')} trang` : null,
+      n('ocrPages') ? `${n('ocrPages')} trang OCR` : null,
+      n('ocrElements') ? `${n('ocrFlaggedElements')}/${n('ocrElements')} dòng OCR cần rà soát` : null,
+      n('msPerPage') ? `${(n('msPerPage') / 1000).toFixed(1)} giây/trang` : null,
+      stats.parser === 'fallback' ? 'bộ đọc dự phòng' : null,
+    ];
+    return parts.filter(Boolean).join(' · ');
+  }
+  const parts = [
+    n('llmChunks') ? `Qwen đọc ${n('llmSucceeded')}/${n('llmChunks')} đoạn` : null,
+    n('skipped') ? `bỏ qua ${n('skipped')} đoạn không có số liệu` : null,
+    n('formChunks') ? `${n('formChunks')} đoạn biểu mẫu` : null,
+    n('flaggedCandidates') ? `${n('flaggedCandidates')} đề xuất có cờ kiểm tra` : null,
+  ];
+  return parts.filter(Boolean).join(' · ');
+}
+
 function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onReject }: { item: IndicatorCandidate; active: boolean; screen: boolean; onSelect: () => void; onEdit: () => void; onApprove: () => void; onReject: () => void }) {
+  const { modal } = App.useApp();
   const submit = useAction(() => http.post(`/candidates/${item.id}/submit`, { expectedVersion: item.version }), { success: 'Đã trình đề xuất', refresh: ['/candidates', '/my-work', '/documents'] });
+  const merge = useAction((targetId: string) => http.post(`/candidates/${item.id}/merge`, { expectedVersion: item.version, targetId }), {
+    success: 'Đã gộp vào chỉ tiêu có sẵn',
+    refresh: ['/candidates', '/my-work', '/documents', '/targets'],
+  });
+  const applyCode = useAction((code: string) => http.patch(`/candidates/${item.id}`, { expectedVersion: item.version, standardCode: code }), {
+    success: 'Đã gắn mã chỉ tiêu',
+    refresh: ['/candidates'],
+  });
+  const confirmMerge = (targetId: string) => {
+    const target = item.similarTargets?.items.find(entry => entry.id === targetId);
+    modal.confirm({
+      title: 'Gộp vào chỉ tiêu có sẵn?',
+      content: `Đề xuất "${item.name}" không tạo chỉ tiêu mới; văn bản nguồn được ghi thêm vào hồ sơ chỉ tiêu ${target?.code ?? ''}. Giá trị của chỉ tiêu có sẵn giữ nguyên.`,
+      okText: 'Gộp',
+      onOk: () => merge.mutateAsync(targetId),
+    });
+  };
   const target = item.targetValue !== null && item.targetValue !== undefined ? `${num(item.targetValue)}${item.unit ? ` ${item.unit}` : ''}` : item.unit || '—';
   return (
     <div className={`candidate${active ? ' active' : ''}`} onClick={onSelect} role="button" tabIndex={0} onKeyDown={event => event.key === 'Enter' && onSelect()}>
       <Flex justify="space-between" gap={8} align="flex-start">
-        <Typography.Text strong>{item.name}</Typography.Text>
+        <Typography.Text strong>
+          {item.ordinal ? <span className="candidate-ordinal">({item.ordinal})</span> : null}
+          {item.name}
+        </Typography.Text>
         <Space size={4}>
           <Tag color={STATUS[item.status]?.color}>{item.autoApproved ? 'Tự thông qua' : STATUS[item.status]?.label}</Tag>
         </Space>
@@ -71,12 +136,11 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
         </Tooltip>
         <Tag color={item.kind === 'PROGRESS_UPDATE' ? 'cyan' : 'geekblue'}>{item.kind === 'PROGRESS_UPDATE' ? 'Cập nhật số liệu' : 'Chỉ tiêu mới'}</Tag>
         {item.pageNumber && <Tag>Trang {item.pageNumber}</Tag>}
+        {item.category && <Tag color="purple">{item.category}</Tag>}
         {item.humanEdited && <Tag color="blue">Đã hiệu chỉnh</Tag>}
-        {item.isDuplicateSuspect && (
-          <Tag color="orange" icon={<WarningOutlined />}>
-            Có thể trùng
-          </Tag>
-        )}
+        {methodTag(item)}
+        {matchTag(item)}
+        {flagCountTag(item)}
       </Space>
       <Descriptions
         size="small"
@@ -94,7 +158,10 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
         ]}
       />
       {item.warnings?.length ? <Alert type="warning" showIcon title={item.warnings.join('; ')} style={{ marginTop: 6 }} /> : null}
-      {item.matchedTarget && (
+      {active || item.validationFlags?.length || item.ocrReadings?.length || item.similarTargets?.items.length || item.mergedTarget ? (
+        <CandidateSignals item={item} onMerge={confirmMerge} onUseCode={code => applyCode.mutate(code)} merging={merge.isPending} usingCode={applyCode.isPending} />
+      ) : null}
+      {item.matchedTarget && !item.similarTargets?.items.length && !item.mergedTarget && (
         <div className="entry-meta" style={{ marginTop: 6 }}>
           Gần giống <Link to={`/admin/targets/${item.matchedTarget.id}`}>{item.matchedTarget.code}</Link> — {item.matchedTarget.title}
         </div>
@@ -164,6 +231,8 @@ export default function DocumentReview() {
   const text = useApi<DocumentTextResponse>(detail && detail.status === 'PROCESSED' ? `/documents/${id}/text` : null);
   const candidates = useApi<IndicatorCandidate[]>(`/candidates?documentId=${id}`, { refetchInterval: processing ? 5000 : false });
   const [filter, setFilter] = useState('OPEN');
+  const [groupBy, setGroupBy] = useState<GroupBy>('section');
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Proposal | null | undefined>(undefined);
@@ -190,6 +259,7 @@ export default function DocumentReview() {
   }, [isPdf, view, bytes, id, message]);
 
   const reextract = useAction(() => http.post(`/documents/${id}/extract`), { success: 'Đã yêu cầu trích xuất lại', refresh: [`/documents/${id}`, '/candidates'] });
+  const reparse = useAction(() => http.post(`/documents/${id}/reparse`), { success: 'Đã yêu cầu đọc lại văn bản', refresh: [`/documents/${id}`, '/documents'] });
   const cancel = useAction((jobId: string) => http.post(`/documents/${id}/extraction-jobs/${jobId}/cancel`), { success: 'Đã dừng trích xuất', refresh: [`/documents/${id}`, '/candidates'] });
   const reject = useAction(({ item, reason }: { item: IndicatorCandidate; reason: string }) => http.post(`/candidates/${item.id}/reject`, { expectedVersion: item.version, reason }), {
     success: 'Đã từ chối đề xuất',
@@ -204,6 +274,13 @@ export default function DocumentReview() {
       ),
     [candidates.data, filter],
   );
+  const groups = useMemo(() => groupCandidates(list, groupBy), [list, groupBy]);
+  const toggleGroup = (key: string) => setCollapsed(current => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   const selected = (candidates.data ?? []).find(item => item.id === selectedId) ?? null;
   const quoteOf = (item: IndicatorCandidate) => (item.sourceQuote?.trim().length ?? 0) >= 6 ? item.sourceQuote!.trim().slice(0, 1000) : item.name;
   const located = useQuery({
@@ -285,6 +362,7 @@ export default function DocumentReview() {
           <Button icon={<DownloadOutlined />} onClick={() => void download()}>
             Tệp gốc
           </Button>
+          {can(user, WORKING) && (candidates.data?.length ?? 0) > 0 && <CandidateSheetActions documentId={id!} documentCode={detail.code} />}
           {can(user, WORKING) && extractJob && (
             <Button
               icon={<PauseCircleOutlined />}
@@ -318,6 +396,24 @@ export default function DocumentReview() {
               Trích xuất lại
             </Button>
           )}
+          {can(user, WORKING) && !activeJob && (detail.status === 'PROCESSED' || detail.status === 'FAILED') && (
+            <Tooltip title={detail.parserVersion ? `Đang đọc bằng: ${detail.parserVersion}` : undefined}>
+              <Button
+                icon={<FileSyncOutlined />}
+                loading={reparse.isPending}
+                onClick={() =>
+                  modal.confirm({
+                    title: 'Đọc lại văn bản?',
+                    content: 'Hệ thống đọc lại toàn bộ văn bản bằng bộ đọc hiện tại (OCR, bảng, cấu trúc mục) rồi trích xuất lại. Đề xuất đã duyệt hoặc đã hiệu chỉnh được giữ nguyên.',
+                    okText: 'Đọc lại',
+                    onOk: () => reparse.mutateAsync(),
+                  })
+                }
+              >
+                Đọc lại
+              </Button>
+            </Tooltip>
+          )}
         </>
       }
       wide
@@ -326,7 +422,9 @@ export default function DocumentReview() {
         <Card size="small" style={{ marginBottom: 16 }}>
           <Flex align="center" gap={16} wrap>
             <Badge status="processing" text={`${JOB_LABEL[activeJob.kind] ?? activeJob.kind}${activeJob.status === 'PENDING' ? ' (đang chờ)' : ''}`} />
-            {activeJob.chunksTotal ? (
+            {activeJob.kind === 'DOCUMENT_PARSE' && activeJob.pagesTotal ? (
+              <Progress style={{ flex: 1, minWidth: 200, margin: 0 }} percent={Math.round(((activeJob.pagesDone ?? 0) / activeJob.pagesTotal) * 100)} format={() => `${activeJob.pagesDone ?? 0}/${activeJob.pagesTotal} trang`} />
+            ) : activeJob.chunksTotal ? (
               <Progress style={{ flex: 1, minWidth: 200, margin: 0 }} percent={Math.round(((activeJob.chunksDone ?? 0) / activeJob.chunksTotal) * 100)} format={() => `${activeJob.chunksDone ?? 0}/${activeJob.chunksTotal} đoạn`} />
             ) : null}
             {activeJob.startedAt && <span className="muted">Bắt đầu {fromNow(activeJob.startedAt)}</span>}
@@ -382,7 +480,7 @@ export default function DocumentReview() {
             className="card-flush"
             title={`Đề xuất trích xuất (${num(candidates.data?.length ?? detail.counts.candidates)})`}
           >
-            <div className="card-filter">
+            <Flex className="card-filter" gap={8} wrap>
               <Segmented
                 size="small"
                 value={filter}
@@ -394,23 +492,47 @@ export default function DocumentReview() {
                   { value: 'ALL', label: 'Tất cả' },
                 ]}
               />
-            </div>
+              <Segmented
+                size="small"
+                value={groupBy}
+                onChange={value => setGroupBy(value as GroupBy)}
+                options={[
+                  { value: 'section', label: 'Theo đề mục' },
+                  { value: 'category', label: 'Theo lĩnh vực' },
+                  { value: 'none', label: 'Không nhóm' },
+                ]}
+              />
+            </Flex>
             <ScrollBox bodyClassName="candidate-list">
               {candidates.error && !candidates.data ? (
                 <LoadError error={candidates.error} retry={() => void candidates.refetch()} />
               ) : list.length ? (
-                list.map(item => (
-                  <CandidateCard
-                    key={item.id}
-                    item={item}
-                    active={item.id === selectedId}
-                    screen={clerk && item.origin === 'AI' && item.status === 'PROPOSED'}
-                    onSelect={() => setSelectedId(item.id)}
-                    onEdit={() => setEditing(item as unknown as Proposal)}
-                    onApprove={() => setApproving(item as unknown as Proposal)}
-                    onReject={() => setRejecting(item)}
-                  />
-                ))
+                groups.map(group => {
+                  const open = !collapsed.has(group.key);
+                  return (
+                    <div key={group.key || 'all'} className="candidate-group">
+                      {group.title && (
+                        <button type="button" className="candidate-group-head" aria-expanded={open} onClick={() => toggleGroup(group.key)}>
+                          {open ? <DownOutlined /> : <RightOutlined />}
+                          <span className="candidate-group-title">{group.title}</span>
+                          <span className="candidate-group-count">{group.items.length}</span>
+                        </button>
+                      )}
+                      {open && group.items.map(item => (
+                        <CandidateCard
+                          key={item.id}
+                          item={item}
+                          active={item.id === selectedId}
+                          screen={clerk && item.origin === 'AI' && item.status === 'PROPOSED'}
+                          onSelect={() => setSelectedId(item.id)}
+                          onEdit={() => setEditing(item as unknown as Proposal)}
+                          onApprove={() => setApproving(item as unknown as Proposal)}
+                          onReject={() => setRejecting(item)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })
               ) : (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={processing ? 'Đang trích xuất' : 'Không có đề xuất'} style={{ padding: 32 }} />
               )}
@@ -426,6 +548,7 @@ export default function DocumentReview() {
                       {job.model ? ` · ${job.model}` : ''}
                     </span>
                     <span>{dateTime(job.finishedAt ?? job.startedAt ?? job.createdAt)}</span>
+                    {job.status === 'COMPLETED' && jobSummary(job) && <Typography.Text type="secondary" style={{ flexBasis: '100%', fontSize: 12 }}>{jobSummary(job)}</Typography.Text>}
                     {job.note && <Typography.Text type="secondary" style={{ flexBasis: '100%', fontSize: 12 }}>{job.note}</Typography.Text>}
                   </Flex>
                 ))}

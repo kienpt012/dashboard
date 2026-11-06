@@ -23,7 +23,7 @@ import { DeptTag, KindTag, StatusTag, STATUS, STATUS_ORDER } from '@/components/
 import { useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, frameworkOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
-import { currentYear, date, dateTime, fromNow, num } from '@/lib/format';
+import { currentYear, date, dateTime, fromNow, num, planWithUnit } from '@/lib/format';
 import { frequencyLabel, periodLabel } from '@/lib/periods';
 import { can, IMPORTERS, isGlobal, LEADERSHIP, REPORTERS } from '@/lib/roles';
 import type { Target } from '@/types/core';
@@ -34,7 +34,7 @@ const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE
 const STATUS_SORT: TargetStatusKey[] = ['OVERDUE', 'AT_RISK', 'NOT_STARTED', 'ON_TRACK', 'COMPLETED'];
 
 function planText(target: Target) {
-  return target.targetText || `${num(target.targetValue)} ${target.unit}`;
+  return target.targetText ? planWithUnit(target.targetText, target.unit) : `${num(target.targetValue)} ${target.unit}`;
 }
 
 function inSync(target: Target) {

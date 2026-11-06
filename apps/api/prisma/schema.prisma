@@ -135,6 +135,8 @@ enum ExtractionJobStatus {
 enum ExtractionMethod {
   RULE_BASED
   LLM
+  // Biểu mẫu cố định: mẫu tọa độ ô + luật tạo bản ghi, không gọi Qwen (B6, B8).
+  FORM_TEMPLATE
 }
 
 enum CandidateKind {
@@ -399,6 +401,7 @@ model Target {
   updates                  ProgressUpdate[]
   sourceCandidate          IndicatorCandidate?  @relation("CandidateCreatedTarget")
   matchedCandidates        IndicatorCandidate[] @relation("CandidateMatchedTarget")
+  mergedCandidates         IndicatorCandidate[] @relation("CandidateMergedTarget")
   coordinators             TargetCoordinator[]
   directives               TargetDirective[]
   evaluations              TargetEvaluation[]
@@ -644,6 +647,8 @@ model SourceDocument {
   pageCount       Int?
   hasTextLayer    Boolean?
   ocrUsed         Boolean               @default(false)
+  // Bộ đọc đã tạo cấu trúc tài liệu (vd "ocr-service 2.0.0 / docling 2.139.0", "fallback pdfjs+tesseract").
+  parserVersion   String?
   year            Int?
   departmentId    String?
   department      Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
@@ -737,6 +742,11 @@ model DocumentPage {
   // Bố cục chữ: [[x0, y0, x1, y1, "chữ"], …], toạ độ chuẩn hoá 0..1 gốc trên-trái (lớp chữ PDF hoặc dòng OCR).
   // null: chưa đọc bố cục (văn bản cũ) — tính lại khi cần định vị.
   layout        Json?
+  // B2: text | scan | broken_font | image | docx | xlsx (null: văn bản xử lý trước quy trình bản 2).
+  kind          String?
+  // B6: phần tử có cấu trúc theo thứ tự đọc (heading, paragraph, list_item, table, form_field, stamp) kèm bbox,
+  // độ tin cậy, bộ đọc, cờ và hai bản đọc OCR. Lưu theo văn bản (sha256) để trích xuất lại không phải OCR lại.
+  elements      Json?
 
   @@unique([documentId, pageNumber])
 }
@@ -774,6 +784,15 @@ model DocumentChunk {
   pageTo     Int
   text       String
   charCount  Int
+  // B7: chuỗi đề mục chứa đoạn, id phần tử nguồn, loại đoạn (section | table | form), câu đầu mục.
+  headingPath  Json?
+  elementIds   Json?
+  kind         String  @default("section")
+  leadSentence String?
+  // Đoạn không có chữ số nào không gửi Qwen (căn cứ pháp lý, lời mở đầu).
+  hasDigits    Boolean @default(true)
+  // Số phần tử nguồn mang cờ can_ra_soat của OCR.
+  ocrFlagged   Int     @default(0)
   candidates IndicatorCandidate[]
 
   @@unique([documentId, chunkIndex])
@@ -796,6 +815,11 @@ model ExtractionJob {
   promptVersion     String?
   chunksTotal       Int?
   chunksDone        Int?
+  // Hàng đợi theo trang của job đọc văn bản (ocr-service xử lý từng lô trang).
+  pagesTotal        Int?
+  pagesDone         Int?
+  // Số liệu chất lượng của lần chạy (B17): đoạn gửi Qwen, đoạn Qwen lỗi phải dùng luật, đoạn bỏ qua, thời gian…
+  stats             Json?
   note              String?
   startedAt         DateTime?
   finishedAt        DateTime?
@@ -861,7 +885,11 @@ model IndicatorCandidate {
   ordinal                   String?
   parentName                String?
   description               String?
+  // Lĩnh vực chuẩn cho dashboard (Kinh tế, Y tế…); groupName là đề mục nhóm đúng như văn bản ghi.
   category                  String?
+  groupName                 String?
+  // Thứ tự đọc trong văn bản (số đoạn × 10000 + vị trí câu trích trong đoạn) để hiển thị đúng thứ tự văn bản.
+  documentOrder             Int?
   unit                      String?
   targetValue               Float?
   actualValue               Float?
@@ -882,6 +910,23 @@ model IndicatorCandidate {
   isDuplicateSuspect        Boolean          @default(false)
   matchedTargetId           String?
   matchedTarget             Target?          @relation("CandidateMatchedTarget", fields: [matchedTargetId], references: [id], onDelete: SetNull)
+  // B9: nguồn tới từng phần tử (id phần tử B6) và mục (heading_path) của bản ghi.
+  sourceElementIds          Json?
+  headingPath               Json?
+  // B10: cờ của các luật kiểm tra [{ rule, message }]; B4: cờ OCR và hai bản đọc của dòng nguồn.
+  validationFlags           Json?
+  ocrFlags                  Json?
+  ocrReadings               Json?
+  // B14: TRUNG | GAN_TRUNG | MOI, cosine cao nhất, các chỉ tiêu gần nhất [{ id, code, title, unit, score }].
+  matchClass                String?
+  matchScore                Float?
+  similarTargets            Json?
+  // Gợi ý mã trong danh mục chỉ tiêu chuẩn (bge-m3) khi bản ghi chưa có mã.
+  suggestedCode             String?
+  suggestedCodeScore        Float?
+  // B15: gộp vào chỉ tiêu có sẵn thay vì tạo chỉ tiêu mới.
+  mergedTargetId            String?
+  mergedTarget              Target?          @relation("CandidateMergedTarget", fields: [mergedTargetId], references: [id], onDelete: SetNull)
   humanEdited               Boolean          @default(false)
   editedFields              Json?
   reviewNote                String?
@@ -898,6 +943,7 @@ model IndicatorCandidate {
 
   @@index([status, createdAt])
   @@index([documentId, status])
+  @@index([documentId, documentOrder])
   @@index([status, autoApproveAt])
 }
 
@@ -1172,4 +1218,30 @@ model BugReport {
   createdAt      DateTime        @default(now())
 
   @@index([status, createdAt])
+}
+
+// B11–B13: vector bge-m3 của chỉ tiêu (TARGET) và danh mục chỉ tiêu chuẩn (CATALOG) để tìm trùng và gợi ý mã.
+// Vector lưu dạng mảng số thực (Prisma chưa có kiểu vector); khi Postgres có pgvector, migration tạo chỉ mục HNSW
+// vector_cosine_ops trên biểu thức ("vector"::vector(1024)) và truy vấn dùng toán tử <=>. Không có pgvector thì API
+// tính cosine trong bộ nhớ. Đổi model nhúng: bản ghi khác "model" được tính lại.
+model IndicatorEmbedding {
+  id        String   @id @default(cuid())
+  // TARGET | CATALOG
+  kind      String
+  // id chỉ tiêu (TARGET) hoặc "<mẫu>:<khóa>" (CATALOG).
+  refKey    String
+  // Chuỗi đã nhúng (tên | đơn vị | phạm vi), không chứa con số; textHash để biết khi nào phải nhúng lại.
+  text      String
+  textHash  String
+  model     String
+  dims      Int
+  // Đã chuẩn hóa độ dài 1: cosine = tích vô hướng.
+  vector    Float[]
+  // Thông tin hiển thị cho gợi ý mã (CATALOG): mã, đơn vị, mẫu.
+  meta      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, refKey, model])
+  @@index([kind, model])
 }

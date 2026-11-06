@@ -6,7 +6,7 @@ import { ReasonModal } from '@/components/ReasonModal';
 import { NoData } from '@/components/States';
 import { DeptTag, ReviewTag } from '@/components/Tags';
 import { http } from '@/lib/api';
-import { date, dateTime, num } from '@/lib/format';
+import { date, dateTime, num, planWithUnit } from '@/lib/format';
 import { APPROVERS, can, isGlobal, LEADERSHIP } from '@/lib/roles';
 import { useDossier, useDossierRun, type DossierData, type DossierReport } from './context';
 import { EvidenceList, EvidencePicker, uploadEvidenceFiles } from './evidence';
@@ -105,7 +105,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
         <Form.Item
           name="value"
           label={`Giá trị thực hiện${d.unit ? ` (${d.unit})` : ''}`}
-          extra={d.kind === 'STAT' ? undefined : `Chỉ tiêu giao: ${d.targetText || valueText(d.targetValue, d.unit)}`}
+          extra={d.kind === 'STAT' ? undefined : `Chỉ tiêu giao: ${d.targetText ? planWithUnit(d.targetText, d.unit) : valueText(d.targetValue, d.unit)}`}
           rules={[{ required: true, message: 'Nhập giá trị' }]}
         >
           <InputNumber min={0} style={{ width: '100%' }} decimalSeparator="," autoFocus />
@@ -327,7 +327,7 @@ function Children() {
           align: 'right',
           sorter: byNumber(child => (child.kind === 'SCORE' ? (child.maxScore ?? child.targetValue) : child.targetValue)),
           sortDirections: NUMBER_FIRST,
-          render: (_, child) => (child.kind === 'SCORE' ? `${num(child.maxScore ?? child.targetValue)} điểm` : child.targetText || valueText(child.targetValue, child.unit)),
+          render: (_, child) => (child.kind === 'SCORE' ? `${num(child.maxScore ?? child.targetValue)} điểm` : (child.targetText ? planWithUnit(child.targetText, child.unit) : valueText(child.targetValue, child.unit))),
         },
         {
           title: 'Thực hiện',

@@ -48,6 +48,8 @@ import { memoryStorage } from 'multer';
 import { audit, getActor, isGlobalRole, resolveDepartmentScope, WORKING_ROLES } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { detectDocumentKind } from './document-processing';
+import { VALIDATION_RULE_LABELS, type ValidationFlag } from './extraction-validation';
+import { resolveOcrServiceConfig } from './ocr-service';
 import { ExtractionWorker } from './extraction-worker';
 import { PrismaService } from './prisma.service';
 import { uploadFileName } from './upload-name';
@@ -160,6 +162,7 @@ const DOCUMENT_LIST_SELECT = {
   pageCount: true,
   hasTextLayer: true,
   ocrUsed: true,
+  parserVersion: true,
   autoExtract: true,
   year: true,
   departmentId: true,
@@ -218,6 +221,113 @@ export class DocumentsController {
     }));
   }
 
+  /**
+   * B17. Theo dõi chất lượng quy trình xử lý văn bản: tỷ lệ dòng OCR phải rà soát, tỷ lệ bản ghi trượt từng luật B10,
+   * tỷ lệ bản ghi do luật dự phòng thay vì Qwen, số chỉ tiêu gần trùng, thời gian xử lý mỗi trang.
+   */
+  @Get('quality')
+  async quality(@Req() req: any, @Query('days') daysRaw?: string) {
+    getActor(req);
+    const days = Math.min(365, Math.max(1, Number.parseInt(daysRaw ?? '', 10) || 90));
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1_000);
+    const jobs = await this.prisma.extractionJob.findMany({
+      where: { status: ExtractionJobStatus.COMPLETED, finishedAt: { gte: since } },
+      select: {
+        id: true, kind: true, stats: true, documentId: true, finishedAt: true, model: true,
+        document: { select: { code: true, title: true, parserVersion: true, pageCount: true } },
+      },
+      orderBy: { finishedAt: 'desc' },
+      take: 1000,
+    });
+    const candidates = await this.prisma.indicatorCandidate.findMany({
+      where: { createdAt: { gte: since }, origin: 'AI' },
+      select: { documentId: true, extractionMethod: true, validationFlags: true, matchClass: true, status: true, humanEdited: true, warnings: true },
+      take: 20_000,
+    });
+    const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+    const statsOf = (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {});
+    const parseJobs = jobs.filter(job => job.kind === ExtractionJobKind.DOCUMENT_PARSE);
+    const extractJobs = jobs.filter(job => job.kind === ExtractionJobKind.INDICATOR_EXTRACT);
+    const ocrElements = parseJobs.reduce((sum, job) => sum + num(statsOf(job.stats).ocrElements), 0);
+    const ocrFlagged = parseJobs.reduce((sum, job) => sum + num(statsOf(job.stats).ocrFlaggedElements), 0);
+    const pages = parseJobs.reduce((sum, job) => sum + num(statsOf(job.stats).pages), 0);
+    const parseMs = parseJobs.reduce((sum, job) => sum + num(statsOf(job.stats).elapsedMs), 0);
+    const llmChunks = extractJobs.reduce((sum, job) => sum + num(statsOf(job.stats).llmChunks), 0);
+    const llmBroken = extractJobs.reduce((sum, job) => sum + num(statsOf(job.stats).llmFailed) + num(statsOf(job.stats).llmParseErrors), 0);
+    const extractMs = extractJobs.reduce((sum, job) => sum + num(statsOf(job.stats).elapsedMs), 0);
+    const ruleCounts: Record<string, number> = Object.fromEntries(Object.keys(VALIDATION_RULE_LABELS).map(rule => [rule, 0]));
+    let flagged = 0;
+    for (const candidate of candidates) {
+      const flags = Array.isArray(candidate.validationFlags) ? (candidate.validationFlags as unknown as ValidationFlag[]) : [];
+      if (flags.length) flagged += 1;
+      for (const rule of new Set(flags.map(flag => flag.rule))) ruleCounts[rule] = (ruleCounts[rule] ?? 0) + 1;
+    }
+    const total = candidates.length;
+    const ratio = (part: number, whole: number) => (whole ? Math.round((part / whole) * 1000) / 1000 : null);
+    const byMethod = (method: string) => candidates.filter(candidate => candidate.extractionMethod === method).length;
+    const perDocument = new Map<string, { candidates: number; flagged: number; rule: number; near: number }>();
+    for (const candidate of candidates) {
+      if (!candidate.documentId) continue;
+      const entry = perDocument.get(candidate.documentId) ?? { candidates: 0, flagged: 0, rule: 0, near: 0 };
+      entry.candidates += 1;
+      if (Array.isArray(candidate.validationFlags) && candidate.validationFlags.length) entry.flagged += 1;
+      if (candidate.extractionMethod === 'RULE_BASED') entry.rule += 1;
+      if (candidate.matchClass === 'GAN_TRUNG') entry.near += 1;
+      perDocument.set(candidate.documentId, entry);
+    }
+    const seen = new Set<string>();
+    const documents = [];
+    for (const job of parseJobs) {
+      if (seen.has(job.documentId) || documents.length >= 30) continue;
+      seen.add(job.documentId);
+      const stats = statsOf(job.stats);
+      const extract = extractJobs.find(item => item.documentId === job.documentId);
+      const extractStats = statsOf(extract?.stats);
+      documents.push({
+        documentId: job.documentId,
+        code: job.document.code,
+        title: job.document.title,
+        parser: job.document.parserVersion,
+        pages: num(stats.pages) || job.document.pageCount || 0,
+        ocrPages: num(stats.ocrPages),
+        ocrReviewRate: ratio(num(stats.ocrFlaggedElements), num(stats.ocrElements)),
+        msPerPage: num(stats.msPerPage) || null,
+        llmChunks: num(extractStats.llmChunks),
+        llmBroken: num(extractStats.llmFailed) + num(extractStats.llmParseErrors),
+        model: extract?.model ?? null,
+        ...(perDocument.get(job.documentId) ?? { candidates: 0, flagged: 0, rule: 0, near: 0 }),
+        finishedAt: job.finishedAt,
+      });
+    }
+    return {
+      days,
+      documents: parseJobs.length,
+      pages,
+      ocr: { elements: ocrElements, flagged: ocrFlagged, reviewRate: ratio(ocrFlagged, ocrElements) },
+      candidates: {
+        total,
+        flagged,
+        flaggedRate: ratio(flagged, total),
+        byRule: Object.entries(ruleCounts).map(([rule, count]) => ({
+          rule, label: VALIDATION_RULE_LABELS[rule as keyof typeof VALIDATION_RULE_LABELS] ?? rule, count, rate: ratio(count, total),
+        })),
+        llm: byMethod('LLM'),
+        rule: byMethod('RULE_BASED'),
+        form: byMethod('FORM_TEMPLATE'),
+        ruleRate: ratio(byMethod('RULE_BASED'), total),
+        nearDuplicates: candidates.filter(candidate => candidate.matchClass === 'GAN_TRUNG').length,
+        duplicates: candidates.filter(candidate => candidate.matchClass === 'TRUNG').length,
+        humanEdited: candidates.filter(candidate => candidate.humanEdited).length,
+      },
+      llm: { chunks: llmChunks, broken: llmBroken, brokenRate: ratio(llmBroken, llmChunks) },
+      timing: {
+        parseMsPerPage: pages ? Math.round(parseMs / pages) : null,
+        extractMsPerPage: pages ? Math.round(extractMs / pages) : null,
+      },
+      recent: documents,
+    };
+  }
+
   @Get(':id')
   async detail(@Req() req: any, @Param('id') id: string) {
     getActor(req);
@@ -239,6 +349,9 @@ export class DocumentsController {
             note: true,
             chunksTotal: true,
             chunksDone: true,
+            pagesTotal: true,
+            pagesDone: true,
+            stats: true,
             startedAt: true,
             finishedAt: true,
             cancelRequestedAt: true,
@@ -331,7 +444,10 @@ export class DocumentsController {
     }
     const detected = detectDocumentKind(file.buffer);
     if (!detected) {
-      throw new BadRequestException('Chỉ chấp nhận tệp PDF, DOCX, XLSX, JPEG, PNG hoặc WEBP hợp lệ');
+      throw new BadRequestException('Chỉ chấp nhận tệp PDF, Word (DOCX, DOC), Excel (XLSX, XLS) hoặc ảnh JPEG, PNG, WEBP, TIFF hợp lệ');
+    }
+    if ((detected.kind === 'doc' || detected.kind === 'xls') && !resolveOcrServiceConfig().baseUrl) {
+      throw new BadRequestException('Tệp Word/Excel 97–2003 (.doc, .xls) cần bật ocr-service để chuyển đổi. Hãy lưu lại thành .docx/.xlsx rồi tải lên.');
     }
     const departmentId = dto.departmentId?.trim() || undefined;
     if (departmentId) {
@@ -448,6 +564,45 @@ export class DocumentsController {
       });
       await audit(tx, actor, {
         action: 'DOCUMENT_EXTRACTION_REQUESTED',
+        entityType: 'SourceDocument',
+        entityId: id,
+        departmentId: document.departmentId,
+        metadata: { code: document.code },
+      });
+      return job;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /**
+   * Đọc lại văn bản (B2–B7) bằng bộ đọc hiện tại, vd sau khi bật ocr-service cho văn bản đã đọc bằng bộ dự phòng.
+   * Đề xuất đã duyệt/sửa giữ nguyên; job trích xuất tự chạy lại sau khi đọc xong (nếu văn bản bật tự trích xuất).
+   */
+  @Post(':id/reparse')
+  @UseGuards(RolesGuard)
+  @Roles(...WORKING_ROLES)
+  async reParse(@Req() req: any, @Param('id') id: string) {
+    const actor = getActor(req);
+    return this.prisma.$transaction(async (tx) => {
+      const document = await tx.sourceDocument.findUnique({
+        where: { id },
+        select: { id: true, code: true, status: true, departmentId: true },
+      });
+      if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
+      if (document.status !== DocumentStatus.PROCESSED && document.status !== DocumentStatus.FAILED) {
+        throw new ConflictException('Tài liệu đang được xử lý, vui lòng chờ hoàn tất');
+      }
+      const activeJob = await tx.extractionJob.findFirst({
+        where: { documentId: id, status: { in: [ExtractionJobStatus.PENDING, ExtractionJobStatus.PROCESSING] } },
+        select: { id: true },
+      });
+      if (activeJob) throw new ConflictException('Tài liệu đang có tiến trình xử lý, vui lòng chờ hoàn tất');
+      await tx.sourceDocument.update({ where: { id }, data: { status: DocumentStatus.PROCESSING, processingError: null } });
+      const job = await tx.extractionJob.create({
+        data: { documentId: id, kind: ExtractionJobKind.DOCUMENT_PARSE, createdById: actor.id },
+        select: { id: true, kind: true, status: true, createdAt: true },
+      });
+      await audit(tx, actor, {
+        action: 'DOCUMENT_REPARSE_REQUESTED',
         entityType: 'SourceDocument',
         entityId: id,
         departmentId: document.departmentId,

@@ -21,6 +21,7 @@ import { HealthController } from './health';
 import { FeedbackMailOutboxWorker, MailService } from './mail';
 import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
 import { DocumentsController } from './documents';
+import { CandidateSheetController } from './candidate-sheet';
 import { CandidatesController } from './candidates';
 import { CopilotController } from './copilot';
 import { ExtractionWorker } from './extraction-worker';
@@ -72,6 +73,7 @@ import {
     AuditLogsController,
     DocumentsController,
     CandidatesController,
+    CandidateSheetController,
     CopilotController,
     PublicDashboardAdminController,
     LocalityController,

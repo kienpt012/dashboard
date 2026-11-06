@@ -23,6 +23,8 @@ export interface ParsedDocument {
   pageCount: number;
   hasTextLayer: boolean;
   ocrUsed: boolean;
+  /** Số trang scan không được OCR vì vượt trần maxOcrPages (để job ghi chú, không im lặng bỏ trống). */
+  skippedOcrPages?: number;
 }
 
 export interface DocumentChunkInput {
@@ -33,7 +35,8 @@ export interface DocumentChunkInput {
   charCount: number;
 }
 
-export type DetectedDocumentKind = 'pdf' | 'docx' | 'xlsx' | 'image';
+// doc/xls (Office 97–2003) chỉ đọc được qua ocr-service (LibreOffice chuyển sang docx/xlsx).
+export type DetectedDocumentKind = 'pdf' | 'docx' | 'xlsx' | 'image' | 'doc' | 'xls';
 
 export interface DetectedDocument {
   kind: DetectedDocumentKind;
@@ -41,6 +44,7 @@ export interface DetectedDocument {
 }
 
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const OLE_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
 
 // Nhận diện loại tài liệu bằng chữ ký nội dung, không tin MIME phía client.
 // Với container ZIP (DOCX/XLSX) phải soi tiếp tên entry bên trong để phân biệt.
@@ -63,6 +67,21 @@ export function detectDocumentKind(buffer: Buffer): DetectedDocument | null {
     && buffer.subarray(8, 12).toString('ascii') === 'WEBP'
   ) {
     return { kind: 'image', mimeType: 'image/webp' };
+  }
+  if (
+    buffer.length >= 8
+    && (buffer.subarray(0, 4).equals(Buffer.from([0x49, 0x49, 0x2a, 0x00]))
+      || buffer.subarray(0, 4).equals(Buffer.from([0x4d, 0x4d, 0x00, 0x2a])))
+  ) {
+    return { kind: 'image', mimeType: 'image/tiff' };
+  }
+  if (buffer.length >= 512 && buffer.subarray(0, 8).equals(OLE_MAGIC)) {
+    // Tệp Office cũ (OLE2): tên luồng trong thư mục OLE ghi bằng UTF-16LE.
+    if (buffer.includes(Buffer.from('WordDocument', 'utf16le'))) return { kind: 'doc', mimeType: 'application/msword' };
+    if (buffer.includes(Buffer.from('Workbook', 'utf16le')) || buffer.includes(Buffer.from('Book', 'utf16le'))) {
+      return { kind: 'xls', mimeType: 'application/vnd.ms-excel' };
+    }
+    return null;
   }
   if (buffer.length >= 4 && buffer.subarray(0, 4).equals(ZIP_MAGIC)) {
     const zipKind = sniffOoxmlKind(buffer);
@@ -214,7 +233,10 @@ const MIN_TEXT_LAYER_CHARS = 40;
 
 export interface PdfParseOptions {
   ocr: OcrEngineConfig;
+  /** Trần số trang OCR; 0 = không giới hạn (quy trình bản 2 bỏ trần 20 trang). */
   maxOcrPages: number;
+  /** Gọi sau mỗi trang để worker gia hạn lease và báo tiến độ. */
+  onPage?: (done: number, total: number) => Promise<void>;
 }
 
 // PDF: lấy text layer từng trang; trang nào gần như trống thì render ảnh và OCR.
@@ -224,10 +246,13 @@ export async function parsePdf(buffer: Buffer, options: PdfParseOptions): Promis
   const { totalPages, text } = await extractText(pdf, { mergePages: false });
   const pages: ParsedPage[] = [];
   let ocrUsed = false;
-  let ocrPagesRemaining = options.maxOcrPages;
+  let ocrPagesRemaining = options.maxOcrPages > 0 ? options.maxOcrPages : Number.POSITIVE_INFINITY;
+  let skippedOcrPages = 0;
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    if (pageNumber > 1) await options.onPage?.(pageNumber - 1, totalPages);
     const layerText = normalizeExtractedText(text[pageNumber - 1] ?? '');
     if (layerText.length >= MIN_TEXT_LAYER_CHARS || ocrPagesRemaining <= 0) {
+      if (layerText.length < MIN_TEXT_LAYER_CHARS) skippedOcrPages += 1;
       const layout = layerText ? await pdfPageSpans(await pdf.getPage(pageNumber)).catch(() => undefined) : undefined;
       pages.push({ pageNumber, text: layerText, ocrUsed: false, layout });
       continue;
@@ -253,8 +278,9 @@ export async function parsePdf(buffer: Buffer, options: PdfParseOptions): Promis
       layout: ocr.spans,
     });
   }
+  await options.onPage?.(totalPages, totalPages);
   const hasTextLayer = pages.some(page => !page.ocrUsed && page.text.length >= MIN_TEXT_LAYER_CHARS);
-  return { pages, pageCount: totalPages, hasTextLayer, ocrUsed };
+  return { pages, pageCount: totalPages, hasTextLayer, ocrUsed, skippedOcrPages };
 }
 
 export async function parseDocx(buffer: Buffer): Promise<ParsedDocument> {

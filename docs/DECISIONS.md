@@ -123,3 +123,81 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
   hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
 - **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
+
+## D-015 · 2026-11-01 · Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR), chia đoạn theo mục, B10, bge-m3 + pgvector
+
+- **Bối cảnh**: đánh giá VB-2026-0007 cho thấy bộ đọc cũ bỏ trống trang scan sau trang 20, cắt đôi tên chỉ tiêu ở chỗ
+  xuống dòng của PDF, ghi job COMPLETED kèm tên model dù Qwen hết giờ ở mọi đoạn, và so trùng chỉ bằng Dice. Bản quy
+  trình chốt 26/10 (17 bước B1–B17) là căn cứ thiết kế.
+- **Chọn**:
+  - B2–B6 ở dịch vụ Python riêng `services/ocr`: Docling đọc thẳng PDF có lớp chữ và Word, dựng bảng bằng TableFormer
+    và cấu trúc tài liệu; trang scan và ảnh qua OpenCV (xoay thẳng, gỡ dấu đỏ), RapidOCR tìm dòng, VietOCR đọc, bộ đọc
+    thứ hai PP-OCRv5 latin để so; dòng hai bộ đọc lệch nhau hoặc có âm tiết sai luật tiếng Việt mang cờ `can_ra_soat`.
+    Dịch vụ là tùy chọn (profile `ocr`); API giữ bộ đọc pdf.js + Tesseract làm dự phòng, bỏ trần 20 trang.
+  - B7 ở API (cần cả văn bản): đoạn theo mục, mang `heading_path`, câu đầu mục, id phần tử nguồn; giữ định dạng
+    `[Mục: …]` và bảng dạng chữ để mô hình fine-tune `qwen3-chitieu` đọc được.
+  - B8: temperature 0, gọi lại một lần khi JSON hỏng; Qwen lỗi thì dùng luật và ghi rõ trên job và bản ghi; đoạn không
+    có chữ số và ô biểu mẫu cố định không gửi Qwen.
+  - B10: 8 luật (cấu trúc, bám nguồn, đơn vị, miền giá trị, năm và hạn, tên, nhất quán, chất lượng OCR) gắn cờ, chạy
+    lại khi người duyệt sửa.
+  - B11–B14: bge-m3 qua Ollama, vector lưu `double precision[]` + chỉ mục HNSW biểu thức `vector(1024)` riêng cho chỉ
+    tiêu và danh mục; xếp TRUNG / GAN_TRUNG / MOI theo ngưỡng 0,95 / 0,85; gợi ý mã từ thư viện bộ chỉ tiêu mẫu.
+  - pgvector biên dịch trên `postgres:17-alpine` để giữ volume (không đổi sang image Debian).
+- **Khác với bản quy trình**: (1) bản ghi TRUNG không tự gộp vào kho; mọi đề xuất AI vẫn qua người duyệt theo D-006,
+  người duyệt có thêm nút "Gộp vào" chỉ tiêu có sẵn. (2) Danh mục chỉ tiêu chưa đưa vào prompt Qwen (giữ đúng định
+  dạng mô hình đang fine-tune); mã được gợi ý bằng vector. (3) Prisma chưa có kiểu vector nên cột là mảng số thực, chỉ
+  mục HNSW trên biểu thức ép kiểu. (4) Ảnh dòng OCR đã sửa chưa được lưu thành dữ liệu huấn luyện VietOCR.
+- **Câu hỏi mở**: CER của VietOCR trên dataset1, ngưỡng gộp hai bộ đọc, ngưỡng B14 trên vài trăm cặp đã gán nhãn, thời
+  gian mỗi trang trên CPU máy chủ, dung lượng image ocr-service.
+
+
+## D-017 · 2026-11-06 · Thứ tự, số thứ tự, nhóm và lĩnh vực của đề xuất lấy từ cấu trúc văn bản
+
+- **Bối cảnh**: chạy thử file mẫu QĐ 015 (32 chỉ tiêu, 3 mục) cho thấy màn hình duyệt không theo thứ tự văn bản và
+  không gom theo mục. Nguyên nhân ở lớp ứng dụng: bước bỏ trùng sắp theo độ tin cậy, API trả theo thời điểm tạo, giao
+  diện chỉ in đề mục thành một dòng chữ; số thứ tự do model điền (model gốc 0/32, bản fine-tune 22/31) và lĩnh vực
+  do model đoán từng đoạn (từng xếp chỉ tiêu an toàn thực phẩm vào an ninh - quốc phòng dù đề mục ghi y tế).
+- **Chọn**: không train hay viết prompt theo mẫu văn bản, mà lấy từ chính văn bản (`extraction-structure.ts`):
+  - thứ tự đọc `documentOrder` = số đoạn × 10000 + vị trí câu trích trong đoạn; API sắp theo cột này khi xem một văn
+    bản; bỏ trùng vẫn giữ bản tin cậy cao nhưng không đổi thứ tự;
+  - số thứ tự dò trong văn bản gốc trước ("(9)", "9.", "a)", ô STT đầu hàng bảng), model là phương án phụ; hai chỉ
+    tiêu cùng một mục dùng chung số như văn bản;
+  - `groupName` = cấp đề mục đầu tiên mà các chỉ tiêu bắt đầu khác nhau, giữ đúng chữ của văn bản;
+  - `category` là lĩnh vực chuẩn (8 lĩnh vực, sửa danh sách ở một chỗ), theo thứ tự: từ khoá trong đề mục, so nghĩa
+    bge-m3 với mô tả lĩnh vực, gợi ý của model, từ khoá trong tên; không đủ căn cứ thì để trống cho người duyệt chọn;
+  - duyệt thành chỉ tiêu thì mang theo số thứ tự, nhóm và thứ tự sang `Target.ordinal/groupName/sortOrder`.
+- **Câu hỏi mở**: ngưỡng so nghĩa bge-m3 (0,45 và cách biệt 0,02) chưa đo trên dữ liệu thật; chỉ tiêu cha
+  (`parentId`) chưa tự nối khi duyệt.
+- **Đã chốt (06/11)**: màn hình duyệt mặc định gom theo đề mục văn bản; dashboard gom theo lĩnh vực chuẩn.
+
+## D-018 · 2026-11-06 · Bảng chỉ tiêu Excel theo khuôn Phụ lục 1 để chuyên viên chuẩn hoá rồi tải lên
+
+- **Bối cảnh**: chuyên viên cần xem kết quả bóc tách trực quan như phụ lục giao chỉ tiêu, sửa hàng loạt trong Excel,
+  rồi đưa lên hệ thống để gửi các phòng chuyên môn.
+- **Chọn**: `GET /documents/:id/candidate-sheet` xuất các đề xuất chưa duyệt theo khuôn PL1 (STT | Chỉ tiêu | Đơn vị
+  tính | Kế hoạch năm | Đơn vị chủ trì báo cáo | Ghi chú), hàng nhóm số La Mã theo đề mục văn bản, hàng "-" cho chỉ
+  tiêu thành phần, kế hoạch giữ chữ gốc ("≥ 95,5", "9.800 USD/người"); thêm cột Lĩnh vực, Kỳ báo cáo, Hạn, Chiều đánh
+  giá, Xử lý (Giữ/Bỏ), trang và trích dẫn nguồn; mã và phiên bản đề xuất ở cột ẩn. `POST` cùng đường dẫn đọc file đã
+  sửa: mặc định chỉ xem trước (sửa, thêm, loại, đổi thứ tự, lỗi); `apply=1` mới ghi, có lỗi thì không ghi gì;
+  `submit=1` trình các đề xuất đủ thông tin, mỗi phòng chủ trì (trưởng phòng) và lãnh đạo nhận một thông báo cho đề
+  xuất của phòng mình (D-006 giữ nguyên: vẫn phải duyệt).
+- **Quy tắc**: phiên bản trong file khác trên hệ thống thì báo lỗi, không ghi đè; xoá hàng không loại đề xuất (phải
+  chọn "Bỏ"); quyền sửa, chuyển phòng, loại giống các nút trên màn hình duyệt; không thêm bảng lưu lần nhập.
+
+## D-019 · 2026-11-06 · Ký hiệu ngưỡng ở cột Kế hoạch đọc từ câu trích dẫn bằng bảng cụm từ
+
+- **Bối cảnh**: văn bản ghi "ít nhất 125,5 tỷ đồng", "từ 8% trở lên", "không vượt quá 2%"; bảng PL1 chỉ có con số
+  thì mất nghĩa ngưỡng. Người dùng cần cột Kế hoạch có ký hiệu >=, >, <=, <, =.
+- **Chọn**: không dạy model hay thêm bảng giải thích vào prompt. `target-threshold.ts` dò cụm từ sát ngay con số mục
+  tiêu trong câu trích dẫn (cụm phủ định và cụm dài xét trước; "từ 60 tuổi trở lên", "trẻ em dưới năm tuổi" không
+  tính vì không đứng sát con số mục tiêu) và cho ">= 125,5", "< 6,5", "= 100", "70 - 75", "khoảng 12.000". Không
+  thấy con số trong câu trích thì để nguyên số, không đoán.
+- **Số trần** (bảng PL2 chỉ ghi "% | 60", khoảng một nửa số hàng): văn bản không ghi ký hiệu nên model hay code đều
+  không "nhận ra" được. Tạm suy theo chiều đánh giá (càng cao càng tốt → >=, càng thấp càng tốt → <=), ô tô xanh kèm
+  chú thích "hệ thống suy ra" để chuyên viên rà.
+- **Đã chốt (06/11)**: số trần suy theo chiều đánh giá như trên; ký hiệu và số ghi chung một cột Kế hoạch đúng kiểu
+  PL1 (không tách cột Ký hiệu).
+- **Phạm vi**: chỉ điền khi xuất bảng (đề xuất có `targetText` thì dùng chữ đó); ký hiệu tự điền mà chuyên viên giữ
+  nguyên thì không tính là sửa. Chuyên viên sửa thành ">= 130" thì lưu `targetText`, màn hình chỉ tiêu ghép thêm
+  đơn vị tính. Không ghi vào CSDL lúc bóc tách để các màn hình đang hiển thị `targetText` không mất đơn vị.
+- **Câu hỏi mở**: đánh giá hoàn thành theo ký hiệu chưa làm; "khoảng X" tính đạt từ mức nào chờ người dùng chốt.
