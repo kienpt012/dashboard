@@ -194,6 +194,11 @@ export function validateRecord(record: ValidationRecord, sourceText?: string | n
     flags.push({ rule: 'ten_chi_tieu', message: 'Tên bắt đầu bằng chữ thường, có thể bị cắt giữa câu.' });
   }
 
+  // Tên phải bám câu trích: model có lúc lấy tên của chỉ tiêu liền trước (giá trị và câu trích đúng, tên sai).
+  if (nameMissingFromQuote(name, record.sourceQuote)) {
+    flags.push({ rule: 'ten_chi_tieu', message: 'Tên chỉ tiêu không khớp câu trích dẫn, có thể lấy nhầm tên của chỉ tiêu bên cạnh.' });
+  }
+
   // Chất lượng OCR: dòng nguồn không mang cờ can_ra_soat và độ tin cậy OCR từ 70% trở lên.
   if (record.ocr && !editedAny(record, ['name', 'targetValue', 'unit'])) {
     if (record.ocr.flags.includes('can_ra_soat')) {
@@ -247,4 +252,36 @@ export function validateConsistency(records: ValidationRecord[]): Map<number, Va
 
 function round(value: number) {
   return Math.round(value * 1000) / 1000;
+}
+
+// Âm tiết chung chung, có ở hầu hết tên chỉ tiêu nên không dùng để so tên với câu trích.
+const GENERIC_SYLLABLES = new Set(('tỷ lệ tỉ số lượng tốc độ tăng giảm trưởng so với năm đạt trên dưới các của và được '
+  + 'có là trong tại theo từ đến người bình quân tổng mức hơn ít nhất tối đa thiểu trở lên xuống khoảng cuối đầu kỳ').split(' '));
+
+function contentBigrams(text: string): string[] {
+  const syllables = text.normalize('NFC').toLowerCase().split(/[^\p{L}\d]+/u).filter(Boolean);
+  const bigrams: string[] = [];
+  for (let index = 0; index + 1 < syllables.length; index += 1) {
+    const [first, second] = [syllables[index], syllables[index + 1]];
+    if (/\d/.test(first + second) || GENERIC_SYLLABLES.has(first) || GENERIC_SYLLABLES.has(second)) continue;
+    bigrams.push(`${first} ${second}`);
+  }
+  return bigrams;
+}
+
+/**
+ * Tên không bám câu trích: tên có từ 2 cặp âm tiết nội dung ("ngân sách", "bán lẻ") mà câu trích chứa chưa tới một
+ * phần ba số cặp đó. Câu trích là dòng bảng hay câu văn đều chứa phần lớn tên chỉ tiêu, nên lệch hẳn là dấu hiệu lấy
+ * nhầm tên.
+ */
+export function nameMissingFromQuote(name: string, quote: string | null | undefined): boolean {
+  if (!quote?.trim()) return false;
+  // Viết tắt ("FDI", "BHYT") có trong câu trích là đủ bám tên.
+  const acronyms = name.match(/\b\p{Lu}{2,}\b/gu) ?? [];
+  if (acronyms.some(acronym => new RegExp(`(^|[^\\p{L}])${acronym}([^\\p{L}]|$)`, 'u').test(quote))) return false;
+  const bigrams = [...new Set(contentBigrams(name))];
+  if (bigrams.length < 2) return false;
+  const inQuote = new Set(contentBigrams(quote));
+  const found = bigrams.filter(bigram => inQuote.has(bigram)).length;
+  return found * 3 < bigrams.length;
 }
