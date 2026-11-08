@@ -12,7 +12,7 @@ import {
   yearOnlyFromComparison,
   type ValidationRecord,
 } from '../src/extraction-validation';
-import { ExtractionWorker, formIndicators, resolveSourceElements } from '../src/extraction-worker';
+import { ExtractionWorker, formIndicators, resolveFrequency, resolveSourceElements } from '../src/extraction-worker';
 import { parseSectionHeader } from '../src/extraction-llm';
 import {
   classifyMatch,
@@ -652,4 +652,12 @@ test('Ollama: kiểm tra sẵn sàng của job hỏi lại khi Ollama trả lờ
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('kỳ báo cáo: mô hình bỏ trống thì đọc câu trích, chỉ tiêu năm kế hoạch mặc định Năm', () => {
+  assert.equal(resolveFrequency('QUARTERLY' as any, 'đạt 10%', 2026), 'QUARTERLY');
+  assert.equal(resolveFrequency(null, 'báo cáo hằng quý, đạt 10%', 2026), 'QUARTERLY');
+  assert.equal(resolveFrequency(null, 'Tổng thu đạt ít nhất 125,5 tỷ đồng.', 2026), 'YEARLY');
+  assert.equal(resolveFrequency(null, 'Sơ kết 6 tháng đạt 50%.', 2026), null);
+  assert.equal(resolveFrequency(null, 'đạt 10%', null), null);
 });

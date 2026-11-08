@@ -9,6 +9,7 @@ import {
   ExtractionMethod,
   Prisma,
   TargetDirection,
+  TargetFrequency,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import {
@@ -25,6 +26,7 @@ import { EXTRACTION_PROMPT_VERSION, LlmIndicatorExtractor, type LlmExtractedIndi
 import {
   chunkLikelyHasIndicators,
   detectDeadline,
+  detectFrequency,
   extractIndicatorsFromText,
   parseVietnameseNumber,
   type RuleExtractedIndicator,
@@ -998,7 +1000,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         targetValue: payload.targetValue,
         targetYear: payload.targetYear ?? document.year ?? null,
         direction: payload.direction ?? TargetDirection.HIGHER_IS_BETTER,
-        frequency: payload.frequency ?? null,
+        frequency: resolveFrequency(payload.frequency, payload.sourceQuote, payload.targetYear ?? document.year ?? null),
         // Mô hình bỏ trống hạn nhưng câu trích dẫn ghi rõ ("hoàn thành trước ngày 30/09/2026"): lấy hạn từ câu trích dẫn,
         // không mặc định cuối năm.
         deadline: resolveDeadline(payload.deadline ?? detectDeadline(payload.sourceQuote ?? '', null), payload.targetYear ?? document.year ?? null),
@@ -1315,4 +1317,15 @@ export function formIndicators(
     });
   }
   return results;
+}
+
+/**
+ * Kỳ báo cáo: mô hình → cụm từ trong câu trích ("hằng quý") → chỉ tiêu giao theo năm kế hoạch thì mặc định Năm. Câu
+ * ghi chu kỳ 6 tháng (hệ thống chưa hỗ trợ) thì để trống cho người duyệt chọn.
+ */
+export function resolveFrequency(model: TargetFrequency | null | undefined, quote: string | null | undefined, targetYear: number | null): TargetFrequency | null {
+  if (model) return model;
+  const detected = detectFrequency(quote ?? '');
+  if (detected.frequency || detected.warning) return detected.frequency;
+  return targetYear ? TargetFrequency.YEARLY : null;
 }
