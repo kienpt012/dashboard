@@ -712,3 +712,17 @@ test('Ollama mất model (404 not found): báo lỗi riêng, job dừng thay vì
   );
   assert.equal(written, false, 'không ghi đè đề xuất cũ bằng kết quả của luật');
 });
+
+test('@Injectable() gắn ngay vào class service (chèn class khác vào giữa làm API sập khi khởi động)', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = new URL('../src/', import.meta.url);
+  for (const file of readdirSync(dir).filter(name => name.endsWith('.ts'))) {
+    const lines = readFileSync(new URL(file, dir), 'utf8').split('\n');
+    lines.forEach((line, index) => {
+      if (line.trim() !== '@Injectable()') return;
+      const next = lines.slice(index + 1).find(candidate => candidate.trim() && !candidate.trim().startsWith('//'));
+      assert.match(next ?? '', /^export class \w+(Service|Worker|Controller|Guard|Gateway|Provider|Scheduler|Store|Client|Repository|Interceptor|Filter|Strategy|Registry|Runner|Processor|Monitor|Queue)?\b(?! extends \w*Exception)/, `${file}:${index + 1}`);
+      assert.doesNotMatch(next ?? '', /extends \w*(Exception|Error)\b/, `${file}:${index + 1} gắn @Injectable() vào class lỗi`);
+    });
+  }
+});

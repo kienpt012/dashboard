@@ -22,9 +22,6 @@ export interface OllamaChatOptions {
   signal?: AbortSignal;
 }
 
-// Client gọi Ollama local. Mọi lời gọi model đều đi qua service này để thống nhất
-// cấu hình, timeout và không bao giờ log nội dung tài liệu.
-@Injectable()
 /** Ollama chạy nhưng không có model được cấu hình (bị xoá, chưa tạo): lỗi của cả lượt, không phải của một đoạn. */
 export class OllamaModelMissingError extends ServiceUnavailableException {
   constructor(readonly model: string) {
@@ -33,6 +30,9 @@ export class OllamaModelMissingError extends ServiceUnavailableException {
   }
 }
 
+// Client gọi Ollama local. Mọi lời gọi model đều đi qua service này để thống nhất
+// cấu hình, timeout và không bao giờ log nội dung tài liệu.
+@Injectable()
 export class OllamaService {
   private readonly logger = new Logger(OllamaService.name);
   readonly baseUrl: string;
