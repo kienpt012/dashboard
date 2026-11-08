@@ -53,7 +53,7 @@ import {
   type StructuredElement,
   type StructuredPage,
 } from './ocr-service';
-import { OllamaService } from './ollama';
+import { OllamaModelMissingError, OllamaService } from './ollama';
 import { parsePlanningDueDate } from './planning-date';
 import { loadLocality } from './locality';
 import { PrismaService } from './prisma.service';
@@ -836,6 +836,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
             }
           } catch (error) {
             throwIfAborted(signal);
+            // Model không còn trong Ollama: dừng cả lượt và báo rõ, không âm thầm dùng luật cho mọi đoạn còn lại.
+            if (error instanceof OllamaModelMissingError) throw error;
             const timedOut = error instanceof Error && (error.name === 'TimeoutError' || /hết giờ|timeout/i.test(error.message));
             stats.llmFailed += 1;
             if (timedOut) stats.llmTimedOut += 1;

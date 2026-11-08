@@ -25,6 +25,14 @@ export interface OllamaChatOptions {
 // Client gọi Ollama local. Mọi lời gọi model đều đi qua service này để thống nhất
 // cấu hình, timeout và không bao giờ log nội dung tài liệu.
 @Injectable()
+/** Ollama chạy nhưng không có model được cấu hình (bị xoá, chưa tạo): lỗi của cả lượt, không phải của một đoạn. */
+export class OllamaModelMissingError extends ServiceUnavailableException {
+  constructor(readonly model: string) {
+    super(`Chưa có model "${model}" trong Ollama. Tạo lại hoặc tải model rồi bấm "Trích xuất lại".`);
+    this.name = 'OllamaModelMissingError';
+  }
+}
+
 export class OllamaService {
   private readonly logger = new Logger(OllamaService.name);
   readonly baseUrl: string;
@@ -123,6 +131,7 @@ export class OllamaService {
     if (!response.ok) {
       const detail = await safeErrorText(response);
       this.logger.error(`Ollama trả lỗi ${response.status} cho model ${model}: ${detail}`);
+      if (response.status === 404 && /not found/i.test(detail)) throw new OllamaModelMissingError(model);
       throw new ServiceUnavailableException('Dịch vụ AI cục bộ trả về lỗi. Vui lòng thử lại sau.');
     }
     let raw: string;

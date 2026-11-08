@@ -661,3 +661,54 @@ test('kỳ báo cáo: mô hình bỏ trống thì đọc câu trích, chỉ tiê
   assert.equal(resolveFrequency(null, 'Sơ kết 6 tháng đạt 50%.', 2026), null);
   assert.equal(resolveFrequency(null, 'đạt 10%', null), null);
 });
+
+test('Ollama mất model (404 not found): báo lỗi riêng, job dừng thay vì dùng luật cho mọi đoạn', async () => {
+  const { OllamaService, OllamaModelMissingError } = await import('../src/ollama');
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('{"error":"model \'qwen3-chitieu:v2-fix\' not found"}', { status: 404 })) as typeof fetch;
+  try {
+    const ollama = new OllamaService(new ConfigService({ OLLAMA_EXTRACT_MODEL: 'qwen3-chitieu:v2-fix' }));
+    await assert.rejects(ollama.chatStructured([{ role: 'user', content: 'x' }], {}), (error: unknown) => {
+      assert.ok(error instanceof OllamaModelMissingError);
+      assert.match((error as Error).message, /qwen3-chitieu:v2-fix/);
+      return true;
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const workerRef: { id?: string } = {};
+  let written = false;
+  const text = '[Mục: Điều 3 > 1. Chỉ tiêu về kinh tế]\n(1) Tổng thu ngân sách nhà nước đạt ít nhất 125,5 tỷ đồng.';
+  const tx = {
+    extractionJob: { updateMany: async () => ({ count: 1 }), findUnique: async () => null },
+    indicatorCandidate: { deleteMany: async () => ({}), createMany: async () => { written = true; } },
+  };
+  const prisma = {
+    extractionJob: {
+      findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+      updateMany: async () => ({ count: 1 }),
+    },
+    sourceDocument: { findUnique: async () => ({ id: 'doc-9', title: 'QĐ', docNumber: null, year: 2026, status: 'PROCESSED' }) },
+    documentChunk: { findMany: async () => [{ id: 'c0', chunkIndex: 0, pageFrom: 1, pageTo: 1, text, kind: 'section', hasDigits: true, headingPath: ['Điều 3', '1. Chỉ tiêu về kinh tế'], elementIds: [], leadSentence: null }] },
+    documentPage: { findMany: async () => [] },
+    localityProfile: { findUnique: async () => null },
+    department: { findMany: async () => [] },
+    ...fakeEmbeddingPrisma([]),
+    $transaction: async (fn: any) => fn(tx),
+  };
+  const ollama = {
+    ...fakeOllama(),
+    extractModel: 'qwen3-chitieu:v2-fix',
+    numCtx: 8192,
+    isAvailable: async () => true,
+    chatStructured: async () => { throw new OllamaModelMissingError('qwen3-chitieu:v2-fix'); },
+  };
+  const worker = workerWith(prisma, ollama);
+  workerRef.id = worker.workerId;
+  await assert.rejects(
+    worker.processExtractJob({ id: 'job-9', documentId: 'doc-9', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' }, new AbortController().signal),
+    /Chưa có model "qwen3-chitieu:v2-fix"/,
+  );
+  assert.equal(written, false, 'không ghi đè đề xuất cũ bằng kết quả của luật');
+});
