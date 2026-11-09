@@ -68,7 +68,8 @@ export function detectThreshold(
   const lower = text.toLowerCase();
   for (const spelling of spellings(value)) {
     const escaped = spelling.replace(/\./g, '\\.');
-    const at = new RegExp(`(^|[^\\d.,])(${escaped})(?![\\d]|[.,]\\d)`, 'gu');
+    // "hạng 05": cho phép số 0 đứng đầu.
+    const at = new RegExp(`(^|[^\\d.,])(0*${escaped})(?![\\d]|[.,]\\d)`, 'gu');
     for (let match = at.exec(lower); match; match = at.exec(lower)) {
       const start = match.index + match[1].length;
       const end = start + match[2].length;
@@ -90,11 +91,33 @@ export function detectThreshold(
       for (const [operator, pattern] of BEFORE) {
         if (pattern.test(before)) return { operator, value, upper: null };
       }
+      // Câu liệt kê "đạt 35 giường bệnh, 18 bác sĩ và 31 điều dưỡng": số sau dùng chung cụm từ của số đầu.
+      const listed = listHead(lower.slice(Math.max(0, start - 160), start));
+      if (listed !== null) {
+        for (const [operator, pattern] of BEFORE) {
+          if (pattern.test(listed)) return { operator, value, upper: null };
+        }
+      }
       if (direction) return { operator: direction === 'LOWER_IS_BETTER' ? '<=' : '>=', value, upper: null, inferred: true };
       return { operator: '=', value, upper: null, inferred: true };
     }
   }
   return null;
+}
+
+const LIST_ITEM = new RegExp(`(?:${NUMBER})\\s*%?[^\\d,;.]{0,40}?\\s*(?:,|;|\\svà)\\s*$`, 'u');
+
+/** Phần câu trước số đầu tiên của chuỗi liệt kê; con số không nằm trong chuỗi liệt kê thì null. */
+function listHead(before: string): string | null {
+  let rest = before;
+  let stripped = false;
+  for (let guard = 0; guard < 8; guard += 1) {
+    const match = LIST_ITEM.exec(rest);
+    if (!match) break;
+    rest = rest.slice(0, match.index);
+    stripped = true;
+  }
+  return stripped ? rest : null;
 }
 
 /** Chữ hiển thị ở cột Kế hoạch: ">= 125,5", "< 6,5", "= 100", "70 - 75", "khoảng 12.000". */

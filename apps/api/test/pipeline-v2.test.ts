@@ -12,7 +12,7 @@ import {
   yearOnlyFromComparison,
   type ValidationRecord,
 } from '../src/extraction-validation';
-import { ExtractionWorker, formIndicators, resolveFrequency, resolveSourceElements } from '../src/extraction-worker';
+import { ExtractionWorker, formIndicators, isRangeBoundDuplicate, resolveFrequency, resolveSourceElements } from '../src/extraction-worker';
 import { parseSectionHeader } from '../src/extraction-llm';
 import {
   classifyMatch,
@@ -40,6 +40,7 @@ import {
   resolveChunkingOptions,
   splitByNumberDensity,
   splitInlineStructure,
+  stripWatermark,
 } from '../src/structured-chunking';
 
 const options = resolveChunkingOptions({});
@@ -817,4 +818,32 @@ test('B7: mục bị tách theo mật độ số mang lại số thứ tự và 
   assert.ok(parts.length >= 2);
   for (const part of parts.slice(1)) assert.match(part, /^\(10\) Tỷ lệ huy động trẻ trong độ tuổi đi học …/);
   assert.match(parts[parts.length - 1], /37,7%/);
+});
+
+
+test('B7: chữ in mờ "MẪU - DỰ THẢO" không cắt mục (13) thành nhóm riêng', () => {
+  assert.equal(stripWatermark('(13) Tỉ lệ học sinh MẪU - DỰ THẢO sinh viên'), '(13) Tỉ lệ học sinh sinh viên');
+  assert.equal(stripWatermark('Ý kiến góp ý dự thảo nghị quyết'), 'Ý kiến góp ý dự thảo nghị quyết');
+  assert.deepEqual(classifyLine('(13) Tỉ lệ học sinh, sinh viên', 'heading'), { rank: 8, heading: false });
+  assert.deepEqual(classifyLine('(1) Chỉ tiêu về kinh tế', 'paragraph'), { rank: 8, heading: true });
+  const chunks = chunkStructuredPages([{
+    page: 2,
+    elements: [
+      el('p2-e0', 'paragraph', 'b) Chỉ tiêu văn hóa - xã hội'),
+      el('p2-e1', 'paragraph', '(12) Tỷ lệ lao động qua đào tạo đạt 90%.'),
+      el('p2-e2', 'heading', '(13) Tỉ lệ học sinh, sinh viên MẪU - DỰ THẢO'),
+      el('p2-e3', 'paragraph', 'được học tiếng Anh đạt 80%.'),
+    ],
+  }], options);
+  const item = chunks.find(chunk => /80%/.test(chunk.text))!;
+  assert.match(item.headingPath.join(' > '), /b\) Chỉ tiêu văn hóa - xã hội$/);
+  assert.doesNotMatch(item.text, /DỰ THẢO/);
+});
+
+test('bỏ bản ghi lẻ lấy cận trên của khoảng "2 - 3%"', () => {
+  const range = { chunk: { id: 'c1' }, payload: { name: 'Tổng chi xã hội cho nghiên cứu phát triển', targetValue: 2, sourceQuote: 'Tổng chi xã hội cho nghiên cứu phát triển đạt 2 - 3% GRDP' } };
+  const bound = { chunk: { id: 'c1' }, payload: { name: 'Tổng chi xã hội cho nghiên cứu phát triển', targetValue: 3, sourceQuote: 'đạt 2 - 3% GRDP' } };
+  assert.equal(isRangeBoundDuplicate(range, bound), true);
+  assert.equal(isRangeBoundDuplicate(bound, range), false);
+  assert.equal(isRangeBoundDuplicate(range, { ...bound, chunk: { id: 'c2' } }), false);
 });

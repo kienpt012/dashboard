@@ -74,3 +74,17 @@ test('"đạt tỉ lệ 38%" là =, không suy theo chiều đánh giá', () => 
   assert.equal(thresholdText(detectThreshold('đạt tỷ lệ trên 38%', 38)), '> 38');
   assert.equal(thresholdText(detectThreshold('tăng bình quân 7%/năm', 7)), '= 7');
 });
+
+test('câu liệt kê "đạt 35…, 18… và 31…": các số sau dùng chung cụm từ của số đầu', () => {
+  const quote = 'Đạt 35 giường bệnh, 18 bác sĩ và 31 điều dưỡng/10.000 dân';
+  for (const value of [35, 18, 31]) {
+    const found = detectThreshold(quote, value, 'HIGHER_IS_BETTER');
+    assert.equal(thresholdText(found), `= ${value}`);
+    assert.notEqual(found?.inferred, true);
+  }
+  assert.equal(thresholdText(detectThreshold('ít nhất 10 trường, 5 trạm y tế', 5)), '>= 5');
+});
+
+test('số có 0 đứng đầu ("hạng 05") vẫn đọc được ký hiệu', () => {
+  assert.equal(thresholdText(detectThreshold('Chỉ số PAPI xếp hạng từ hạng 05 trở lên', 5)), '<= 5');
+});

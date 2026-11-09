@@ -192,12 +192,12 @@ export interface StandardCategory {
 export const STANDARD_CATEGORIES: StandardCategory[] = [
   {
     name: 'Kinh tế',
-    keywords: ['kinh tế', 'ngân sách', 'tài chính', 'thương mại', 'doanh thu', 'doanh nghiệp', 'hộ kinh doanh', 'đầu tư', 'giải ngân', 'sản xuất', 'nông nghiệp', 'công nghiệp', 'du lịch', 'tăng trưởng', 'thu nhập bình quân', 'bán lẻ', 'thanh toán không dùng tiền mặt', 'grdp', 'vốn đầu tư', 'năng suất lao động', 'năng suất', 'tfp', 'kinh tế số', 'xuất khẩu', 'nhập khẩu', 'xuất nhập khẩu', 'logistics', 'fdi', 'khoa học', 'công nghệ', 'đổi mới sáng tạo', 'nghiên cứu và phát triển', 'r&d', 'pci', 'năng lực cạnh tranh'],
+    keywords: ['kinh tế', 'ngân sách', 'tài chính', 'thương mại', 'doanh thu', 'doanh nghiệp', 'hộ kinh doanh', 'đầu tư', 'giải ngân', 'sản xuất', 'nông nghiệp', 'công nghiệp', 'du lịch', 'tăng trưởng', 'thu nhập bình quân', 'bán lẻ', 'thanh toán không dùng tiền mặt', 'grdp', 'vốn đầu tư', 'năng suất lao động', 'năng suất', 'tfp', 'kinh tế số', 'xuất khẩu', 'nhập khẩu', 'xuất nhập khẩu', 'logistics', 'fdi', 'khoa học', 'công nghệ', 'đổi mới sáng tạo', 'nghiên cứu và phát triển', 'nghiên cứu phát triển', 'nghiên cứu khoa học', 'r&d', 'pci', 'năng lực cạnh tranh'],
     prototype: 'Chỉ tiêu kinh tế: thu ngân sách, thương mại dịch vụ, doanh nghiệp, đầu tư công, sản xuất kinh doanh, thu nhập',
   },
   {
     name: 'Y tế',
-    keywords: ['y tế', 'sức khỏe', 'sức khoẻ', 'bảo hiểm y tế', 'tiêm chủng', 'vắc xin', 'khám bệnh', 'khám thai', 'suy dinh dưỡng', 'sốt xuất huyết', 'dịch bệnh', 'an toàn thực phẩm', 'ngộ độc thực phẩm', 'dân số', 'giường bệnh', 'bác sĩ', 'trạm y tế', 'bệnh viện', 'tuổi thọ'],
+    keywords: ['y tế', 'sức khỏe', 'sức khoẻ', 'bảo hiểm y tế', 'tiêm chủng', 'vắc xin', 'khám bệnh', 'khám thai', 'suy dinh dưỡng', 'sốt xuất huyết', 'dịch bệnh', 'an toàn thực phẩm', 'ngộ độc thực phẩm', 'dân số', 'giường bệnh', 'bác sĩ', 'điều dưỡng', 'dược sĩ', 'nhân viên y tế', 'trạm y tế', 'bệnh viện', 'tuổi thọ'],
     prototype: 'Chỉ tiêu y tế: bảo hiểm y tế, khám chữa bệnh, tiêm chủng, dịch bệnh, dinh dưỡng trẻ em, an toàn thực phẩm',
   },
   {
@@ -212,7 +212,7 @@ export const STANDARD_CATEGORIES: StandardCategory[] = [
   },
   {
     name: 'Đô thị - môi trường',
-    keywords: ['đô thị', 'môi trường', 'xây dựng', 'quy hoạch', 'giao thông', 'chất thải', 'rác', 'nước thải', 'cây xanh', 'đất đai', 'tài nguyên', 'chỉnh trang', 'trật tự đô thị', 'nước sạch'],
+    keywords: ['đô thị', 'môi trường', 'xây dựng', 'quy hoạch', 'giao thông', 'chất thải', 'rác', 'nước thải', 'cây xanh', 'đất đai', 'tài nguyên', 'chỉnh trang', 'trật tự đô thị', 'nước sạch', 'rác thải', 'chất thải rắn', 'tái chế', 'nhà ở', 'nhà ở xã hội', 'căn hộ', 'nhà ở thương mại'],
     prototype: 'Chỉ tiêu đô thị - môi trường: quy hoạch xây dựng, trật tự đô thị, giao thông, rác thải, nước thải, cây xanh',
   },
   {

@@ -73,6 +73,9 @@ export function classifyLine(text: string, type: StructuredElement['type'], leve
     // "1. Chỉ tiêu về kinh tế" là đề mục; "1. Tỷ lệ số hóa hồ sơ đạt 100%." là mục mang chỉ tiêu.
     const body = trimmed.replace(/^(\d{1,2}(\.\d{1,2}){0,2}[.)]?|\(\d{1,3}\)|[a-zđ]\))\s*/u, '');
     const shortTitle = body.length <= 120 && !/\d/.test(body) && !/[.;]$/.test(body);
+    // "(13) Tỉ lệ học sinh…" là mục chỉ tiêu dù bị cắt ngắn (chữ in mờ, xuống trang); chỉ "(1) Chỉ tiêu về kinh tế",
+    // "(2) Nhóm…" mới là đề mục.
+    if (/^\(\d/.test(trimmed) && !/^(chỉ\s+tiêu|nhóm|lĩnh\s+vực|về)\b/iu.test(body)) return { rank: pattern.rank, heading: false };
     return { rank: pattern.rank, heading: shortTitle || (type === 'heading' && !looksLikeBody(body)) };
   }
   if (type === 'heading') {
@@ -81,6 +84,14 @@ export function classifyLine(text: string, type: StructuredElement['type'], leve
     return { rank: 3 + Math.min(3, Math.max(0, (level ?? 1) - 1)), heading: true };
   }
   return null;
+}
+
+// Chữ in mờ trên trang văn bản mẫu/dự thảo ("MẪU - DỰ THẢO") bị bộ đọc chèn vào giữa câu.
+const WATERMARK = /\s*(?:\bBẢN\s+)?\b(?:MẪU\s*[-–]\s*DỰ\s+THẢO|DỰ\s+THẢO|BẢN\s+MẪU)\b\s*/gu;
+
+/** Bỏ chữ in mờ viết hoa ("MẪU - DỰ THẢO", "DỰ THẢO"); chữ thường "dự thảo" trong câu giữ nguyên. */
+export function stripWatermark(text: string): string {
+  return text.replace(WATERMARK, ' ').replace(/[ \t]{2,}/g, ' ').trim();
 }
 
 /** Chữ mang nội dung chứ không phải tên đề mục: quá dài, có mục "(n)" chen giữa, hoặc nhiều câu có con số. */
@@ -232,7 +243,7 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
         if (!body.length && header.length) push('table', header.join('\n'), element.page, element.page, [element.id], cellFlags);
         continue;
       }
-      const whole = element.text.trim();
+      const whole = stripWatermark(element.text);
       if (!whole) continue;
       const lines = splitInlineStructure(whole);
       for (const text of lines) {

@@ -45,6 +45,7 @@ import {
 import { adjustedConfidence, validateConsistency, validateRecord, type ValidationFlag, type ValidationRecord } from './extraction-validation';
 import { dot, IndicatorMatcher, normalizeVector } from './indicator-matching';
 import { diceSimilarity, matchDepartmentByName } from './matching';
+import { detectThreshold } from './target-threshold';
 import {
   OcrServiceClient,
   OcrServiceUnavailableError,
@@ -894,7 +895,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         && item.payload.targetValue !== null
         && Math.abs(kept.payload.targetValue - item.payload.targetValue) < 1e-9
         && (kept.payload.unit ?? '').toLowerCase().trim() === (item.payload.unit ?? '').toLowerCase().trim());
-      if (!nearDuplicate) deduplicated.push(item);
+      // "đạt 2 - 3% GRDP" đôi khi ra thêm một bản ghi lấy cận trên (3): cùng đoạn, tên giống, giá trị là cận của
+      // khoảng mà bản ghi kia đã mang thì bỏ.
+      if (nearDuplicate || deduplicated.some(kept => isRangeBoundDuplicate(kept, item))) continue;
+      const bound = deduplicated.findIndex(kept => isRangeBoundDuplicate(item, kept));
+      if (bound >= 0) deduplicated.splice(bound, 1);
+      deduplicated.push(item);
     }
     const seenKeys = new Set<string>();
     const distinct = deduplicated.filter((item) => {
@@ -1331,4 +1337,19 @@ export function resolveFrequency(model: TargetFrequency | null | undefined, quot
   const detected = detectFrequency(quote ?? '');
   if (detected.frequency || detected.warning) return detected.frequency;
   return targetYear ? TargetFrequency.YEARLY : null;
+}
+
+/**
+ * `bound` chỉ là cận trên của khoảng giá trị mà `range` đã mang ("2 - 3%" và bản ghi lẻ "3%"): cùng đoạn, tên rất
+ * giống, câu trích của `range` đọc ra khoảng có cận trên bằng giá trị của `bound`.
+ */
+export function isRangeBoundDuplicate(
+  range: { chunk: { id: string }; payload: { name: string; targetValue: number | null; sourceQuote?: string | null } },
+  bound: { chunk: { id: string }; payload: { name: string; targetValue: number | null; sourceQuote?: string | null } },
+): boolean {
+  if (range.chunk.id !== bound.chunk.id || range.payload.targetValue === null || bound.payload.targetValue === null) return false;
+  if (diceSimilarity(range.payload.name, bound.payload.name) < 0.8) return false;
+  const threshold = detectThreshold(range.payload.sourceQuote, range.payload.targetValue);
+  if (threshold?.operator !== 'range' || threshold.upper === null) return false;
+  return Math.abs(threshold.upper - bound.payload.targetValue) < 1e-9;
 }
