@@ -658,8 +658,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   }
 
   /**
-   * Lĩnh vực chuẩn của từng chỉ tiêu, theo thứ tự ưu tiên: từ khoá trong đề mục của văn bản; so nghĩa (bge-m3)
-   * giữa "đề mục + tên chỉ tiêu" với mô tả từng lĩnh vực; gợi ý của mô hình; từ khoá trong tên chỉ tiêu.
+   * Lĩnh vực chuẩn của từng chỉ tiêu, theo thứ tự ưu tiên: từ khoá trong tên chỉ tiêu (cụ thể nhất: "số giường bệnh"
+   * là Y tế dù nằm dưới đề mục "văn hoá - xã hội"); từ khoá trong đề mục của văn bản; so nghĩa (bge-m3) giữa
+   * "đề mục + tên chỉ tiêu" với mô tả từng lĩnh vực; gợi ý của mô hình.
    * Không đủ căn cứ thì để trống cho người duyệt chọn.
    */
   private async resolveCategories(
@@ -667,7 +668,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     canEmbed: boolean,
     signal: AbortSignal,
   ): Promise<(string | null)[]> {
-    const result = items.map(item => categoryFromHeadings(item.headingPath));
+    const result = items.map(item => categoryByKeywords(item.name) ?? categoryFromHeadings(item.headingPath));
     const missing = result.map((value, index) => (value ? -1 : index)).filter(index => index >= 0);
     if (missing.length && canEmbed) {
       try {
@@ -686,7 +687,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         this.logger.warn(`Không so nghĩa được lĩnh vực bằng ${this.ollama.embedModel}: dùng gợi ý của mô hình và từ khoá.`);
       }
     }
-    return result.map((value, index) => value ?? categoryByKeywords(items[index].modelCategory) ?? categoryByKeywords(items[index].name));
+    return result.map((value, index) => value ?? categoryByKeywords(items[index].modelCategory));
   }
 
   /** Gia hạn lease job trích xuất giữa hai lần gọi Qwen (một đoạn có thể gọi hai lần, mỗi lần tới 8 phút). */
@@ -944,7 +945,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     });
     const consistency = validateConsistency(validationInputs);
 
-    // Nhóm theo đề mục của chính văn bản; lĩnh vực chuẩn (cho dashboard) ưu tiên đề mục, rồi so nghĩa, rồi mô hình.
+    // Nhóm theo đề mục của chính văn bản; lĩnh vực chuẩn (cho dashboard) ưu tiên tên chỉ tiêu, đề mục, rồi so nghĩa, rồi mô hình.
     const headingPaths = unique.map(item => (Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []));
     const groups = documentGroups(headingPaths);
     const categories = await this.resolveCategories(

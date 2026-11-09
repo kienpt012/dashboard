@@ -192,17 +192,17 @@ export interface StandardCategory {
 export const STANDARD_CATEGORIES: StandardCategory[] = [
   {
     name: 'Kinh tế',
-    keywords: ['kinh tế', 'ngân sách', 'tài chính', 'thương mại', 'doanh thu', 'doanh nghiệp', 'hộ kinh doanh', 'đầu tư', 'giải ngân', 'sản xuất', 'nông nghiệp', 'công nghiệp', 'du lịch', 'tăng trưởng', 'thu nhập bình quân', 'bán lẻ', 'thanh toán không dùng tiền mặt'],
+    keywords: ['kinh tế', 'ngân sách', 'tài chính', 'thương mại', 'doanh thu', 'doanh nghiệp', 'hộ kinh doanh', 'đầu tư', 'giải ngân', 'sản xuất', 'nông nghiệp', 'công nghiệp', 'du lịch', 'tăng trưởng', 'thu nhập bình quân', 'bán lẻ', 'thanh toán không dùng tiền mặt', 'grdp', 'vốn đầu tư', 'năng suất lao động', 'năng suất', 'tfp', 'kinh tế số', 'xuất khẩu', 'nhập khẩu', 'xuất nhập khẩu', 'logistics', 'fdi', 'khoa học', 'công nghệ', 'đổi mới sáng tạo', 'nghiên cứu và phát triển', 'r&d', 'pci', 'năng lực cạnh tranh'],
     prototype: 'Chỉ tiêu kinh tế: thu ngân sách, thương mại dịch vụ, doanh nghiệp, đầu tư công, sản xuất kinh doanh, thu nhập',
   },
   {
     name: 'Y tế',
-    keywords: ['y tế', 'sức khỏe', 'sức khoẻ', 'bảo hiểm y tế', 'tiêm chủng', 'vắc xin', 'khám bệnh', 'khám thai', 'suy dinh dưỡng', 'sốt xuất huyết', 'dịch bệnh', 'an toàn thực phẩm', 'ngộ độc thực phẩm', 'dân số'],
+    keywords: ['y tế', 'sức khỏe', 'sức khoẻ', 'bảo hiểm y tế', 'tiêm chủng', 'vắc xin', 'khám bệnh', 'khám thai', 'suy dinh dưỡng', 'sốt xuất huyết', 'dịch bệnh', 'an toàn thực phẩm', 'ngộ độc thực phẩm', 'dân số', 'giường bệnh', 'bác sĩ', 'trạm y tế', 'bệnh viện', 'tuổi thọ'],
     prototype: 'Chỉ tiêu y tế: bảo hiểm y tế, khám chữa bệnh, tiêm chủng, dịch bệnh, dinh dưỡng trẻ em, an toàn thực phẩm',
   },
   {
     name: 'Giáo dục',
-    keywords: ['giáo dục', 'đào tạo', 'trường học', 'học sinh', 'phổ cập', 'khuyến học', 'mầm non', 'tiểu học', 'trung học'],
+    keywords: ['giáo dục', 'đào tạo', 'trường học', 'học sinh', 'phổ cập', 'khuyến học', 'mầm non', 'tiểu học', 'trung học', 'phòng học', 'giáo viên', 'sinh viên', 'đại học'],
     prototype: 'Chỉ tiêu giáo dục: trường học, học sinh, phổ cập giáo dục, đào tạo',
   },
   {
@@ -217,12 +217,12 @@ export const STANDARD_CATEGORIES: StandardCategory[] = [
   },
   {
     name: 'Hành chính công - chuyển đổi số',
-    keywords: ['hành chính', 'thủ tục', 'hồ sơ', 'dịch vụ công', 'chuyển đổi số', 'số hóa', 'số hoá', 'công nghệ thông tin', 'chính quyền số', 'cải cách', 'nội vụ', 'một cửa'],
+    keywords: ['hành chính', 'thủ tục', 'hồ sơ', 'dịch vụ công', 'chuyển đổi số', 'số hóa', 'số hoá', 'công nghệ thông tin', 'chính quyền số', 'cải cách', 'nội vụ', 'một cửa', 'papi', 'sipas', 'par index', 'hài lòng'],
     prototype: 'Chỉ tiêu hành chính công và chuyển đổi số: thủ tục hành chính, hồ sơ trực tuyến, dịch vụ công, số hoá, cải cách hành chính',
   },
   {
     name: 'An ninh - quốc phòng',
-    keywords: ['an ninh', 'quốc phòng', 'quân sự', 'tuyển quân', 'nghĩa vụ quân sự', 'phòng cháy', 'tội phạm', 'ma túy', 'ma tuý', 'an toàn giao thông', 'trật tự xã hội', 'trật tự an toàn'],
+    keywords: ['an ninh', 'quốc phòng', 'quân sự', 'tuyển quân', 'nghĩa vụ quân sự', 'phòng cháy', 'tội phạm', 'ma túy', 'ma tuý', 'an toàn giao thông', 'trật tự xã hội', 'trật tự an toàn', 'phạm tội', 'cháy', 'cháy nổ'],
     prototype: 'Chỉ tiêu an ninh - quốc phòng: an ninh trật tự, phòng chống tội phạm, ma tuý, quân sự, phòng cháy chữa cháy',
   },
   {

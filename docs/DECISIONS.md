@@ -195,6 +195,8 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Số trần** (bảng PL2 chỉ ghi "% | 60", khoảng một nửa số hàng): văn bản không ghi ký hiệu nên model hay code đều
   không "nhận ra" được. Tạm suy theo chiều đánh giá (càng cao càng tốt → >=, càng thấp càng tốt → <=), ô tô xanh kèm
   chú thích "hệ thống suy ra" để chuyên viên rà.
+- **Thứ hạng** (bổ sung 09/11): số ngay sau "hạng", "top", "nhóm" thì số nhỏ hơn là tốt hơn: "từ hạng 10 trở lên",
+  "top 10" là <= 10; "hạng 5" trần suy <= 5 (tô xanh). "Đạt tỉ lệ 38%", "tăng bình quân 7%" là "=".
 - **Đã chốt (06/11)**: số trần suy theo chiều đánh giá như trên; ký hiệu và số ghi chung một cột Kế hoạch đúng kiểu
   PL1 (không tách cột Ký hiệu).
 - **Phạm vi**: chỉ điền khi xuất bảng (đề xuất có `targetText` thì dùng chữ đó); ký hiệu tự điền mà chuyên viên giữ

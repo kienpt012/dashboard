@@ -73,10 +73,42 @@ export function classifyLine(text: string, type: StructuredElement['type'], leve
     // "1. Chỉ tiêu về kinh tế" là đề mục; "1. Tỷ lệ số hóa hồ sơ đạt 100%." là mục mang chỉ tiêu.
     const body = trimmed.replace(/^(\d{1,2}(\.\d{1,2}){0,2}[.)]?|\(\d{1,3}\)|[a-zđ]\))\s*/u, '');
     const shortTitle = body.length <= 120 && !/\d/.test(body) && !/[.;]$/.test(body);
-    return { rank: pattern.rank, heading: shortTitle || type === 'heading' };
+    return { rank: pattern.rank, heading: shortTitle || (type === 'heading' && !looksLikeBody(body)) };
   }
-  if (type === 'heading') return { rank: 3 + Math.min(3, Math.max(0, (level ?? 1) - 1)), heading: true };
+  if (type === 'heading') {
+    // Bộ đọc đôi khi gán nhầm cả đoạn văn chứa chỉ tiêu là "tiêu đề": coi là đoạn văn để chữ được gửi đi trích xuất.
+    if (looksLikeBody(trimmed)) return null;
+    return { rank: 3 + Math.min(3, Math.max(0, (level ?? 1) - 1)), heading: true };
+  }
   return null;
+}
+
+/** Chữ mang nội dung chứ không phải tên đề mục: quá dài, có mục "(n)" chen giữa, hoặc nhiều câu có con số. */
+export function looksLikeBody(text: string): boolean {
+  const single = text.replace(/\s+/g, ' ').trim()
+    .replace(/^((PHẦN|Phần|CHƯƠNG|Chương|MỤC|Mục|Điều)\s+[\dIVXLC]+[a-zđ]?\s*[.:]?|\d{1,2}(\.\d{1,2}){0,2}[.)]|[IVXLC]{1,6}[.)]|\(\d{1,3}[a-zđ]?\)|[a-zđA-ZĐ]\))\s*/u, '');
+  if (single.length > 160) return true;
+  if (/\S\s+\(\d{1,3}[a-zđ]?\)\s*\S/u.test(single) && countTargetNumbers(single) > 0) return true;
+  return countTargetNumbers(single) > 0 && /[.;]\s+\S/u.test(single);
+}
+
+/**
+ * Tách đoạn văn có đề mục con và mục đánh số viết liền ("1. Chỉ tiêu chủ yếu: a) Chỉ tiêu về kinh tế (1) Tốc độ…
+ * (6) … b) Chỉ tiêu văn hóa - xã hội (7) …") thành từng dòng, để "a) Chỉ tiêu về kinh tế" thành đề mục nhóm và mỗi
+ * "(n)" là một mục. Chỉ tách "x)" khi ngay sau là tên ngắn không có số rồi tới "(n)"; chỉ tách "(n)" sau dấu kết câu.
+ */
+export function splitInlineStructure(text: string): string[] {
+  const inlineHeading = /\s+(?=[a-zđ]\)\s+[^\d();.\n]{3,100}?\s*\(\d{1,3}[a-zđ]?\)\s)/gu;
+  const headingThenItem = /(^|\n)([a-zđ]\)\s+[^\d();.\n]{3,100}?)\s*(?=\(\d{1,3}[a-zđ]?\)\s)/gu;
+  const itemAfterSentence = /(?<=[.;:])\s+(?=\(\d{1,3}[a-zđ]?\)\s*\p{Lu})/gu;
+  const lines = text
+    .replace(inlineHeading, '\n')
+    .replace(headingThenItem, '$1$2\n')
+    .replace(itemAfterSentence, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+  return lines.length ? lines : [text];
 }
 
 function headingLabel(text: string) {
@@ -146,7 +178,7 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
       units.map(unit => unit.text).join('\n'),
       Math.min(...units.map(unit => unit.page)),
       Math.max(...units.map(unit => unit.page)),
-      units.flatMap(unit => unit.ids),
+      [...new Set(units.flatMap(unit => unit.ids))],
       units.reduce((sum, unit) => sum + unit.flagged, 0),
     );
     units = [];
@@ -200,32 +232,37 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
         if (!body.length && header.length) push('table', header.join('\n'), element.page, element.page, [element.id], cellFlags);
         continue;
       }
-      const text = element.text.trim();
-      if (!text) continue;
-      const kind = classifyLine(text, element.type, element.level);
-      if (kind?.heading) {
-        closeUnit();
-        flushUnits();
-        while (stack.length && stack[stack.length - 1].rank >= kind.rank) stack.pop();
-        stack.push({ rank: kind.rank, text, lead: null });
-        continue;
+      const whole = element.text.trim();
+      if (!whole) continue;
+      const lines = splitInlineStructure(whole);
+      for (const text of lines) {
+        const kind = classifyLine(text, lines.length > 1 && element.type === 'heading' ? 'paragraph' : element.type, element.level);
+        if (kind?.heading) {
+          closeUnit();
+          flushUnits();
+          while (stack.length && stack[stack.length - 1].rank >= kind.rank) stack.pop();
+          stack.push({ rank: kind.rank, text, lead: null });
+          continue;
+        }
+        const startsItem = Boolean(kind) || ITEM_START.test(text);
+        if (startsItem) {
+          closeUnit();
+          openUnit = { text, page: element.page, ids: [element.id], flagged };
+          continue;
+        }
+        if (openUnit) {
+          openUnit.text += `\n${text}`;
+          if (!openUnit.ids.includes(element.id)) {
+            openUnit.ids.push(element.id);
+            openUnit.flagged += flagged;
+          }
+          continue;
+        }
+        // Đoạn đầu tiên ngay dưới đề mục, trước mục đánh số: câu đầu mục.
+        const top = stack[stack.length - 1];
+        if (top && top.lead === null && !units.length) top.lead = text.length > 300 ? `${text.slice(0, 299)}…` : text;
+        addUnit({ text, page: element.page, ids: [element.id], flagged });
       }
-      const startsItem = Boolean(kind) || ITEM_START.test(text);
-      if (startsItem) {
-        closeUnit();
-        openUnit = { text, page: element.page, ids: [element.id], flagged };
-        continue;
-      }
-      if (openUnit) {
-        openUnit.text += `\n${text}`;
-        openUnit.ids.push(element.id);
-        openUnit.flagged += flagged;
-        continue;
-      }
-      // Đoạn đầu tiên ngay dưới đề mục, trước mục đánh số: câu đầu mục.
-      const top = stack[stack.length - 1];
-      if (top && top.lead === null && !units.length) top.lead = text.length > 300 ? `${text.slice(0, 299)}…` : text;
-      addUnit({ text, page: element.page, ids: [element.id], flagged });
     }
   }
   closeUnit();
@@ -254,15 +291,21 @@ export function splitByNumberDensity(text: string, limit: number): string[] {
   const parts: string[] = [];
   let current = '';
   let count = 0;
+  // Mục "(n)" đang mở và phần tên trước con số đầu tiên: phần sau mang lại "(10) Tỷ lệ huy động… …" để số thứ tự
+  // và tên chỉ tiêu không mất khi một mục bị cắt sang đoạn khác.
+  let item: string | null = null;
   for (const sentence of sentences) {
     const numbers = countTargetNumbers(sentence);
     if (current && count + numbers > limit) {
       parts.push(current);
-      current = '';
+      current = item && !ITEM_START.test(sentence) ? `${item} …` : '';
       count = 0;
     }
     current = current ? `${current} ${sentence}` : sentence;
     count += numbers;
+    const opened = [...sentence.matchAll(/\((\d{1,3}[a-zđ]?)\)\s*([^\d:]*)/gu)].pop();
+    if (opened) item = `(${opened[1]}) ${opened[2].trim().slice(0, 120)}`.trim();
+    else if (ITEM_START.test(sentence)) item = null;
   }
   if (current) parts.push(current);
   return parts;

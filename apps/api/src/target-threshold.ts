@@ -46,8 +46,12 @@ const BEFORE: [ThresholdOperator, RegExp][] = [
   ['>', /(trên|hơn|vượt|cao\s+hơn|lớn\s+hơn|>)\s*(mức\s+)?$/u],
   ['<', /(dưới|thấp\s+hơn|nhỏ\s+hơn|ít\s+hơn|<)\s*(mức\s+)?$/u],
   // Văn bản ghi rõ mức cần đạt ("đạt 100%", "duy trì ở mức 0 vụ", "phấn đấu 100%", "giảm 10%").
-  ['=', /((đạt|duy\s+trì|phấn\s+đấu|giảm|tăng|bằng|=)\s*(là\s+|ở\s+)?(mức\s+)?|ở\s+mức\s*)$/u],
+  // "đạt tỉ lệ 38%", "tăng bình quân 7%": cho phép một cụm danh từ ngắn chen giữa động từ và con số.
+  ['=', /((đạt|duy\s+trì|phấn\s+đấu|giảm|tăng|bằng|=)\s*(là\s+|ở\s+)?((mức|tỉ\s+lệ|tỷ\s+lệ|tỉ\s+trọng|tỷ\s+trọng|tốc\s+độ|bình\s+quân|chỉ\s+số)\s+)?|ở\s+mức\s*)$/u],
 ];
+
+// Thứ hạng ("xếp hạng từ hạng 10 trở lên", "PAPI hạng 5", "top 10"): số nhỏ hơn là tốt hơn, nên "trở lên" là <=.
+const RANK_BEFORE = /(hạng|thứ\s+hạng|top|nhóm)\s*(thứ\s+)?$/u;
 
 /**
  * Ngưỡng của giá trị mục tiêu trong câu trích; không tìm thấy con số trong câu thì null. Văn bản chỉ ghi số trần (bảng
@@ -75,6 +79,11 @@ export function detectThreshold(
       if (range && (/từ\s*$/u.test(before) || /^\s*[-–]/u.test(after) || /^\s*%?\s*[-–]/u.test(after))) {
         const upper = parseNumber(range[1]);
         if (upper !== null && upper > value) return { operator: 'range', value, upper };
+      }
+      if (RANK_BEFORE.test(before)) {
+        if (new RegExp(`^${UNIT_GAP}trở\\s+xuống`, 'u').test(after)) return { operator: '>=', value, upper: null };
+        if (/(top|nhóm)\s*$/u.test(before) || new RegExp(`^${UNIT_GAP}trở\\s+lên`, 'u').test(after)) return { operator: '<=', value, upper: null };
+        return { operator: '<=', value, upper: null, inferred: true };
       }
       if (new RegExp(`^${UNIT_GAP}trở\\s+lên`, 'u').test(after)) return { operator: '>=', value, upper: null };
       if (new RegExp(`^${UNIT_GAP}trở\\s+xuống`, 'u').test(after)) return { operator: '<=', value, upper: null };

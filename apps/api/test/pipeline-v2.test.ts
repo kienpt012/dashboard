@@ -36,7 +36,10 @@ import {
   chunkStructuredPages,
   classifyLine,
   joinLinesIntoParagraphs,
+  looksLikeBody,
   resolveChunkingOptions,
+  splitByNumberDensity,
+  splitInlineStructure,
 } from '../src/structured-chunking';
 
 const options = resolveChunkingOptions({});
@@ -763,4 +766,55 @@ test('B7: đoạn ngắn nhưng dày chỉ tiêu (mục (1)–(13) liền nhau) 
   assert.deepEqual(splitByNumberDensity('Tổng thu đạt ít nhất 125,5 tỷ đồng so với năm 2025.', 12).length, 1);
   assert.equal(resolveChunkingOptions({}).maxNumbersPerChunk, 12);
   assert.equal(resolveChunkingOptions({ CHUNK_MAX_NUMBERS: '8' }).maxNumbersPerChunk, 8);
+});
+
+
+test('B7: đoạn văn bị bộ đọc gán nhầm là tiêu đề vẫn được gửi trích xuất (mục (22)–(26) QĐ 333)', () => {
+  const misread = '(22) Chỉ số PAPI xếp hạng 5. e) Chỉ tiêu bảo đảm quốc phòng, an ninh (23) Hoàn thành 100% chỉ tiêu tuyển quân. (24) Kéo giảm 5% số vụ phạm tội về trật tự xã hội.';
+  assert.equal(looksLikeBody(misread), true);
+  assert.equal(looksLikeBody('Điều 3. Mục tiêu, chỉ tiêu chủ yếu đến năm 2030'), false);
+  assert.equal(looksLikeBody('2. Phân công thực hiện'), false);
+  const chunks = chunkStructuredPages([{
+    page: 3,
+    elements: [
+      el('p3-e9', 'heading', 'Điều 3. Mục tiêu, chỉ tiêu'),
+      el('p3-e10', 'heading', misread),
+      el('p3-e11', 'heading', '2. Phân công thực hiện'),
+      el('p3-e12', 'paragraph', 'Các sở, ngành tổ chức thực hiện.'),
+    ],
+  }], options);
+  const all = chunks.map(chunk => chunk.text).join('\n');
+  assert.match(all, /tuyển quân/);
+  assert.match(all, /phạm tội/);
+  assert.ok(chunks.some(chunk => chunk.elementIds.includes('p3-e10')));
+  const security = chunks.find(chunk => /tuyển quân/.test(chunk.text))!;
+  assert.match(security.headingPath.join(' > '), /e\) Chỉ tiêu bảo đảm quốc phòng, an ninh/);
+});
+
+test('B7: đề mục a)/b) viết liền trong đoạn văn tách thành nhóm riêng', () => {
+  const text = '1. Chỉ tiêu chủ yếu: a) Chỉ tiêu về kinh tế (1) Tốc độ tăng trưởng GRDP đạt trên 10%. (2) GRDP bình quân đầu người đạt 9.800 USD. b) Chỉ tiêu văn hóa - xã hội (7) Tỷ lệ lao động qua đào tạo đạt 90%.';
+  assert.deepEqual(splitInlineStructure(text), [
+    '1. Chỉ tiêu chủ yếu:',
+    'a) Chỉ tiêu về kinh tế',
+    '(1) Tốc độ tăng trưởng GRDP đạt trên 10%.',
+    '(2) GRDP bình quân đầu người đạt 9.800 USD.',
+    'b) Chỉ tiêu văn hóa - xã hội',
+    '(7) Tỷ lệ lao động qua đào tạo đạt 90%.',
+  ]);
+  // "điểm a) khoản 1" không phải đề mục.
+  assert.deepEqual(splitInlineStructure('Theo điểm a) khoản 1 Điều 5 thì đạt 100%.'), ['Theo điểm a) khoản 1 Điều 5 thì đạt 100%.']);
+  const chunks = chunkStructuredPages([{ page: 1, elements: [el('p1-e0', 'heading', 'Điều 3. Mục tiêu'), el('p1-e1', 'paragraph', text)] }], options);
+  const growth = chunks.find(chunk => /GRDP đạt trên 10/.test(chunk.text))!;
+  const labour = chunks.find(chunk => /lao động qua đào tạo/.test(chunk.text))!;
+  assert.match(growth.headingPath.join(' > '), /a\) Chỉ tiêu về kinh tế$/);
+  assert.match(labour.headingPath.join(' > '), /b\) Chỉ tiêu văn hóa - xã hội$/);
+  assert.equal(growth.elementIds.filter(id => id === 'p1-e1').length, 1);
+});
+
+test('B7: mục bị tách theo mật độ số mang lại số thứ tự và tên ở phần sau', () => {
+  const text = '(10) Tỷ lệ huy động trẻ trong độ tuổi đi học: mầm non 50%; tiểu học 100%; trung học cơ sở 99%; trung học phổ thông 37,7%.';
+  const parts = splitByNumberDensity(text, 2);
+  assert.ok(parts.length >= 2);
+  for (const part of parts.slice(1)) assert.match(part, /^\(10\) Tỷ lệ huy động trẻ trong độ tuổi đi học …/);
+  assert.match(parts[parts.length - 1], /37,7%/);
 });

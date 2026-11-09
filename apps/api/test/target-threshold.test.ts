@@ -58,3 +58,19 @@ test('định dạng số kiểu Việt Nam', () => {
   assert.equal(formatVietnameseNumber(12000), '12.000');
   assert.equal(formatVietnameseNumber(1234567.25), '1.234.567,25');
 });
+
+test('thứ hạng: số nhỏ hơn là tốt hơn, "từ hạng 10 trở lên" là <= 10', () => {
+  assert.equal(thresholdText(detectThreshold('Chỉ số PCI xếp hạng từ hạng 10 trở lên', 10)), '<= 10');
+  assert.equal(thresholdText(detectThreshold('nằm trong top 10 cả nước', 10)), '<= 10');
+  const bare = detectThreshold('Chỉ số PAPI hạng 5', 5, 'HIGHER_IS_BETTER');
+  assert.equal(thresholdText(bare), '<= 5');
+  assert.equal(bare?.inferred, true);
+});
+
+test('"đạt tỉ lệ 38%" là =, không suy theo chiều đánh giá', () => {
+  const found = detectThreshold('Tỷ lệ đô thị hóa đạt tỉ lệ 38%', 38, 'HIGHER_IS_BETTER');
+  assert.equal(thresholdText(found), '= 38');
+  assert.notEqual(found?.inferred, true);
+  assert.equal(thresholdText(detectThreshold('đạt tỷ lệ trên 38%', 38)), '> 38');
+  assert.equal(thresholdText(detectThreshold('tăng bình quân 7%/năm', 7)), '= 7');
+});
