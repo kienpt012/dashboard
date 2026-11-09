@@ -745,3 +745,22 @@ test('OLLAMA_NUM_GPU=0 gửi num_gpu cho Ollama (chạy chỉ CPU); bỏ trống
     globalThis.fetch = originalFetch;
   }
 });
+
+test('B7: đoạn ngắn nhưng dày chỉ tiêu (mục (1)–(13) liền nhau) được tách theo câu để Qwen trả lời kịp', async () => {
+  const { splitByNumberDensity, countTargetNumbers, resolveChunkingOptions } = await import('../src/structured-chunking');
+  const dense = '(1) Tốc độ tăng trưởng tổng sản phẩm trên địa bàn (GRDP) trên 10%; GRDP/người đạt 9.800 USD/người. '
+    + '(2) Tổng vốn đầu tư xã hội chiếm bình quân khoảng 30% trong GRDP. (3) Tỷ trọng đóng góp của TFP vào GRDP đạt khoảng 60%. '
+    + '(4) Tỷ trọng kinh tế số chiếm từ 30% GRDP. (5) Tổng chi cho R&D đạt 2 - 3% GRDP, bố trí ít nhất 4 - 5% tổng chi ngân sách cho khoa học. '
+    + '(6) Tốc độ tăng năng suất lao động bình quân khoảng 7,5%/năm. '
+    + '(7) Đạt 35 giường bệnh/10.000 dân, 18 bác sĩ/10.000 dân và 31 điều dưỡng/10.000 dân. '
+    + '(8) Người dân được khám sức khỏe định kỳ ít nhất 01 lần. (9) Tỉ lệ người dân tham gia bảo hiểm y tế ≥ 95%. '
+    + '(10) Tỉ lệ trường đạt chuẩn quốc gia: Mầm non 38%; Tiểu học 35,3%; Trung học cơ sở 42%; Trung học phổ thông 37,7%.';
+  assert.equal(countTargetNumbers(dense), 22, "số thứ tự (n) và năm không tính");
+  const parts = splitByNumberDensity(dense, 12);
+  assert.ok(parts.length >= 2, `tách thành ${parts.length} đoạn`);
+  assert.ok(parts.every(part => countTargetNumbers(part) <= 12));
+  assert.equal(parts.join(' ').replace(/\s+/g, ' '), dense.replace(/\s+/g, ' '), 'không mất chữ, giữ thứ tự');
+  assert.deepEqual(splitByNumberDensity('Tổng thu đạt ít nhất 125,5 tỷ đồng so với năm 2025.', 12).length, 1);
+  assert.equal(resolveChunkingOptions({}).maxNumbersPerChunk, 12);
+  assert.equal(resolveChunkingOptions({ CHUNK_MAX_NUMBERS: '8' }).maxNumbersPerChunk, 8);
+});

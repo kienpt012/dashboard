@@ -23,6 +23,8 @@ export interface StructuredChunk extends DocumentChunkInput {
 
 export interface ChunkingOptions {
   targetChars: number;
+  /** Số con số mục tiêu tối đa trong một đoạn văn: đoạn ngắn mà dày chỉ tiêu (mục (1)–(13) liền nhau) vẫn được tách. */
+  maxNumbersPerChunk: number;
   tableRowsPerChunk: number;
   tableFormat: 'plain' | 'markdown';
 }
@@ -30,8 +32,10 @@ export interface ChunkingOptions {
 export function resolveChunkingOptions(env: Record<string, string | undefined> = process.env): ChunkingOptions {
   const target = Number.parseInt(env.CHUNK_TARGET_CHARS ?? '', 10);
   const rows = Number.parseInt(env.CHUNK_TABLE_ROWS ?? '', 10);
+  const numbers = Number.parseInt(env.CHUNK_MAX_NUMBERS ?? '', 10);
   return {
     targetChars: Number.isSafeInteger(target) ? Math.min(4000, Math.max(400, target)) : 1400,
+    maxNumbersPerChunk: Number.isSafeInteger(numbers) ? Math.min(60, Math.max(4, numbers)) : 12,
     tableRowsPerChunk: Number.isSafeInteger(rows) ? Math.min(30, Math.max(2, rows)) : 8,
     tableFormat: env.CHUNK_TABLE_FORMAT === 'markdown' ? 'markdown' : 'plain',
   };
@@ -131,10 +135,14 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
     });
   };
 
+  // Đoạn văn dày con số: tách tiếp theo câu để Qwen sinh trọn câu trả lời trong thời gian chờ.
+  const pushSection = (body: string, pageFrom: number, pageTo: number, ids: string[], flagged: number) => {
+    for (const part of splitByNumberDensity(body, options.maxNumbersPerChunk ?? 12)) push('section', part, pageFrom, pageTo, ids, flagged);
+  };
+
   const flushUnits = () => {
     if (!units.length) return;
-    push(
-      'section',
+    pushSection(
       units.map(unit => unit.text).join('\n'),
       Math.min(...units.map(unit => unit.page)),
       Math.max(...units.map(unit => unit.page)),
@@ -150,7 +158,7 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
       // Một mục quá dài: tách ở ranh giới câu/dòng, mỗi phần vẫn mang cùng id phần tử.
       flushUnits();
       for (const part of splitLongText(unit.text, options.targetChars)) {
-        push('section', part, unit.page, unit.page, unit.ids, unit.flagged);
+        pushSection(part, unit.page, unit.page, unit.ids, unit.flagged);
       }
       return;
     }
@@ -231,6 +239,33 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
     }
   }
   return chunks;
+}
+
+/** Số con số có thể là giá trị mục tiêu: bỏ số thứ tự "(9)", năm "2025" và mốc "10.000 dân" vẫn tính (đủ để ước lượng). */
+export function countTargetNumbers(text: string): number {
+  return (text.replace(/\(\d{1,3}\)/g, ' ').match(/\d+(?:[.,]\d+)*/g) ?? [])
+    .filter(token => !/^(19|20)\d{2}$/.test(token)).length;
+}
+
+/** Tách đoạn có quá `limit` con số ở ranh giới câu/dòng (giữ nguyên thứ tự, không cắt giữa câu). */
+export function splitByNumberDensity(text: string, limit: number): string[] {
+  if (countTargetNumbers(text) <= limit) return [text];
+  const sentences = text.split(/(?<=[.;])\s+|\n/u).filter(Boolean);
+  const parts: string[] = [];
+  let current = '';
+  let count = 0;
+  for (const sentence of sentences) {
+    const numbers = countTargetNumbers(sentence);
+    if (current && count + numbers > limit) {
+      parts.push(current);
+      current = '';
+      count = 0;
+    }
+    current = current ? `${current} ${sentence}` : sentence;
+    count += numbers;
+  }
+  if (current) parts.push(current);
+  return parts;
 }
 
 export function splitLongText(text: string, limit: number): string[] {

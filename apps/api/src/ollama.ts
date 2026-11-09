@@ -56,7 +56,7 @@ export class OllamaService {
     // Trên GPU 4GB (~10 tok/s), một chunk nhiều chỉ tiêu có thể cần sinh >2000 token
     // (~4 phút). Job chạy nền nên timeout dài là an toàn; lời gọi ngắn (Copilot định
     // tuyến intent) tự kết thúc sớm hơn nhiều.
-    this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 900_000);
+    this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 3_600_000);
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
     const numGpu = (config.get<string>('OLLAMA_NUM_GPU') ?? '').trim();
     this.numGpu = /^\d{1,3}$/.test(numGpu) ? Number(numGpu) : null;
@@ -104,7 +104,8 @@ export class OllamaService {
   ): Promise<OllamaChatResult> {
     const startedAt = Date.now();
     const model = options?.model || this.extractModel;
-    const timeoutMs = boundedInteger(options?.timeoutMs, this.requestTimeoutMs, 1_000, 900_000);
+    // Máy chỉ có CPU (3–5 token/giây) có thể cần hơn 15 phút cho một đoạn dày: OLLAMA_TIMEOUT_MS đặt được tới 60 phút.
+    const timeoutMs = boundedInteger(options?.timeoutMs, this.requestTimeoutMs, 1_000, 3_600_000);
     // Dùng stream để tránh trần headersTimeout 300s của undici (fetch Node):
     // với stream, header trả về ngay và token chảy liên tục nên chỉ còn giới hạn
     // tổng thời gian do AbortSignal kiểm soát.
