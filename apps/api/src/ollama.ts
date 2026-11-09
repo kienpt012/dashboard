@@ -40,6 +40,8 @@ export class OllamaService {
   readonly embedModel: string;
   readonly requestTimeoutMs: number;
   readonly numCtx: number;
+  /** OLLAMA_NUM_GPU: số lớp nạp lên GPU; 0 = chỉ CPU (máy GPU nhỏ, tránh Ollama tự chia model ra GPU rồi chậm hẳn). */
+  readonly numGpu: number | null;
   /** Thời gian chờ một lần hỏi /api/version. Máy thiếu RAM đang nạp model có thể trả lời chậm hơn 3 giây. */
   readonly healthTimeoutMs: number;
   /** Giữ model nạp sẵn giữa các lần gọi (B8, B11), vd "30m"; rỗng = mặc định của Ollama. */
@@ -56,6 +58,8 @@ export class OllamaService {
     // tuyến intent) tự kết thúc sớm hơn nhiều.
     this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 900_000);
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
+    const numGpu = (config.get<string>('OLLAMA_NUM_GPU') ?? '').trim();
+    this.numGpu = /^\d{1,3}$/.test(numGpu) ? Number(numGpu) : null;
     this.healthTimeoutMs = boundedInteger(config.get<string>('OLLAMA_HEALTH_TIMEOUT_MS'), 10_000, 1_000, 120_000);
     const keepAlive = (config.get<string>('OLLAMA_KEEP_ALIVE') ?? '').trim();
     this.keepAlive = /^-?\d+(\.\d+)?(ms|s|m|h)?$/.test(keepAlive) ? keepAlive : null;
@@ -118,6 +122,7 @@ export class OllamaService {
           options: {
             temperature: options?.temperature ?? 0.1,
             num_ctx: options?.numCtx ?? this.numCtx,
+            ...(this.numGpu !== null ? { num_gpu: this.numGpu } : {}),
           },
           messages,
         }),

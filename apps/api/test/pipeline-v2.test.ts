@@ -715,14 +715,33 @@ test('Ollama mất model (404 not found): báo lỗi riêng, job dừng thay vì
 
 test('@Injectable() gắn ngay vào class service (chèn class khác vào giữa làm API sập khi khởi động)', async () => {
   const { readdirSync, readFileSync } = await import('node:fs');
-  const dir = new URL('../src/', import.meta.url);
+  const { join } = await import('node:path');
+  const dir = join(__dirname, '../src');
   for (const file of readdirSync(dir).filter(name => name.endsWith('.ts'))) {
-    const lines = readFileSync(new URL(file, dir), 'utf8').split('\n');
+    const lines = readFileSync(join(dir, file), 'utf8').split('\n');
     lines.forEach((line, index) => {
       if (line.trim() !== '@Injectable()') return;
       const next = lines.slice(index + 1).find(candidate => candidate.trim() && !candidate.trim().startsWith('//'));
       assert.match(next ?? '', /^export class \w+(Service|Worker|Controller|Guard|Gateway|Provider|Scheduler|Store|Client|Repository|Interceptor|Filter|Strategy|Registry|Runner|Processor|Monitor|Queue)?\b(?! extends \w*Exception)/, `${file}:${index + 1}`);
       assert.doesNotMatch(next ?? '', /extends \w*(Exception|Error)\b/, `${file}:${index + 1} gắn @Injectable() vào class lỗi`);
     });
+  }
+});
+
+test('OLLAMA_NUM_GPU=0 gửi num_gpu cho Ollama (chạy chỉ CPU); bỏ trống thì không gửi', async () => {
+  const { OllamaService } = await import('../src/ollama');
+  const originalFetch = globalThis.fetch;
+  const bodies: any[] = [];
+  globalThis.fetch = (async (_url: string, init: any) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response('{"message":{"content":"{}"},"done":true}\n', { status: 200 });
+  }) as typeof fetch;
+  try {
+    await new OllamaService(new ConfigService({ OLLAMA_NUM_GPU: '0' })).chatStructured([{ role: 'user', content: 'x' }], {}).catch(() => undefined);
+    await new OllamaService(new ConfigService({})).chatStructured([{ role: 'user', content: 'x' }], {}).catch(() => undefined);
+    assert.equal(bodies[0].options.num_gpu, 0);
+    assert.equal('num_gpu' in bodies[1].options, false);
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
