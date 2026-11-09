@@ -128,3 +128,19 @@ test('pickCategoryByScore: chỉ chọn khi đủ cao và bỏ xa lĩnh vực k�
   assert.equal(pickCategoryByScore([0.3, 0.6, 0.59, 0.2, 0.2, 0.2, 0.2, 0.2]), null, 'hai lĩnh vực sát nhau');
   assert.equal(pickCategoryByScore([0.3, 0.4, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2]), null, 'không đủ giống');
 });
+
+test('documentGroups: văn bản có Điều 3, Điều 4 và phụ lục thì nhóm là mục a), b)… chứ không phải tên cơ quan', () => {
+  const ubnd = 'ỦY BAN NHÂN DÂN THÀNH PHỐ HỒ CHÍ MINH';
+  const dieu3 = [ubnd, 'Điều 3. Chỉ tiêu phát triển kinh tế - xã hội', '1. Chỉ tiêu phát triển kinh tế - xã hội'];
+  const paths = [
+    ...Array.from({ length: 6 }, () => [...dieu3, 'a) Chỉ tiêu về kinh tế']),
+    ...Array.from({ length: 7 }, () => [...dieu3, 'b) Chỉ tiêu văn hóa - xã hội']),
+    ...Array.from({ length: 5 }, () => [ubnd, 'Điều 4. Một số nhiệm vụ, giải pháp chủ yếu', '1. Huy động và sử dụng hiệu quả các nguồn lực']),
+    ...Array.from({ length: 3 }, () => ['PHỤ LỤC DỰ THẢO CÁC CHỈ TIÊU MẪU ĐỀ XUẤT BỔ SUNG']),
+  ];
+  const groups = documentGroups(paths);
+  assert.equal(groups[0], 'a) Chỉ tiêu về kinh tế');
+  assert.equal(groups[6], 'b) Chỉ tiêu văn hóa - xã hội');
+  assert.equal(groups[13], '1. Huy động và sử dụng hiệu quả các nguồn lực');
+  assert.equal(groups[18], 'PHỤ LỤC DỰ THẢO CÁC CHỈ TIÊU MẪU ĐỀ XUẤT BỔ SUNG');
+});

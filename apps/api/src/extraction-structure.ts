@@ -125,31 +125,60 @@ export function cleanHeading(label: string): string {
 }
 
 /**
+ * Đề mục "khung" của văn bản, không phải nhóm chỉ tiêu: Phần/Chương/Mục/Điều, hoặc dòng viết hoa toàn bộ (tên cơ quan
+ * "ỦY BAN NHÂN DÂN…", "QUYẾT ĐỊNH", "PHỤ LỤC…"). Nhóm chỉ tiêu nằm bên dưới các đề mục này.
+ */
+export function isContainerHeading(label: string): boolean {
+  if (/^(PHẦN|Phần|CHƯƠNG|Chương|MỤC|Mục|Điều)\s+([IVXLC]+|\d+)/u.test(label)) return true;
+  const letters = label.replace(/[^\p{L}]/gu, '');
+  return letters.length >= 6 && letters === letters.toUpperCase();
+}
+
+/**
  * Nhóm theo văn bản cho từng chỉ tiêu: cấp đề mục đầu tiên mà các chỉ tiêu bắt đầu khác nhau. Phần đầu chung
  * (tên văn bản, "Điều 3. Chỉ tiêu…") bỏ đi; một vài chỉ tiêu lạc ở mục khác (dưới 10%) không làm hỏng phần chung.
- * Tất cả cùng một mục thì nhóm là đề mục cuối.
+ * Khi chỗ khác nhau là đề mục khung (Điều 3 với Điều 4, thân văn bản với phụ lục) thì xét tiếp bên trong từng khung,
+ * để nhóm là "a) Chỉ tiêu về kinh tế" chứ không phải "ỦY BAN NHÂN DÂN THÀNH PHỐ…". Tất cả cùng một mục thì nhóm là
+ * đề mục cuối.
  */
 export function documentGroups(paths: (string[] | null | undefined)[]): (string | null)[] {
   const clean = paths.map(path => (Array.isArray(path) ? path.map(part => cleanHeading(String(part))).filter(Boolean) : []));
-  const withPath = clean.filter(path => path.length);
-  const prefix: string[] = [];
-  while (withPath.length) {
-    const level = prefix.length;
-    const counts = new Map<string, number>();
-    for (const path of withPath) {
-      if (path.length <= level || prefix.some((part, index) => path[index] !== part)) continue;
-      counts.set(path[level], (counts.get(path[level]) ?? 0) + 1);
+  const result: (string | null)[] = clean.map(path => (path.length ? path[path.length - 1] : null));
+
+  const assign = (members: number[], depth: number, guard: number) => {
+    if (!members.length || guard > 12) return;
+    let level = depth;
+    // Bỏ phần đầu chung (cho phép dưới 10% chỉ tiêu lạc mục).
+    for (;;) {
+      const counts = new Map<string, number>();
+      for (const index of members) {
+        const heading = clean[index][level];
+        if (heading !== undefined) counts.set(heading, (counts.get(heading) ?? 0) + 1);
+      }
+      const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      const deeper = members.some(index => clean[index].length > level + 1);
+      if (!top || top[1] < members.length * 0.9 || !deeper) break;
+      level += 1;
     }
-    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-    if (!top || top[1] < withPath.length * 0.9) break;
-    prefix.push(top[0]);
-  }
-  return clean.map(path => {
-    if (!path.length) return null;
-    let shared = 0;
-    while (shared < prefix.length && shared < path.length && path[shared] === prefix[shared]) shared += 1;
-    return path[shared] ?? path[path.length - 1];
-  });
+    const partitions = new Map<string, number[]>();
+    for (const index of members) {
+      const heading = clean[index][level] ?? clean[index][clean[index].length - 1];
+      if (heading === undefined) continue;
+      partitions.set(heading, [...(partitions.get(heading) ?? []), index]);
+    }
+    for (const [heading, group] of partitions) {
+      const nested = group.filter(index => clean[index].length > level + 1 && clean[index][level] === heading);
+      if (isContainerHeading(heading) && nested.length) {
+        for (const index of group) if (!nested.includes(index)) result[index] = heading;
+        assign(nested, level + 1, guard + 1);
+      } else {
+        for (const index of group) result[index] = heading;
+      }
+    }
+  };
+
+  assign(clean.map((path, index) => (path.length ? index : -1)).filter(index => index >= 0), 0, 0);
+  return result;
 }
 
 export interface StandardCategory {
