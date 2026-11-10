@@ -901,3 +901,66 @@ test('Worker B8 (D-016): đoạn Qwen đọc được thì không thêm ứng vi
   const fillIn = await run({ EXTRACTION_RULE_FILL_IN: 'true' });
   assert.ok(fillIn.some((c: any) => c.extractionMethod === ExtractionMethod.RULE_BASED && c.targetValue === 1200), 'bật lại D-007 thì luật bổ khuyết 1.200 tỷ');
 });
+
+test('Worker B8 (đủ mục): mục đánh số Qwen bỏ sót được hỏi lại riêng; vẫn thiếu thì ghi vào ghi chú của lượt', async () => {
+  const chunkText = '[Mục: Điều 3 > d) Chỉ tiêu]\n(21) Tỷ lệ hài lòng của người dân đạt 95%. (22) Tỷ lệ hồ sơ trực tuyến đạt 80%. (23) Tỷ lệ số hóa hồ sơ đạt 70%.';
+  const item = (ordinal: string, name: string, value: number) => ({
+    indicatorName: name, ordinalNumber: ordinal, parentIndicator: null, description: null, category: null,
+    targetValue: value, unit: '%', valueDirection: 'HIGHER_IS_BETTER', reportingFrequency: null, deadline: null, targetYear: 2026,
+    responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null,
+    sourceQuote: `(${ordinal}) ${name} đạt ${value}%.`, confidence: 0.9,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+  });
+  const workerRef: { id?: string } = {};
+  let created: any[] = [];
+  let completed: any = null;
+  const prompts: string[] = [];
+  const tx = {
+    extractionJob: { updateMany: async ({ data }: any) => { if (data?.status === 'COMPLETED') completed = data; return { count: 1 }; }, findUnique: async () => null },
+    indicatorCandidate: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { created = data; } },
+  };
+  const prisma = {
+    extractionJob: {
+      findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+      updateMany: async () => ({ count: 1 }),
+    },
+    sourceDocument: { findUnique: async () => ({ id: 'doc-1', title: 'NQ 01', docNumber: '01/NQ-HĐND', year: 2026, status: 'PROCESSED' }) },
+    documentChunk: {
+      findMany: async () => [
+        { id: 'c1', chunkIndex: 0, pageFrom: 3, pageTo: 3, text: chunkText, kind: 'section', hasDigits: true, headingPath: ['Điều 3', 'd) Chỉ tiêu'], elementIds: ['p3-e2'], leadSentence: null },
+      ],
+    },
+    documentPage: { findMany: async () => [{ pageNumber: 3, elements: [el('p3-e2', 'paragraph', chunkText.split('\n')[1])] }] },
+    localityProfile: { findUnique: async () => null },
+    department: { findMany: async () => [] },
+    ...fakeEmbeddingPrisma([]),
+    $transaction: async (fn: any) => fn(tx),
+  };
+  const ollama = {
+    ...fakeOllama(),
+    extractModel: 'qwen3-chitieu:v2',
+    numCtx: 8192,
+    isAvailable: async () => true,
+    chatStructured: async (messages: any[]) => {
+      const user = messages[messages.length - 1].content as string;
+      prompts.push(user);
+      // Lượt đầu chỉ trả mục (21); lượt hỏi lại (không còn mục 21 trong đoạn) trả mục (22), vẫn bỏ (23).
+      const indicators = user.includes('(21)') ? [item('21', 'Tỷ lệ hài lòng của người dân', 95)] : [item('22', 'Tỷ lệ hồ sơ trực tuyến', 80)];
+      return { content: JSON.stringify({ indicators }), model: 'qwen3-chitieu:v2', durationMs: 5 };
+    },
+  };
+  const worker = new ExtractionWorker(prisma as any, ollama as any, new ConfigService({ EXTRACTION_MAX_LLM_CHUNKS: '10' })) as any;
+  workerRef.id = worker.workerId;
+  await worker.processExtractJob(
+    { id: 'job-4', documentId: 'doc-1', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' },
+    new AbortController().signal,
+  );
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /\[Mục: Điều 3 > d\) Chỉ tiêu\]\n\(22\) Tỷ lệ hồ sơ trực tuyến đạt 80%\.\n\(23\)/);
+  assert.doesNotMatch(prompts[1], /hài lòng/);
+  assert.deepEqual(created.map((c: any) => c.targetValue), [95, 80]);
+  assert.deepEqual(created.map((c: any) => c.ordinal), ['21', '22']);
+  assert.equal(completed.stats.recheckCalls, 1);
+  assert.equal(completed.stats.recheckRecovered, 1);
+  assert.match(completed.note, /Còn 1 mục đánh số có số liệu nhưng chưa có đề xuất.*trang 3 mục \(23\): Tỷ lệ số hóa hồ sơ đạt 70%/);
+});

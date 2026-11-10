@@ -212,3 +212,15 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   nguyên thì không tính là sửa. Chuyên viên sửa thành ">= 130" thì lưu `targetText`, màn hình chỉ tiêu ghép thêm
   đơn vị tính. Không ghi vào CSDL lúc bóc tách để các màn hình đang hiển thị `targetText` không mất đơn vị.
 - **Câu hỏi mở**: đánh giá hoàn thành theo ký hiệu chưa làm; "khoảng X" tính đạt từ mức nào chờ người dùng chốt.
+
+## D-020 · 2026-11-11 · Kiểm tra đủ mục: đếm mục đánh số trong văn bản, hỏi lại Qwen các mục thiếu
+
+- **Bối cảnh**: VB-2026-0008 hai lần mất chỉ tiêu (mục (1)–(13), rồi (22)–(26)) mà lượt trích xuất vẫn báo hoàn tất;
+  chỉ phát hiện khi so tay với PDF. B10 kiểm từng bản ghi nên không thấy bản ghi không tồn tại.
+- **Chọn**: `extraction-completeness.ts` đếm các mục "(n)" (đầu dòng hoặc sau dấu kết câu) và hàng bảng có ô STT trong
+  từng đoạn; mục có số liệu mục tiêu (bỏ số hiệu văn bản, điều khoản) mà không đề xuất nào trích từ đó là mục thiếu.
+  Qwen được hỏi lại một lần với đoạn rút gọn chỉ gồm các mục thiếu (tối đa `EXTRACTION_RECHECK_MAX` lần mỗi văn bản);
+  bản ghi tìm được ở lượt hỏi lại có cảnh báo riêng. Mục vẫn thiếu ghi vào ghi chú của lượt ("trang 3 mục (22): …") và
+  `stats.missingItems` cho người duyệt đối chiếu.
+- **Giới hạn**: chỉ áp dụng cho đoạn Qwen đọc được; văn bản không đánh số thì không kiểm được (đợt 2: kiểm "số chưa
+  được trích"). Mục có số nhưng không phải chỉ tiêu sẽ thành ghi chú thừa, chấp nhận vì chỉ là nhắc đối chiếu.

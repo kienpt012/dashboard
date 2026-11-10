@@ -46,6 +46,7 @@ import { adjustedConfidence, validateConsistency, validateRecord, type Validatio
 import { dot, IndicatorMatcher, normalizeVector } from './indicator-matching';
 import { diceSimilarity, matchDepartmentByName } from './matching';
 import { detectThreshold } from './target-threshold';
+import { describeMissing, missingItems, recheckText } from './extraction-completeness';
 import {
   OcrServiceClient,
   OcrServiceUnavailableError,
@@ -120,6 +121,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly maxLlmChunks: number;
   /** D-007 cũ: thêm ứng viên luật vào cả đoạn Qwen đã đọc được. Mặc định tắt (D-016): chỉ dùng luật khi Qwen lỗi. */
   private readonly ruleFillIn: boolean;
+  /** Số lần tối đa hỏi lại Qwen cho các mục đánh số còn thiếu trong một văn bản (kiểm tra đủ mục); 0 = chỉ ghi chú. */
+  private readonly recheckMax: number;
   private readonly llmExtractor: LlmIndicatorExtractor;
   private readonly ocrClient: OcrServiceClient;
   private readonly matcher: IndicatorMatcher;
@@ -138,6 +141,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     // đoạn vượt trần vẫn được bộ luật xử lý và job ghi chú rõ để người dùng biết.
     this.maxLlmChunks = parseBoundedInteger(config.get<string>('EXTRACTION_MAX_LLM_CHUNKS'), 40, 1, 500);
     this.ruleFillIn = (config.get<string>('EXTRACTION_RULE_FILL_IN') ?? '').trim().toLowerCase() === 'true';
+    this.recheckMax = parseBoundedInteger(config.get<string>('EXTRACTION_RECHECK_MAX'), 10, 0, 100);
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
     this.ocrClient = new OcrServiceClient();
     this.matcher = new IndicatorMatcher(prisma, ollama);
@@ -792,8 +796,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       llmCapped: 0,
       ruleFallbackChunks: 0,
       llmMs: 0,
+      recheckCalls: 0,
+      recheckRecovered: 0,
     };
     let llmChunksUsed = 0;
+    // Mục đánh số có số liệu mà sau khi hỏi lại vẫn không có đề xuất nào: ghi vào ghi chú của lượt cho người duyệt.
+    const missingNotes: string[] = [];
 
     for (const [index, chunk] of chunks.entries()) {
       throwIfAborted(signal);
@@ -851,6 +859,39 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
               `LLM lỗi ở đoạn ${chunk.chunkIndex} của tài liệu ${document.id}: ${error instanceof Error ? error.name : 'unknown'}`,
             );
           }
+        }
+        if (llmOk) {
+          // Kiểm tra đủ mục: mục "(22)…" hay hàng STT có số liệu mà Qwen không trích thì hỏi lại riêng các mục đó.
+          const refs = () => llmResults.map(item => ({ sourceQuote: item.sourceQuote, targetValue: item.targetValue, ordinal: item.ordinal }));
+          let missing = missingItems(chunk.text, chunk.kind, refs());
+          if (missing.length && stats.recheckCalls < this.recheckMax) {
+            stats.recheckCalls += 1;
+            try {
+              const again = await this.llmExtractor.extractFromChunk(recheckText(chunk.text, chunk.kind, missing), {
+                documentTitle: document.title,
+                docNumber: document.docNumber,
+                defaultYear: document.year,
+              }, signal, () => this.touchExtractJob(job));
+              stats.llmMs += again.durationMs;
+              if (!again.parseError) {
+                const body = chunkBody(chunk.text);
+                const gaps = missing;
+                const recovered = again.indicators.filter((item) => {
+                  const position = locateQuote(body, item.sourceQuote, item.targetValue);
+                  return position !== null && gaps.some(gap => position >= gap.start && position < gap.end);
+                });
+                for (const item of recovered) item.warnings.push('Mục này Qwen bỏ sót ở lượt đầu, được trích ở lượt hỏi lại (kiểm tra đủ mục).');
+                stats.recheckRecovered += recovered.length;
+                llmResults = [...llmResults, ...recovered];
+                missing = missingItems(chunk.text, chunk.kind, refs());
+              }
+            } catch (error) {
+              throwIfAborted(signal);
+              if (error instanceof OllamaModelMissingError) throw error;
+              this.logger.warn(`Hỏi lại mục thiếu lỗi ở đoạn ${chunk.chunkIndex} của tài liệu ${document.id}: ${error instanceof Error ? error.name : 'unknown'}`);
+            }
+          }
+          for (const item of missing) missingNotes.push(describeMissing(item, chunk.pageFrom));
         }
         if (!llmOk) stats.ruleFallbackChunks += 1;
         for (const item of llmResults) {
@@ -1055,6 +1096,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       stats.llmCapped
         ? `Tài liệu lớn: ${stats.llmCapped} đoạn vượt trần ${this.maxLlmChunks} đoạn gửi Qwen nên dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
         : null,
+      missingNotes.length
+        ? `Còn ${missingNotes.length} mục đánh số có số liệu nhưng chưa có đề xuất, cần đối chiếu với văn bản: ${missingNotes.slice(0, 8).join('; ')}${missingNotes.length > 8 ? '; …' : ''}.`
+        : null,
       matching.method === 'dice' && unique.length
         ? `Không nhúng được bằng ${this.ollama.embedModel}: so trùng theo chữ thay vì theo nghĩa.`
         : null,
@@ -1066,6 +1110,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       byMethod: countBy(candidateRows.map(row => row.extractionMethod)),
       ruleFallbackCandidates: unique.filter(item => item.fallbackReason).length,
       validation: ruleCounts,
+      missingItems: missingNotes.slice(0, 30),
       flaggedCandidates: candidateRows.filter(row => row.validationFlags !== undefined).length,
       matchMethod: matching.method,
       matchClasses: countBy(candidateRows.map(row => row.matchClass ?? 'MOI')),
