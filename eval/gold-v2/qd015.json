@@ -1,0 +1,276 @@
+{
+  "document": "QĐ 015/QĐ-UBND phường Minh An (văn bản mẫu tự soạn, không phải văn bản thật)",
+  "note": "Đáp án soạn tay từ văn bản mẫu (tên, giá trị, đơn vị, số thứ tự, nhóm). Cột plan do target-threshold.ts sinh từ câu trích trong đáp án và đã rà tay ngày 08/11/2026; category gán tay theo 8 lĩnh vực chuẩn.",
+  "indicators": [
+    {
+      "ordinal": "1",
+      "name": "Tổng thu ngân sách nhà nước trên địa bàn",
+      "value": 125.5,
+      "unit": "tỷ đồng",
+      "plan": ">= 125,5",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "1",
+      "name": "Tốc độ tăng tổng thu ngân sách so với năm 2025",
+      "value": 8,
+      "unit": "%",
+      "plan": ">= 8",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "2",
+      "name": "Tốc độ tăng tổng mức bán lẻ hàng hóa và doanh thu dịch vụ tiêu dùng so với năm 2025",
+      "value": 10,
+      "unit": "%",
+      "plan": "> 10",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "2",
+      "name": "Thu nhập bình quân đầu người",
+      "value": 96,
+      "unit": "triệu đồng/người/năm",
+      "plan": "= 96",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "3",
+      "name": "Số doanh nghiệp thành lập mới có địa chỉ hoạt động trên địa bàn",
+      "value": 45,
+      "unit": "doanh nghiệp",
+      "plan": ">= 45",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "4",
+      "name": "Tỷ lệ giải ngân kế hoạch vốn đầu tư công được giao",
+      "value": 100,
+      "unit": "%",
+      "plan": "= 100",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "5",
+      "name": "Tỷ lệ hộ kinh doanh sử dụng phương thức thanh toán không dùng tiền mặt",
+      "value": 70,
+      "unit": "%",
+      "plan": "70 - 75",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "6",
+      "name": "Số cơ sở sản xuất, kinh doanh được hỗ trợ thực hiện chuyển đổi số",
+      "value": 120,
+      "unit": "cơ sở",
+      "plan": ">= 120",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "7",
+      "name": "Tỷ lệ hồ sơ đăng ký hộ kinh doanh giải quyết quá hạn",
+      "value": 2,
+      "unit": "%",
+      "plan": "<= 2",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "8",
+      "name": "Tỷ lệ giảm số hộ kinh doanh ngừng hoạt động so với năm 2025",
+      "value": 5,
+      "unit": "%",
+      "plan": ">= 5",
+      "group": "1. Chỉ tiêu về kinh tế",
+      "category": "Kinh tế"
+    },
+    {
+      "ordinal": "9",
+      "name": "Tỷ lệ người dân tham gia bảo hiểm y tế",
+      "value": 95.5,
+      "unit": "%",
+      "plan": ">= 95,5",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "9",
+      "name": "Tỷ lệ dân số được tạo lập hồ sơ sức khỏe điện tử",
+      "value": 90,
+      "unit": "%",
+      "plan": ">= 90",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "10",
+      "name": "Tỷ lệ trẻ em dưới một tuổi được tiêm chủng đầy đủ các loại vắc xin theo chương trình",
+      "value": 98,
+      "unit": "%",
+      "plan": ">= 98",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "10",
+      "name": "Tỷ lệ phụ nữ mang thai được khám thai định kỳ",
+      "value": 95,
+      "unit": "%",
+      "plan": "= 95",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "11",
+      "name": "Tỷ lệ trẻ em dưới năm tuổi suy dinh dưỡng thể nhẹ cân",
+      "value": 6.5,
+      "unit": "%",
+      "plan": "< 6,5",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "12",
+      "name": "Tỷ lệ giảm số ca mắc sốt xuất huyết so với năm 2025",
+      "value": 10,
+      "unit": "%",
+      "plan": ">= 10",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "13",
+      "name": "Tỷ lệ người từ 60 tuổi trở lên được khám sức khỏe định kỳ hoặc khám sàng lọc miễn phí",
+      "value": 85,
+      "unit": "%",
+      "plan": ">= 85",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "14",
+      "name": "Số lượt khám bệnh, tư vấn và chăm sóc sức khỏe ban đầu tại Trạm Y tế",
+      "value": 12000,
+      "unit": "lượt",
+      "plan": "khoảng 12.000",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "15",
+      "name": "Tỷ lệ cơ sở kinh doanh dịch vụ ăn uống thuộc diện quản lý được kiểm tra an toàn thực phẩm",
+      "value": 100,
+      "unit": "%",
+      "plan": "= 100",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "16",
+      "name": "Số vụ ngộ độc thực phẩm tập thể",
+      "value": 0,
+      "unit": "vụ",
+      "plan": "= 0",
+      "group": "2. Chỉ tiêu về y tế và chăm sóc sức khỏe",
+      "category": "Y tế"
+    },
+    {
+      "ordinal": "17",
+      "name": "Tỷ lệ hồ sơ thủ tục hành chính được giải quyết đúng hạn và trước hạn",
+      "value": 99,
+      "unit": "%",
+      "plan": ">= 99",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "17",
+      "name": "Tỷ lệ hồ sơ nộp trực tuyến trên tổng số hồ sơ của các thủ tục đủ điều kiện cung cấp trực tuyến",
+      "value": 85,
+      "unit": "%",
+      "plan": ">= 85",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "18",
+      "name": "Tỷ lệ kết quả giải quyết thủ tục hành chính được số hóa",
+      "value": 100,
+      "unit": "%",
+      "plan": "= 100",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "18",
+      "name": "Tỷ lệ hồ sơ sử dụng lại thông tin, giấy tờ đã được số hóa",
+      "value": 60,
+      "unit": "%",
+      "plan": ">= 60",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "19",
+      "name": "Mức độ hài lòng của người dân, tổ chức đối với việc giải quyết thủ tục hành chính",
+      "value": 97.5,
+      "unit": "%",
+      "plan": ">= 97,5",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "20",
+      "name": "Tỷ lệ phản ánh, kiến nghị về thủ tục hành chính được xử lý trong thời hạn quy định",
+      "value": 100,
+      "unit": "%",
+      "plan": "= 100",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "21",
+      "name": "Tỷ lệ thanh toán trực tuyến đối với hồ sơ có phát sinh nghĩa vụ tài chính",
+      "value": 80,
+      "unit": "%",
+      "plan": ">= 80",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "22",
+      "name": "Thời gian chờ trung bình của người dân tại khu vực tiếp nhận hồ sơ",
+      "value": 15,
+      "unit": "phút/lượt",
+      "plan": "<= 15",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "23",
+      "name": "Số buổi hướng dẫn người dân sử dụng dịch vụ công trực tuyến",
+      "value": 12,
+      "unit": "buổi",
+      "plan": ">= 12",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    },
+    {
+      "ordinal": "24",
+      "name": "Tỷ lệ cán bộ, công chức tham gia giải quyết thủ tục hành chính được bồi dưỡng kỹ năng số",
+      "value": 100,
+      "unit": "%",
+      "plan": "= 100",
+      "group": "3. Chỉ tiêu về hành chính công và chuyển đổi số",
+      "category": "Hành chính công - chuyển đổi số"
+    }
+  ]
+}
