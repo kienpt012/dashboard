@@ -222,7 +222,7 @@ function Wizard({ templates, current }: { templates: Templates; current: Localit
           subTitle={`Phòng ban: tạo mới ${result.departments.created}, cập nhật ${result.departments.updated}`}
           extra={
             <Space wrap>
-              <Link to="/admin">
+              <Link to="/admin/dieu-hanh">
                 <Button type="primary">Về trung tâm điều hành</Button>
               </Link>
               <Link to="/admin/bo-chi-tieu">

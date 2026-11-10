@@ -560,7 +560,7 @@ export default function Wallboard() {
         event.preventDefault();
         setPaused(value => !value);
       } else if (event.key.toLowerCase() === 'f') void toggleFull();
-      else if (event.key === 'Escape' && !document.fullscreenElement) navigate('/admin');
+      else if (event.key === 'Escape' && !document.fullscreenElement) navigate('/admin/dieu-hanh');
     };
     const onFull = () => setFull(Boolean(document.fullscreenElement));
     window.addEventListener('keydown', onKey);
@@ -680,7 +680,7 @@ export default function Wallboard() {
             <button type="button" onClick={() => void toggleFull()} aria-label="Toàn màn hình">
               {full ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
             </button>
-            <button type="button" onClick={() => navigate('/admin')} aria-label="Thoát trình chiếu">
+            <button type="button" onClick={() => navigate('/admin/dieu-hanh')} aria-label="Thoát trình chiếu">
               <CloseOutlined />
             </button>
           </div>

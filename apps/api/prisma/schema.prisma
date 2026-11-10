@@ -292,6 +292,17 @@ model User {
   notifications           Notification[]
   explanationRequests     ExplanationRequest[]     @relation("ExplanationRequester")
   bugReports              BugReport[]
+  workspace               UserWorkspace?
+}
+
+// Bàn làm việc riêng; không chia sẻ cấu hình, ghi chú hay lối tắt giữa tài khoản.
+model UserWorkspace {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config    Json
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model PasswordResetChallenge {
