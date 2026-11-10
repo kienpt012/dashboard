@@ -22,7 +22,7 @@ import {
   type ParsedDocument,
   type ParsedPage,
 } from './document-processing';
-import { EXTRACTION_PROMPT_VERSION, LlmIndicatorExtractor, type LlmExtractedIndicator } from './extraction-llm';
+import { EXTRACTION_PROMPT_VERSION, LlmIndicatorExtractor, type LlmExtractedIndicator, type LlmResultCache } from './extraction-llm';
 import {
   chunkLikelyHasIndicators,
   detectDeadline,
@@ -123,6 +123,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly ruleFillIn: boolean;
   /** Số lần tối đa hỏi lại Qwen cho các mục đánh số còn thiếu trong một văn bản (kiểm tra đủ mục); 0 = chỉ ghi chú. */
   private readonly recheckMax: number;
+  /** Nhớ kết quả Qwen theo đoạn để "Đọc lại" không gọi lại Qwen cho đoạn không đổi; số ngày giữ (0 = tắt). */
+  private readonly llmCacheDays: number;
   private readonly llmExtractor: LlmIndicatorExtractor;
   private readonly ocrClient: OcrServiceClient;
   private readonly matcher: IndicatorMatcher;
@@ -142,6 +144,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.maxLlmChunks = parseBoundedInteger(config.get<string>('EXTRACTION_MAX_LLM_CHUNKS'), 40, 1, 500);
     this.ruleFillIn = (config.get<string>('EXTRACTION_RULE_FILL_IN') ?? '').trim().toLowerCase() === 'true';
     this.recheckMax = parseBoundedInteger(config.get<string>('EXTRACTION_RECHECK_MAX'), 10, 0, 100);
+    this.llmCacheDays = parseBoundedInteger(config.get<string>('EXTRACTION_LLM_CACHE_DAYS'), 90, 0, 3650);
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
     this.ocrClient = new OcrServiceClient();
     this.matcher = new IndicatorMatcher(prisma, ollama);
@@ -698,6 +701,32 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     return result.map((value, index) => value ?? categoryByKeywords(items[index].modelCategory));
   }
 
+  /**
+   * Bộ nhớ kết quả Qwen theo đoạn cho một lượt. Khoá gồm digest của model trong Ollama, nên tạo lại model cùng tên từ
+   * trọng số khác thì không dùng nhầm kết quả cũ; không hỏi được digest hoặc EXTRACTION_LLM_CACHE_DAYS=0 thì không nhớ.
+   */
+  private async openLlmCache(documentId: string, signal: AbortSignal): Promise<{ store: LlmResultCache; modelDigest: string } | undefined> {
+    if (!this.llmCacheDays || typeof this.ollama.modelDigest !== 'function') return undefined;
+    const modelDigest = await this.ollama.modelDigest(this.ollama.extractModel, signal);
+    if (!modelDigest) return undefined;
+    const cutoff = new Date(Date.now() - this.llmCacheDays * 86_400_000);
+    await this.prisma.llmExtractionCache.deleteMany({ where: { createdAt: { lt: cutoff } } }).catch(() => undefined);
+    const store: LlmResultCache = {
+      get: async (key) => {
+        const row = await this.prisma.llmExtractionCache.findUnique({ where: { key }, select: { content: true, createdAt: true } });
+        return row && row.createdAt >= cutoff ? row.content : null;
+      },
+      put: async (key, entry) => {
+        await this.prisma.llmExtractionCache.upsert({
+          where: { key },
+          create: { key, model: entry.model, content: entry.content, durationMs: entry.durationMs, documentId },
+          update: { model: entry.model, content: entry.content, durationMs: entry.durationMs, createdAt: new Date() },
+        });
+      },
+    };
+    return { store, modelDigest };
+  }
+
   /** Gia hạn lease job trích xuất giữa hai lần gọi Qwen (một đoạn có thể gọi hai lần, mỗi lần tới 8 phút). */
   private async touchExtractJob(job: ClaimedJob, chunksDone?: number): Promise<void> {
     const touched = await this.prisma.extractionJob.updateMany({
@@ -798,7 +827,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       llmMs: 0,
       recheckCalls: 0,
       recheckRecovered: 0,
+      llmCached: 0,
     };
+    const llmCache = llmAvailable ? await this.openLlmCache(document.id, signal) : undefined;
     let llmChunksUsed = 0;
     // Mục đánh số có số liệu mà sau khi hỏi lại vẫn không có đề xuất nào: ghi vào ghi chú của lượt cho người duyệt.
     const missingNotes: string[] = [];
@@ -835,8 +866,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
               documentTitle: document.title,
               docNumber: document.docNumber,
               defaultYear: document.year,
-            }, signal, () => this.touchExtractJob(job));
+            }, signal, () => this.touchExtractJob(job), llmCache);
             stats.llmMs += result.durationMs;
+            if (result.cached) stats.llmCached += 1;
             if (result.retried) stats.llmRetried += 1;
             if (result.parseError) {
               stats.llmParseErrors += 1;
@@ -871,7 +903,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
                 documentTitle: document.title,
                 docNumber: document.docNumber,
                 defaultYear: document.year,
-              }, signal, () => this.touchExtractJob(job));
+              }, signal, () => this.touchExtractJob(job), llmCache);
               stats.llmMs += again.durationMs;
               if (!again.parseError) {
                 const body = chunkBody(chunk.text);
@@ -1095,6 +1127,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         : null,
       stats.llmCapped
         ? `Tài liệu lớn: ${stats.llmCapped} đoạn vượt trần ${this.maxLlmChunks} đoạn gửi Qwen nên dùng bộ luật. Tăng EXTRACTION_MAX_LLM_CHUNKS nếu cần đọc sâu hơn.`
+        : null,
+      stats.llmCached
+        ? `${stats.llmCached}/${stats.llmChunks} đoạn dùng lại kết quả Qwen đã lưu (nội dung, model và prompt không đổi).`
         : null,
       missingNotes.length
         ? `Còn ${missingNotes.length} mục đánh số có số liệu nhưng chưa có đề xuất, cần đối chiếu với văn bản: ${missingNotes.slice(0, 8).join('; ')}${missingNotes.length > 8 ? '; …' : ''}.`

@@ -176,6 +176,24 @@ export class OllamaService {
     };
   }
 
+  /**
+   * Digest của model trong Ollama (đổi khi tag được tạo lại từ trọng số khác). Dùng làm một phần khoá bộ nhớ kết quả
+   * trích xuất, để kết quả của bản model cũ không bị dùng lại cho bản mới cùng tên. Không hỏi được thì null.
+   */
+  async modelDigest(model: string = this.extractModel, signal?: AbortSignal): Promise<string | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, { signal: combineAbortSignals(this.healthTimeoutMs, signal) });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { models?: { name?: string; model?: string; digest?: string }[] };
+      const wanted = model.includes(':') ? model : `${model}:latest`;
+      const found = (payload.models ?? []).find(entry => entry.name === wanted || entry.model === wanted);
+      return typeof found?.digest === 'string' && found.digest ? found.digest : null;
+    } catch {
+      rethrowExternalAbort(signal);
+      return null;
+    }
+  }
+
   async embed(texts: string[], options?: { model?: string }): Promise<number[][]> {
     if (!texts.length) return [];
     const model = options?.model || this.embedModel;

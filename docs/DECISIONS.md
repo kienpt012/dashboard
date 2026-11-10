@@ -224,3 +224,14 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   `stats.missingItems` cho người duyệt đối chiếu.
 - **Giới hạn**: chỉ áp dụng cho đoạn Qwen đọc được; văn bản không đánh số thì không kiểm được (đợt 2: kiểm "số chưa
   được trích"). Mục có số nhưng không phải chỉ tiêu sẽ thành ghi chú thừa, chấp nhận vì chỉ là nhắc đối chiếu.
+
+## D-021 · 2026-11-11 · Nhớ kết quả Qwen theo đoạn
+
+- **Bối cảnh**: trên CPU, Qwen chiếm khoảng 97% thời gian (VB-2026-0008: 2.068 giây cho 40 đoạn, đọc file 36 giây). Mỗi
+  lần sửa code rồi "Đọc lại" là chạy lại cả 35 phút dù phần lớn đoạn không đổi.
+- **Chọn**: bảng `LlmExtractionCache` lưu câu trả lời thô của Qwen, khoá bằng SHA-256 của mọi thứ quyết định câu trả
+  lời ở temperature 0: phiên bản prompt, tên model, digest của model trong Ollama, schema, và toàn bộ tin nhắn gửi đi.
+  Lưu câu trả lời thô (không lưu bản ghi đã làm sạch) để các sửa đổi ở bước làm sạch, B10, nhóm, ký hiệu vẫn có hiệu
+  lực khi đọc lại. Không hỏi được digest thì không nhớ; câu trả lời hỏng JSON không được lưu.
+- **Vệ sinh dữ liệu**: dòng gắn với văn bản tạo ra nó và bị xoá cùng văn bản; quá `EXTRACTION_LLM_CACHE_DAYS` (mặc định
+  90) thì bỏ. Đặt 0 để tắt, ví dụ khi cần đo thời gian chạy thật.

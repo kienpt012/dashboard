@@ -659,6 +659,7 @@ model SourceDocument {
   updatedAt       DateTime              @updatedAt
   pages           DocumentPage[]
   chunks          DocumentChunk[]
+  llmCache        LlmExtractionCache[]
   jobs            ExtractionJob[]
   candidates      IndicatorCandidate[]
   sourcedTargets  Target[]              @relation("TargetSourceDocument")
@@ -776,26 +777,42 @@ model SourceAnchor {
 }
 
 model DocumentChunk {
-  id         String               @id @default(cuid())
-  documentId String
-  document   SourceDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  chunkIndex Int
-  pageFrom   Int
-  pageTo     Int
-  text       String
-  charCount  Int
+  id           String               @id @default(cuid())
+  documentId   String
+  document     SourceDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex   Int
+  pageFrom     Int
+  pageTo       Int
+  text         String
+  charCount    Int
   // B7: chuỗi đề mục chứa đoạn, id phần tử nguồn, loại đoạn (section | table | form), câu đầu mục.
   headingPath  Json?
   elementIds   Json?
-  kind         String  @default("section")
+  kind         String               @default("section")
   leadSentence String?
   // Đoạn không có chữ số nào không gửi Qwen (căn cứ pháp lý, lời mở đầu).
-  hasDigits    Boolean @default(true)
+  hasDigits    Boolean              @default(true)
   // Số phần tử nguồn mang cờ can_ra_soat của OCR.
-  ocrFlagged   Int     @default(0)
-  candidates IndicatorCandidate[]
+  ocrFlagged   Int                  @default(0)
+  candidates   IndicatorCandidate[]
 
   @@unique([documentId, chunkIndex])
+}
+
+// Kết quả Qwen của từng đoạn, khoá theo nội dung gửi đi (model + digest + prompt + schema + đoạn văn). "Đọc lại" một
+// văn bản chỉ gọi Qwen cho đoạn có nội dung, prompt hoặc model thay đổi. Lưu câu trả lời thô để bước làm sạch và các
+// luật kiểm tra mới vẫn áp dụng. Xoá văn bản thì xoá luôn các dòng do văn bản đó tạo.
+model LlmExtractionCache {
+  key        String          @id
+  model      String
+  content    String
+  durationMs Int
+  documentId String?
+  document   SourceDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+
+  @@index([createdAt])
+  @@index([documentId])
 }
 
 // Hàng đợi xử lý bất đồng bộ theo mô hình MailOutbox: claim bằng FOR UPDATE SKIP LOCKED,

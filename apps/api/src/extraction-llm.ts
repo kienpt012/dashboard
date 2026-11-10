@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { TargetDirection, TargetFrequency } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { diceSimilarity as diceSimilarityForNames } from './matching';
@@ -382,6 +383,19 @@ export function sanitizeLlmIndicators(
   return { indicators, parseError: false, repaired };
 }
 
+/** Bộ nhớ kết quả Qwen theo đoạn: khoá theo đúng nội dung gửi đi, lưu câu trả lời thô. */
+export interface LlmResultCache {
+  get(key: string): Promise<string | null>;
+  put(key: string, entry: { model: string; content: string; durationMs: number }): Promise<void>;
+}
+
+/** Khoá bộ nhớ: mọi thứ quyết định câu trả lời ở temperature 0 (model + digest, prompt, schema, đoạn văn, ngữ cảnh). */
+export function extractionCacheKey(model: string, modelDigest: string, chunkText: string, context: LlmExtractionContext): string {
+  return createHash('sha256')
+    .update(JSON.stringify([EXTRACTION_PROMPT_VERSION, model, modelDigest, EXTRACTION_SCHEMA, buildExtractionMessages(chunkText, context)]))
+    .digest('hex');
+}
+
 export class LlmIndicatorExtractor {
   private readonly logger = new Logger(LlmIndicatorExtractor.name);
 
@@ -396,9 +410,18 @@ export class LlmIndicatorExtractor {
     context: LlmExtractionContext,
     signal?: AbortSignal,
     onAttempt?: () => Promise<void>,
-  ): Promise<{ indicators: LlmExtractedIndicator[]; model: string; durationMs: number; parseError: boolean; repaired: boolean; retried: boolean }> {
+    cache?: { store: LlmResultCache; modelDigest: string },
+  ): Promise<{ indicators: LlmExtractedIndicator[]; model: string; durationMs: number; parseError: boolean; repaired: boolean; retried: boolean; cached: boolean }> {
     let durationMs = 0;
     let retried = false;
+    const cacheKey = cache ? extractionCacheKey(this.ollama.extractModel, cache.modelDigest, chunkText, context) : null;
+    if (cache && cacheKey) {
+      const stored = await cache.store.get(cacheKey).catch(() => null);
+      if (stored) {
+        const { indicators, parseError, repaired } = sanitizeLlmIndicators(stored, chunkText);
+        if (!parseError) return { indicators, model: this.ollama.extractModel, durationMs: 0, parseError, repaired: Boolean(repaired), retried, cached: true };
+      }
+    }
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const result = await this.ollama.chatStructured(
         buildExtractionMessages(chunkText, context),
@@ -412,7 +435,11 @@ export class LlmIndicatorExtractor {
       const { indicators, parseError, repaired } = sanitizeLlmIndicators(result.content, chunkText);
       if (!parseError || attempt === 2) {
         if (parseError) this.logger.warn('Kết quả LLM vẫn không đúng định dạng JSON sau khi gọi lại');
-        return { indicators, model: result.model, durationMs, parseError, repaired: Boolean(repaired), retried };
+        // Chỉ nhớ câu trả lời đọc được; lỗi lưu bộ nhớ không làm hỏng lượt trích xuất.
+        if (!parseError && cache && cacheKey) {
+          await cache.store.put(cacheKey, { model: result.model, content: result.content, durationMs: result.durationMs }).catch(() => undefined);
+        }
+        return { indicators, model: result.model, durationMs, parseError, repaired: Boolean(repaired), retried, cached: false };
       }
       this.logger.warn('Kết quả LLM không đúng định dạng JSON mong đợi, gọi lại một lần');
       retried = true;

@@ -69,6 +69,7 @@ services:
       EXTRACTION_MAX_LLM_CHUNKS: ${EXTRACTION_MAX_LLM_CHUNKS:-40}
       EXTRACTION_RULE_FILL_IN: ${EXTRACTION_RULE_FILL_IN:-false}
       EXTRACTION_RECHECK_MAX: ${EXTRACTION_RECHECK_MAX:-10}
+      EXTRACTION_LLM_CACHE_DAYS: ${EXTRACTION_LLM_CACHE_DAYS:-90}
       DISABLE_EXTRACTION_WORKER: ${DISABLE_EXTRACTION_WORKER:-false}
       # Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR) đọc B2–B6. Để trống thì dùng bộ đọc dự phòng
       # (pdf.js + Tesseract). Bật bằng COMPOSE_PROFILES=ocr và OCR_SERVICE_URL=http://ocr:8000 trong .env.

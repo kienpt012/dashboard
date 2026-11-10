@@ -964,3 +964,76 @@ test('Worker B8 (đủ mục): mục đánh số Qwen bỏ sót được hỏi l
   assert.equal(completed.stats.recheckRecovered, 1);
   assert.match(completed.note, /Còn 1 mục đánh số có số liệu nhưng chưa có đề xuất.*trang 3 mục \(23\): Tỷ lệ số hóa hồ sơ đạt 70%/);
 });
+
+test('Worker B8 (bộ nhớ theo đoạn): đọc lại văn bản không đổi thì không gọi lại Qwen; đổi digest model thì gọi lại', async () => {
+  const chunkText = '[Mục: Điều 2]\n(1) Tỷ lệ hộ nghèo giảm còn dưới 1,5%.';
+  const llmItem = {
+    indicatorName: 'Tỷ lệ hộ nghèo', ordinalNumber: '1', parentIndicator: null, description: null, category: null,
+    targetValue: 1.5, unit: '%', valueDirection: 'LOWER_IS_BETTER', reportingFrequency: null, deadline: null, targetYear: 2026,
+    responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null,
+    sourceQuote: '(1) Tỷ lệ hộ nghèo giảm còn dưới 1,5%.', confidence: 0.9,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+  };
+  const rows = new Map<string, any>();
+  let calls = 0;
+  let digest = 'sha256:aaa';
+  async function run() {
+    const workerRef: { id?: string } = {};
+    let created: any[] = [];
+    let completed: any = null;
+    const tx = {
+      extractionJob: { updateMany: async ({ data }: any) => { if (data?.status === 'COMPLETED') completed = data; return { count: 1 }; }, findUnique: async () => null },
+      indicatorCandidate: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { created = data; } },
+    };
+    const prisma = {
+      extractionJob: {
+        findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+        updateMany: async () => ({ count: 1 }),
+      },
+      sourceDocument: { findUnique: async () => ({ id: 'doc-1', title: 'KH 15', docNumber: '15/KH-UBND', year: 2026, status: 'PROCESSED' }) },
+      documentChunk: {
+        findMany: async () => [
+          { id: 'c1', chunkIndex: 0, pageFrom: 1, pageTo: 1, text: chunkText, kind: 'section', hasDigits: true, headingPath: ['Điều 2'], elementIds: ['p1-e2'], leadSentence: null },
+        ],
+      },
+      documentPage: { findMany: async () => [{ pageNumber: 1, elements: [el('p1-e2', 'paragraph', chunkText.split('\n')[1])] }] },
+      localityProfile: { findUnique: async () => null },
+      department: { findMany: async () => [] },
+      llmExtractionCache: {
+        deleteMany: async () => ({ count: 0 }),
+        findUnique: async ({ where }: any) => rows.get(where.key) ?? null,
+        upsert: async ({ where, create }: any) => { rows.set(where.key, { ...create, createdAt: new Date() }); },
+      },
+      ...fakeEmbeddingPrisma([]),
+      $transaction: async (fn: any) => fn(tx),
+    };
+    const ollama = {
+      ...fakeOllama(),
+      extractModel: 'qwen3-chitieu:v2',
+      numCtx: 8192,
+      isAvailable: async () => true,
+      modelDigest: async () => digest,
+      chatStructured: async () => { calls += 1; return { content: JSON.stringify({ indicators: [llmItem] }), model: 'qwen3-chitieu:v2', durationMs: 5 }; },
+    };
+    const worker = new ExtractionWorker(prisma as any, ollama as any, new ConfigService({ EXTRACTION_MAX_LLM_CHUNKS: '10' })) as any;
+    workerRef.id = worker.workerId;
+    await worker.processExtractJob(
+      { id: 'job-5', documentId: 'doc-1', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' },
+      new AbortController().signal,
+    );
+    return { created, completed };
+  }
+  const first = await run();
+  assert.equal(calls, 1);
+  assert.equal(first.completed.stats.llmCached, 0);
+  assert.equal(rows.size, 1);
+  assert.equal([...rows.values()][0].documentId, 'doc-1');
+  const second = await run();
+  assert.equal(calls, 1, 'lượt đọc lại dùng kết quả đã lưu');
+  assert.equal(second.completed.stats.llmCached, 1);
+  assert.match(second.completed.note, /1\/1 đoạn dùng lại kết quả Qwen đã lưu/);
+  assert.deepEqual(second.created.map((c: any) => [c.name, c.targetValue]), first.created.map((c: any) => [c.name, c.targetValue]));
+  digest = 'sha256:bbb';
+  await run();
+  assert.equal(calls, 2, 'model tạo lại từ trọng số khác thì không dùng kết quả cũ');
+});
