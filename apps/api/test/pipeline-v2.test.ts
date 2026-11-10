@@ -847,3 +847,57 @@ test('bỏ bản ghi lẻ lấy cận trên của khoảng "2 - 3%"', () => {
   assert.equal(isRangeBoundDuplicate(bound, range), false);
   assert.equal(isRangeBoundDuplicate(range, { ...bound, chunk: { id: 'c2' } }), false);
 });
+
+test('Worker B8 (D-016): đoạn Qwen đọc được thì không thêm ứng viên luật, trừ khi bật EXTRACTION_RULE_FILL_IN', async () => {
+  const chunkText = '[Mục: Điều 2 > 1. Chỉ tiêu kinh tế]\n(1) Phấn đấu thu ngân sách nhà nước đạt 1.200 tỷ đồng. (2) Tỷ lệ hộ nghèo giảm còn dưới 1,5%.';
+  const llmItem = {
+    indicatorName: 'Tỷ lệ hộ nghèo', ordinalNumber: '2', parentIndicator: null, description: null, category: 'kinh tế',
+    targetValue: 1.5, unit: '%', valueDirection: 'LOWER_IS_BETTER', reportingFrequency: null, deadline: null, targetYear: 2026,
+    responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null,
+    sourceQuote: '(2) Tỷ lệ hộ nghèo giảm còn dưới 1,5%.', confidence: 0.9,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+  };
+  async function run(env: Record<string, string>) {
+    const workerRef: { id?: string } = {};
+    let created: any[] = [];
+    const tx = {
+      extractionJob: { updateMany: async () => ({ count: 1 }), findUnique: async () => null },
+      indicatorCandidate: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { created = data; } },
+    };
+    const prisma = {
+      extractionJob: {
+        findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+        updateMany: async () => ({ count: 1 }),
+      },
+      sourceDocument: { findUnique: async () => ({ id: 'doc-1', title: 'KH 15', docNumber: '15/KH-UBND', year: 2026, status: 'PROCESSED' }) },
+      documentChunk: {
+        findMany: async () => [
+          { id: 'c1', chunkIndex: 0, pageFrom: 1, pageTo: 1, text: chunkText, kind: 'section', hasDigits: true, headingPath: ['Điều 2'], elementIds: ['p1-e2'], leadSentence: null },
+        ],
+      },
+      documentPage: { findMany: async () => [{ pageNumber: 1, elements: [el('p1-e2', 'paragraph', chunkText.split('\n')[1])] }] },
+      localityProfile: { findUnique: async () => null },
+      department: { findMany: async () => [] },
+      ...fakeEmbeddingPrisma([]),
+      $transaction: async (fn: any) => fn(tx),
+    };
+    const ollama = {
+      ...fakeOllama(),
+      extractModel: 'qwen3-chitieu:v2',
+      numCtx: 8192,
+      isAvailable: async () => true,
+      chatStructured: async () => ({ content: JSON.stringify({ indicators: [llmItem] }), model: 'qwen3-chitieu:v2', durationMs: 5 }),
+    };
+    const worker = new ExtractionWorker(prisma as any, ollama as any, new ConfigService({ EXTRACTION_MAX_LLM_CHUNKS: '10', ...env })) as any;
+    workerRef.id = worker.workerId;
+    await worker.processExtractJob(
+      { id: 'job-3', documentId: 'doc-1', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' },
+      new AbortController().signal,
+    );
+    return created;
+  }
+  const strict = await run({});
+  assert.deepEqual(strict.map((c: any) => c.extractionMethod), [ExtractionMethod.LLM]);
+  const fillIn = await run({ EXTRACTION_RULE_FILL_IN: 'true' });
+  assert.ok(fillIn.some((c: any) => c.extractionMethod === ExtractionMethod.RULE_BASED && c.targetValue === 1200), 'bật lại D-007 thì luật bổ khuyết 1.200 tỷ');
+});

@@ -64,6 +64,7 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `OLLAMA_TIMEOUT_MS` / `OLLAMA_NUM_CTX` | 480000 / 4096 | Timeout và context |
 | `OLLAMA_HEALTH_TIMEOUT_MS` | 10000 | Job trích xuất hỏi Ollama tối đa 3 lần, mỗi lần chờ chừng này, rồi mới chuyển sang bộ luật |
 | `EXTRACTION_MAX_LLM_CHUNKS` | 40 | Số chunk tối đa gửi qua LLM trong một tài liệu |
+| `EXTRACTION_RULE_FILL_IN` | false | `true` thì đoạn Qwen đã đọc vẫn thêm ứng viên luật mà Qwen không có (D-007 cũ, xem D-016) |
 | `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 0 | Cấu hình worker; trần trang OCR của bộ đọc dự phòng, 0 = không giới hạn |
 | `OCR_SERVICE_URL` | (trống) | `http://ocr:8000` để đọc văn bản bằng ocr-service (Docling + VietOCR); trống thì dùng pdf.js + Tesseract |
 | `OCR_SERVICE_PAGE_BATCH` / `OCR_SERVICE_TIMEOUT_MS` | 4 / 900000 | Số trang mỗi lần gọi ocr-service và thời gian chờ mỗi lô (CPU: 40–50 giây mỗi trang scan) |

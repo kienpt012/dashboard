@@ -118,6 +118,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly maxAttempts: number;
   private readonly maxOcrPages: number;
   private readonly maxLlmChunks: number;
+  /** D-007 cũ: thêm ứng viên luật vào cả đoạn Qwen đã đọc được. Mặc định tắt (D-016): chỉ dùng luật khi Qwen lỗi. */
+  private readonly ruleFillIn: boolean;
   private readonly llmExtractor: LlmIndicatorExtractor;
   private readonly ocrClient: OcrServiceClient;
   private readonly matcher: IndicatorMatcher;
@@ -135,6 +137,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     // Tài liệu hàng trăm trang: mỗi đoạn LLM tốn 2–5 phút GPU nên phải có trần;
     // đoạn vượt trần vẫn được bộ luật xử lý và job ghi chú rõ để người dùng biết.
     this.maxLlmChunks = parseBoundedInteger(config.get<string>('EXTRACTION_MAX_LLM_CHUNKS'), 40, 1, 500);
+    this.ruleFillIn = (config.get<string>('EXTRACTION_RULE_FILL_IN') ?? '').trim().toLowerCase() === 'true';
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
     this.ocrClient = new OcrServiceClient();
     this.matcher = new IndicatorMatcher(prisma, ollama);
@@ -853,8 +856,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         for (const item of llmResults) {
           pending.push({ chunk, method: ExtractionMethod.LLM, payload: item, fallbackReason: null, repaired });
         }
-        // Luật bổ khuyết: chỉ thêm khi LLM không tìm được mục có cùng giá trị trong đoạn.
-        for (const item of ruleResults) {
+        // Đoạn Qwen đọc được thì tin Qwen (D-016): luật bắt cả câu số liệu nền ("năm 2025 là 80 hộ") thành ứng viên rác.
+        // Luật chỉ thay Qwen khi Qwen lỗi/tắt/vượt trần; EXTRACTION_RULE_FILL_IN=true bật lại bổ khuyết kiểu D-007.
+        for (const item of llmOk && !this.ruleFillIn ? [] : ruleResults) {
           const covered = llmResults.some(llmItem =>
             llmItem.targetValue !== null
             && item.targetValue !== null

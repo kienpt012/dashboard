@@ -150,6 +150,15 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Câu hỏi mở**: CER của VietOCR trên dataset1, ngưỡng gộp hai bộ đọc, ngưỡng B14 trên vài trăm cặp đã gán nhãn, thời
   gian mỗi trang trên CPU máy chủ, dung lượng image ocr-service.
 
+## D-016 · 2026-11-05 · Luật chỉ thay Qwen khi Qwen lỗi, bỏ bổ khuyết mặc định (sửa D-007; chốt 11/11)
+
+- Chạy thử trên máy người dùng (QĐ 015 mẫu, Qwen gốc và bản fine-tune): Qwen bắt 29–30/30 chỉ tiêu, còn mọi ứng viên
+  thừa của bản fine-tune đều do luật bổ khuyết thêm vào từ câu số liệu nền ("Số liệu nền năm 2025 là 80 hộ", "Kết quả
+  cân, đo…"). Bổ khuyết theo giá trị số không phân biệt được chỉ tiêu với số liệu nền.
+- Đoạn Qwen đọc được thì chỉ lấy kết quả Qwen. Luật vẫn chạy đầy đủ khi Qwen lỗi, hết giờ, Ollama tắt hoặc đoạn vượt
+  trần `EXTRACTION_MAX_LLM_CHUNKS` (graceful degradation của D-007 giữ nguyên).
+- `EXTRACTION_RULE_FILL_IN=true` bật lại bổ khuyết kiểu D-007 cho máy chỉ có model yếu.
+
 
 ## D-017 · 2026-11-06 · Thứ tự, số thứ tự, nhóm và lĩnh vực của đề xuất lấy từ cấu trúc văn bản
 
