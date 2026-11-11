@@ -7,6 +7,7 @@ import {
   ExtractionJobKind,
   ExtractionJobStatus,
   ExtractionMethod,
+  FrameworkKind,
   Prisma,
   TargetDirection,
   TargetFrequency,
@@ -17,10 +18,11 @@ import {
   parseDocx,
   parseImage,
   parsePdf,
-  parseXlsx,
+  parseXlsxTables,
   resolveOcrConfig,
   type ParsedDocument,
   type ParsedPage,
+  type XlsxSheetTable,
 } from './document-processing';
 import { EXTRACTION_PROMPT_VERSION, LlmIndicatorExtractor, type LlmExtractedIndicator, type LlmResultCache } from './extraction-llm';
 import {
@@ -62,6 +64,7 @@ import { PrismaService } from './prisma.service';
 import { pdfPageSpans } from './source-layout';
 import { textLayoutPage, unitSection, type LayoutSpan } from './source-locator';
 import { chunkFallbackPages, chunkStructuredPages, fallbackElements, resolveChunkingOptions, type ChunkingOptions, type StructuredChunk } from './structured-chunking';
+import { readDocumentTables, tableRowsInChunk, type TableChunkRows, type TableRecord } from './table-extraction';
 
 interface ClaimedJob {
   id: string;
@@ -125,6 +128,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly recheckMax: number;
   /** Nhớ kết quả Qwen theo đoạn để "Đọc lại" không gọi lại Qwen cho đoạn không đổi; số ngày giữ (0 = tắt). */
   private readonly llmCacheDays: number;
+  /** Bảng đã có cấu trúc hàng/cột được đọc bằng code, không gửi Qwen (D-022); "false" để tắt. */
+  private readonly tableReader: boolean;
   private readonly llmExtractor: LlmIndicatorExtractor;
   private readonly ocrClient: OcrServiceClient;
   private readonly matcher: IndicatorMatcher;
@@ -145,6 +150,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.ruleFillIn = (config.get<string>('EXTRACTION_RULE_FILL_IN') ?? '').trim().toLowerCase() === 'true';
     this.recheckMax = parseBoundedInteger(config.get<string>('EXTRACTION_RECHECK_MAX'), 10, 0, 100);
     this.llmCacheDays = parseBoundedInteger(config.get<string>('EXTRACTION_LLM_CACHE_DAYS'), 90, 0, 3650);
+    this.tableReader = (config.get<string>('EXTRACTION_TABLE_READER') ?? '').trim().toLowerCase() !== 'false';
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
     this.ocrClient = new OcrServiceClient();
     this.matcher = new IndicatorMatcher(prisma, ollama);
@@ -607,8 +613,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       parsed = await parseDocx(buffer);
       kind = 'docx';
     } else if (document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-      parsed = await parseXlsx(buffer);
-      kind = 'xlsx';
+      return xlsxOutcome(await parseXlsxTables(buffer), this.chunking);
     } else if (document.mimeType.startsWith('image/')) {
       parsed = await parseImage(buffer, ocr);
       kind = 'image';
@@ -630,12 +635,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         ocrConfidence: page.ocrConfidence ?? null,
         layout: page.layout ?? null,
         kind: pageKind(page),
-        elements: kind === 'xlsx' ? null : fallbackElements(page),
+        elements: fallbackElements(page),
       })),
       pageCount: parsed.pageCount,
       hasTextLayer: parsed.hasTextLayer,
       ocrUsed: parsed.ocrUsed,
-      chunks: chunkFallbackPages(parsed.pages, this.chunking, kind === 'xlsx'),
+      chunks: chunkFallbackPages(parsed.pages, this.chunking),
       parserVersion: kind === 'pdf' || kind === 'image' ? 'fallback pdf.js + tesseract' : `fallback ${kind}`,
       notes,
       stats: {
@@ -781,6 +786,36 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       for (const element of elements) if (element?.id) elementById.set(element.id, element);
     }
 
+    // Bảng có cấu trúc hàng/cột: code đọc thẳng từng hàng theo hàng tiêu đề (D-022), không gửi Qwen. Gắn bản ghi vào
+    // đoạn chứa hàng của nó; bảng nào còn hàng không khớp được với đoạn (văn bản đọc từ bản cũ) thì để Qwen đọc.
+    const locality = await loadLocality(this.prisma);
+    const tableRows = new Map<string, TableChunkRows>();
+    if (this.tableReader) {
+      const readings = readDocumentTables(
+        pageRows.map(row => ({ pageNumber: row.pageNumber, elements: elementsByPage.get(row.pageNumber) ?? [] })),
+        {
+          format: this.chunking.tableFormat,
+          defaultYear: document.year,
+          localityTerms: locality.configured ? [locality.shortName?.trim() || locality.name.replace(/^(phường|xã|thị trấn|đặc khu)\s+/iu, '')] : [],
+        },
+      );
+      const assigned = new Map<string, { rows: Set<number>; chunkIds: string[] }>();
+      for (const chunk of allChunks) {
+        const ids = Array.isArray(chunk.elementIds) ? (chunk.elementIds as string[]) : [];
+        const reading = chunk.kind === 'table' && ids.length === 1 ? readings.get(ids[0]) : undefined;
+        if (!reading?.recognized) continue;
+        const entry = assigned.get(ids[0]) ?? { rows: new Set<number>(), chunkIds: [] };
+        assigned.set(ids[0], entry);
+        entry.chunkIds.push(chunk.id);
+        tableRows.set(chunk.id, tableRowsInChunk(reading, chunkBody(chunk.text), entry.rows));
+      }
+      for (const [elementId, entry] of assigned) {
+        const reading = readings.get(elementId)!;
+        if (reading.records.every(record => entry.rows.has(record.row))) continue;
+        for (const chunkId of entry.chunkIds) tableRows.delete(chunkId);
+      }
+    }
+
     // Hỏi lại tối đa 3 lần với thời gian chờ dài: kết luận nhầm "Ollama không hoạt động" sẽ đẩy cả văn bản sang bộ luật.
     const llmAvailable = await this.ollama.isAvailable(signal, { timeoutMs: this.ollama.healthTimeoutMs, attempts: 3 });
     const initialized = await this.prisma.extractionJob.updateMany({
@@ -809,6 +844,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       fallbackReason: string | null;
       repaired: boolean;
       formTemplate?: string | null;
+      /** Bản ghi do bộ đọc bảng tạo: giữ mã số, ô kế hoạch nguyên văn, số thực hiện, nhóm trong bảng và vị trí hàng. */
+      table?: TableRecord;
+      position?: number;
     }
     const pending: PendingCandidate[] = [];
     const stats = {
@@ -816,6 +854,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       skippedNoDigits: 0,
       skippedNoSignal: 0,
       formChunks: 0,
+      tableChunks: 0,
       llmChunks: 0,
       llmSucceeded: 0,
       llmFailed: 0,
@@ -833,6 +872,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     let llmChunksUsed = 0;
     // Mục đánh số có số liệu mà sau khi hỏi lại vẫn không có đề xuất nào: ghi vào ghi chú của lượt cho người duyệt.
     const missingNotes: string[] = [];
+    // Hàng của bảng có tên nhưng không có giá trị để lập đề xuất: ghi vào ghi chú của lượt cho người duyệt.
+    const tableNotes: string[] = [];
 
     for (const [index, chunk] of chunks.entries()) {
       throwIfAborted(signal);
@@ -841,6 +882,19 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         stats.formChunks += 1;
         for (const item of formIndicators(chunk, elementById, document.year)) {
           pending.push({ chunk, method: ExtractionMethod.FORM_TEMPLATE, payload: item.payload, fallbackReason: null, repaired: false, formTemplate: item.template });
+        }
+      } else if (tableRows.has(chunk.id)) {
+        stats.tableChunks += 1;
+        const rows = tableRows.get(chunk.id)!;
+        for (const { record, position, line } of rows.records) {
+          pending.push({
+            chunk, method: ExtractionMethod.TABLE, payload: tablePayload(record, line), fallbackReason: null, repaired: false,
+            table: record, position,
+          });
+        }
+        for (const item of rows.unread) {
+          const text = item.line.replace(/\s+/g, ' ');
+          tableNotes.push(`trang ${chunk.pageFrom}: ${text.length > 70 ? `${text.slice(0, 69)}…` : text} (${item.reason})`);
         }
       } else if (!chunk.hasDigits) {
         // Căn cứ pháp lý, lời mở đầu: không có chữ số nào thì không có chỉ tiêu, không gửi Qwen.
@@ -992,7 +1046,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     const placed = distinct
       .map((item) => {
         const body = chunkBody(item.chunk.text);
-        const position = locateQuote(body, item.payload.sourceQuote, item.payload.targetValue);
+        const position = item.position ?? locateQuote(body, item.payload.sourceQuote, item.payload.targetValue);
         return { item, body, position, order: documentOrderKey(item.chunk.chunkIndex, position) };
       })
       .sort((a, b) => a.order - b.order || (pendingIndex.get(a.item) ?? 0) - (pendingIndex.get(b.item) ?? 0));
@@ -1000,7 +1054,6 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
 
     // B11–B14: so trùng với chỉ tiêu đang có và gợi ý mã trong danh mục (bge-m3; Ollama tắt thì Dice).
     throwIfAborted(signal);
-    const locality = await loadLocality(this.prisma);
     const matching = await this.matcher.matchMany(unique.map(item => ({
       name: item.payload.name,
       unit: item.payload.unit,
@@ -1022,6 +1075,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         sourceQuote: item.payload.sourceQuote,
         parentName: 'parentName' in item.payload ? item.payload.parentName : null,
         structureRepaired: item.repaired,
+        task: item.table?.kind === 'task',
         expectedUnits: [match?.suggestion?.unit, match && match.matchClass !== 'MOI' ? match.best?.unit : null].filter(Boolean),
         ocr: sources[index].ocr,
       };
@@ -1029,7 +1083,11 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     const consistency = validateConsistency(validationInputs);
 
     // Nhóm theo đề mục của chính văn bản; lĩnh vực chuẩn (cho dashboard) ưu tiên tên chỉ tiêu, đề mục, rồi so nghĩa, rồi mô hình.
-    const headingPaths = unique.map(item => (Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []));
+    // Đề mục nhóm nằm trong bảng ("I. CHỈ TIÊU KINH TẾ") nối tiếp chuỗi đề mục của đoạn chứa bảng.
+    const headingPaths = unique.map(item => [
+      ...(Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []),
+      ...(item.table?.groups ?? []),
+    ]);
     const groups = documentGroups(headingPaths);
     const categories = await this.resolveCategories(
       unique.map((item, index) => ({
@@ -1056,15 +1114,18 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         ? matchDepartmentByName(payload.responsibleDepartmentName, departments)
         : null;
       const isLlm = item.method === ExtractionMethod.LLM;
-      const llmPayload = isLlm ? (payload as LlmExtractedIndicator) : null;
-      const rulePayload = !isLlm ? (payload as RuleExtractedIndicator) : null;
+      // Bản ghi của bộ đọc bảng mang đủ trường như bản ghi của Qwen (số thứ tự, chỉ tiêu cha, mô tả).
+      const llmPayload = isLlm || item.table ? (payload as LlmExtractedIndicator) : null;
+      const rulePayload = !llmPayload ? (payload as RuleExtractedIndicator) : null;
       const warnings = [...payload.warnings];
       if (item.fallbackReason) {
         warnings.unshift(`${item.fallbackReason} ở đoạn này: bản ghi do bộ luật dự phòng tạo, cần đối chiếu kỹ với văn bản.`);
       }
       const headingPath = headingPaths[index];
       // Số thứ tự như văn bản ghi ("(9)", "9.", ô STT): dò trong văn bản gốc trước, mô hình chỉ là phương án phụ.
-      const ordinal = detectOrdinal(placed[index].body, placed[index].position, item.chunk.kind) ?? llmPayload?.ordinal ?? null;
+      const ordinal = item.table
+        ? item.table.ordinal
+        : detectOrdinal(placed[index].body, placed[index].position, item.chunk.kind) ?? llmPayload?.ordinal ?? null;
 
       candidateRows.push({
         documentId: document.id,
@@ -1074,7 +1135,13 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         status: CandidateStatus.PROPOSED,
         extractionMethod: item.method,
         model: isLlm ? this.ollama.extractModel : null,
-        promptVersion: isLlm ? EXTRACTION_PROMPT_VERSION : item.method === ExtractionMethod.FORM_TEMPLATE ? `form:${item.formTemplate ?? 'mau'}` : 'rule-v1',
+        promptVersion: isLlm ? EXTRACTION_PROMPT_VERSION
+          : item.table ? TABLE_READER_VERSION
+            : item.method === ExtractionMethod.FORM_TEMPLATE ? `form:${item.formTemplate ?? 'mau'}` : 'rule-v1',
+        ...(item.table?.kind === 'task' ? { targetKind: FrameworkKind.TASK } : {}),
+        standardCode: item.table?.code ?? null,
+        targetText: item.table?.targetText ?? null,
+        actualValue: item.table?.actualValue ?? null,
         name: payload.name,
         ordinal,
         parentName: llmPayload?.parentName ?? null,
@@ -1134,6 +1201,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       missingNotes.length
         ? `Còn ${missingNotes.length} mục đánh số có số liệu nhưng chưa có đề xuất, cần đối chiếu với văn bản: ${missingNotes.slice(0, 8).join('; ')}${missingNotes.length > 8 ? '; …' : ''}.`
         : null,
+      tableNotes.length
+        ? `Bảng có ${tableNotes.length} hàng không lập được đề xuất: ${tableNotes.slice(0, 6).join('; ')}${tableNotes.length > 6 ? '; …' : ''}.`
+        : null,
       matching.method === 'dice' && unique.length
         ? `Không nhúng được bằng ${this.ollama.embedModel}: so trùng theo chữ thay vì theo nghĩa.`
         : null,
@@ -1146,6 +1216,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       ruleFallbackCandidates: unique.filter(item => item.fallbackReason).length,
       validation: ruleCounts,
       missingItems: missingNotes.slice(0, 30),
+      tableUnreadRows: tableNotes.slice(0, 30),
       flaggedCandidates: candidateRows.filter(row => row.validationFlags !== undefined).length,
       matchMethod: matching.method,
       matchClasses: countBy(candidateRows.map(row => row.matchClass ?? 'MOI')),
@@ -1251,6 +1322,33 @@ function countBy(values: (string | null | undefined)[]): Record<string, number> 
   return counts;
 }
 
+/** Phiên bản bộ đọc bảng, ghi vào promptVersion của đề xuất để biết bản ghi do bản luật nào tạo. */
+export const TABLE_READER_VERSION = 'table-v1';
+
+/** Bản ghi của bộ đọc bảng theo đúng khuôn bản ghi trích xuất; câu trích là dòng của hàng trong đoạn. */
+export function tablePayload(record: TableRecord, line: string): LlmExtractedIndicator {
+  return {
+    name: record.name,
+    ordinal: record.ordinal,
+    parentName: record.parentName,
+    description: record.description,
+    category: null,
+    targetValue: record.targetValue,
+    unit: record.unit,
+    direction: record.direction,
+    frequency: record.frequency,
+    deadline: record.deadline,
+    targetYear: record.targetYear,
+    responsibleDepartmentName: record.responsibleDepartmentName,
+    coordinatingDepartments: record.coordinatingDepartments,
+    legalBasis: null,
+    sourceQuote: line.length > 600 ? `${line.slice(0, 597)}...` : line,
+    confidence: record.confidence,
+    fieldConfidence: record.fieldConfidence,
+    warnings: [...record.warnings],
+  };
+}
+
 /** Bộ đọc của phần tử OCR (để đo tỷ lệ dòng phải rà soát và áp luật Chất lượng OCR). */
 const OCR_SOURCES = new Set(['vietocr', 'paddle', 'merged', 'tesseract', 'opencv']);
 
@@ -1273,6 +1371,40 @@ export interface ParseOutcome {
   parserVersion: string;
   notes: string[];
   stats: Record<string, unknown>;
+}
+
+/**
+ * Excel đọc ngay trong API: mỗi sheet là một trang có một bảng có cấu trúc (ô, ô gộp, địa chỉ ô), cùng khuôn với
+ * ocr-service. Nhờ vậy bảng Excel được chia đoạn theo hàng, lặp hàng tiêu đề và được bộ đọc bảng đọc bằng code.
+ */
+export function xlsxOutcome(sheets: XlsxSheetTable[], chunking: ChunkingOptions): ParseOutcome {
+  const pages: ParsedPageRecord[] = sheets.map((sheet, index) => {
+    const page = index + 1;
+    const base = { page, bbox: null, confidence: null, source: 'xlsx', flags: [] as string[] };
+    const elements: StructuredElement[] = [
+      { ...base, id: `p${page}-e0`, type: 'heading', label: 'sheet', text: `Bảng: ${sheet.sheet}`, level: 1 },
+      {
+        ...base, id: `p${page}-e1`, type: 'table', label: 'table', text: sheet.text,
+        table: {
+          numRows: sheet.numRows,
+          numCols: sheet.numCols,
+          sheet: sheet.sheet,
+          cells: sheet.cells.map(cell => ({ ...cell, header: false, rowHeader: false, bbox: null, confidence: null, source: 'xlsx', flags: [] })),
+        },
+      },
+    ];
+    return { pageNumber: page, text: `Bảng: ${sheet.sheet}\n${sheet.text}`, ocrUsed: false, ocrConfidence: null, layout: null, kind: 'xlsx', elements };
+  });
+  return {
+    pages,
+    pageCount: pages.length,
+    hasTextLayer: pages.length > 0,
+    ocrUsed: false,
+    chunks: chunkStructuredPages(pages.map(page => ({ page: page.pageNumber, elements: page.elements ?? [] })), chunking),
+    parserVersion: 'fallback xlsx',
+    notes: [],
+    stats: { parser: 'fallback', pages: pages.length, ocrPages: 0, skippedOcrPages: 0, pageKinds: pages.length ? { xlsx: pages.length } : {} },
+  };
 }
 
 function normalizeForSearch(value: string) {

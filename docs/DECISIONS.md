@@ -235,3 +235,27 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   lực khi đọc lại. Không hỏi được digest thì không nhớ; câu trả lời hỏng JSON không được lưu.
 - **Vệ sinh dữ liệu**: dòng gắn với văn bản tạo ra nó và bị xoá cùng văn bản; quá `EXTRACTION_LLM_CACHE_DAYS` (mặc định
   90) thì bỏ. Đặt 0 để tắt, ví dụ khi cần đo thời gian chạy thật.
+
+## D-022 · 2026-11-11 · Bảng có hàng, cột được đọc bằng code, không gửi Qwen
+
+- **Bối cảnh**: lần chạy trên máy người dùng (CPU) cho thấy Qwen chiếm gần hết thời gian, trong khi bảng chỉ tiêu
+  (Phụ lục, biểu giao chỉ tiêu, file Excel) đã có sẵn cấu trúc hàng và cột. Qwen đọc bảng dễ lệch cột (lấy số của cột
+  "Thực hiện" làm kế hoạch), bỏ hàng, và mất mã số, ô kế hoạch nguyên văn.
+- **Chọn**: `table-extraction.ts` nhận vai trò từng cột theo chữ ở hàng tiêu đề (STT, tên chỉ tiêu, mã số, đơn vị tính,
+  kế hoạch, thực hiện, so sánh, chủ trì, phối hợp, thời hạn, tần suất, ghi chú) rồi lập mỗi hàng một bản ghi
+  (`ExtractionMethod.TABLE`, `promptVersion` = `table-v1`). Không có luật riêng cho một mẫu bảng nào: tiêu đề nhiều
+  tầng, ô gộp, hàng đánh số cột, hàng nhóm (I, A, chữ in hoa, hàng gộp cả bảng), hàng con (a, -, +), bảng nối trang
+  không lặp tiêu đề, và cột của từng địa phương đều suy từ cấu trúc.
+- **Cột kế hoạch chính**: cột của chính địa phương, rồi năm của văn bản, rồi "cả năm"; cột quý, tháng bị trừ điểm; cột
+  của năm trước coi là số thực hiện. Ô chính trống thì lấy cột kế hoạch khác có số và ghi cảnh báo; các cột kế hoạch
+  còn lại chép vào mô tả. Ô kế hoạch giữ nguyên văn ở `targetText` ("Tăng 4-5%", "dưới 1,5%").
+- **Bảng nhiệm vụ** (không có cột kế hoạch nhưng có cột chủ trì hoặc thời hạn): mỗi hàng thành đề xuất loại Nhiệm vụ
+  (`targetKind = TASK`) theo quy ước hoàn thành 100% ("Hoàn thành", đơn vị %), hạn lấy ở cột thời hạn ("Quý II/2026" là
+  30/6/2026), không có thì cuối năm văn bản. Lý do: màn duyệt bắt buộc đủ đơn vị, giá trị, năm, hạn cho mọi loại.
+- **Khi nào Qwen vẫn đọc**: bảng không nhận ra hàng tiêu đề, dưới một nửa số hàng lập được bản ghi, hoặc văn bản đã đọc
+  từ bản cũ nên hàng không khớp được với đoạn. Hàng có tên nhưng không có giá trị được ghi vào ghi chú của lượt
+  ("Bảng có N hàng không lập được đề xuất") và `stats.tableUnreadRows`. `EXTRACTION_TABLE_READER=false` để tắt.
+- **Excel**: API tự đọc .xlsx thành bảng có cấu trúc (ô, ô gộp, địa chỉ ô, chỉ sheet đang hiện) nên không cần
+  ocr-service. Số trong ô được ghi theo cách người Việt nhìn thấy ("12,1", "95%"), giống nhau ở cả API và ocr-service.
+- **Giới hạn**: bảng scan mà OCR đọc sai cấu trúc thì code đọc sai theo; người duyệt vẫn là bước chốt (D-006). Bảng
+  ma trận (mỗi cột là một đơn vị) mới lấy cột của chính địa phương, các cột khác chép vào mô tả.

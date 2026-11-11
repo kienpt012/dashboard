@@ -137,6 +137,8 @@ enum ExtractionMethod {
   LLM
   // Biểu mẫu cố định: mẫu tọa độ ô + luật tạo bản ghi, không gọi Qwen (B6, B8).
   FORM_TEMPLATE
+  // Bảng có cấu trúc hàng/cột: code đọc từng hàng theo hàng tiêu đề, không gọi Qwen (D-022).
+  TABLE
 }
 
 enum CandidateKind {

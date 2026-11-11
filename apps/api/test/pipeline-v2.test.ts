@@ -1037,3 +1037,141 @@ test('Worker B8 (bộ nhớ theo đoạn): đọc lại văn bản không đổi
   await run();
   assert.equal(calls, 2, 'model tạo lại từ trọng số khác thì không dùng kết quả cũ');
 });
+
+// ---------------------------------------------------------------------------
+// D-022: bảng có cấu trúc được đọc bằng code, không gửi Qwen
+
+function tableElement(id: string, page: number, rows: (string | null)[][], extra: Partial<StructuredElement> = {}): StructuredElement {
+  const numCols = Math.max(...rows.map(row => row.length));
+  const cells = rows.flatMap((row, rowIndex) => row.map((text, colIndex) => (text
+    ? { row: rowIndex, col: colIndex, rowSpan: 1, colSpan: 1, text, header: rowIndex === 0, bbox: null, confidence: null, source: 'pdf_text', flags: [] }
+    : null))).filter((cell): cell is NonNullable<typeof cell> => cell !== null);
+  return el(id, 'table', '', { page, table: { numRows: rows.length, numCols, cells }, ...extra });
+}
+
+async function runTableDocument(elements: StructuredElement[], env: Record<string, string> = {}, llmIndicators: any[] | null = null) {
+  const pages = [...new Set(elements.map(element => element.page))].map(page => ({ page, elements: elements.filter(element => element.page === page) }));
+  const chunks = chunkStructuredPages(pages, { ...options, tableRowsPerChunk: 4 });
+  const workerRef: { id?: string } = {};
+  let created: any[] = [];
+  let completed: any = null;
+  let llmCalls = 0;
+  const tx = {
+    extractionJob: { updateMany: async ({ data }: any) => { if (data?.status === 'COMPLETED') completed = data; return { count: 1 }; }, findUnique: async () => null },
+    indicatorCandidate: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { created = data; } },
+  };
+  const prisma = {
+    extractionJob: {
+      findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+      updateMany: async () => ({ count: 1 }),
+    },
+    sourceDocument: { findUnique: async () => ({ id: 'doc-1', title: 'QĐ giao chỉ tiêu', docNumber: '333/QĐ-UBND', year: 2026, status: 'PROCESSED' }) },
+    documentChunk: { findMany: async () => chunks.map(chunk => ({ ...chunk, id: `c${chunk.chunkIndex}` })) },
+    documentPage: { findMany: async () => pages.map(page => ({ pageNumber: page.page, elements: page.elements })) },
+    localityProfile: { findUnique: async () => null },
+    department: { findMany: async () => [{ id: 'dep-kt', name: 'Phòng Kinh tế', code: 'KT' }] },
+    ...fakeEmbeddingPrisma([]),
+    $transaction: async (fn: any) => fn(tx),
+  };
+  const ollama = {
+    ...fakeOllama(),
+    extractModel: 'qwen3-chitieu:v2',
+    numCtx: 8192,
+    isAvailable: async () => true,
+    chatStructured: async () => {
+      llmCalls += 1;
+      return { content: JSON.stringify({ indicators: llmIndicators ?? [] }), model: 'qwen3-chitieu:v2', durationMs: 5 };
+    },
+  };
+  const worker = new ExtractionWorker(prisma as any, ollama as any, new ConfigService({ EXTRACTION_MAX_LLM_CHUNKS: '10', ...env })) as any;
+  workerRef.id = worker.workerId;
+  await worker.processExtractJob(
+    { id: 'job-t', documentId: 'doc-1', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' },
+    new AbortController().signal,
+  );
+  return { created, completed, llmCalls, chunks };
+}
+
+const ASSIGNMENT_TABLE = [
+  ['STT', 'Chỉ tiêu', 'Mã số', 'Đơn vị tính', 'Kế hoạch năm 2026', 'Đơn vị chủ trì'],
+  ['I', 'CHỈ TIÊU KINH TẾ', null, null, null, null],
+  ['1', 'Tốc độ tăng tổng giá trị sản phẩm trên địa bàn', 'CT2', '%', '10 - 10,5', 'Phòng Kinh tế'],
+  ['2', 'Tổng thu ngân sách nhà nước trên địa bàn', 'CT3', 'Tỷ đồng', '1.133', 'Phòng Kinh tế'],
+  ['II', 'CHỈ TIÊU VĂN HÓA - XÃ HỘI', null, null, null, null],
+  ['9', 'Tỷ lệ trường đạt chuẩn quốc gia', null, null, null, null],
+  ['-', 'Mầm non', null, '%', '70', null],
+  ['-', 'Tiểu học', null, '%', '≥ 95', null],
+  ['11', 'Tỷ lệ hộ nghèo theo chuẩn Thành phố', 'CT15', '%', '< 1,5', null],
+  ['12', 'Chỉ số hài lòng của người dân', null, null, null, null],
+];
+
+test('Worker D-022: bảng giao chỉ tiêu được code đọc từng hàng, không gọi Qwen; giữ nhóm, mã số, ô kế hoạch và thứ tự', async () => {
+  const { created, completed, llmCalls, chunks } = await runTableDocument([
+    el('p1-e0', 'heading', 'PHỤ LỤC 1'),
+    tableElement('p1-e1', 1, ASSIGNMENT_TABLE),
+  ]);
+  assert.ok(chunks.length >= 2, 'bảng dài được chia nhiều đoạn');
+  assert.equal(llmCalls, 0);
+  assert.equal(completed.stats.tableChunks, chunks.filter(chunk => chunk.kind === 'table').length);
+  assert.deepEqual(completed.stats.byMethod, { TABLE: 5 });
+  assert.deepEqual(created.map((c: any) => [c.ordinal, c.name, c.targetValue, c.unit]), [
+    ['1', 'Tốc độ tăng tổng giá trị sản phẩm trên địa bàn', 10, '%'],
+    ['2', 'Tổng thu ngân sách nhà nước trên địa bàn', 1133, 'Tỷ đồng'],
+    [null, 'Tỷ lệ trường đạt chuẩn quốc gia — Mầm non', 70, '%'],
+    [null, 'Tỷ lệ trường đạt chuẩn quốc gia — Tiểu học', 95, '%'],
+    ['11', 'Tỷ lệ hộ nghèo theo chuẩn Thành phố', 1.5, '%'],
+  ]);
+  const [growth, budget, nursery, , poverty] = created;
+  assert.equal(growth.extractionMethod, ExtractionMethod.TABLE);
+  assert.equal(growth.promptVersion, 'table-v1');
+  assert.equal(growth.model, null);
+  assert.equal(growth.standardCode, 'CT2');
+  assert.equal(growth.targetText, '10 - 10,5');
+  assert.equal(growth.groupName, 'I. CHỈ TIÊU KINH TẾ');
+  assert.equal(growth.category, 'Kinh tế');
+  assert.equal(growth.responsibleDepartmentId, 'dep-kt');
+  assert.equal(budget.sourceQuote, '2 Tổng thu ngân sách nhà nước trên địa bàn CT3 Tỷ đồng 1.133 Phòng Kinh tế');
+  assert.equal(nursery.groupName, 'II. CHỈ TIÊU VĂN HÓA - XÃ HỘI');
+  assert.equal(nursery.parentName, 'Tỷ lệ trường đạt chuẩn quốc gia');
+  assert.equal(poverty.direction, 'LOWER_IS_BETTER');
+  // Bản ghi đọc đúng từ bảng không dính cờ Bám nguồn hay Tên chỉ tiêu.
+  for (const candidate of created) {
+    const rules = ((candidate.validationFlags ?? []) as { rule: string }[]).map(flag => flag.rule);
+    assert.ok(!rules.includes('bam_nguon') && !rules.includes('ten_chi_tieu'), `${candidate.name}: ${rules.join(',')}`);
+  }
+  assert.ok(created.every((c: any, index: number) => index === 0 || c.documentOrder > created[index - 1].documentOrder), 'thứ tự theo hàng của bảng');
+  assert.match(completed.note, /Bảng có 1 hàng không lập được đề xuất: trang 1: 12 Chỉ số hài lòng của người dân \(không có giá trị kế hoạch\)/);
+});
+
+test('Worker D-022: EXTRACTION_TABLE_READER=false hoặc bảng không nhận ra bố cục thì vẫn gửi Qwen như trước', async () => {
+  const off = await runTableDocument([tableElement('p1-e1', 1, ASSIGNMENT_TABLE)], { EXTRACTION_TABLE_READER: 'false' });
+  assert.ok(off.llmCalls >= 1);
+  assert.equal(off.completed.stats.tableChunks, 0);
+  const unknown = await runTableDocument([tableElement('p1-e1', 1, [
+    ['Hạng mục', 'Số liệu'],
+    ['Tỷ lệ hộ dân đạt chuẩn văn hóa phấn đấu đạt', '95%'],
+    ['Số hộ kinh doanh phấn đấu đạt', '1.200 hộ'],
+  ])]);
+  assert.equal(unknown.completed.stats.tableChunks, 0);
+  assert.ok(unknown.llmCalls >= 1);
+});
+
+test('Worker D-022: bảng nhiệm vụ của kế hoạch thành đề xuất loại Nhiệm vụ, hạn lấy từ ô thời gian', async () => {
+  const { created, llmCalls } = await runTableDocument([tableElement('p1-e1', 1, [
+    ['STT', 'Nội dung công việc', 'Đơn vị chủ trì', 'Đơn vị phối hợp', 'Thời gian hoàn thành', 'Sản phẩm'],
+    ['1', 'Xây dựng kế hoạch tuyên truyền cải cách hành chính năm 2026', 'Phòng Kinh tế', 'Các khu phố', 'Quý II/2026', 'Kế hoạch'],
+    ['2', 'Rà soát thủ tục hành chính thuộc thẩm quyền giải quyết', 'Phòng Kinh tế', null, 'Thường xuyên', 'Báo cáo'],
+  ])]);
+  assert.equal(llmCalls, 0);
+  assert.deepEqual(created.map((c: any) => [c.targetKind, c.targetValue, c.unit, c.targetText]), [
+    ['TASK', 100, '%', 'Hoàn thành'],
+    ['TASK', 100, '%', 'Hoàn thành'],
+  ]);
+  assert.equal(created[0].deadline.toISOString().slice(0, 10), '2026-06-30');
+  assert.equal(created[0].coordinatingDepartments, 'Các khu phố');
+  assert.equal(created[1].deadline.toISOString().slice(0, 10), '2026-12-31');
+  for (const candidate of created) {
+    const rules = ((candidate.validationFlags ?? []) as { rule: string }[]).map(flag => flag.rule);
+    assert.deepEqual(rules.filter(rule => rule === 'bam_nguon' || rule === 'cau_truc'), [], candidate.name);
+  }
+});

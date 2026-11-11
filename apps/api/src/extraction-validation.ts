@@ -46,6 +46,8 @@ export interface ValidationRecord {
   ocr?: { flags: string[]; minConfidence: number | null } | null;
   /** Trường người duyệt đã sửa: không bắt bẻ lại bằng câu trích có thể đọc sai. */
   humanEditedFields?: string[];
+  /** Nhiệm vụ (không phải chỉ tiêu số): mục tiêu quy ước "hoàn thành 100%" không cần có nguyên văn trong câu trích. */
+  task?: boolean;
 }
 
 export const OCR_MIN_CONFIDENCE = 0.7;
@@ -103,7 +105,19 @@ export function dateAppearsIn(date: string, text: string): boolean {
   const patterns = [
     new RegExp(`\\b0?${d}\\s*[/.-]\\s*0?${m}\\s*[/.-]\\s*${year}\\b`),
     new RegExp(`ngày\\s+0?${d}\\s+tháng\\s+0?${m}\\s+năm\\s+${year}`),
+    // "trước 30/6": ngày và tháng, không ghi năm.
+    new RegExp(`(^|[^\\d/.-])0?${d}\\s*/\\s*0?${m}(?![\\d/])`),
   ];
+  // Hạn là ngày cuối kỳ thì câu trích ghi kỳ là đủ: "tháng 6/2026", "quý II/2026", "6 tháng đầu năm".
+  const monthNumber = Number(month);
+  if (Number(day) === new Date(Date.UTC(Number(year), monthNumber, 0)).getUTCDate()) {
+    patterns.push(new RegExp(`tháng\\s*0?${m}(?!\\d)`));
+    if (monthNumber % 3 === 0) {
+      const quarter = monthNumber / 3;
+      patterns.push(new RegExp(`quý\\s*(${quarter}|${['i', 'ii', 'iii', 'iv'][quarter - 1]})(?![\\p{L}\\d])`, 'u'));
+    }
+    if (monthNumber === 6) patterns.push(/(6|sáu) tháng đầu năm/);
+  }
   return patterns.some(pattern => pattern.test(normalized));
 }
 
@@ -143,7 +157,7 @@ export function validateRecord(record: ValidationRecord, sourceText?: string | n
     if (sourceText && !normalizeText(sourceText).includes(normalizeText(quote))) {
       flags.push({ rule: 'bam_nguon', message: 'Câu trích không có nguyên văn trong đoạn nguồn.' });
     }
-    if (record.targetValue !== null && record.targetValue !== undefined && !editedAny(record, ['targetValue'])) {
+    if (record.targetValue !== null && record.targetValue !== undefined && !record.task && !editedAny(record, ['targetValue'])) {
       const found = numbersInText(quote).some(value => sameNumber(value, record.targetValue!));
       if (!found) {
         flags.push({ rule: 'bam_nguon', message: `Giá trị ${record.targetValue} không có nguyên văn trong câu trích, nghi bị suy ra.` });
@@ -195,7 +209,11 @@ export function validateRecord(record: ValidationRecord, sourceText?: string | n
   }
 
   // Tên phải bám câu trích: model có lúc lấy tên của chỉ tiêu liền trước (giá trị và câu trích đúng, tên sai).
-  if (nameMissingFromQuote(name, record.sourceQuote)) {
+  // Chỉ tiêu thành phần mang tên cha ở đầu ("Tỷ lệ trường đạt chuẩn — Mầm non") mà câu trích chỉ là dòng "- Mầm non":
+  // so phần tên riêng của nó.
+  const parentPrefix = record.parentName ? `${record.parentName.trim()} — ` : '';
+  const ownName = parentPrefix && name.startsWith(parentPrefix) ? name.slice(parentPrefix.length) : name;
+  if (nameMissingFromQuote(ownName, record.sourceQuote)) {
     flags.push({ rule: 'ten_chi_tieu', message: 'Tên chỉ tiêu không khớp câu trích dẫn, có thể lấy nhầm tên của chỉ tiêu bên cạnh.' });
   }
 

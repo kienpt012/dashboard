@@ -129,7 +129,7 @@ function CandidateCard({ item, active, screen, onSelect, onEdit, onApprove, onRe
         </Space>
       </Flex>
       <Space size={[4, 4]} wrap style={{ margin: '6px 0' }}>
-        <Tooltip title={item.extractionMethod === 'LLM' ? `Mô hình ${item.model ?? ''}` : 'Theo quy tắc'}>
+        <Tooltip title={item.extractionMethod === 'LLM' ? `Mô hình ${item.model ?? ''}` : item.extractionMethod === 'TABLE' ? 'Đọc từ bảng' : 'Theo quy tắc'}>
           <Tag icon={<RobotOutlined />} color={confidenceColor(item.confidence)}>
             Tin cậy {pct(item.confidence * 100)}
           </Tag>

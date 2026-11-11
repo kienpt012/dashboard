@@ -1,6 +1,7 @@
 import type { DocumentChunkInput, ParsedPage } from './document-processing';
 import { chunkParsedPages, isTableLikePage } from './document-processing';
 import type { StructuredElement, StructuredPage } from './ocr-service';
+import { detectTableLayout, renderTableRows } from './table-extraction';
 
 // B7. Tiền xử lý và chia đoạn theo mục.
 // Mỗi đoạn là một hoặc vài mục đánh số liền nhau cùng một đề mục ("(9)", "1.", "a)"), hoặc một phần của bảng.
@@ -127,23 +128,6 @@ function headingLabel(text: string) {
   return single.length > HEADING_PATH_MAX ? `${single.slice(0, HEADING_PATH_MAX - 1)}…` : single;
 }
 
-function tableRows(element: StructuredElement, format: ChunkingOptions['tableFormat']): { text: string; header: boolean }[] {
-  const table = element.table;
-  if (!table) return element.text.split('\n').filter(Boolean).map(text => ({ text, header: false }));
-  const grid: string[][] = Array.from({ length: table.numRows }, () => Array.from({ length: table.numCols }, () => ''));
-  const headerRows = new Set<number>();
-  for (const cell of table.cells) {
-    if (cell.row < table.numRows && cell.col < table.numCols) grid[cell.row][cell.col] = cell.text ?? '';
-    if (cell.header) headerRows.add(cell.row);
-  }
-  return grid.map((cells, row) => {
-    const text = format === 'markdown'
-      ? `| ${cells.map(cell => cell.replace(/\|/g, '/')).join(' | ')} |`
-      : cells.filter(Boolean).join(' ');
-    return { text, header: headerRows.has(row) };
-  }).filter(row => row.text.replace(/[|\s]/g, ''));
-}
-
 /** Chia các trang đã có cấu trúc thành đoạn cho B8. */
 export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'elements'>[], options: ChunkingOptions = resolveChunkingOptions()): StructuredChunk[] {
   const chunks: StructuredChunk[] = [];
@@ -228,9 +212,15 @@ export function chunkStructuredPages(pages: Pick<StructuredPage, 'page' | 'eleme
       if (element.type === 'table') {
         closeUnit();
         flushUnits();
-        const rows = tableRows(element, options.tableFormat);
-        const header = rows.filter(row => row.header).map(row => row.text);
-        const body = rows.filter(row => !row.header);
+        const rows = renderTableRows(element, options.tableFormat);
+        // Hàng tiêu đề lặp lại ở đầu mỗi đoạn: ưu tiên hàng tiêu đề nhận ra theo chữ ("STT | Chỉ tiêu | Đơn vị tính…"),
+        // vì cờ của bộ đọc hay sai (Excel đánh dấu dòng tên bảng, bảng nối trang đánh dấu hàng dữ liệu đầu tiên).
+        const layout = detectTableLayout(element);
+        const detected = layout?.headerRows.length ? new Set(layout.headerRows) : null;
+        const numbering = new Set(layout?.skipRows ?? []);
+        const isHeader = (row: { row: number; header: boolean }) => (detected ? detected.has(row.row) : row.header);
+        const header = rows.filter(isHeader).map(row => row.text);
+        const body = rows.filter(row => !isHeader(row) && !numbering.has(row.row));
         const cellFlags = element.table?.cells.filter(cell => cell.flags?.includes('can_ra_soat')).length ?? flagged;
         for (let start = 0; start < body.length;) {
           let end = Math.min(body.length, start + options.tableRowsPerChunk);

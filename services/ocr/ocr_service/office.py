@@ -38,14 +38,32 @@ def convert_legacy(data: bytes, kind: str, timeout: int = 180) -> bytes:
         return output.read_bytes()
 
 
-def _cell_text(value) -> str:
+def _number_text(value: float, number_format: str | None) -> str:
+    """Số trong ô Excel viết theo kiểu Việt như người đọc thấy trên bảng: dấu phẩy thập phân ("12,1"), ô định dạng
+    phần trăm 0.95 thành "95%". Không chèn dấu chấm phân nhóm nghìn để "1133" không bị đọc nhầm."""
+
+    def plain(number: float) -> str:
+        text = f"{number:.12g}"
+        if "e" in text.lower():
+            text = f"{number:.10f}".rstrip("0").rstrip(".")
+        return text.replace(".", ",")
+
+    if number_format and "%" in number_format:
+        return plain(value * 100) + "%"
+    return plain(value)
+
+
+def _cell_text(value, number_format: str | None = None) -> str:
     if value is None:
         return ""
-    if isinstance(value, float):
-        return f"{value:.10g}"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)):
+        return _number_text(float(value), number_format)
     if isinstance(value, (dt.datetime, dt.date)):
-        return value.strftime("%Y-%m-%d")
-    return normalize_text(str(value))
+        return value.strftime("%d/%m/%Y")
+    # Ô có xuống dòng (Alt+Enter) vẫn là một ô: gộp về một dòng để mỗi hàng của bảng là một dòng chữ.
+    return " ".join(normalize_text(str(value)).split())
 
 
 def parse_xlsx(data: bytes) -> list[dict]:
@@ -72,7 +90,8 @@ def parse_xlsx(data: bytes) -> list[dict]:
             for c in range(1, max_col + 1):
                 if (r, c) in covered:
                     continue
-                text = _cell_text(sheet.cell(row=r, column=c).value)
+                cell = sheet.cell(row=r, column=c)
+                text = _cell_text(cell.value, cell.number_format)
                 if text:
                     row.append((r, c, text))
             if row:

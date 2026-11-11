@@ -15,6 +15,13 @@ export const MATCH_LABEL: Record<MatchClass, { label: string; color: string }> =
 
 export function methodTag(item: Pick<IndicatorCandidate, 'extractionMethod' | 'origin'>) {
   if (item.origin === 'HUMAN' || item.extractionMethod === 'LLM') return null;
+  if (item.extractionMethod === 'TABLE') {
+    return (
+      <Tooltip title="Hàng của bảng được đọc trực tiếp theo cột (số thứ tự, tên, đơn vị tính, kế hoạch), không qua Qwen">
+        <Tag color="cyan">Đọc từ bảng</Tag>
+      </Tooltip>
+    );
+  }
   return (
     <Tooltip title={item.extractionMethod === 'FORM_TEMPLATE' ? 'Ô biểu mẫu cố định, luật tạo bản ghi không qua Qwen' : 'Bản ghi do bộ luật tạo, không phải Qwen: đối chiếu kỹ với văn bản'}>
       <Tag color="purple">{item.extractionMethod === 'FORM_TEMPLATE' ? 'Kết quả từ luật · biểu mẫu' : 'Kết quả từ luật'}</Tag>

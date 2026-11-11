@@ -297,8 +297,14 @@ export async function parseDocx(buffer: Buffer): Promise<ParsedDocument> {
   };
 }
 
+/** exceljs là gói CommonJS: nạp động dưới ESM chỉ có `default`, dưới CommonJS thì có sẵn `Workbook`. */
+async function loadExcelJs(): Promise<typeof import('exceljs')> {
+  const loaded = await import('exceljs');
+  return (loaded as unknown as { default?: typeof import('exceljs') }).default ?? loaded;
+}
+
 export async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
-  const ExcelJS = await import('exceljs');
+  const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
   const pages: ParsedPage[] = [];
@@ -337,6 +343,117 @@ export async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
     hasTextLayer: normalizedPages.some(page => page.text.length > 0),
     ocrUsed: false,
   };
+}
+
+export interface XlsxTableCell {
+  row: number;
+  col: number;
+  rowSpan: number;
+  colSpan: number;
+  text: string;
+  /** Địa chỉ ô trong Excel, vd "Sheet1!C12". */
+  ref: string;
+}
+
+export interface XlsxSheetTable {
+  sheet: string;
+  numRows: number;
+  numCols: number;
+  cells: XlsxTableCell[];
+  text: string;
+}
+
+const XLSX_MAX_ROWS = 5000;
+const XLSX_MAX_COLS = 60;
+
+function columnLetters(index: number): string {
+  let letters = '';
+  for (let value = index; value > 0; value = Math.floor((value - 1) / 26)) letters = String.fromCharCode(65 + ((value - 1) % 26)) + letters;
+  return letters;
+}
+
+function columnNumber(letters: string): number {
+  return [...letters.toUpperCase()].reduce((sum, char) => sum * 26 + (char.charCodeAt(0) - 64), 0);
+}
+
+/**
+ * Số trong ô Excel viết theo kiểu Việt như người đọc thấy trên bảng: dấu phẩy thập phân ("12,1"), ô định dạng phần
+ * trăm 0.95 thành "95%". Không chèn dấu chấm phân nhóm nghìn để "1133" không bị đọc nhầm.
+ */
+export function excelNumberText(value: number, numFmt?: string | null): string {
+  const plain = (number: number) => {
+    const rounded = Number(number.toPrecision(12));
+    const text = /e/i.test(String(rounded)) ? rounded.toFixed(10).replace(/\.?0+$/, '') : String(rounded);
+    return text.replace('.', ',');
+  };
+  if (numFmt && numFmt.includes('%')) return `${plain(value * 100)}%`;
+  return plain(value);
+}
+
+function excelCellText(value: unknown, numFmt?: string | null): string {
+  if (typeof value === 'number') return excelNumberText(value, numFmt);
+  if (value instanceof Date) {
+    const pad = (part: number) => String(part).padStart(2, '0');
+    return `${pad(value.getUTCDate())}/${pad(value.getUTCMonth() + 1)}/${value.getUTCFullYear()}`;
+  }
+  if (value && typeof value === 'object' && 'result' in (value as Record<string, unknown>)) {
+    return excelCellText((value as { result?: unknown }).result, numFmt);
+  }
+  return cellText(value).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Excel thành bảng có cấu trúc (mỗi sheet hiển thị một bảng): giữ ô gộp, địa chỉ ô và giá trị đã tính của công thức.
+ * Cùng khuôn với bảng của ocr-service để bộ chia đoạn và bộ đọc bảng dùng chung, không cần bật ocr-service.
+ */
+export async function parseXlsxTables(buffer: Buffer): Promise<XlsxSheetTable[]> {
+  const ExcelJS = await loadExcelJs();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+  const sheets: XlsxSheetTable[] = [];
+  workbook.eachSheet((worksheet) => {
+    if (worksheet.state && worksheet.state !== 'visible') return;
+    const spans = new Map<string, { rows: [number, number]; cols: [number, number] }>();
+    const covered = new Set<string>();
+    for (const range of ((worksheet.model as { merges?: string[] }).merges ?? [])) {
+      const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i.exec(range);
+      if (!match) continue;
+      const [left, top, right, bottom] = [columnNumber(match[1]), Number(match[2]), columnNumber(match[3]), Number(match[4])];
+      spans.set(`${top}:${left}`, { rows: [top, bottom], cols: [left, right] });
+      for (let row = top; row <= bottom; row += 1) {
+        for (let col = left; col <= right; col += 1) if (row !== top || col !== left) covered.add(`${row}:${col}`);
+      }
+    }
+    const raw: { row: number; col: number; text: string }[] = [];
+    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rowNumber > XLSX_MAX_ROWS) return;
+      row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        if (colNumber > XLSX_MAX_COLS || covered.has(`${rowNumber}:${colNumber}`)) return;
+        const text = excelCellText(cell.value, cell.numFmt);
+        if (text) raw.push({ row: rowNumber, col: colNumber, text });
+      });
+    });
+    if (!raw.length) return;
+    const usedRows = [...new Set(raw.map(cell => cell.row))].sort((a, b) => a - b);
+    const usedCols = [...new Set(raw.map(cell => cell.col))].sort((a, b) => a - b);
+    const rowIndex = new Map(usedRows.map((row, index) => [row, index]));
+    const colIndex = new Map(usedCols.map((col, index) => [col, index]));
+    const cells: XlsxTableCell[] = raw.map((cell) => {
+      const span = spans.get(`${cell.row}:${cell.col}`);
+      return {
+        row: rowIndex.get(cell.row)!,
+        col: colIndex.get(cell.col)!,
+        // Ô gộp tính theo hàng/cột còn lại sau khi bỏ hàng, cột trống.
+        rowSpan: span ? Math.max(1, usedRows.filter(row => row >= span.rows[0] && row <= span.rows[1]).length) : 1,
+        colSpan: span ? Math.max(1, usedCols.filter(col => col >= span.cols[0] && col <= span.cols[1]).length) : 1,
+        text: cell.text,
+        ref: `${worksheet.name}!${columnLetters(cell.col)}${cell.row}`,
+      };
+    });
+    const lines = usedRows.map((_, index) => cells.filter(cell => cell.row === index).sort((a, b) => a.col - b.col).map(cell => cell.text).join(' '));
+    sheets.push({ sheet: worksheet.name, numRows: usedRows.length, numCols: usedCols.length, cells, text: normalizeExtractedText(lines.join('\n')) });
+  });
+  return sheets;
 }
 
 function cellText(value: unknown): string {

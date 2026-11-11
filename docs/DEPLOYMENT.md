@@ -66,6 +66,7 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `EXTRACTION_MAX_LLM_CHUNKS` | 40 | Số chunk tối đa gửi qua LLM trong một tài liệu |
 | `EXTRACTION_RECHECK_MAX` | 10 | Kiểm tra đủ mục: số lần tối đa hỏi lại Qwen cho các mục đánh số còn thiếu trong một văn bản; 0 = chỉ ghi chú |
 | `EXTRACTION_LLM_CACHE_DAYS` | 90 | Số ngày nhớ kết quả Qwen theo đoạn; "Đọc lại" chỉ gọi Qwen cho đoạn, prompt hoặc model đã đổi. 0 = tắt |
+| `EXTRACTION_TABLE_READER` | true | Bảng đã có hàng, cột (phụ lục, biểu giao chỉ tiêu, Excel) được đọc bằng code thay vì gửi Qwen (D-022); `false` để tắt |
 | `EXTRACTION_RULE_FILL_IN` | false | `true` thì đoạn Qwen đã đọc vẫn thêm ứng viên luật mà Qwen không có (D-007 cũ, xem D-016) |
 | `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 0 | Cấu hình worker; trần trang OCR của bộ đọc dự phòng, 0 = không giới hạn |
 | `OCR_SERVICE_URL` | (trống) | `http://ocr:8000` để đọc văn bản bằng ocr-service (Docling + VietOCR); trống thì dùng pdf.js + Tesseract |

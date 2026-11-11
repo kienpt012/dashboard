@@ -312,7 +312,7 @@ export type ExtractionJobKind='DOCUMENT_PARSE'|'INDICATOR_EXTRACT';
 export type ExtractionJobStatus='PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'|'DEAD_LETTER'|'CANCELLED';
 export type CandidateKind='NEW_INDICATOR'|'PROGRESS_UPDATE';
 export type CandidateStatus='PROPOSED'|'SUBMITTED'|'APPROVED'|'REJECTED';
-export type ExtractionMethod='RULE_BASED'|'LLM'|'FORM_TEMPLATE';
+export type ExtractionMethod='RULE_BASED'|'LLM'|'FORM_TEMPLATE'|'TABLE';
 
 /** B10: luật kiểm tra bản ghi; B14: xếp loại so trùng. */
 export type ValidationRule='cau_truc'|'bam_nguon'|'don_vi'|'mien_gia_tri'|'nam_va_han'|'ten_chi_tieu'|'nhat_quan'|'chat_luong_ocr';

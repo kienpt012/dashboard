@@ -77,7 +77,28 @@ def test_parse_xlsx_values_and_merged_cells():
     assert table["numRows"] == 4
     merged = [c for c in table["cells"] if c["text"] == "Ghi chú chung"][0]
     assert merged["colSpan"] == 3 and merged["ref"] == "Chỉ tiêu!A5"
-    assert "Thu ngân sách 120.5" in pages[0]["elements"][1]["text"]
+    assert "Thu ngân sách 120,5" in pages[0]["elements"][1]["text"]
+
+
+def test_parse_xlsx_numbers_as_shown():
+    import datetime as dt
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["STT", "Chỉ tiêu", "Đơn vị tính", "Kế hoạch", "Thời hạn"])
+    sheet.append([1, "Tỷ lệ giải ngân", "%", 0.95, dt.date(2026, 6, 30)])
+    sheet["D2"].number_format = "0%"
+    sheet.append([2, "Thu ngân sách\ntrên địa bàn", "tỷ đồng", 1133, None])
+    sheet.append([3, "Tốc độ tăng", "%", 12.1, None])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    cells = {c["ref"]: c["text"] for c in parse_xlsx(buffer.getvalue())[0]["elements"][1]["table"]["cells"]}
+    assert cells["Sheet!D2"] == "95%"
+    assert cells["Sheet!E2"] == "30/06/2026"
+    assert cells["Sheet!D3"] == "1133"
+    assert cells["Sheet!B3"] == "Thu ngân sách trên địa bàn"
+    assert cells["Sheet!D4"] == "12,1"
+    assert cells["Sheet!A2"] == "1"
 
 
 def test_form_template_fields():

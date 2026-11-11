@@ -314,6 +314,7 @@ export class DocumentsController {
         llm: byMethod('LLM'),
         rule: byMethod('RULE_BASED'),
         form: byMethod('FORM_TEMPLATE'),
+        table: byMethod('TABLE'),
         ruleRate: ratio(byMethod('RULE_BASED'), total),
         nearDuplicates: candidates.filter(candidate => candidate.matchClass === 'GAN_TRUNG').length,
         duplicates: candidates.filter(candidate => candidate.matchClass === 'TRUNG').length,

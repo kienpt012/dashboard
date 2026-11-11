@@ -21,6 +21,7 @@ type Quality = {
     llm: number;
     rule: number;
     form: number;
+    table?: number;
     ruleRate: number | null;
     nearDuplicates: number;
     duplicates: number;
@@ -93,7 +94,7 @@ export function QualityPanel({ open, onClose }: { open: boolean; onClose: () => 
             </Col>
             <Col xs={12} md={8}>
               <Card size="small">
-                <Tooltip title={`${num(data.candidates.rule)} đề xuất do bộ luật tạo; Qwen lỗi hoặc hết giờ ở ${num(data.llm.broken)}/${num(data.llm.chunks)} đoạn`}>
+                <Tooltip title={`${num(data.candidates.rule)} đề xuất do bộ luật tạo; Qwen lỗi hoặc hết giờ ở ${num(data.llm.broken)}/${num(data.llm.chunks)} đoạn. ${num(data.candidates.table ?? 0)} đề xuất đọc thẳng từ bảng, ${num(data.candidates.llm)} từ Qwen`}>
                   <Statistic title="Từ luật dự phòng thay vì Qwen" value={rate(data.candidates.ruleRate)} />
                 </Tooltip>
               </Card>
