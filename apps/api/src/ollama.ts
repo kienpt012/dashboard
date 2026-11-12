@@ -194,6 +194,26 @@ export class OllamaService {
     }
   }
 
+  /**
+   * Model đang nạp có nằm trên GPU không (Ollama /api/ps: `size_vram` là phần model nằm trong bộ nhớ GPU). Dùng để tự
+   * chọn số đoạn gửi cùng lúc. Model chưa nạp hoặc không hỏi được thì null.
+   */
+  async modelOnGpu(model: string = this.extractModel, signal?: AbortSignal): Promise<boolean | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ps`, { signal: combineAbortSignals(this.healthTimeoutMs, signal) });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { models?: { name?: string; model?: string; size?: number; size_vram?: number }[] };
+      const wanted = model.includes(':') ? model : `${model}:latest`;
+      const found = (payload.models ?? []).find(entry => entry.name === wanted || entry.model === wanted);
+      if (!found || typeof found.size_vram !== 'number') return null;
+      // Nạp một phần lên GPU (dưới nửa model) vẫn chạy với tốc độ gần CPU: không coi là GPU.
+      return found.size_vram > 0 && (typeof found.size !== 'number' || found.size <= 0 || found.size_vram / found.size >= 0.5);
+    } catch {
+      rethrowExternalAbort(signal);
+      return null;
+    }
+  }
+
   async embed(texts: string[], options?: { model?: string }): Promise<number[][]> {
     if (!texts.length) return [];
     const model = options?.model || this.embedModel;

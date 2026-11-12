@@ -12,7 +12,7 @@ import {
   yearOnlyFromComparison,
   type ValidationRecord,
 } from '../src/extraction-validation';
-import { ExtractionWorker, formIndicators, isRangeBoundDuplicate, resolveFrequency, resolveSourceElements } from '../src/extraction-worker';
+import { ExtractionWorker, formIndicators, isRangeBoundDuplicate, resolveFrequency, resolveSourceElements, runLimited } from '../src/extraction-worker';
 import { parseSectionHeader } from '../src/extraction-llm';
 import {
   classifyMatch,
@@ -1049,7 +1049,7 @@ function tableElement(id: string, page: number, rows: (string | null)[][], extra
   return el(id, 'table', '', { page, table: { numRows: rows.length, numCols, cells }, ...extra });
 }
 
-async function runTableDocument(elements: StructuredElement[], env: Record<string, string> = {}, llmIndicators: any[] | null = null, doc: Record<string, unknown> = {}) {
+async function runTableDocument(elements: StructuredElement[], env: Record<string, string> = {}, llmIndicators: any[] | null = null, doc: Record<string, unknown> = {}, ollamaExtra: Record<string, unknown> = {}) {
   const pages = [...new Set(elements.map(element => element.page))].map(page => ({ page, elements: elements.filter(element => element.page === page) }));
   const chunks = chunkStructuredPages(pages, { ...options, tableRowsPerChunk: 4 });
   const workerRef: { id?: string } = {};
@@ -1082,6 +1082,7 @@ async function runTableDocument(elements: StructuredElement[], env: Record<strin
       llmCalls += 1;
       return { content: JSON.stringify({ indicators: llmIndicators ?? [] }), model: 'qwen3-chitieu:v2', durationMs: 5 };
     },
+    ...ollamaExtra,
   };
   const worker = new ExtractionWorker(prisma as any, ollama as any, new ConfigService({ EXTRACTION_MAX_LLM_CHUNKS: '10', ...env })) as any;
   workerRef.id = worker.workerId;
@@ -1287,4 +1288,74 @@ test('Worker đọc văn bản: loại "Khác" được điền loại, số ký
   assert.equal(chosen.updated.docType, undefined);
   assert.equal(chosen.updated.docNumber, undefined);
   assert.equal(chosen.updated.issuedDate, undefined);
+});
+
+test('runLimited: giữ đúng giới hạn, giới hạn tăng giữa chừng, lỗi đầu tiên dừng nhận việc mới', async () => {
+  let limit = 1;
+  let active = 0;
+  const peaks: number[] = [];
+  await runLimited([1, 2, 3, 4, 5, 6], () => limit, async (_item, index) => {
+    active += 1;
+    peaks[index] = active;
+    await new Promise(resolve => setTimeout(resolve, 5));
+    if (index === 1) limit = 3;
+    active -= 1;
+  });
+  assert.deepEqual(peaks.slice(0, 2), [1, 1]);
+  assert.equal(Math.max(...peaks), 3);
+  const started: number[] = [];
+  await assert.rejects(runLimited([1, 2, 3, 4], () => 1, async (item) => {
+    started.push(item);
+    if (item === 2) throw new Error('dừng');
+  }), /dừng/);
+  assert.deepEqual(started, [1, 2]);
+  await runLimited([], () => 2, async () => { throw new Error('không được gọi'); });
+});
+
+test('Worker: số đoạn gửi Qwen cùng lúc là 1 trên CPU, tự lên 2 khi Ollama báo model nằm trên GPU; thứ tự đề xuất không đổi', async () => {
+  const names = ['nước sạch', 'thu gom rác', 'cây xanh', 'chiếu sáng', 'thoát nước'];
+  const elements = [el('p1-e0', 'heading', 'Điều 3. Chỉ tiêu chủ yếu')];
+  names.forEach((name, index) => {
+    // Mỗi đoạn văn đủ dài để thành một đoạn riêng.
+    elements.push(el(`p1-e${index + 1}`, 'paragraph', `Phấn đấu tỷ lệ hộ dân được phục vụ ${name} trên địa bàn phường đạt ${90 + index}% vào cuối năm kế hoạch. ${'Các đơn vị phối hợp thực hiện đồng bộ nhiều giải pháp. '.repeat(30)}`));
+  });
+  async function run(env: Record<string, string>, onGpu: boolean | null) {
+    let active = 0;
+    let peak = 0;
+    const result = await runTableDocument(elements, env, null, {}, {
+      modelOnGpu: async () => onGpu,
+      chatStructured: async (messages: any[]) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise(resolve => setTimeout(resolve, 15));
+        active -= 1;
+        // Dòng "[Đầu mục: …]" lặp câu đầu của mục ở mọi đoạn: chỉ đọc phần thân đoạn.
+        const text = String(messages[messages.length - 1].content).replace(/^\[(Mục|Đầu mục):.*\]$/gmu, '');
+        const match = /phục vụ ([^\d]+?) trên địa bàn phường đạt (\d+)%/u.exec(text);
+        const indicators = match ? [{
+          indicatorName: `Tỷ lệ hộ dân được phục vụ ${match[1]}`, ordinalNumber: null, parentIndicator: null, description: null, category: null,
+          targetValue: Number(match[2]), unit: '%', valueDirection: 'HIGHER_IS_BETTER', reportingFrequency: null, deadline: null, targetYear: 2026,
+          responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null,
+          sourceQuote: `Phấn đấu tỷ lệ hộ dân được phục vụ ${match[1]} trên địa bàn phường đạt ${match[2]}%`, confidence: 0.9,
+          fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+        }] : [];
+        return { content: JSON.stringify({ indicators }), model: 'qwen3-chitieu:v2', durationMs: 15 };
+      },
+    });
+    return { ...result, peak };
+  }
+  const cpu = await run({}, false);
+  assert.ok(cpu.chunks.length >= 5, `cần nhiều đoạn, có ${cpu.chunks.length}`);
+  assert.equal(cpu.peak, 1);
+  assert.equal(cpu.completed.stats.llmConcurrency, 1);
+  assert.deepEqual(cpu.completed.stats.byMethod, { LLM: 5 });
+  const gpu = await run({}, true);
+  assert.equal(gpu.peak, 2);
+  assert.equal(gpu.completed.stats.llmConcurrency, 2);
+  const fixed = await run({ EXTRACTION_LLM_CONCURRENCY: '3' }, false);
+  assert.equal(fixed.peak, 3);
+  const order = (created: any[]) => created.map(c => c.targetValue);
+  assert.deepEqual(order(cpu.created), [90, 91, 92, 93, 94]);
+  assert.deepEqual(order(gpu.created), order(cpu.created));
+  assert.deepEqual(order(fixed.created), order(cpu.created));
 });

@@ -72,6 +72,7 @@ services:
       EXTRACTION_LLM_CACHE_DAYS: ${EXTRACTION_LLM_CACHE_DAYS:-90}
       EXTRACTION_TABLE_READER: ${EXTRACTION_TABLE_READER:-true}
       EXTRACTION_CHUNK_FILTER: ${EXTRACTION_CHUNK_FILTER:-target}
+      EXTRACTION_LLM_CONCURRENCY: ${EXTRACTION_LLM_CONCURRENCY:-auto}
       DISABLE_EXTRACTION_WORKER: ${DISABLE_EXTRACTION_WORKER:-false}
       # Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR) đọc B2–B6. Để trống thì dùng bộ đọc dự phòng
       # (pdf.js + Tesseract). Bật bằng COMPOSE_PROFILES=ocr và OCR_SERVICE_URL=http://ocr:8000 trong .env.
@@ -129,6 +130,9 @@ services:
     build:
       context: .
       dockerfile: services/ocr/Dockerfile
+      args:
+        # Kho torch: mặc định bản CPU. Máy có GPU NVIDIA đặt OCR_TORCH_INDEX_URL sang kho bản CUDA (xem docs/DEPLOYMENT.md).
+        TORCH_INDEX_URL: ${OCR_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
     container_name: ${IOC_INSTANCE:-ioc-laithieu}-ocr
     restart: unless-stopped
     environment:
@@ -136,6 +140,8 @@ services:
       OCR_SECOND_READER: ${OCR_SECOND_READER:-rapidocr}
       OCR_THREADS: ${OCR_THREADS:-4}
       OCR_TABLE_MODE: ${OCR_TABLE_MODE:-accurate}
+      # auto = dùng GPU khi container thấy GPU, không thì CPU; cpu = luôn CPU.
+      VIETOCR_DEVICE: ${VIETOCR_DEVICE:-auto}
     networks:
       - ocr_internal
 

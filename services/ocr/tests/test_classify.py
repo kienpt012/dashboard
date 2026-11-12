@@ -45,3 +45,13 @@ def test_classify_demo_pdf_has_text_layer():
 def test_parse_page_range():
     assert parse_page_range(None, 3) == [1, 2, 3]
     assert parse_page_range("2-5,9,1", 6) == [1, 2, 3, 4, 5]
+
+
+def test_resolve_device_falls_back_to_cpu():
+    from ocr_service.line_ocr import resolve_device
+
+    assert resolve_device("auto", True) == "cuda:0"
+    assert resolve_device("auto", False) == "cpu"
+    assert resolve_device("cuda", False) == "cpu"
+    assert resolve_device("cuda:1", True) == "cuda:1"
+    assert resolve_device("", False) == "cpu"

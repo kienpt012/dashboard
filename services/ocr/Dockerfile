@@ -19,7 +19,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY services/ocr/requirements.txt ./requirements.txt
-RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1 \
+# Mặc định cài torch bản CPU (image nhỏ, chạy được trên mọi máy). Máy có GPU NVIDIA: build với --build-arg
+# TORCH_INDEX_URL=<kho torch bản CUDA khớp driver, tra tại pytorch.org/get-started> rồi để VIETOCR_DEVICE=auto.
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN pip install --index-url ${TORCH_INDEX_URL} torch==2.14.1 torchvision==0.29.1 \
  && pip install -r requirements.txt \
  && pip install --no-deps vietocr==0.3.13
 

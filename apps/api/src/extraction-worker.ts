@@ -137,6 +137,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly tableReader: boolean;
   /** Lọc đoạn trước khi gọi Qwen: "target" (mặc định) đòi con số trông như mức cần đạt; "basic" là bộ lọc cũ. */
   private readonly chunkFilter: 'target' | 'basic';
+  /** Số đoạn gửi Qwen cùng lúc; "auto" = 1 trên CPU, 2 khi Ollama chạy model trên GPU. */
+  private readonly llmConcurrency: number | 'auto';
   private readonly llmExtractor: LlmIndicatorExtractor;
   private readonly ocrClient: OcrServiceClient;
   private readonly matcher: IndicatorMatcher;
@@ -159,6 +161,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.llmCacheDays = parseBoundedInteger(config.get<string>('EXTRACTION_LLM_CACHE_DAYS'), 90, 0, 3650);
     this.tableReader = (config.get<string>('EXTRACTION_TABLE_READER') ?? '').trim().toLowerCase() !== 'false';
     this.chunkFilter = (config.get<string>('EXTRACTION_CHUNK_FILTER') ?? '').trim().toLowerCase() === 'basic' ? 'basic' : 'target';
+    const concurrency = (config.get<string>('EXTRACTION_LLM_CONCURRENCY') ?? '').trim().toLowerCase();
+    this.llmConcurrency = !concurrency || concurrency === 'auto' ? 'auto' : parseBoundedInteger(concurrency, 1, 1, 8);
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
     this.ocrClient = new OcrServiceClient();
     this.matcher = new IndicatorMatcher(prisma, ollama);
@@ -883,7 +887,6 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     }
     const isTask = (item: PendingCandidate) => !!item.proseTask || item.table?.kind === 'task';
     const profile = documentProfile(document.docType);
-    const pending: PendingCandidate[] = [];
     const stats = {
       chunks: chunks.length,
       skippedNoDigits: 0,
@@ -907,15 +910,20 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     };
     const llmCache = llmAvailable ? await this.openLlmCache(document.id, signal) : undefined;
     let llmChunksUsed = 0;
-    // Mục đánh số có số liệu mà sau khi hỏi lại vẫn không có đề xuất nào: ghi vào ghi chú của lượt cho người duyệt.
-    const missingNotes: string[] = [];
-    // Hàng của bảng có tên nhưng không có giá trị để lập đề xuất: ghi vào ghi chú của lượt cho người duyệt.
-    const tableNotes: string[] = [];
-    // Con số ghi rõ là mức cần đạt mà không thuộc đề xuất nào (văn bản không đánh số thì kiểm tra đủ mục không bắt được).
-    const uncoveredNotes: string[] = [];
+    // Kết quả và ghi chú gom theo đoạn rồi nối lại theo thứ tự đoạn, để chạy nhiều đoạn cùng lúc vẫn cho đúng thứ tự:
+    // - missing: mục đánh số có số liệu mà sau khi hỏi lại vẫn không có đề xuất nào;
+    // - table: hàng của bảng có tên nhưng không có giá trị để lập đề xuất;
+    // - uncovered: con số ghi rõ là mức cần đạt mà không thuộc đề xuất nào (văn bản không đánh số).
+    const perChunk = chunks.map(() => ({ pending: [] as PendingCandidate[], missing: [] as string[], table: [] as string[], uncovered: [] as string[] }));
+    // Số đoạn gửi Qwen cùng lúc. "auto": bắt đầu bằng 1; sau lần gọi Qwen thật đầu tiên, nếu Ollama báo model đang nằm
+    // trên GPU thì tăng lên 2. Trên CPU một yêu cầu đã dùng hết nhân, chạy song song chỉ làm các yêu cầu chờ nhau hết giờ.
+    let concurrency = this.llmConcurrency === 'auto' ? 1 : this.llmConcurrency;
+    let processorChecked = this.llmConcurrency !== 'auto';
+    let chunksDone = 0;
 
-    for (const [index, chunk] of chunks.entries()) {
+    await runLimited(chunks, () => concurrency, async (chunk, index) => {
       throwIfAborted(signal);
+      const { pending, missing: missingNotes, table: tableNotes, uncovered: uncoveredNotes } = perChunk[index];
       // Phần của văn bản theo đề mục: phần nhiệm vụ, giải pháp đầy con số không phải mức cần đạt (ngày hạn, "02 đợt").
       const chunkHeadings = Array.isArray(chunk.headingPath) ? (chunk.headingPath as string[]) : [];
       const section = sectionKind(chunkHeadings);
@@ -982,6 +990,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
             stats.llmMs += result.durationMs;
             if (result.cached) stats.llmCached += 1;
             if (result.retried) stats.llmRetried += 1;
+            if (!processorChecked && !result.cached) {
+              processorChecked = true;
+              if (typeof this.ollama.modelOnGpu === 'function' && await this.ollama.modelOnGpu(this.ollama.extractModel, signal)) {
+                concurrency = AUTO_GPU_CONCURRENCY;
+              }
+            }
             if (result.parseError) {
               stats.llmParseErrors += 1;
               fallbackReason = 'Qwen trả JSON sai cấu trúc cả hai lần';
@@ -1056,6 +1070,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           }
         }
       }
+      chunksDone += 1;
       const progressed = await this.prisma.extractionJob.updateMany({
         where: {
           id: job.id,
@@ -1063,10 +1078,14 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           lockedBy: this.workerId,
           cancelRequestedAt: null,
         },
-        data: { chunksDone: index + 1, lockedAt: new Date() },
+        data: { chunksDone, lockedAt: new Date() },
       });
       if (progressed.count !== 1) throw await this.resolveExtractJobStop(job);
-    }
+    });
+    const pending = perChunk.flatMap(entry => entry.pending);
+    const missingNotes = perChunk.flatMap(entry => entry.missing);
+    const tableNotes = perChunk.flatMap(entry => entry.table);
+    const uncoveredNotes = perChunk.flatMap(entry => entry.uncovered);
 
     await this.assertExtractJobActive(job, signal);
     const departments = await this.prisma.department.findMany({
@@ -1302,6 +1321,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       ruleFallbackCandidates: unique.filter(item => item.fallbackReason).length,
       validation: ruleCounts,
       missingItems: missingNotes.slice(0, 30),
+      llmConcurrency: concurrency,
       tableUnreadRows: tableNotes.slice(0, 30),
       uncoveredNumbers: uncoveredNotes.slice(0, 30),
       flaggedCandidates: candidateRows.filter(row => row.validationFlags !== undefined).length,
@@ -1413,6 +1433,42 @@ function countBy(values: (string | null | undefined)[]): Record<string, number> 
 const NARROWER_CATEGORIES: Record<string, string[]> = {
   'Văn hoá - xã hội': ['Y tế', 'Giáo dục'],
 };
+
+/** Số đoạn gửi Qwen cùng lúc khi tự nhận thấy model chạy trên GPU (Ollama cần OLLAMA_NUM_PARALLEL từ 2 trở lên). */
+const AUTO_GPU_CONCURRENCY = 2;
+
+/**
+ * Chạy `task` cho từng phần tử theo thứ tự, tối đa `limit()` việc cùng lúc; giới hạn được hỏi lại mỗi khi một việc
+ * xong nên có thể tăng giữa chừng. Việc đầu tiên lỗi thì không nhận việc mới, chờ các việc đang chạy xong rồi báo lỗi đó.
+ */
+export function runLimited<T>(items: readonly T[], limit: () => number, task: (item: T, index: number) => Promise<void>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let next = 0;
+    let active = 0;
+    let failed = false;
+    let failure: unknown;
+    const settle = () => {
+      if (failed) {
+        if (active === 0) reject(failure);
+        return;
+      }
+      if (next >= items.length && active === 0) {
+        resolve();
+        return;
+      }
+      while (active < Math.max(1, limit()) && next < items.length) {
+        const index = next;
+        next += 1;
+        active += 1;
+        task(items[index], index).then(
+          () => { active -= 1; settle(); },
+          (error) => { active -= 1; if (!failed) { failed = true; failure = error; } settle(); },
+        );
+      }
+    };
+    settle();
+  });
+}
 
 /** Mục tiêu quy ước của nhiệm vụ: hoàn thành 100% (màn duyệt bắt buộc đủ đơn vị, giá trị, năm, hạn cho mọi loại). */
 const TASK_TARGET_TEXT = 'Hoàn thành';

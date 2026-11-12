@@ -1,0 +1,16 @@
+# Dùng thêm khi máy có GPU NVIDIA và muốn ocr-service (VietOCR) chạy trên GPU:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+# Cần NVIDIA Container Toolkit (Linux) hoặc Docker Desktop bật GPU (Windows/WSL2), và build image ocr với torch bản CUDA
+# (OCR_TORCH_INDEX_URL trong .env). Không dùng file này thì mọi thứ chạy trên CPU như cũ.
+# Qwen chạy trong Ollama trên máy host: Ollama tự dùng GPU khi có, không cần cấu hình ở đây.
+services:
+  ocr:
+    environment:
+      VIETOCR_DEVICE: ${VIETOCR_DEVICE:-auto}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

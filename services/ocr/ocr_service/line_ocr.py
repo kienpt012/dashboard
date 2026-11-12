@@ -24,6 +24,18 @@ VERTICAL_PAD = 0.25
 HORIZONTAL_PAD = 0.02
 
 
+
+def resolve_device(wanted: str, cuda_available: bool) -> str:
+    """Thiết bị chạy VietOCR: "auto" dùng GPU khi có, không thì CPU; đặt "cuda" trên máy không có GPU cũng lùi về CPU
+    thay vì làm dịch vụ không khởi động được, để cùng một cấu hình chạy được trên cả hai loại máy."""
+    value = (wanted or "cpu").strip().lower()
+    if value == "auto":
+        return "cuda:0" if cuda_available else "cpu"
+    if value.startswith("cuda") and not cuda_available:
+        return "cpu"
+    return value
+
+
 @dataclass
 class OcrLine:
     """Một dòng chữ đọc được. bbox tính theo điểm ảnh của ảnh đầu vào (x0, y0, x1, y1)."""
@@ -175,7 +187,7 @@ class LineReader:
                 raise RuntimeError(f"Không tìm thấy cấu hình VietOCR tại {config_path}. Chạy scripts/download_models.py khi build image.")
             config = Cfg.load_config_from_file(str(config_path))
             config["weights"] = str(self.settings.vietocr_weights)
-            config["device"] = self.settings.vietocr_device
+            config["device"] = resolve_device(self.settings.vietocr_device, torch.cuda.is_available())
             config["cnn"]["pretrained"] = False
             config["predictor"]["beamsearch"] = False
             self._vietocr = Predictor(config)

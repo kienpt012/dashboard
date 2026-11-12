@@ -309,3 +309,16 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Định dạng**: nhận thêm .odt, .ods, .rtf (LibreOffice của ocr-service đổi sang .docx/.xlsx như .doc, .xls).
 - **Giới hạn**: quyết định ban hành kèm kế hoạch được nhận là Quyết định nên không bóc nhiệm vụ văn xuôi (bảng nhiệm vụ
   vẫn được đọc); đổi loại thành Kế hoạch rồi "Đọc lại" nếu cần. Báo cáo chưa cập nhật tiến độ vào chỉ tiêu đã có.
+
+## D-025 · 2026-11-12 · Gửi nhiều đoạn cho Qwen cùng lúc khi có GPU; một bản cài chạy trên cả CPU và GPU
+
+- **Bối cảnh**: Qwen chiếm khoảng 97% thời gian và worker gửi lần lượt từng đoạn. Người dùng muốn không phụ thuộc hạ
+  tầng: cùng một bản cài phải chạy được trên máy chỉ có CPU và máy có GPU.
+- **Chọn**: các đoạn đi qua một hàng chạy có giới hạn (`runLimited`); kết quả gom theo đoạn rồi nối lại theo thứ tự đoạn
+  nên thứ tự đề xuất và ghi chú không đổi dù chạy song song. `EXTRACTION_LLM_CONCURRENCY=auto` (mặc định) bắt đầu bằng
+  1; sau lần gọi Qwen thật đầu tiên API hỏi Ollama `/api/ps`, model nằm trên GPU (từ nửa model trở lên) thì tăng lên 2.
+  Đặt số 1–8 để ép. Trên CPU giữ 1: một yêu cầu đã dùng hết nhân, chạy song song chỉ làm các yêu cầu chờ nhau tới hết giờ.
+- **ocr-service**: image mặc định vẫn là torch bản CPU; `TORCH_INDEX_URL` (build arg) cho phép build bản CUDA,
+  `VIETOCR_DEVICE=auto` dùng GPU khi container thấy GPU và tự lùi về CPU khi không có. `docker-compose.gpu.yml` chỉ thêm
+  phần cấp GPU cho container ocr.
+- **Chưa đo**: mức tăng tốc thật trên GPU (cần máy có GPU từ 8GB); con số trong tài liệu đề xuất là ước tính.

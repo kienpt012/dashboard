@@ -68,6 +68,7 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `EXTRACTION_LLM_CACHE_DAYS` | 90 | Số ngày nhớ kết quả Qwen theo đoạn; "Đọc lại" chỉ gọi Qwen cho đoạn, prompt hoặc model đã đổi. 0 = tắt |
 | (migration) | | Bản này thêm `20261112090000_table_reader` và `20261112100000_document_types` (thêm giá trị enum, API tự áp dụng khi khởi động); image `ocr` phải build lại để nhận .odt/.ods/.rtf và cách ghi số Excel mới |
 | `EXTRACTION_CHUNK_FILTER` | target | Lọc đoạn trước khi gọi Qwen: `target` chỉ gửi đoạn có con số trông như mức cần đạt (D-023); `basic` là bộ lọc cũ |
+| `EXTRACTION_LLM_CONCURRENCY` | auto | Số đoạn gửi Qwen cùng lúc: `auto` = 1 trên CPU, 2 khi Ollama báo model nằm trên GPU; hoặc số 1–8 |
 | `EXTRACTION_TABLE_READER` | true | Bảng đã có hàng, cột (phụ lục, biểu giao chỉ tiêu, Excel) được đọc bằng code thay vì gửi Qwen (D-022); `false` để tắt |
 | `EXTRACTION_RULE_FILL_IN` | false | `true` thì đoạn Qwen đã đọc vẫn thêm ứng viên luật mà Qwen không có (D-007 cũ, xem D-016) |
 | `EXTRACTION_POLL_MS` / `EXTRACTION_MAX_ATTEMPTS` / `EXTRACTION_MAX_OCR_PAGES` | 4000 / 3 / 0 | Cấu hình worker; trần trang OCR của bộ đọc dự phòng, 0 = không giới hạn |
@@ -102,6 +103,22 @@ Các màn hình AI sau đăng nhập:
 `GET /api/health` chủ ý chỉ kiểm tra API và kết nối cơ sở dữ liệu để cơ chế hạ cấp khi Ollama tạm dừng vẫn hoạt động. `npm run start:ioc` và `start-ioc.cmd` kiểm tra thêm khả năng container API kết nối Ollama cũng như sự hiện diện của `vie`, `eng` trong Tesseract.
 
 ## 3. Kiến trúc AI Docker hiện tại và hướng RAG
+
+### Chạy được trên cả CPU và GPU
+
+Cùng một bản cài chạy trên máy chỉ có CPU và máy có GPU NVIDIA; không có GPU thì mọi phần tự chạy bằng CPU.
+
+| Phần | Máy chỉ có CPU | Máy có GPU NVIDIA |
+| --- | --- | --- |
+| Qwen (Ollama trên host) | Ollama tự chạy bằng CPU. `EXTRACTION_LLM_CONCURRENCY=auto` gửi lần lượt từng đoạn | Ollama tự nạp model lên GPU. Đặt `OLLAMA_NUM_PARALLEL=2` cho Ollama; API hỏi `/api/ps`, thấy model nằm trên GPU thì gửi 2 đoạn cùng lúc |
+| bge-m3 (Ollama) | CPU | GPU, không cần cấu hình |
+| ocr-service (Docling, VietOCR) | Image mặc định dùng torch bản CPU | Build với `OCR_TORCH_INDEX_URL` trỏ kho torch bản CUDA và chạy thêm `-f docker-compose.gpu.yml`; `VIETOCR_DEVICE=auto` tự dùng GPU khi container thấy GPU |
+| Bảng, Excel, nhiệm vụ | Đọc bằng code, không cần GPU | Như bên trái |
+
+- GPU dưới 6GB (ví dụ MX350 2GB) không chứa nổi model 4B: đặt `OLLAMA_NUM_GPU=0` để Ollama không nạp một phần lên GPU.
+- `OLLAMA_KEEP_ALIVE` giữ model nạp sẵn giữa các lần gọi (mặc định 30m; `-1` là giữ luôn, tốn khoảng 4GB RAM).
+- Đổi máy không phải đổi code hay dữ liệu: chỉ đổi `.env`. Kết quả Qwen đã nhớ theo đoạn (D-021) vẫn dùng lại được vì
+  khoá theo digest của model, không theo máy.
 
 **Kết nối Ollama từ container API** dùng mô hình Ollama chạy trên host để tận dụng trực tiếp GPU Windows; Compose không tạo một container Ollama thứ hai. Launcher một chạm chịu trách nhiệm khởi động Ollama và kiểm tra model trước khi bàn giao hệ thống ở trạng thái sẵn sàng.
 
