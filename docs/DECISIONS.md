@@ -259,3 +259,28 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   ocr-service. Số trong ô được ghi theo cách người Việt nhìn thấy ("12,1", "95%"), giống nhau ở cả API và ocr-service.
 - **Giới hạn**: bảng scan mà OCR đọc sai cấu trúc thì code đọc sai theo; người duyệt vẫn là bước chốt (D-006). Bảng
   ma trận (mỗi cột là một đơn vị) mới lấy cột của chính địa phương, các cột khác chép vào mô tả.
+
+## D-023 · 2026-11-12 · "Mức cần đạt" nhận theo cách viết quanh con số; lĩnh vực theo đề mục của văn bản
+
+- **Bối cảnh**: lượt chạy VB-2026-0008 có 27 cảnh báo "mục chưa có đề xuất" phần lớn ở Điều 4 (nhiệm vụ, giải pháp): mục
+  giao việc cũng có con số (ngày hạn, số hiệu văn bản, "02 đợt tập huấn") nên bị coi là chỉ tiêu bị sót. Bộ lọc đoạn
+  cho qua mọi đoạn có chữ số và chữ "kế hoạch". Chấm QĐ 015: 2/30 sai lĩnh vực vì từ khoá trong tên thắng đề mục.
+- **Chọn**: `target-signal.ts` bỏ các con số không thể là mức cần đạt (số hiệu, điều khoản, ngày tháng, năm, số thứ
+  tự, mốc tuổi, mẫu số dân) rồi xét chữ quanh con số còn lại: có %, có đơn vị, hoặc đứng sau từ đo lường ("đạt",
+  "trên", "ít nhất", "giảm còn"). Ở phần nhiệm vụ, giải pháp, tổ chức thực hiện (nhận theo đề mục gần nhất) thì đòi
+  chặt hơn: phải có % hoặc vừa có từ đo lường vừa có đơn vị. Cùng một phép thử dùng cho bốn chỗ:
+  - **Kiểm tra đủ mục** (D-020): mục giao việc không còn bị báo thiếu.
+  - **Lọc đoạn** (`EXTRACTION_CHUNK_FILTER=target`, mặc định): đoạn chỉ còn số hiệu, ngày tháng, hoặc đoạn giao việc
+    không ghi mức cần đạt thì không gửi Qwen (`stats.skippedNoTarget`). Đặt `basic` để dùng bộ lọc cũ.
+  - **Số chưa được trích**: con số ghi rõ là mức cần đạt mà không thuộc đề xuất nào được liệt kê trong ghi chú của
+    lượt và `stats.uncoveredNumbers` để người duyệt đối chiếu; không tự lập đề xuất.
+  - **Luật B10 "Loại thông tin"**: gắn cờ số liệu nền ("năm 2025 là 80 hộ", "hiện có", "ước thực hiện") và câu trong
+    phần nhiệm vụ không ghi mức cần đạt. Chỉ gắn cờ, không tự bỏ (D-006).
+- **Lĩnh vực**: đề mục của chính văn bản xét trước (người soạn đã xếp nhóm); đề mục "Văn hoá - xã hội" là nhóm rộng nên
+  tên nói rõ Y tế hay Giáo dục thì theo tên. Không có đề mục thì theo nhóm của mục gần nhất trong danh mục chuẩn
+  (bge-m3, cùng lần so khớp gợi ý mã), rồi tới từ khoá trong tên, rồi so nghĩa với mô tả lĩnh vực.
+- **Đơn vị bình quân theo dân số**: câu trích ghi "trên 10.000 dân", "/vạn dân" mà đơn vị chỉ còn "giường" thì ghép
+  thành "giường/10.000 dân" (4 dòng sai đơn vị ở VB-2026-0008).
+- **Bỏ trùng**: hai hàng của cùng một bảng luôn là hai bản ghi riêng (nhiệm vụ cùng quy ước 100% hay có tên gần nhau).
+- **Giới hạn**: lọc chặt hơn có thể làm sót chỉ tiêu viết khác thường ở phần nhiệm vụ ("xây mới 3 trường"); cần chấm
+  lại trên bộ đề khi có thêm văn bản thật.

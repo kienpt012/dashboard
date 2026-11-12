@@ -101,6 +101,8 @@ export interface CodeSuggestion {
   title: string;
   unit: string;
   template: string;
+  /** Nhóm của mục danh mục gần nhất (gợi ý lĩnh vực). */
+  group?: string | null;
   score: number;
 }
 
@@ -129,6 +131,8 @@ interface CatalogEntry {
   title: string;
   unit: string;
   template: string;
+  /** Nhóm của chỉ tiêu trong bộ chỉ tiêu mẫu ("Kinh tế", "Y tế"…), dùng để gợi ý lĩnh vực. */
+  group: string | null;
 }
 
 interface StoredVector {
@@ -153,6 +157,7 @@ export function catalogEntries(): CatalogEntry[] {
         title: target.title,
         unit: target.unit,
         template: template.key,
+        group: target.groupName ?? null,
       });
     }
   }
@@ -304,7 +309,7 @@ export class IndicatorMatcher {
       const catalogHit = nearCatalog[0];
       const entry = catalogHit ? catalogByKey.get(catalogHit.refKey) : undefined;
       const suggestion = entry && catalogHit.score >= this.config.codeThreshold
-        ? { code: entry.code, title: entry.title, unit: entry.unit, template: entry.template, score: round(catalogHit.score) }
+        ? { code: entry.code, title: entry.title, unit: entry.unit, template: entry.template, group: entry.group, score: round(catalogHit.score) }
         : null;
       results.push({
         matchClass,

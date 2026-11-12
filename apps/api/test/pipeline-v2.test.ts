@@ -1175,3 +1175,41 @@ test('Worker D-022: bảng nhiệm vụ của kế hoạch thành đề xuất l
     assert.deepEqual(rules.filter(rule => rule === 'bam_nguon' || rule === 'cau_truc'), [], candidate.name);
   }
 });
+
+test('Worker: đoạn không có mức cần đạt không gửi Qwen; số chưa được trích, số liệu nền và đơn vị "/10.000 dân" được xử lý', async () => {
+  const llm = (name: string, value: number, unit: string, quote: string) => ({
+    indicatorName: name, ordinalNumber: null, parentIndicator: null, description: null, category: null,
+    targetValue: value, unit, valueDirection: 'HIGHER_IS_BETTER', reportingFrequency: null, deadline: null, targetYear: 2026,
+    responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null, sourceQuote: quote, confidence: 0.9,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+  });
+  const { created, completed, llmCalls } = await runTableDocument([
+    el('p1-e0', 'heading', 'Điều 3. Mục tiêu, chỉ tiêu chủ yếu'),
+    el('p1-e1', 'paragraph', 'Phấn đấu tỷ lệ hộ dân sử dụng nước sạch đạt 99,5%. Tỷ lệ thu gom rác thải sinh hoạt đạt trên 98%. '
+      + 'Số giường bệnh trên 10.000 dân đạt 30 giường. Năm 2025 tỷ lệ hộ nghèo của phường là 1,2%.'),
+    el('p1-e2', 'heading', 'Điều 4. Nhiệm vụ, giải pháp chủ yếu'),
+    el('p1-e3', 'paragraph', 'Tổ chức 02 đợt tập huấn cho 150 cán bộ khu phố theo kế hoạch, hoàn thành trước ngày 30/6/2026.'),
+    el('p1-e4', 'heading', 'Điều 5. Hiệu lực thi hành'),
+    el('p1-e5', 'paragraph', 'Quyết định này có hiệu lực từ ngày 01/01/2026 và thay thế Kế hoạch số 12/KH-UBND.'),
+  ], {}, [
+    llm('Tỷ lệ hộ dân sử dụng nước sạch', 99.5, '%', 'Phấn đấu tỷ lệ hộ dân sử dụng nước sạch đạt 99,5%'),
+    llm('Số giường bệnh trên 10.000 dân', 30, 'giường', 'Số giường bệnh trên 10.000 dân đạt 30 giường'),
+    llm('Tỷ lệ hộ nghèo của phường', 1.2, '%', 'Năm 2025 tỷ lệ hộ nghèo của phường là 1,2%'),
+  ]);
+  assert.equal(llmCalls, 1, 'chỉ đoạn chỉ tiêu được gửi Qwen');
+  assert.equal(completed.stats.skippedNoTarget, 2);
+  assert.equal(completed.stats.uncoveredNumbers.length, 1);
+  assert.match(completed.stats.uncoveredNumbers[0], /thu gom rác thải sinh hoạt đạt trên 98/);
+  assert.match(completed.note, /1 con số ghi như mức cần đạt/);
+  const byName = new Map<string, any>(created.map((c: any) => [c.name, c]));
+  assert.equal(byName.get('Số giường bệnh trên 10.000 dân').unit, 'giường/10.000 dân');
+  const rules = (name: string) => ((byName.get(name).validationFlags ?? []) as { rule: string }[]).map(flag => flag.rule);
+  assert.ok(rules('Tỷ lệ hộ nghèo của phường').includes('loai_thong_tin'));
+  assert.ok(!rules('Tỷ lệ hộ dân sử dụng nước sạch').includes('loai_thong_tin'));
+
+  const basic = await runTableDocument([
+    el('p1-e2', 'heading', 'Điều 4. Nhiệm vụ, giải pháp chủ yếu'),
+    el('p1-e3', 'paragraph', 'Tổ chức 02 đợt tập huấn cho 150 cán bộ khu phố theo kế hoạch, hoàn thành trước ngày 30/6/2026.'),
+  ], { EXTRACTION_CHUNK_FILTER: 'basic' }, []);
+  assert.equal(basic.llmCalls, 1, 'bộ lọc cũ vẫn gửi đoạn giao việc');
+});

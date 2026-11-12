@@ -315,7 +315,7 @@ export type CandidateStatus='PROPOSED'|'SUBMITTED'|'APPROVED'|'REJECTED';
 export type ExtractionMethod='RULE_BASED'|'LLM'|'FORM_TEMPLATE'|'TABLE';
 
 /** B10: luật kiểm tra bản ghi; B14: xếp loại so trùng. */
-export type ValidationRule='cau_truc'|'bam_nguon'|'don_vi'|'mien_gia_tri'|'nam_va_han'|'ten_chi_tieu'|'nhat_quan'|'chat_luong_ocr';
+export type ValidationRule='cau_truc'|'bam_nguon'|'don_vi'|'mien_gia_tri'|'nam_va_han'|'ten_chi_tieu'|'nhat_quan'|'chat_luong_ocr'|'loai_thong_tin';
 export type ValidationFlag={rule:ValidationRule;message:string};
 export const validationRuleLabels:Record<ValidationRule,string>={
   cau_truc:'Cấu trúc',
@@ -326,6 +326,7 @@ export const validationRuleLabels:Record<ValidationRule,string>={
   ten_chi_tieu:'Tên chỉ tiêu',
   nhat_quan:'Nhất quán',
   chat_luong_ocr:'Chất lượng OCR',
+  loai_thong_tin:'Loại thông tin',
 };
 export type MatchClass='TRUNG'|'GAN_TRUNG'|'MOI';
 export type SimilarTarget={id:string;code:string;title:string;unit:string;year:number;score:number};

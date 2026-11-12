@@ -52,6 +52,7 @@ import {
 } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { validateRecord, type ValidationFlag } from './extraction-validation';
+import { sectionKind } from './target-signal';
 import { catalogEntries } from './indicator-matching';
 import { PrismaService } from './prisma.service';
 import { createTargetInTransaction, isTargetCodeAllocationError } from './target-create';
@@ -900,6 +901,10 @@ function buildCandidateDescription(candidate: {
 }
 
 export const REVALIDATE_SELECT = {
+  targetKind: true,
+  extractionMethod: true,
+  headingPath: true,
+  document: { select: { year: true } },
   name: true,
   unit: true,
   targetValue: true,
@@ -938,6 +943,13 @@ export function revalidatedFlags(
     expectedUnits: [catalogUnit, candidate.matchClass && candidate.matchClass !== 'MOI' ? candidate.matchedTarget?.unit : null],
     ocr: Array.isArray(candidate.ocrFlags) ? { flags: candidate.ocrFlags as string[], minConfidence: null } : null,
     humanEditedFields: editedFields,
+    task: candidate.targetKind === FrameworkKind.TASK,
+    planYear: candidate.document?.year ?? null,
+    // Phần của văn bản chỉ xét cho bản ghi đọc từ văn xuôi; hàng bảng và ô biểu mẫu không có chữ quanh con số.
+    section: (candidate.extractionMethod === ExtractionMethod.LLM || candidate.extractionMethod === ExtractionMethod.RULE_BASED)
+      && Array.isArray(candidate.headingPath)
+      ? sectionKind(candidate.headingPath as string[])
+      : undefined,
   }, candidate.chunk?.text ?? null);
   const keep = previous.filter(flag =>
     (flag.rule === 'nhat_quan' && !editedFields.includes('targetValue'))

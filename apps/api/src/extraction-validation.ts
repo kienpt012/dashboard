@@ -1,4 +1,5 @@
 import { diceSimilarity } from './matching';
+import { baselineReason, hasTargetFigure, type SectionKind } from './target-signal';
 
 // B10. Kiểm tra bản ghi chỉ tiêu bằng luật. Bản ghi trượt luật KHÔNG bị xóa: nó mang cờ và vào hàng chờ duyệt
 // (B15) như mọi đề xuất AI khác (D-006), người duyệt thấy rõ trượt luật nào. Luật chạy lại khi người duyệt sửa bản ghi.
@@ -11,7 +12,8 @@ export type ValidationRule =
   | 'nam_va_han'
   | 'ten_chi_tieu'
   | 'nhat_quan'
-  | 'chat_luong_ocr';
+  | 'chat_luong_ocr'
+  | 'loai_thong_tin';
 
 export interface ValidationFlag {
   rule: ValidationRule;
@@ -27,6 +29,7 @@ export const VALIDATION_RULE_LABELS: Record<ValidationRule, string> = {
   ten_chi_tieu: 'Tên chỉ tiêu',
   nhat_quan: 'Nhất quán',
   chat_luong_ocr: 'Chất lượng OCR',
+  loai_thong_tin: 'Loại thông tin',
 };
 
 export interface ValidationRecord {
@@ -48,6 +51,10 @@ export interface ValidationRecord {
   humanEditedFields?: string[];
   /** Nhiệm vụ (không phải chỉ tiêu số): mục tiêu quy ước "hoàn thành 100%" không cần có nguyên văn trong câu trích. */
   task?: boolean;
+  /** Năm kế hoạch của văn bản, dùng khi bản ghi không có năm (nhận số liệu nền "năm 2025 là 80 hộ"). */
+  planYear?: number | null;
+  /** Phần của văn bản chứa câu trích (chỉ đặt cho bản ghi đọc từ văn xuôi). */
+  section?: SectionKind;
 }
 
 export const OCR_MIN_CONFIDENCE = 0.7;
@@ -215,6 +222,16 @@ export function validateRecord(record: ValidationRecord, sourceText?: string | n
   const ownName = parentPrefix && name.startsWith(parentPrefix) ? name.slice(parentPrefix.length) : name;
   if (nameMissingFromQuote(ownName, record.sourceQuote)) {
     flags.push({ rule: 'ten_chi_tieu', message: 'Tên chỉ tiêu không khớp câu trích dẫn, có thể lấy nhầm tên của chỉ tiêu bên cạnh.' });
+  }
+
+  // Loại thông tin: số liệu nền (kết quả kỳ trước, hiện trạng) và câu giao việc không ghi mức cần đạt không phải
+  // chỉ tiêu kế hoạch. Chỉ nhắc người duyệt, không tự bỏ bản ghi.
+  if (quote && !record.task && record.targetValue !== null && record.targetValue !== undefined && !editedAny(record, ['targetValue'])) {
+    const reason = baselineReason(quote, record.targetValue, record.targetYear ?? record.planYear ?? null);
+    if (reason) flags.push({ rule: 'loai_thong_tin', message: `Có thể là số liệu nền, không phải mức cần đạt: ${reason}.` });
+  }
+  if (quote && !record.task && record.section === 'task' && !hasTargetFigure(quote, true)) {
+    flags.push({ rule: 'loai_thong_tin', message: 'Câu nằm trong phần nhiệm vụ, giải pháp và không ghi rõ mức cần đạt: có thể là nhiệm vụ, không phải chỉ tiêu.' });
   }
 
   // Chất lượng OCR: dòng nguồn không mang cờ can_ra_soat và độ tin cậy OCR từ 70% trở lên.

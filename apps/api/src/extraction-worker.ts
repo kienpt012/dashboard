@@ -48,7 +48,7 @@ import { adjustedConfidence, validateConsistency, validateRecord, type Validatio
 import { dot, IndicatorMatcher, normalizeVector } from './indicator-matching';
 import { diceSimilarity, matchDepartmentByName } from './matching';
 import { detectThreshold } from './target-threshold';
-import { describeMissing, missingItems, recheckText } from './extraction-completeness';
+import { describeMissing, missingItems, recheckText, uncoveredFigures } from './extraction-completeness';
 import {
   OcrServiceClient,
   OcrServiceUnavailableError,
@@ -65,6 +65,7 @@ import { pdfPageSpans } from './source-layout';
 import { textLayoutPage, unitSection, type LayoutSpan } from './source-locator';
 import { chunkFallbackPages, chunkStructuredPages, fallbackElements, resolveChunkingOptions, type ChunkingOptions, type StructuredChunk } from './structured-chunking';
 import { readDocumentTables, tableRowsInChunk, type TableChunkRows, type TableRecord } from './table-extraction';
+import { hasTargetFigure, sectionKind, unitWithDenominator } from './target-signal';
 
 interface ClaimedJob {
   id: string;
@@ -130,6 +131,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private readonly llmCacheDays: number;
   /** Bảng đã có cấu trúc hàng/cột được đọc bằng code, không gửi Qwen (D-022); "false" để tắt. */
   private readonly tableReader: boolean;
+  /** Lọc đoạn trước khi gọi Qwen: "target" (mặc định) đòi con số trông như mức cần đạt; "basic" là bộ lọc cũ. */
+  private readonly chunkFilter: 'target' | 'basic';
   private readonly llmExtractor: LlmIndicatorExtractor;
   private readonly ocrClient: OcrServiceClient;
   private readonly matcher: IndicatorMatcher;
@@ -151,6 +154,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     this.recheckMax = parseBoundedInteger(config.get<string>('EXTRACTION_RECHECK_MAX'), 10, 0, 100);
     this.llmCacheDays = parseBoundedInteger(config.get<string>('EXTRACTION_LLM_CACHE_DAYS'), 90, 0, 3650);
     this.tableReader = (config.get<string>('EXTRACTION_TABLE_READER') ?? '').trim().toLowerCase() !== 'false';
+    this.chunkFilter = (config.get<string>('EXTRACTION_CHUNK_FILTER') ?? '').trim().toLowerCase() === 'basic' ? 'basic' : 'target';
     this.llmExtractor = new LlmIndicatorExtractor(ollama);
     this.ocrClient = new OcrServiceClient();
     this.matcher = new IndicatorMatcher(prisma, ollama);
@@ -680,11 +684,19 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
    * Không đủ căn cứ thì để trống cho người duyệt chọn.
    */
   private async resolveCategories(
-    items: { headingPath: string[]; group: string | null; name: string; modelCategory: string | null }[],
+    items: { headingPath: string[]; group: string | null; name: string; catalogGroup?: string | null; modelCategory: string | null }[],
     canEmbed: boolean,
     signal: AbortSignal,
   ): Promise<(string | null)[]> {
-    const result = items.map(item => categoryByKeywords(item.name) ?? categoryFromHeadings(item.headingPath));
+    // Đề mục của chính văn bản là căn cứ mạnh nhất (người soạn đã xếp nhóm); đề mục "Văn hoá - xã hội" là nhóm rộng
+    // nên tên chỉ tiêu nói rõ Y tế hay Giáo dục thì theo tên. Không có đề mục thì theo mục gần nhất trong danh mục
+    // chuẩn (bge-m3), rồi mới tới từ khoá trong tên.
+    const result = items.map((item) => {
+      const byHeading = categoryFromHeadings(item.headingPath);
+      const byName = categoryByKeywords(item.name);
+      if (byHeading && byName && NARROWER_CATEGORIES[byHeading]?.includes(byName)) return byName;
+      return byHeading ?? categoryByKeywords(item.catalogGroup) ?? byName;
+    });
     const missing = result.map((value, index) => (value ? -1 : index)).filter(index => index >= 0);
     if (missing.length && canEmbed) {
       try {
@@ -853,6 +865,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       chunks: chunks.length,
       skippedNoDigits: 0,
       skippedNoSignal: 0,
+      skippedNoTarget: 0,
       formChunks: 0,
       tableChunks: 0,
       llmChunks: 0,
@@ -874,9 +887,13 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     const missingNotes: string[] = [];
     // Hàng của bảng có tên nhưng không có giá trị để lập đề xuất: ghi vào ghi chú của lượt cho người duyệt.
     const tableNotes: string[] = [];
+    // Con số ghi rõ là mức cần đạt mà không thuộc đề xuất nào (văn bản không đánh số thì kiểm tra đủ mục không bắt được).
+    const uncoveredNotes: string[] = [];
 
     for (const [index, chunk] of chunks.entries()) {
       throwIfAborted(signal);
+      // Phần của văn bản theo đề mục: phần nhiệm vụ, giải pháp đầy con số không phải mức cần đạt (ngày hạn, "02 đợt").
+      const section = sectionKind(Array.isArray(chunk.headingPath) ? (chunk.headingPath as string[]) : []);
       if (chunk.kind === 'form') {
         // Biểu mẫu cố định: luật tạo bản ghi từ ô đã khớp mẫu, không gọi Qwen (nhanh và đúng hơn).
         stats.formChunks += 1;
@@ -901,6 +918,10 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         stats.skippedNoDigits += 1;
       } else if (!chunkLikelyHasIndicators(chunk.text)) {
         stats.skippedNoSignal += 1;
+      } else if (this.chunkFilter === 'target' && !hasTargetFigure(chunkBody(chunk.text), section === 'task')) {
+        // Chỉ còn số hiệu văn bản, ngày tháng, năm (căn cứ pháp lý, nơi nhận, điều khoản thi hành), hoặc đoạn giao việc
+        // không ghi mức cần đạt: không gửi Qwen.
+        stats.skippedNoTarget += 1;
       } else {
         const ruleResults = extractIndicatorsFromText(chunk.text);
         let llmResults: LlmExtractedIndicator[] = [];
@@ -949,7 +970,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         if (llmOk) {
           // Kiểm tra đủ mục: mục "(22)…" hay hàng STT có số liệu mà Qwen không trích thì hỏi lại riêng các mục đó.
           const refs = () => llmResults.map(item => ({ sourceQuote: item.sourceQuote, targetValue: item.targetValue, ordinal: item.ordinal }));
-          let missing = missingItems(chunk.text, chunk.kind, refs());
+          let missing = missingItems(chunk.text, chunk.kind, refs(), section === 'task');
           if (missing.length && stats.recheckCalls < this.recheckMax) {
             stats.recheckCalls += 1;
             try {
@@ -969,7 +990,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
                 for (const item of recovered) item.warnings.push('Mục này Qwen bỏ sót ở lượt đầu, được trích ở lượt hỏi lại (kiểm tra đủ mục).');
                 stats.recheckRecovered += recovered.length;
                 llmResults = [...llmResults, ...recovered];
-                missing = missingItems(chunk.text, chunk.kind, refs());
+                missing = missingItems(chunk.text, chunk.kind, refs(), section === 'task');
               }
             } catch (error) {
               throwIfAborted(signal);
@@ -978,6 +999,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
             }
           }
           for (const item of missing) missingNotes.push(describeMissing(item, chunk.pageFrom));
+          for (const figure of uncoveredFigures(chunk.text, refs(), { planYear: document.year, skip: missing })) {
+            uncoveredNotes.push(`trang ${chunk.pageFrom}: "${figure.snippet}"`);
+          }
         }
         if (!llmOk) stats.ruleFallbackChunks += 1;
         for (const item of llmResults) {
@@ -1019,27 +1043,33 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     // thành phần ("Tỷ lệ nước thải... xử lý" vs "... thu gom") có tên gần nhau
     // nhưng giá trị khác, tuyệt đối không được gộp.
     const deduplicated: typeof pending = [];
-    for (const item of [...pending].sort((a, b) => b.payload.confidence - a.payload.confidence)) {
-      const nearDuplicate = deduplicated.some(kept =>
-        diceSimilarity(kept.payload.name, item.payload.name) >= 0.8
+    const exactKey = (item: PendingCandidate) => `${item.payload.name.toLowerCase().trim()}|${item.payload.targetValue ?? ''}|${item.payload.unit ?? ''}`;
+    const tableOf = (item: PendingCandidate) => (Array.isArray(item.chunk.elementIds) ? String((item.chunk.elementIds as string[])[0] ?? '') : '');
+    const isDuplicate = (kept: PendingCandidate, item: PendingCandidate) => {
+      // Hai hàng của cùng một bảng luôn là hai bản ghi riêng (nhiệm vụ cùng quy ước 100% có tên gần nhau là chuyện
+      // thường); hai bảng khác nhau chỉ trùng khi giống hệt tên, giá trị, đơn vị và hạn.
+      if (kept.table && item.table) {
+        return tableOf(kept) !== tableOf(item)
+          && exactKey(kept) === exactKey(item)
+          && (kept.payload.deadline ?? '') === (item.payload.deadline ?? '');
+      }
+      if (exactKey(kept) === exactKey(item)) return true;
+      return diceSimilarity(kept.payload.name, item.payload.name) >= 0.8
         && kept.payload.targetValue !== null
         && item.payload.targetValue !== null
         && Math.abs(kept.payload.targetValue - item.payload.targetValue) < 1e-9
-        && (kept.payload.unit ?? '').toLowerCase().trim() === (item.payload.unit ?? '').toLowerCase().trim());
-      // "đạt 2 - 3% GRDP" đôi khi ra thêm một bản ghi lấy cận trên (3): cùng đoạn, tên giống, giá trị là cận của
-      // khoảng mà bản ghi kia đã mang thì bỏ.
-      if (nearDuplicate || deduplicated.some(kept => isRangeBoundDuplicate(kept, item))) continue;
-      const bound = deduplicated.findIndex(kept => isRangeBoundDuplicate(item, kept));
+        && (kept.payload.unit ?? '').toLowerCase().trim() === (item.payload.unit ?? '').toLowerCase().trim();
+    };
+    // "đạt 2 - 3% GRDP" đôi khi ra thêm một bản ghi lấy cận trên (3): cùng đoạn, tên giống, giá trị là cận của
+    // khoảng mà bản ghi kia đã mang thì bỏ. Hàng của bảng là bản ghi riêng nên không xét.
+    const isBound = (range: PendingCandidate, bound: PendingCandidate) => !(range.table && bound.table) && isRangeBoundDuplicate(range, bound);
+    for (const item of [...pending].sort((a, b) => b.payload.confidence - a.payload.confidence)) {
+      if (deduplicated.some(kept => isDuplicate(kept, item) || isBound(kept, item))) continue;
+      const bound = deduplicated.findIndex(kept => isBound(item, kept));
       if (bound >= 0) deduplicated.splice(bound, 1);
       deduplicated.push(item);
     }
-    const seenKeys = new Set<string>();
-    const distinct = deduplicated.filter((item) => {
-      const key = `${item.payload.name.toLowerCase().trim()}|${item.payload.targetValue ?? ''}|${item.payload.unit ?? ''}`;
-      if (seenKeys.has(key)) return false;
-      seenKeys.add(key);
-      return true;
-    });
+    const distinct = deduplicated;
     // Thứ tự đọc của văn bản: mô hình chỉ thấy từng đoạn, nên app tự xếp theo vị trí câu trích dẫn trong văn bản.
     // Bỏ trùng ở trên giữ bản tin cậy cao nhưng không được làm đổi thứ tự hiển thị.
     const pendingIndex = new Map(pending.map((item, index) => [item, index]));
@@ -1076,6 +1106,10 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         parentName: 'parentName' in item.payload ? item.payload.parentName : null,
         structureRepaired: item.repaired,
         task: item.table?.kind === 'task',
+        planYear: document.year,
+        section: item.table || item.method === ExtractionMethod.FORM_TEMPLATE
+          ? undefined
+          : sectionKind(Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []),
         expectedUnits: [match?.suggestion?.unit, match && match.matchClass !== 'MOI' ? match.best?.unit : null].filter(Boolean),
         ocr: sources[index].ocr,
       };
@@ -1094,6 +1128,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         headingPath: headingPaths[index],
         group: groups[index],
         name: item.payload.name,
+        catalogGroup: matching.results[index]?.suggestion?.group ?? null,
         modelCategory: item.method === ExtractionMethod.LLM ? (item.payload as LlmExtractedIndicator).category : null,
       })),
       matching.method !== 'dice',
@@ -1149,7 +1184,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         category: categories[index],
         groupName: groups[index],
         documentOrder: placed[index].order,
-        unit: payload.unit,
+        unit: item.table ? payload.unit : unitWithDenominator(payload.unit, payload.sourceQuote),
         targetValue: payload.targetValue,
         targetYear: payload.targetYear ?? document.year ?? null,
         direction: payload.direction ?? TargetDirection.HIGHER_IS_BETTER,
@@ -1201,6 +1236,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       missingNotes.length
         ? `Còn ${missingNotes.length} mục đánh số có số liệu nhưng chưa có đề xuất, cần đối chiếu với văn bản: ${missingNotes.slice(0, 8).join('; ')}${missingNotes.length > 8 ? '; …' : ''}.`
         : null,
+      uncoveredNotes.length
+        ? `Có ${uncoveredNotes.length} con số ghi như mức cần đạt nhưng chưa thuộc đề xuất nào, cần đối chiếu: ${uncoveredNotes.slice(0, 6).join('; ')}${uncoveredNotes.length > 6 ? '; …' : ''}.`
+        : null,
       tableNotes.length
         ? `Bảng có ${tableNotes.length} hàng không lập được đề xuất: ${tableNotes.slice(0, 6).join('; ')}${tableNotes.length > 6 ? '; …' : ''}.`
         : null,
@@ -1217,6 +1255,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       validation: ruleCounts,
       missingItems: missingNotes.slice(0, 30),
       tableUnreadRows: tableNotes.slice(0, 30),
+      uncoveredNumbers: uncoveredNotes.slice(0, 30),
       flaggedCandidates: candidateRows.filter(row => row.validationFlags !== undefined).length,
       matchMethod: matching.method,
       matchClasses: countBy(candidateRows.map(row => row.matchClass ?? 'MOI')),
@@ -1321,6 +1360,11 @@ function countBy(values: (string | null | undefined)[]): Record<string, number> 
   }
   return counts;
 }
+
+/** Nhóm rộng trong văn bản kế hoạch bao gồm các lĩnh vực hẹp hơn: tên chỉ tiêu nói rõ lĩnh vực hẹp thì theo tên. */
+const NARROWER_CATEGORIES: Record<string, string[]> = {
+  'Văn hoá - xã hội': ['Y tế', 'Giáo dục'],
+};
 
 /** Phiên bản bộ đọc bảng, ghi vào promptVersion của đề xuất để biết bản ghi do bản luật nào tạo. */
 export const TABLE_READER_VERSION = 'table-v1';
