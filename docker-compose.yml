@@ -145,6 +145,42 @@ services:
     networks:
       - ocr_internal
 
+  backup:
+    # Sao lưu hằng đêm: pg_dump định dạng nén vào ./backups (văn bản tải lên nằm trong Database nên cũng được sao lưu).
+    # Bật bằng COMPOSE_PROFILES=backup; giữ BACKUP_KEEP_DAYS ngày. Chép ./backups sang máy hoặc ổ khác để chống mất máy.
+    profiles: ["backup"]
+    image: ${IOC_INSTANCE:-ioc-laithieu}-db:pg17-pgvector-0.8.7
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-ioc_laithieu}
+      PGUSER: ${POSTGRES_USER:-ioc_admin}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}
+      BACKUP_HOUR: ${BACKUP_HOUR:-2}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    # Mỗi phút xem giờ; tới BACKUP_HOUR mà hôm nay chưa có bản thì dump ra tệp .part rồi mới đổi tên,
+    # nên tệp .dump luôn là bản trọn vẹn. Tệp .part do lần lỗi để lại bị xoá ở lần chạy sau.
+    command:
+      - |
+        while true; do
+          day=$$(date +%Y%m%d)
+          if [ "$$(date +%H | sed s/^0//)" -ge "$$BACKUP_HOUR" ] && ! ls /backups/$${PGDATABASE}_$${day}_*.dump >/dev/null 2>&1; then
+            find /backups -maxdepth 1 -name "*.part" -delete
+            file=/backups/$${PGDATABASE}_$${day}_$$(date +%H%M).dump
+            if pg_dump -Fc -f "$$file.part"; then mv "$$file.part" "$$file"; echo "Da sao luu $$file"; else echo "Sao luu loi" >&2; fi
+            find /backups -maxdepth 1 -name "$${PGDATABASE}_*.dump" -mtime +"$$BACKUP_KEEP_DAYS" -delete
+          fi
+          sleep 60
+        done
+
 networks:
   ocr_internal:
     internal: true

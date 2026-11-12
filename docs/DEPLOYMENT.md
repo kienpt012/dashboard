@@ -126,6 +126,8 @@ Cùng một bản cài chạy trên máy chỉ có CPU và máy có GPU NVIDIA; 
 
 **ocr-service (B2–B6)**: dịch vụ Python trong profile `ocr`, mặc định không chạy. Bật bằng `COMPOSE_PROFILES=ocr` và `OCR_SERVICE_URL=http://ocr:8000` trong `.env`. Image tải sẵn mô hình lúc build (vài GB, cần Internet), khi chạy chỉ nằm trong mạng nội bộ `ocr_internal` không ra được Internet. Chi tiết: [services/ocr/README.md](../services/ocr/README.md). API gọi `/parse` theo lô 8 trang, gia hạn lease sau mỗi lô; dịch vụ tắt hoặc lỗi thì API dùng bộ đọc dự phòng và ghi rõ trên lượt xử lý.
 
+**Sao lưu hằng đêm**: dịch vụ `backup` trong profile `backup`, mặc định không chạy. Bật bằng cách thêm `backup` vào `COMPOSE_PROFILES` (vd `COMPOSE_PROFILES=ocr,backup`). Mỗi ngày sau `BACKUP_HOUR` giờ (mặc định 2, giờ Việt Nam) container chạy `pg_dump -Fc` ra `./backups/<db>_<ngày>_<giờ>.dump`, giữ `BACKUP_KEEP_DAYS` ngày (mặc định 14). Văn bản tải lên nằm trong Database nên cũng nằm trong bản sao lưu. Bản sao lưu vẫn ở cùng máy: chép `./backups` sang ổ hoặc máy khác để phòng hỏng máy. Khôi phục: `docker compose exec -T postgres pg_restore -U <user> -d <db> --clean --if-exists < backups/<tệp>.dump`.
+
 ## 4. Lưu ý vận hành
 
 - Worker trích xuất chạy trong tiến trình API: restart API giữa chừng thì job được claim lại sau lease 10 phút (an toàn nhưng chậm — KNOWN_ISSUES #13).
