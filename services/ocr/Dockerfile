@@ -1,0 +1,43 @@
+# ocr-service: B2–B6 của quy trình xử lý văn bản (Docling + RapidOCR + VietOCR + OpenCV).
+# Mô hình được tải sẵn lúc build; khi chạy, container không cần và không được ra Internet.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DOCLING_ARTIFACTS_PATH=/models/docling \
+    VIETOCR_CONFIG=/models/vietocr/config.yml \
+    VIETOCR_WEIGHTS=/models/vietocr/vgg_transformer.pth \
+    RAPIDOCR_MODEL_DIR=/models/rapidocr \
+    HF_HOME=/models/hf \
+    OMP_NUM_THREADS=4
+
+# LibreOffice chỉ dùng để đổi .doc, .xls cũ sang .docx, .xlsx. libgl không cần vì dùng opencv headless.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libreoffice-writer-nogui libreoffice-calc-nogui fonts-dejavu-core libglib2.0-0 curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY services/ocr/requirements.txt ./requirements.txt
+# Mặc định cài torch bản CPU (image nhỏ, chạy được trên mọi máy). Máy có GPU NVIDIA: build với --build-arg
+# TORCH_INDEX_URL=<kho torch bản CUDA khớp driver, tra tại pytorch.org/get-started> rồi để VIETOCR_DEVICE=auto.
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN pip install --index-url ${TORCH_INDEX_URL} torch==2.14.1 torchvision==0.29.1 \
+ && pip install -r requirements.txt \
+ && pip install --no-deps vietocr==0.3.13
+
+# Tải mô hình trước khi chép mã nguồn: sửa mã không làm tải lại vài GB mô hình (lớp cache giữ nguyên).
+COPY services/ocr/scripts ./scripts
+RUN python scripts/download_models.py
+COPY services/ocr/ocr_service ./ocr_service
+
+# Từ đây không tải gì thêm: Hugging Face và RapidOCR chỉ đọc mô hình đã có.
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+
+RUN useradd --create-home --uid 10001 ocr && chown -R ocr /models
+USER ocr
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=5 \
+  CMD curl -fsS http://127.0.0.1:8000/health | grep -q '"status":"ok"' || exit 1
+CMD ["uvicorn", "ocr_service.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

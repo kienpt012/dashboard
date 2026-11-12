@@ -22,6 +22,14 @@ export interface OllamaChatOptions {
   signal?: AbortSignal;
 }
 
+/** Ollama chạy nhưng không có model được cấu hình (bị xoá, chưa tạo): lỗi của cả lượt, không phải của một đoạn. */
+export class OllamaModelMissingError extends ServiceUnavailableException {
+  constructor(readonly model: string) {
+    super(`Chưa có model "${model}" trong Ollama. Tạo lại hoặc tải model rồi bấm "Trích xuất lại".`);
+    this.name = 'OllamaModelMissingError';
+  }
+}
+
 // Client gọi Ollama local. Mọi lời gọi model đều đi qua service này để thống nhất
 // cấu hình, timeout và không bao giờ log nội dung tài liệu.
 @Injectable()
@@ -32,6 +40,14 @@ export class OllamaService {
   readonly embedModel: string;
   readonly requestTimeoutMs: number;
   readonly numCtx: number;
+  /** OLLAMA_NUM_GPU: số lớp nạp lên GPU; 0 = chỉ CPU (máy GPU nhỏ, tránh Ollama tự chia model ra GPU rồi chậm hẳn). */
+  readonly numGpu: number | null;
+  /** Thời gian chờ một lần hỏi /api/version. Máy thiếu RAM đang nạp model có thể trả lời chậm hơn 3 giây. */
+  readonly healthTimeoutMs: number;
+  /** Giữ model nạp sẵn giữa các lần gọi (B8, B11), vd "30m"; rỗng = mặc định của Ollama. */
+  readonly keepAlive: string | null;
+  /** OLLAMA_THINK=false gửi think:false (model có bước suy nghĩ); bỏ trống thì không gửi (qwen3 instruct không có). */
+  readonly think: boolean | null;
 
   constructor(config: ConfigService) {
     this.baseUrl = (config.get<string>('OLLAMA_BASE_URL') || 'http://127.0.0.1:11434').replace(/\/+$/, '');
@@ -40,20 +56,44 @@ export class OllamaService {
     // Trên GPU 4GB (~10 tok/s), một chunk nhiều chỉ tiêu có thể cần sinh >2000 token
     // (~4 phút). Job chạy nền nên timeout dài là an toàn; lời gọi ngắn (Copilot định
     // tuyến intent) tự kết thúc sớm hơn nhiều.
-    this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 900_000);
+    this.requestTimeoutMs = boundedInteger(config.get<string>('OLLAMA_TIMEOUT_MS'), 480_000, 30_000, 3_600_000);
     this.numCtx = boundedInteger(config.get<string>('OLLAMA_NUM_CTX'), 4096, 2048, 32_768);
+    const numGpu = (config.get<string>('OLLAMA_NUM_GPU') ?? '').trim();
+    this.numGpu = /^\d{1,3}$/.test(numGpu) ? Number(numGpu) : null;
+    this.healthTimeoutMs = boundedInteger(config.get<string>('OLLAMA_HEALTH_TIMEOUT_MS'), 10_000, 1_000, 120_000);
+    const keepAlive = (config.get<string>('OLLAMA_KEEP_ALIVE') ?? '').trim();
+    this.keepAlive = /^-?\d+(\.\d+)?(ms|s|m|h)?$/.test(keepAlive) ? keepAlive : null;
+    const think = (config.get<string>('OLLAMA_THINK') ?? '').trim().toLowerCase();
+    this.think = think === 'true' ? true : think === 'false' ? false : null;
   }
 
-  async isAvailable(signal?: AbortSignal): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/version`, {
-        signal: combineAbortSignals(3_000, signal),
-      });
-      return response.ok;
-    } catch {
-      rethrowExternalAbort(signal);
-      return false;
+  /**
+   * Ollama có trả lời không. Copilot gọi một lần, chờ ngắn (mặc định 3 giây) để không làm chậm câu trả lời.
+   * Job trích xuất chạy nền nên gọi với `attempts` > 1: máy thiếu RAM có thể chậm vài chục giây, và nếu kết luận
+   * sai là "không hoạt động" thì cả văn bản rơi về bộ luật dù Qwen vẫn chạy được.
+   */
+  async isAvailable(signal?: AbortSignal, options: { timeoutMs?: number; attempts?: number; retryDelayMs?: number } = {}): Promise<boolean> {
+    const timeoutMs = options.timeoutMs ?? 3_000;
+    const attempts = Math.max(1, Math.floor(options.attempts ?? 1));
+    const retryDelayMs = options.retryDelayMs ?? 2_000;
+    let lastError = 'không rõ';
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        const response = await fetch(`${this.baseUrl}/api/version`, {
+          signal: combineAbortSignals(timeoutMs, signal),
+        });
+        if (response.ok) return true;
+        lastError = `HTTP ${response.status}`;
+      } catch (error) {
+        rethrowExternalAbort(signal);
+        lastError = error instanceof Error ? error.name : 'lỗi';
+      }
+      if (attempt < attempts) await sleep(retryDelayMs * attempt, signal);
     }
+    if (attempts > 1) {
+      this.logger.warn(`Ollama không trả lời ${this.baseUrl}/api/version sau ${attempts} lần (mỗi lần chờ ${timeoutMs} ms, lỗi cuối: ${lastError})`);
+    }
+    return false;
   }
 
   // Sinh JSON theo schema bằng grammar-constrained decoding của Ollama (tham số format).
@@ -64,7 +104,8 @@ export class OllamaService {
   ): Promise<OllamaChatResult> {
     const startedAt = Date.now();
     const model = options?.model || this.extractModel;
-    const timeoutMs = boundedInteger(options?.timeoutMs, this.requestTimeoutMs, 1_000, 900_000);
+    // Máy chỉ có CPU (3–5 token/giây) có thể cần hơn 15 phút cho một đoạn dày: OLLAMA_TIMEOUT_MS đặt được tới 60 phút.
+    const timeoutMs = boundedInteger(options?.timeoutMs, this.requestTimeoutMs, 1_000, 3_600_000);
     // Dùng stream để tránh trần headersTimeout 300s của undici (fetch Node):
     // với stream, header trả về ngay và token chảy liên tục nên chỉ còn giới hạn
     // tổng thời gian do AbortSignal kiểm soát.
@@ -77,9 +118,12 @@ export class OllamaService {
           model,
           stream: true,
           format: schema,
+          ...(this.keepAlive ? { keep_alive: this.keepAlive } : {}),
+          ...(this.think !== null ? { think: this.think } : {}),
           options: {
             temperature: options?.temperature ?? 0.1,
             num_ctx: options?.numCtx ?? this.numCtx,
+            ...(this.numGpu !== null ? { num_gpu: this.numGpu } : {}),
           },
           messages,
         }),
@@ -93,6 +137,7 @@ export class OllamaService {
     if (!response.ok) {
       const detail = await safeErrorText(response);
       this.logger.error(`Ollama trả lỗi ${response.status} cho model ${model}: ${detail}`);
+      if (response.status === 404 && /not found/i.test(detail)) throw new OllamaModelMissingError(model);
       throw new ServiceUnavailableException('Dịch vụ AI cục bộ trả về lỗi. Vui lòng thử lại sau.');
     }
     let raw: string;
@@ -131,6 +176,44 @@ export class OllamaService {
     };
   }
 
+  /**
+   * Digest của model trong Ollama (đổi khi tag được tạo lại từ trọng số khác). Dùng làm một phần khoá bộ nhớ kết quả
+   * trích xuất, để kết quả của bản model cũ không bị dùng lại cho bản mới cùng tên. Không hỏi được thì null.
+   */
+  async modelDigest(model: string = this.extractModel, signal?: AbortSignal): Promise<string | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, { signal: combineAbortSignals(this.healthTimeoutMs, signal) });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { models?: { name?: string; model?: string; digest?: string }[] };
+      const wanted = model.includes(':') ? model : `${model}:latest`;
+      const found = (payload.models ?? []).find(entry => entry.name === wanted || entry.model === wanted);
+      return typeof found?.digest === 'string' && found.digest ? found.digest : null;
+    } catch {
+      rethrowExternalAbort(signal);
+      return null;
+    }
+  }
+
+  /**
+   * Model đang nạp có nằm trên GPU không (Ollama /api/ps: `size_vram` là phần model nằm trong bộ nhớ GPU). Dùng để tự
+   * chọn số đoạn gửi cùng lúc. Model chưa nạp hoặc không hỏi được thì null.
+   */
+  async modelOnGpu(model: string = this.extractModel, signal?: AbortSignal): Promise<boolean | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ps`, { signal: combineAbortSignals(this.healthTimeoutMs, signal) });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { models?: { name?: string; model?: string; size?: number; size_vram?: number }[] };
+      const wanted = model.includes(':') ? model : `${model}:latest`;
+      const found = (payload.models ?? []).find(entry => entry.name === wanted || entry.model === wanted);
+      if (!found || typeof found.size_vram !== 'number') return null;
+      // Nạp một phần lên GPU (dưới nửa model) vẫn chạy với tốc độ gần CPU: không coi là GPU.
+      return found.size_vram > 0 && (typeof found.size !== 'number' || found.size <= 0 || found.size_vram / found.size >= 0.5);
+    } catch {
+      rethrowExternalAbort(signal);
+      return null;
+    }
+  }
+
   async embed(texts: string[], options?: { model?: string }): Promise<number[][]> {
     if (!texts.length) return [];
     const model = options?.model || this.embedModel;
@@ -139,7 +222,7 @@ export class OllamaService {
       response = await fetch(`${this.baseUrl}/api/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, input: texts }),
+        body: JSON.stringify({ model, input: texts, ...(this.keepAlive ? { keep_alive: this.keepAlive } : {}) }),
         signal: AbortSignal.timeout(this.requestTimeoutMs),
       });
     } catch {
@@ -165,6 +248,21 @@ function boundedInteger(raw: string | number | undefined, fallback: number, min:
 function combineAbortSignals(timeoutMs: number, externalSignal?: AbortSignal): AbortSignal {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   return externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 function rethrowExternalAbort(signal?: AbortSignal): void {

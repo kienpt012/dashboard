@@ -1,6 +1,10 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostgreSQL 17 Alpine + pgvector (B13–B14). Image dựng một lần từ deploy/postgres/Dockerfile, cùng nền với
+    # postgres:17-alpine cũ nên dùng tiếp volume dữ liệu hiện có.
+    image: ${IOC_INSTANCE:-ioc-laithieu}-db:pg17-pgvector-0.8.7
+    build:
+      context: deploy/postgres
     container_name: ${IOC_INSTANCE:-ioc-laithieu}-db
     restart: unless-stopped
     environment:
@@ -54,13 +58,36 @@ services:
       OLLAMA_EXTRACT_MODEL: ${OLLAMA_EXTRACT_MODEL:-qwen3:4b-instruct-2507-q4_K_M}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
       OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-480000}
+      OLLAMA_HEALTH_TIMEOUT_MS: ${OLLAMA_HEALTH_TIMEOUT_MS:-10000}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-4096}
+      OLLAMA_NUM_GPU: ${OLLAMA_NUM_GPU:-}
       TESSERACT_LANGS: ${TESSERACT_LANGS:-vie+eng}
       EXTRACTION_POLL_MS: ${EXTRACTION_POLL_MS:-4000}
       EXTRACTION_MAX_ATTEMPTS: ${EXTRACTION_MAX_ATTEMPTS:-3}
-      EXTRACTION_MAX_OCR_PAGES: ${EXTRACTION_MAX_OCR_PAGES:-20}
+      # 0 = không giới hạn số trang OCR của bộ đọc dự phòng (bản cũ dừng ở 20 trang và để trống các trang sau).
+      EXTRACTION_MAX_OCR_PAGES: ${EXTRACTION_MAX_OCR_PAGES:-0}
       EXTRACTION_MAX_LLM_CHUNKS: ${EXTRACTION_MAX_LLM_CHUNKS:-40}
+      EXTRACTION_RULE_FILL_IN: ${EXTRACTION_RULE_FILL_IN:-false}
+      EXTRACTION_RECHECK_MAX: ${EXTRACTION_RECHECK_MAX:-10}
+      EXTRACTION_LLM_CACHE_DAYS: ${EXTRACTION_LLM_CACHE_DAYS:-90}
+      EXTRACTION_TABLE_READER: ${EXTRACTION_TABLE_READER:-true}
+      EXTRACTION_CHUNK_FILTER: ${EXTRACTION_CHUNK_FILTER:-target}
+      EXTRACTION_LLM_CONCURRENCY: ${EXTRACTION_LLM_CONCURRENCY:-auto}
       DISABLE_EXTRACTION_WORKER: ${DISABLE_EXTRACTION_WORKER:-false}
+      # Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR) đọc B2–B6. Để trống thì dùng bộ đọc dự phòng
+      # (pdf.js + Tesseract). Bật bằng COMPOSE_PROFILES=ocr và OCR_SERVICE_URL=http://ocr:8000 trong .env.
+      OCR_SERVICE_URL: ${OCR_SERVICE_URL:-}
+      OCR_SERVICE_PAGE_BATCH: ${OCR_SERVICE_PAGE_BATCH:-4}
+      OCR_SERVICE_TIMEOUT_MS: ${OCR_SERVICE_TIMEOUT_MS:-900000}
+      CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-1400}
+      CHUNK_MAX_NUMBERS: ${CHUNK_MAX_NUMBERS:-12}
+      CHUNK_TABLE_FORMAT: ${CHUNK_TABLE_FORMAT:-plain}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      MATCH_DUPLICATE_THRESHOLD: ${MATCH_DUPLICATE_THRESHOLD:-0.95}
+      MATCH_NEAR_THRESHOLD: ${MATCH_NEAR_THRESHOLD:-0.85}
+    networks:
+      - default
+      - ocr_internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -94,6 +121,69 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+  ocr:
+    # B2–B6: Docling (bố cục, bảng, cấu trúc), RapidOCR (tìm dòng), VietOCR (đọc chữ), OpenCV (chuẩn bị ảnh).
+    # Chỉ nằm trong mạng nội bộ, không mở cổng ra máy và không ra được Internet.
+    profiles: ["ocr"]
+    image: "${IOC_INSTANCE:-ioc-laithieu}-ocr:${IMAGE_TAG:-local}"
+    build:
+      context: .
+      dockerfile: services/ocr/Dockerfile
+      args:
+        # Kho torch: mặc định bản CPU. Máy có GPU NVIDIA đặt OCR_TORCH_INDEX_URL sang kho bản CUDA (xem docs/DEPLOYMENT.md).
+        TORCH_INDEX_URL: ${OCR_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-ocr
+    restart: unless-stopped
+    environment:
+      OCR_DPI: ${OCR_DPI:-216}
+      OCR_SECOND_READER: ${OCR_SECOND_READER:-rapidocr}
+      OCR_THREADS: ${OCR_THREADS:-4}
+      OCR_TABLE_MODE: ${OCR_TABLE_MODE:-accurate}
+      # auto = dùng GPU khi container thấy GPU, không thì CPU; cpu = luôn CPU.
+      VIETOCR_DEVICE: ${VIETOCR_DEVICE:-auto}
+    networks:
+      - ocr_internal
+
+  backup:
+    # Sao lưu hằng đêm: pg_dump định dạng nén vào ./backups (văn bản tải lên nằm trong Database nên cũng được sao lưu).
+    # Bật bằng COMPOSE_PROFILES=backup; giữ BACKUP_KEEP_DAYS ngày. Chép ./backups sang máy hoặc ổ khác để chống mất máy.
+    profiles: ["backup"]
+    image: ${IOC_INSTANCE:-ioc-laithieu}-db:pg17-pgvector-0.8.7
+    container_name: ${IOC_INSTANCE:-ioc-laithieu}-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-ioc_laithieu}
+      PGUSER: ${POSTGRES_USER:-ioc_admin}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}
+      BACKUP_HOUR: ${BACKUP_HOUR:-2}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    # Mỗi phút xem giờ; tới BACKUP_HOUR mà hôm nay chưa có bản thì dump ra tệp .part rồi mới đổi tên,
+    # nên tệp .dump luôn là bản trọn vẹn. Tệp .part do lần lỗi để lại bị xoá ở lần chạy sau.
+    command:
+      - |
+        while true; do
+          day=$$(date +%Y%m%d)
+          if [ "$$(date +%H | sed s/^0//)" -ge "$$BACKUP_HOUR" ] && ! ls /backups/$${PGDATABASE}_$${day}_*.dump >/dev/null 2>&1; then
+            find /backups -maxdepth 1 -name "*.part" -delete
+            file=/backups/$${PGDATABASE}_$${day}_$$(date +%H%M).dump
+            if pg_dump -Fc -f "$$file.part"; then mv "$$file.part" "$$file"; echo "Da sao luu $$file"; else echo "Sao luu loi" >&2; fi
+            find /backups -maxdepth 1 -name "$${PGDATABASE}_*.dump" -mtime +"$$BACKUP_KEEP_DAYS" -delete
+          fi
+          sleep 60
+        done
+
+networks:
+  ocr_internal:
+    internal: true
 
 volumes:
   ioc_postgres_data:

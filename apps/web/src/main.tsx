@@ -26,6 +26,20 @@ session.subscribe(() => {
   client.clear();
 });
 
+// Sau khi triển khai bản web mới, trang đang mở vẫn trỏ tới các file JS cũ (tên có mã băm) đã bị thay. Tải lại trang
+// một lần để lấy index.html mới; nhớ lần tải lại trong sessionStorage để không lặp vô hạn nếu lỗi do nguyên nhân khác.
+window.addEventListener('vite:preloadError', event => {
+  const key = 'ioc:reloaded-after-deploy';
+  try {
+    if (sessionStorage.getItem(key) === location.pathname) return;
+    sessionStorage.setItem(key, location.pathname);
+  } catch {
+    // sessionStorage bị chặn: vẫn tải lại một lần
+  }
+  event.preventDefault();
+  location.reload();
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={client}>

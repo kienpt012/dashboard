@@ -17,7 +17,7 @@ Biện pháp (đã hiện thực trong `extraction-llm.ts`):
 
 ## 2. Tệp tải lên độc hại
 
-- **Allowlist theo magic-byte** (`detectDocumentKind`): chỉ nhận %PDF-, JPEG, PNG, RIFF/WEBP, và container ZIP; không tin MIME/extension client khai.
+- **Allowlist theo magic-byte** (`detectDocumentKind`): chỉ nhận %PDF-, JPEG, PNG, RIFF/WEBP, TIFF, container ZIP (DOCX/XLSX) và OLE2 có luồng Word/Excel (DOC/XLS); không tin MIME/extension client khai. DOC/XLS chỉ nhận khi bật ocr-service: LibreOffice chuyển đổi trong container không ra được Internet (mạng `internal`), chạy bằng người dùng không phải root.
 - **Soi entry bên trong ZIP**: đọc local file header để phân biệt DOCX (`word/`) với XLSX (`xl/`); ZIP không nhận diện được bị từ chối.
 - **Giới hạn 25MB** (multer memoryStorage + kiểm tra lại kích thước), 1 tệp/request.
 - **SHA-256 dedupe**: tệp trùng bị từ chối kèm mã tài liệu đã có — chống nhồi trùng lặp.

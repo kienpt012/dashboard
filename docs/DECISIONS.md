@@ -123,3 +123,223 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
   hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
 - **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
+
+## D-015 · 2026-11-01 · Quy trình xử lý văn bản bản 2: ocr-service (Docling + VietOCR), chia đoạn theo mục, B10, bge-m3 + pgvector
+
+- **Bối cảnh**: đánh giá VB-2026-0007 cho thấy bộ đọc cũ bỏ trống trang scan sau trang 20, cắt đôi tên chỉ tiêu ở chỗ
+  xuống dòng của PDF, ghi job COMPLETED kèm tên model dù Qwen hết giờ ở mọi đoạn, và so trùng chỉ bằng Dice. Bản quy
+  trình chốt 26/10 (17 bước B1–B17) là căn cứ thiết kế.
+- **Chọn**:
+  - B2–B6 ở dịch vụ Python riêng `services/ocr`: Docling đọc thẳng PDF có lớp chữ và Word, dựng bảng bằng TableFormer
+    và cấu trúc tài liệu; trang scan và ảnh qua OpenCV (xoay thẳng, gỡ dấu đỏ), RapidOCR tìm dòng, VietOCR đọc, bộ đọc
+    thứ hai PP-OCRv5 latin để so; dòng hai bộ đọc lệch nhau hoặc có âm tiết sai luật tiếng Việt mang cờ `can_ra_soat`.
+    Dịch vụ là tùy chọn (profile `ocr`); API giữ bộ đọc pdf.js + Tesseract làm dự phòng, bỏ trần 20 trang.
+  - B7 ở API (cần cả văn bản): đoạn theo mục, mang `heading_path`, câu đầu mục, id phần tử nguồn; giữ định dạng
+    `[Mục: …]` và bảng dạng chữ để mô hình fine-tune `qwen3-chitieu` đọc được.
+  - B8: temperature 0, gọi lại một lần khi JSON hỏng; Qwen lỗi thì dùng luật và ghi rõ trên job và bản ghi; đoạn không
+    có chữ số và ô biểu mẫu cố định không gửi Qwen.
+  - B10: 8 luật (cấu trúc, bám nguồn, đơn vị, miền giá trị, năm và hạn, tên, nhất quán, chất lượng OCR) gắn cờ, chạy
+    lại khi người duyệt sửa.
+  - B11–B14: bge-m3 qua Ollama, vector lưu `double precision[]` + chỉ mục HNSW biểu thức `vector(1024)` riêng cho chỉ
+    tiêu và danh mục; xếp TRUNG / GAN_TRUNG / MOI theo ngưỡng 0,95 / 0,85; gợi ý mã từ thư viện bộ chỉ tiêu mẫu.
+  - pgvector biên dịch trên `postgres:17-alpine` để giữ volume (không đổi sang image Debian).
+- **Khác với bản quy trình**: (1) bản ghi TRUNG không tự gộp vào kho; mọi đề xuất AI vẫn qua người duyệt theo D-006,
+  người duyệt có thêm nút "Gộp vào" chỉ tiêu có sẵn. (2) Danh mục chỉ tiêu chưa đưa vào prompt Qwen (giữ đúng định
+  dạng mô hình đang fine-tune); mã được gợi ý bằng vector. (3) Prisma chưa có kiểu vector nên cột là mảng số thực, chỉ
+  mục HNSW trên biểu thức ép kiểu. (4) Ảnh dòng OCR đã sửa chưa được lưu thành dữ liệu huấn luyện VietOCR.
+- **Câu hỏi mở**: CER của VietOCR trên dataset1, ngưỡng gộp hai bộ đọc, ngưỡng B14 trên vài trăm cặp đã gán nhãn, thời
+  gian mỗi trang trên CPU máy chủ, dung lượng image ocr-service.
+
+## D-016 · 2026-11-05 · Luật chỉ thay Qwen khi Qwen lỗi, bỏ bổ khuyết mặc định (sửa D-007; chốt 11/11)
+
+- Chạy thử trên máy người dùng (QĐ 015 mẫu, Qwen gốc và bản fine-tune): Qwen bắt 29–30/30 chỉ tiêu, còn mọi ứng viên
+  thừa của bản fine-tune đều do luật bổ khuyết thêm vào từ câu số liệu nền ("Số liệu nền năm 2025 là 80 hộ", "Kết quả
+  cân, đo…"). Bổ khuyết theo giá trị số không phân biệt được chỉ tiêu với số liệu nền.
+- Đoạn Qwen đọc được thì chỉ lấy kết quả Qwen. Luật vẫn chạy đầy đủ khi Qwen lỗi, hết giờ, Ollama tắt hoặc đoạn vượt
+  trần `EXTRACTION_MAX_LLM_CHUNKS` (graceful degradation của D-007 giữ nguyên).
+- `EXTRACTION_RULE_FILL_IN=true` bật lại bổ khuyết kiểu D-007 cho máy chỉ có model yếu.
+
+
+## D-017 · 2026-11-06 · Thứ tự, số thứ tự, nhóm và lĩnh vực của đề xuất lấy từ cấu trúc văn bản
+
+- **Bối cảnh**: chạy thử file mẫu QĐ 015 (32 chỉ tiêu, 3 mục) cho thấy màn hình duyệt không theo thứ tự văn bản và
+  không gom theo mục. Nguyên nhân ở lớp ứng dụng: bước bỏ trùng sắp theo độ tin cậy, API trả theo thời điểm tạo, giao
+  diện chỉ in đề mục thành một dòng chữ; số thứ tự do model điền (model gốc 0/32, bản fine-tune 22/31) và lĩnh vực
+  do model đoán từng đoạn (từng xếp chỉ tiêu an toàn thực phẩm vào an ninh - quốc phòng dù đề mục ghi y tế).
+- **Chọn**: không train hay viết prompt theo mẫu văn bản, mà lấy từ chính văn bản (`extraction-structure.ts`):
+  - thứ tự đọc `documentOrder` = số đoạn × 10000 + vị trí câu trích trong đoạn; API sắp theo cột này khi xem một văn
+    bản; bỏ trùng vẫn giữ bản tin cậy cao nhưng không đổi thứ tự;
+  - số thứ tự dò trong văn bản gốc trước ("(9)", "9.", "a)", ô STT đầu hàng bảng), model là phương án phụ; hai chỉ
+    tiêu cùng một mục dùng chung số như văn bản;
+  - `groupName` = cấp đề mục đầu tiên mà các chỉ tiêu bắt đầu khác nhau, giữ đúng chữ của văn bản;
+  - `category` là lĩnh vực chuẩn (8 lĩnh vực, sửa danh sách ở một chỗ), theo thứ tự: từ khoá trong đề mục, so nghĩa
+    bge-m3 với mô tả lĩnh vực, gợi ý của model, từ khoá trong tên; không đủ căn cứ thì để trống cho người duyệt chọn;
+  - duyệt thành chỉ tiêu thì mang theo số thứ tự, nhóm và thứ tự sang `Target.ordinal/groupName/sortOrder`.
+- **Câu hỏi mở**: ngưỡng so nghĩa bge-m3 (0,45 và cách biệt 0,02) chưa đo trên dữ liệu thật; chỉ tiêu cha
+  (`parentId`) chưa tự nối khi duyệt.
+- **Đã chốt (06/11)**: màn hình duyệt mặc định gom theo đề mục văn bản; dashboard gom theo lĩnh vực chuẩn.
+
+## D-018 · 2026-11-06 · Bảng chỉ tiêu Excel theo khuôn Phụ lục 1 để chuyên viên chuẩn hoá rồi tải lên
+
+- **Bối cảnh**: chuyên viên cần xem kết quả bóc tách trực quan như phụ lục giao chỉ tiêu, sửa hàng loạt trong Excel,
+  rồi đưa lên hệ thống để gửi các phòng chuyên môn.
+- **Chọn**: `GET /documents/:id/candidate-sheet` xuất các đề xuất chưa duyệt theo khuôn PL1 (STT | Chỉ tiêu | Đơn vị
+  tính | Kế hoạch năm | Đơn vị chủ trì báo cáo | Ghi chú), hàng nhóm số La Mã theo đề mục văn bản, hàng "-" cho chỉ
+  tiêu thành phần, kế hoạch giữ chữ gốc ("≥ 95,5", "9.800 USD/người"); thêm cột Lĩnh vực, Kỳ báo cáo, Hạn, Chiều đánh
+  giá, Xử lý (Giữ/Bỏ), trang và trích dẫn nguồn; mã và phiên bản đề xuất ở cột ẩn. `POST` cùng đường dẫn đọc file đã
+  sửa: mặc định chỉ xem trước (sửa, thêm, loại, đổi thứ tự, lỗi); `apply=1` mới ghi, có lỗi thì không ghi gì;
+  `submit=1` trình các đề xuất đủ thông tin, mỗi phòng chủ trì (trưởng phòng) và lãnh đạo nhận một thông báo cho đề
+  xuất của phòng mình (D-006 giữ nguyên: vẫn phải duyệt).
+- **Quy tắc**: phiên bản trong file khác trên hệ thống thì báo lỗi, không ghi đè; xoá hàng không loại đề xuất (phải
+  chọn "Bỏ"); quyền sửa, chuyển phòng, loại giống các nút trên màn hình duyệt; không thêm bảng lưu lần nhập.
+
+## D-019 · 2026-11-06 · Ký hiệu ngưỡng ở cột Kế hoạch đọc từ câu trích dẫn bằng bảng cụm từ
+
+- **Bối cảnh**: văn bản ghi "ít nhất 125,5 tỷ đồng", "từ 8% trở lên", "không vượt quá 2%"; bảng PL1 chỉ có con số
+  thì mất nghĩa ngưỡng. Người dùng cần cột Kế hoạch có ký hiệu >=, >, <=, <, =.
+- **Chọn**: không dạy model hay thêm bảng giải thích vào prompt. `target-threshold.ts` dò cụm từ sát ngay con số mục
+  tiêu trong câu trích dẫn (cụm phủ định và cụm dài xét trước; "từ 60 tuổi trở lên", "trẻ em dưới năm tuổi" không
+  tính vì không đứng sát con số mục tiêu) và cho ">= 125,5", "< 6,5", "= 100", "70 - 75", "khoảng 12.000". Không
+  thấy con số trong câu trích thì để nguyên số, không đoán.
+- **Số trần** (bảng PL2 chỉ ghi "% | 60", khoảng một nửa số hàng): văn bản không ghi ký hiệu nên model hay code đều
+  không "nhận ra" được. Tạm suy theo chiều đánh giá (càng cao càng tốt → >=, càng thấp càng tốt → <=), ô tô xanh kèm
+  chú thích "hệ thống suy ra" để chuyên viên rà.
+- **Thứ hạng** (bổ sung 09/11): số ngay sau "hạng", "top", "nhóm" thì số nhỏ hơn là tốt hơn: "từ hạng 10 trở lên",
+  "top 10" là <= 10; "hạng 5" trần suy <= 5 (tô xanh). "Đạt tỉ lệ 38%", "tăng bình quân 7%" là "=".
+- **Đã chốt (06/11)**: số trần suy theo chiều đánh giá như trên; ký hiệu và số ghi chung một cột Kế hoạch đúng kiểu
+  PL1 (không tách cột Ký hiệu).
+- **Phạm vi**: chỉ điền khi xuất bảng (đề xuất có `targetText` thì dùng chữ đó); ký hiệu tự điền mà chuyên viên giữ
+  nguyên thì không tính là sửa. Chuyên viên sửa thành ">= 130" thì lưu `targetText`, màn hình chỉ tiêu ghép thêm
+  đơn vị tính. Không ghi vào CSDL lúc bóc tách để các màn hình đang hiển thị `targetText` không mất đơn vị.
+- **Câu hỏi mở**: đánh giá hoàn thành theo ký hiệu chưa làm; "khoảng X" tính đạt từ mức nào chờ người dùng chốt.
+
+## D-020 · 2026-11-11 · Kiểm tra đủ mục: đếm mục đánh số trong văn bản, hỏi lại Qwen các mục thiếu
+
+- **Bối cảnh**: VB-2026-0008 hai lần mất chỉ tiêu (mục (1)–(13), rồi (22)–(26)) mà lượt trích xuất vẫn báo hoàn tất;
+  chỉ phát hiện khi so tay với PDF. B10 kiểm từng bản ghi nên không thấy bản ghi không tồn tại.
+- **Chọn**: `extraction-completeness.ts` đếm các mục "(n)" (đầu dòng hoặc sau dấu kết câu) và hàng bảng có ô STT trong
+  từng đoạn; mục có số liệu mục tiêu (bỏ số hiệu văn bản, điều khoản) mà không đề xuất nào trích từ đó là mục thiếu.
+  Qwen được hỏi lại một lần với đoạn rút gọn chỉ gồm các mục thiếu (tối đa `EXTRACTION_RECHECK_MAX` lần mỗi văn bản);
+  bản ghi tìm được ở lượt hỏi lại có cảnh báo riêng. Mục vẫn thiếu ghi vào ghi chú của lượt ("trang 3 mục (22): …") và
+  `stats.missingItems` cho người duyệt đối chiếu.
+- **Giới hạn**: chỉ áp dụng cho đoạn Qwen đọc được; văn bản không đánh số thì không kiểm được (đợt 2: kiểm "số chưa
+  được trích"). Mục có số nhưng không phải chỉ tiêu sẽ thành ghi chú thừa, chấp nhận vì chỉ là nhắc đối chiếu.
+
+## D-021 · 2026-11-11 · Nhớ kết quả Qwen theo đoạn
+
+- **Bối cảnh**: trên CPU, Qwen chiếm khoảng 97% thời gian (VB-2026-0008: 2.068 giây cho 40 đoạn, đọc file 36 giây). Mỗi
+  lần sửa code rồi "Đọc lại" là chạy lại cả 35 phút dù phần lớn đoạn không đổi.
+- **Chọn**: bảng `LlmExtractionCache` lưu câu trả lời thô của Qwen, khoá bằng SHA-256 của mọi thứ quyết định câu trả
+  lời ở temperature 0: phiên bản prompt, tên model, digest của model trong Ollama, schema, và toàn bộ tin nhắn gửi đi.
+  Lưu câu trả lời thô (không lưu bản ghi đã làm sạch) để các sửa đổi ở bước làm sạch, B10, nhóm, ký hiệu vẫn có hiệu
+  lực khi đọc lại. Không hỏi được digest thì không nhớ; câu trả lời hỏng JSON không được lưu.
+- **Vệ sinh dữ liệu**: dòng gắn với văn bản tạo ra nó và bị xoá cùng văn bản; quá `EXTRACTION_LLM_CACHE_DAYS` (mặc định
+  90) thì bỏ. Đặt 0 để tắt, ví dụ khi cần đo thời gian chạy thật.
+
+## D-022 · 2026-11-11 · Bảng có hàng, cột được đọc bằng code, không gửi Qwen
+
+- **Bối cảnh**: lần chạy trên máy người dùng (CPU) cho thấy Qwen chiếm gần hết thời gian, trong khi bảng chỉ tiêu
+  (Phụ lục, biểu giao chỉ tiêu, file Excel) đã có sẵn cấu trúc hàng và cột. Qwen đọc bảng dễ lệch cột (lấy số của cột
+  "Thực hiện" làm kế hoạch), bỏ hàng, và mất mã số, ô kế hoạch nguyên văn.
+- **Chọn**: `table-extraction.ts` nhận vai trò từng cột theo chữ ở hàng tiêu đề (STT, tên chỉ tiêu, mã số, đơn vị tính,
+  kế hoạch, thực hiện, so sánh, chủ trì, phối hợp, thời hạn, tần suất, ghi chú) rồi lập mỗi hàng một bản ghi
+  (`ExtractionMethod.TABLE`, `promptVersion` = `table-v1`). Không có luật riêng cho một mẫu bảng nào: tiêu đề nhiều
+  tầng, ô gộp, hàng đánh số cột, hàng nhóm (I, A, chữ in hoa, hàng gộp cả bảng), hàng con (a, -, +), bảng nối trang
+  không lặp tiêu đề, và cột của từng địa phương đều suy từ cấu trúc.
+- **Cột kế hoạch chính**: cột của chính địa phương, rồi năm của văn bản, rồi "cả năm"; cột quý, tháng bị trừ điểm; cột
+  của năm trước coi là số thực hiện. Ô chính trống thì lấy cột kế hoạch khác có số và ghi cảnh báo; các cột kế hoạch
+  còn lại chép vào mô tả. Ô kế hoạch giữ nguyên văn ở `targetText` ("Tăng 4-5%", "dưới 1,5%").
+- **Bảng nhiệm vụ** (không có cột kế hoạch nhưng có cột chủ trì hoặc thời hạn): mỗi hàng thành đề xuất loại Nhiệm vụ
+  (`targetKind = TASK`) theo quy ước hoàn thành 100% ("Hoàn thành", đơn vị %), hạn lấy ở cột thời hạn ("Quý II/2026" là
+  30/6/2026), không có thì cuối năm văn bản. Lý do: màn duyệt bắt buộc đủ đơn vị, giá trị, năm, hạn cho mọi loại.
+- **Khi nào Qwen vẫn đọc**: bảng không nhận ra hàng tiêu đề, dưới một nửa số hàng lập được bản ghi, hoặc văn bản đã đọc
+  từ bản cũ nên hàng không khớp được với đoạn. Hàng có tên nhưng không có giá trị được ghi vào ghi chú của lượt
+  ("Bảng có N hàng không lập được đề xuất") và `stats.tableUnreadRows`. `EXTRACTION_TABLE_READER=false` để tắt.
+- **Excel**: API tự đọc .xlsx thành bảng có cấu trúc (ô, ô gộp, địa chỉ ô, chỉ sheet đang hiện) nên không cần
+  ocr-service. Số trong ô được ghi theo cách người Việt nhìn thấy ("12,1", "95%"), giống nhau ở cả API và ocr-service.
+- **Giới hạn**: bảng scan mà OCR đọc sai cấu trúc thì code đọc sai theo; người duyệt vẫn là bước chốt (D-006). Bảng
+  ma trận (mỗi cột là một đơn vị) mới lấy cột của chính địa phương, các cột khác chép vào mô tả.
+
+## D-023 · 2026-11-12 · "Mức cần đạt" nhận theo cách viết quanh con số; lĩnh vực theo đề mục của văn bản
+
+- **Bối cảnh**: lượt chạy VB-2026-0008 có 27 cảnh báo "mục chưa có đề xuất" phần lớn ở Điều 4 (nhiệm vụ, giải pháp): mục
+  giao việc cũng có con số (ngày hạn, số hiệu văn bản, "02 đợt tập huấn") nên bị coi là chỉ tiêu bị sót. Bộ lọc đoạn
+  cho qua mọi đoạn có chữ số và chữ "kế hoạch". Chấm QĐ 015: 2/30 sai lĩnh vực vì từ khoá trong tên thắng đề mục.
+- **Chọn**: `target-signal.ts` bỏ các con số không thể là mức cần đạt (số hiệu, điều khoản, ngày tháng, năm, số thứ
+  tự, mốc tuổi, mẫu số dân) rồi xét chữ quanh con số còn lại: có %, có đơn vị, hoặc đứng sau từ đo lường ("đạt",
+  "trên", "ít nhất", "giảm còn"). Ở phần nhiệm vụ, giải pháp, tổ chức thực hiện (nhận theo đề mục gần nhất) thì đòi
+  chặt hơn: phải có % hoặc vừa có từ đo lường vừa có đơn vị. Cùng một phép thử dùng cho bốn chỗ:
+  - **Kiểm tra đủ mục** (D-020): mục giao việc không còn bị báo thiếu.
+  - **Lọc đoạn** (`EXTRACTION_CHUNK_FILTER=target`, mặc định): đoạn chỉ còn số hiệu, ngày tháng, hoặc đoạn giao việc
+    không ghi mức cần đạt thì không gửi Qwen (`stats.skippedNoTarget`). Đặt `basic` để dùng bộ lọc cũ.
+  - **Số chưa được trích**: con số ghi rõ là mức cần đạt mà không thuộc đề xuất nào được liệt kê trong ghi chú của
+    lượt và `stats.uncoveredNumbers` để người duyệt đối chiếu; không tự lập đề xuất.
+  - **Luật B10 "Loại thông tin"**: gắn cờ số liệu nền ("năm 2025 là 80 hộ", "hiện có", "ước thực hiện") và câu trong
+    phần nhiệm vụ không ghi mức cần đạt. Chỉ gắn cờ, không tự bỏ (D-006).
+- **Lĩnh vực**: đề mục của chính văn bản xét trước (người soạn đã xếp nhóm); đề mục "Văn hoá - xã hội" là nhóm rộng nên
+  tên nói rõ Y tế hay Giáo dục thì theo tên. Không có đề mục thì theo nhóm của mục gần nhất trong danh mục chuẩn
+  (bge-m3, cùng lần so khớp gợi ý mã), rồi tới từ khoá trong tên, rồi so nghĩa với mô tả lĩnh vực.
+- **Đơn vị bình quân theo dân số**: câu trích ghi "trên 10.000 dân", "/vạn dân" mà đơn vị chỉ còn "giường" thì ghép
+  thành "giường/10.000 dân" (4 dòng sai đơn vị ở VB-2026-0008).
+- **Bỏ trùng**: hai hàng của cùng một bảng luôn là hai bản ghi riêng (nhiệm vụ cùng quy ước 100% hay có tên gần nhau).
+- **Giới hạn**: lọc chặt hơn có thể làm sót chỉ tiêu viết khác thường ở phần nhiệm vụ ("xây mới 3 trường"); cần chấm
+  lại trên bộ đề khi có thêm văn bản thật.
+
+## D-024 · 2026-11-12 · Tự nhận loại văn bản; hồ sơ xử lý theo loại; nhiệm vụ bóc bằng luật
+
+- **Bối cảnh**: quy trình chỉ bóc "chỉ tiêu kế hoạch" và cán bộ phải tự chọn loại văn bản. Kế hoạch, công văn, chỉ thị
+  chủ yếu giao việc có đơn vị thực hiện và thời hạn, không phải chỉ tiêu số.
+- **Nhận loại** (`document-type.ts`, không cần model): số ký hiệu theo Nghị định 30/2020/NĐ-CP ("333/QĐ-UBND",
+  "05-NQ/ĐU", "30/2020/NĐ-CP"; công văn là "tên cơ quan-đơn vị soạn thảo" như "1234/UBND-VP") rồi tới tên loại in hoa
+  ở đầu văn bản. Bước đọc văn bản chỉ điền loại, số ký hiệu, ngày ban hành khi cán bộ để trống (loại "Khác"); cán bộ
+  sửa được như cũ. Thêm năm loại: Nghị định, Thông tư, Chỉ thị, Chương trình, Thông báo.
+- **Hồ sơ xử lý** (một bảng trong `document-type.ts`): chỉ tiêu được bóc ở mọi loại (bảng bằng code, văn xuôi bằng
+  Qwen). Kế hoạch, chương trình bóc thêm nhiệm vụ ở phần nhiệm vụ/tổ chức thực hiện; công văn, chỉ thị, thông báo bóc
+  nhiệm vụ ở mọi phần không phải phần chỉ tiêu; báo cáo được ghi chú rằng con số trong câu văn có thể là kết quả.
+  Thêm loại mới là thêm một dòng.
+- **Nhiệm vụ từ văn xuôi** (`task-extraction.ts`, `promptVersion` = `task-v1`): câu giao việc có đơn vị ("Giao Phòng
+  Kinh tế chủ trì, phối hợp với…", "Công an phường tăng cường…", hoặc đề mục "2. Phòng Kinh tế") hoặc có thời hạn
+  ("trước ngày 30/6/2026", "trong quý II/2026"). Câu ghi mức cần đạt bằng số là chỉ tiêu, để Qwen đọc. Mỗi nhiệm vụ là
+  đề xuất loại Nhiệm vụ theo quy ước hoàn thành 100% như bảng nhiệm vụ (D-022).
+- **Vì sao bằng luật, chưa dùng model**: Qwen đã fine-tune chỉ học chỉ tiêu; thêm một lượt model cho nhiệm vụ làm
+  gấp đôi thời gian trên CPU, trong khi chưa có văn bản thật có đáp án để đo. Luật chạy tức thì và người duyệt thấy rõ
+  đơn vị, hạn lấy từ đâu. Khi có 2–3 kế hoạch, công văn thật kèm đáp án sẽ đo và quyết định có cần model hay không.
+- **Excel**: bảng tải về có thêm sheet "Nhiệm vụ" (STT, nội dung, chủ trì, phối hợp, thời hạn, trang, trích dẫn) để xem
+  và in; sửa và tải lên vẫn qua sheet "Chỉ tiêu".
+- **Định dạng**: nhận thêm .odt, .ods, .rtf (LibreOffice của ocr-service đổi sang .docx/.xlsx như .doc, .xls).
+- **Giới hạn**: quyết định ban hành kèm kế hoạch được nhận là Quyết định nên không bóc nhiệm vụ văn xuôi (bảng nhiệm vụ
+  vẫn được đọc); đổi loại thành Kế hoạch rồi "Đọc lại" nếu cần. Báo cáo chưa cập nhật tiến độ vào chỉ tiêu đã có.
+
+## D-025 · 2026-11-12 · Gửi nhiều đoạn cho Qwen cùng lúc khi có GPU; một bản cài chạy trên cả CPU và GPU
+
+- **Bối cảnh**: Qwen chiếm khoảng 97% thời gian và worker gửi lần lượt từng đoạn. Người dùng muốn không phụ thuộc hạ
+  tầng: cùng một bản cài phải chạy được trên máy chỉ có CPU và máy có GPU.
+- **Chọn**: các đoạn đi qua một hàng chạy có giới hạn (`runLimited`); kết quả gom theo đoạn rồi nối lại theo thứ tự đoạn
+  nên thứ tự đề xuất và ghi chú không đổi dù chạy song song. `EXTRACTION_LLM_CONCURRENCY=auto` (mặc định) bắt đầu bằng
+  1; sau lần gọi Qwen thật đầu tiên API hỏi Ollama `/api/ps`, model nằm trên GPU (từ nửa model trở lên) thì tăng lên 2.
+  Đặt số 1–8 để ép. Trên CPU giữ 1: một yêu cầu đã dùng hết nhân, chạy song song chỉ làm các yêu cầu chờ nhau tới hết giờ.
+- **ocr-service**: image mặc định vẫn là torch bản CPU; `TORCH_INDEX_URL` (build arg) cho phép build bản CUDA,
+  `VIETOCR_DEVICE=auto` dùng GPU khi container thấy GPU và tự lùi về CPU khi không có. `docker-compose.gpu.yml` chỉ thêm
+  phần cấp GPU cho container ocr.
+- **Chưa đo**: mức tăng tốc thật trên GPU (cần máy có GPU từ 8GB); con số trong tài liệu đề xuất là ước tính.
+
+## D-026 · 2026-11-12 · Báo cáo tổng kết tháng, quý, năm theo mẫu Phụ lục 1
+
+- **Bối cảnh**: phường nộp báo cáo kèm "Phụ lục 1": STT, chỉ tiêu chủ yếu, mã số, đơn vị tính, chỉ tiêu Đảng ủy, chỉ tiêu
+  UBND TP, luỹ kế đến hiện tại, ghi chú. File xuất sẵn có (`/exports/targets.xlsx`) là bảng theo dõi, không phải mẫu nộp.
+- **Chọn**: `GET /exports/summary-report.xlsx?period=2026|2026-Q3|2026-M09` (`summary-report.ts`), nút "Báo cáo tổng kết"
+  ở trang Báo cáo. Lấy chỉ tiêu kế hoạch (PLAN) của năm ở mọi bộ; chỉ tiêu cùng mã số (không có mã thì cùng tên) gộp một
+  dòng: cột Đảng ủy là chỉ tiêu cấp `LOCAL`, cột UBND TP là chỉ tiêu cấp trên giao, thiếu thì ghi "Không". Luỹ kế là
+  lượt báo cáo đã duyệt mới nhất tính đến hết kỳ (báo cáo tháng/quý theo kỳ nó ghi, báo cáo năm theo ngày nhập). Ghi chú
+  là ghi chú của lượt đó kèm "Đạt"/"Chưa đạt". Khổ A4 ngang, dòng tiêu đề lặp ở mỗi trang.
+- **Giới hạn**: mới có file Excel (Word chưa có); tên hai cột mức giao viết cứng theo mẫu; phần lời văn của báo cáo
+  không được sinh; số báo cáo và ngày ký để trống cho cán bộ điền.
+
+## D-027 · 2026-11-12 · Bỏ dòng nhắc lại chỉ tiêu ở phần nhiệm vụ và bản ghi Qwen bịa từ câu bên cạnh
+
+- **Bối cảnh**: chấm VB-2026-0008 trên máy (d873e6c) còn 1 dòng trùng ("Tỷ trọng kinh tế số" ở Điều 3, nhắc lại ở Điều 4 với
+  tên dài hơn, đơn vị viết khác) và 2 dòng rác (tên không khớp câu trích, giá trị trống hoặc 0 không có trong câu trích).
+- **Chọn**: bản ở phần chỉ tiêu và bản ở phần khác cùng giá trị, cùng đơn vị gốc (phần trước dấu cách hoặc "/"), tên này
+  là phần đầu tên kia thì bỏ bản ở phần khác. Bản ghi Qwen có cờ "tên không khớp câu trích" và giá trị trống hoặc không có
+  nguyên văn trong câu trích thì bỏ hẳn, đếm vào `stats.droppedUnsupported` và ghi chú của lượt trích xuất.
+- **Báo cáo tổng kết**: tên cơ quan trong hồ sơ địa phương đã chứa tên phường thì không ghép thêm tên phường.

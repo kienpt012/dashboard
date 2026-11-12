@@ -28,6 +28,7 @@ export const WORK_ACTIONS = {
   PROPOSAL_SUBMITTED: 'Trình đề xuất',
   PROPOSAL_APPROVED: 'Duyệt đề xuất thành chỉ tiêu',
   PROPOSAL_REJECTED: 'Từ chối đề xuất',
+  PROPOSAL_MERGED: 'Gộp đề xuất vào chỉ tiêu có sẵn',
   PROPOSAL_AUTO_APPROVED: 'Tự thông qua đề xuất do quá hạn xử lý',
   PROPOSAL_AUTO_BLOCKED: 'Đề xuất quá hạn nhưng thiếu thông tin',
   REMINDER: 'Nhắc việc',

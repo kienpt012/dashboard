@@ -1,5 +1,5 @@
 import { FileExcelOutlined, PrinterOutlined } from '@ant-design/icons';
-import { App, Button, Card, Col, Empty, Flex, Row, Select, Table, Tooltip, Typography, type TableColumnsType } from 'antd';
+import { App, Button, Card, Col, Dropdown, Empty, Flex, Row, Select, Table, Tooltip, Typography, type TableColumnsType } from 'antd';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { localityTitle, useLocality } from '@/app/locality';
@@ -202,6 +202,24 @@ export default function Reports() {
     }
   }
 
+  // Báo cáo tổng kết theo mẫu Phụ lục 1: gộp mọi bộ chỉ tiêu kế hoạch của năm, số luỹ kế đến hết kỳ được chọn.
+  async function exportSummary(period: string) {
+    setExporting(true);
+    try {
+      const blob = await http.blob(`/exports/summary-report.xlsx${query({ period, departmentId: global ? departmentId || undefined : undefined })}`);
+      saveBlob(blob, `bao-cao-tong-ket-${period}.xlsx`.toLowerCase());
+    } catch (error) {
+      message.error(errorText(error, 'Không xuất được báo cáo tổng kết'));
+    } finally {
+      setExporting(false);
+    }
+  }
+  const summaryPeriods = [
+    { key: String(year), label: `Năm ${year}` },
+    { key: 'quarter', label: 'Quý', children: ['I', 'II', 'III', 'IV'].map((name, index) => ({ key: `${year}-Q${index + 1}`, label: `Quý ${name}` })) },
+    { key: 'month', label: 'Tháng', children: Array.from({ length: 12 }, (_value, index) => ({ key: `${year}-M${String(index + 1).padStart(2, '0')}`, label: `Tháng ${index + 1}` })) },
+  ];
+
   const statOnly = rows.length > 0 && rows.every(row => row.kind === 'STAT');
   const order = new Map(rows.map((row, index) => [row.id, index + 1]));
   const numbered = rows.some(row => row.ordinal);
@@ -246,6 +264,9 @@ export default function Reports() {
           <Button icon={<FileExcelOutlined />} loading={exporting} onClick={() => void exportExcel()}>
             Xuất Excel
           </Button>
+          <Dropdown menu={{ items: summaryPeriods, onClick: ({ key }) => void exportSummary(key) }} disabled={exporting}>
+            <Button icon={<FileExcelOutlined />}>Báo cáo tổng kết</Button>
+          </Dropdown>
           <Button
             type="primary"
             icon={<PrinterOutlined />}

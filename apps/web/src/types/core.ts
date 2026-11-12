@@ -306,13 +306,31 @@ export type PublicTargetListResponse={
   department:string|null;
 };
 
-export type DocumentType='KE_HOACH'|'QUYET_DINH'|'CONG_VAN'|'BAO_CAO'|'NGHI_QUYET'|'PHU_LUC'|'KHAC';
+export type DocumentType='KE_HOACH'|'QUYET_DINH'|'CONG_VAN'|'BAO_CAO'|'NGHI_QUYET'|'NGHI_DINH'|'THONG_TU'|'CHI_THI'|'CHUONG_TRINH'|'THONG_BAO'|'PHU_LUC'|'KHAC';
 export type DocumentStatus='UPLOADED'|'PROCESSING'|'PROCESSED'|'FAILED';
 export type ExtractionJobKind='DOCUMENT_PARSE'|'INDICATOR_EXTRACT';
 export type ExtractionJobStatus='PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'|'DEAD_LETTER'|'CANCELLED';
 export type CandidateKind='NEW_INDICATOR'|'PROGRESS_UPDATE';
 export type CandidateStatus='PROPOSED'|'SUBMITTED'|'APPROVED'|'REJECTED';
-export type ExtractionMethod='RULE_BASED'|'LLM';
+export type ExtractionMethod='RULE_BASED'|'LLM'|'FORM_TEMPLATE'|'TABLE';
+
+/** B10: luật kiểm tra bản ghi; B14: xếp loại so trùng. */
+export type ValidationRule='cau_truc'|'bam_nguon'|'don_vi'|'mien_gia_tri'|'nam_va_han'|'ten_chi_tieu'|'nhat_quan'|'chat_luong_ocr'|'loai_thong_tin';
+export type ValidationFlag={rule:ValidationRule;message:string};
+export const validationRuleLabels:Record<ValidationRule,string>={
+  cau_truc:'Cấu trúc',
+  bam_nguon:'Bám nguồn',
+  don_vi:'Đơn vị',
+  mien_gia_tri:'Miền giá trị',
+  nam_va_han:'Năm và hạn',
+  ten_chi_tieu:'Tên chỉ tiêu',
+  nhat_quan:'Nhất quán',
+  chat_luong_ocr:'Chất lượng OCR',
+  loai_thong_tin:'Loại thông tin',
+};
+export type MatchClass='TRUNG'|'GAN_TRUNG'|'MOI';
+export type SimilarTarget={id:string;code:string;title:string;unit:string;year:number;score:number};
+export type OcrReading={text:string;vietocr?:string|null;second?:string|null;invalidSyllables?:string[]};
 
 export const documentTypeLabels:Record<DocumentType,string>={
   KE_HOACH:'Kế hoạch',
@@ -320,6 +338,11 @@ export const documentTypeLabels:Record<DocumentType,string>={
   CONG_VAN:'Công văn',
   BAO_CAO:'Báo cáo',
   NGHI_QUYET:'Nghị quyết',
+  NGHI_DINH:'Nghị định',
+  THONG_TU:'Thông tư',
+  CHI_THI:'Chỉ thị',
+  CHUONG_TRINH:'Chương trình',
+  THONG_BAO:'Thông báo',
   PHU_LUC:'Phụ lục',
   KHAC:'Khác',
 };
@@ -342,6 +365,8 @@ export type SourceDocument={
   autoExtract?:boolean;
   hasTextLayer?:boolean|null;
   ocrUsed:boolean;
+  /** Bộ đọc đã dựng cấu trúc văn bản (ocr-service hoặc bộ dự phòng). */
+  parserVersion?:string|null;
   year?:number|null;
   departmentId?:string|null;
   department?:Pick<Department,'id'|'code'|'name'|'color'>|null;
@@ -363,6 +388,9 @@ export type ExtractionJobInfo={
   note?:string|null;
   chunksTotal?:number|null;
   chunksDone?:number|null;
+  pagesTotal?:number|null;
+  pagesDone?:number|null;
+  stats?:Record<string,unknown>|null;
   startedAt?:string|null;
   finishedAt?:string|null;
   createdAt:string;
@@ -417,8 +445,14 @@ export type IndicatorCandidate={
   model?:string|null;
   promptVersion?:string|null;
   name:string;
+  /** Số thứ tự như văn bản ghi ("9", "a"), chỉ tiêu cha của dòng thành phần. */
+  ordinal?:string|null;
+  parentName?:string|null;
   description?:string|null;
+  /** Lĩnh vực chuẩn (Kinh tế, Y tế…); groupName là đề mục nhóm như văn bản; documentOrder là thứ tự đọc. */
   category?:string|null;
+  groupName?:string|null;
+  documentOrder?:number|null;
   unit?:string|null;
   targetValue?:number|null;
   actualValue?:number|null;
@@ -437,7 +471,21 @@ export type IndicatorCandidate={
   warnings?:string[]|null;
   isDuplicateSuspect:boolean;
   matchedTargetId?:string|null;
-  matchedTarget?:{id:string;code:string;title:string}|null;
+  matchedTarget?:{id:string;code:string;title:string;unit?:string;year?:number}|null;
+  /** Quy trình bản 2: nguồn tới phần tử, mục, cờ kiểm tra, cờ OCR, so trùng, gợi ý mã, gộp. */
+  sourceElementIds?:string[]|null;
+  headingPath?:string[]|null;
+  validationFlags?:ValidationFlag[]|null;
+  ocrFlags?:string[]|null;
+  ocrReadings?:OcrReading[]|null;
+  matchClass?:MatchClass|null;
+  matchScore?:number|null;
+  similarTargets?:{method:'pgvector'|'memory'|'dice';items:SimilarTarget[]}|null;
+  suggestedCode?:string|null;
+  suggestedCodeScore?:number|null;
+  standardCode?:string|null;
+  mergedTargetId?:string|null;
+  mergedTarget?:{id:string;code:string;title:string}|null;
   humanEdited:boolean;
   editedFields?:string[]|null;
   reviewNote?:string|null;
