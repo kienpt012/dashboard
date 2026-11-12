@@ -60,4 +60,9 @@ test('Báo cáo tổng kết: bảng theo mẫu Phụ lục 1, dòng nhóm số 
   assert.deepEqual([cells(12)[0], cells(13)[0]], [2, 3]);
   assert.equal(sheet.pageSetup.orientation, 'landscape');
   assert.equal(sheet.pageSetup.printTitlesRow, '8:8');
+  // Hồ sơ ghi tên cơ quan kèm tên phường thì không lặp tên phường.
+  const named = buildSummaryWorkbook({ rows, periodKey: '2026', agencyName: 'UBND Phường Lái Thiêu', localityName: 'Phường Lái Thiêu' })
+    .getWorksheet(SUMMARY_SHEET_NAME)!;
+  assert.equal(named.getCell('A1').value, 'ỦY BAN NHÂN DÂN');
+  assert.match(String(named.getCell('A6').value), /của UBND phường Lái Thiêu\)$/);
 });

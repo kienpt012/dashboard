@@ -334,3 +334,12 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   là ghi chú của lượt đó kèm "Đạt"/"Chưa đạt". Khổ A4 ngang, dòng tiêu đề lặp ở mỗi trang.
 - **Giới hạn**: mới có file Excel (Word chưa có); tên hai cột mức giao viết cứng theo mẫu; phần lời văn của báo cáo
   không được sinh; số báo cáo và ngày ký để trống cho cán bộ điền.
+
+## D-027 · 2026-11-12 · Bỏ dòng nhắc lại chỉ tiêu ở phần nhiệm vụ và bản ghi Qwen bịa từ câu bên cạnh
+
+- **Bối cảnh**: chấm VB-2026-0008 trên máy (d873e6c) còn 1 dòng trùng ("Tỷ trọng kinh tế số" ở Điều 3, nhắc lại ở Điều 4 với
+  tên dài hơn, đơn vị viết khác) và 2 dòng rác (tên không khớp câu trích, giá trị trống hoặc 0 không có trong câu trích).
+- **Chọn**: bản ở phần chỉ tiêu và bản ở phần khác cùng giá trị, cùng đơn vị gốc (phần trước dấu cách hoặc "/"), tên này
+  là phần đầu tên kia thì bỏ bản ở phần khác. Bản ghi Qwen có cờ "tên không khớp câu trích" và giá trị trống hoặc không có
+  nguyên văn trong câu trích thì bỏ hẳn, đếm vào `stats.droppedUnsupported` và ghi chú của lượt trích xuất.
+- **Báo cáo tổng kết**: tên cơ quan trong hồ sơ địa phương đã chứa tên phường thì không ghép thêm tên phường.

@@ -150,9 +150,11 @@ export function buildSummaryWorkbook(input: {
     cell.font = { name: FONT, size: 12, ...font };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   };
-  const agencyShort = /^[uủ]y ban nhân dân$/i.test(input.agencyName.trim()) ? 'UBND' : input.agencyName.trim();
   const locality = input.localityName.trim();
-  line(1, 'A:C', input.agencyName.toUpperCase(), { bold: true });
+  // Hồ sơ địa phương có nơi ghi "Ủy ban nhân dân", có nơi ghi luôn "UBND Phường Lái Thiêu": bỏ phần tên địa phương để không lặp.
+  const agency = input.agencyName.replace(new RegExp(locality.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'iu'), '').trim() || input.agencyName.trim();
+  const agencyShort = /^(?:[uủ]y|uỷ) ban nhân dân$/iu.test(agency) ? 'UBND' : agency;
+  line(1, 'A:C', /^ubnd$/iu.test(agency) ? 'ỦY BAN NHÂN DÂN' : agency.toUpperCase(), { bold: true });
   line(2, 'A:C', locality.toUpperCase(), { bold: true });
   line(1, 'E:H', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', { bold: true });
   line(2, 'E:H', 'Độc lập - Tự do - Hạnh phúc', { bold: true, size: 13 });

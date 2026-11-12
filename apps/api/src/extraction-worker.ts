@@ -893,6 +893,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       skippedNoSignal: 0,
       skippedNoTarget: 0,
       taskCandidates: 0,
+      droppedUnsupported: 0,
       formChunks: 0,
       tableChunks: 0,
       llmChunks: 0,
@@ -1123,8 +1124,21 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     // "đạt 2 - 3% GRDP" đôi khi ra thêm một bản ghi lấy cận trên (3): cùng đoạn, tên giống, giá trị là cận của
     // khoảng mà bản ghi kia đã mang thì bỏ. Hàng của bảng là bản ghi riêng nên không xét.
     const isBound = (range: PendingCandidate, bound: PendingCandidate) => !rowLike(range) && !rowLike(bound) && isRangeBoundDuplicate(range, bound);
+    // Phần nhiệm vụ, giải pháp hay nhắc lại chỉ tiêu đã giao ở phần chỉ tiêu bằng tên dài hơn hoặc đơn vị viết khác
+    // ("Tỷ trọng kinh tế số" 30 "% trong GRDP" ở Điều 3, "… trong GDP" 30 "%/GRDP" ở Điều 4): cùng giá trị, cùng đơn vị
+    // gốc, tên này là phần đầu của tên kia thì bỏ bản nhắc lại. Chỉ xét khi một bên ở phần chỉ tiêu, bên kia ở phần khác.
+    const sectionOf = (item: PendingCandidate) => sectionKind(Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []);
+    const plainName = (item: PendingCandidate) => item.payload.name.toLowerCase().replace(/\s+/g, ' ').trim();
+    const baseUnit = (item: PendingCandidate) => (item.payload.unit ?? '').toLowerCase().trim().split(/[\s/]/)[0];
+    const isRestated = (target: PendingCandidate, restated: PendingCandidate) => !rowLike(target) && !rowLike(restated)
+      && sectionOf(target) === 'target' && sectionOf(restated) !== 'target'
+      && target.payload.targetValue !== null && target.payload.targetValue === restated.payload.targetValue
+      && baseUnit(target) === baseUnit(restated)
+      && (plainName(restated).startsWith(plainName(target)) || plainName(target).startsWith(plainName(restated)));
     for (const item of [...pending].sort((a, b) => b.payload.confidence - a.payload.confidence)) {
-      if (deduplicated.some(kept => isDuplicate(kept, item) || isBound(kept, item))) continue;
+      if (deduplicated.some(kept => isDuplicate(kept, item) || isBound(kept, item) || isRestated(kept, item))) continue;
+      const restated = deduplicated.findIndex(kept => isRestated(item, kept));
+      if (restated >= 0) deduplicated.splice(restated, 1);
       const bound = deduplicated.findIndex(kept => isBound(item, kept));
       if (bound >= 0) deduplicated.splice(bound, 1);
       deduplicated.push(item);
@@ -1204,7 +1218,15 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         ...validateRecord(validationInputs[index], item.chunk.text),
         ...(consistency.get(index) ?? []),
       ];
-      for (const rule of new Set(flags.map(flag => flag.rule))) ruleCounts[rule] = (ruleCounts[rule] ?? 0) + 1;
+      // Bản ghi Qwen mà tên không khớp câu trích và giá trị không có (hoặc không nằm trong câu trích) là bịa từ câu bên cạnh:
+      // không có gì để người duyệt giữ lại, nên bỏ hẳn và chỉ đếm vào ghi chú.
+      const rules = new Set(flags.map(flag => flag.rule));
+      if (item.method === ExtractionMethod.LLM && flags.some(flag => flag.rule === 'ten_chi_tieu' && /không khớp câu trích/.test(flag.message))
+        && (payload.targetValue === null || flags.some(flag => flag.rule === 'bam_nguon' && /^Giá trị /.test(flag.message)))) {
+        stats.droppedUnsupported += 1;
+        continue;
+      }
+      for (const rule of rules) ruleCounts[rule] = (ruleCounts[rule] ?? 0) + 1;
       const departmentMatch = payload.responsibleDepartmentName
         ? matchDepartmentByName(payload.responsibleDepartmentName, departments)
         : null;
@@ -1296,6 +1318,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         : null,
       missingNotes.length
         ? `Còn ${missingNotes.length} mục đánh số có số liệu nhưng chưa có đề xuất, cần đối chiếu với văn bản: ${missingNotes.slice(0, 8).join('; ')}${missingNotes.length > 8 ? '; …' : ''}.`
+        : null,
+      stats.droppedUnsupported
+        ? `Bỏ ${stats.droppedUnsupported} bản ghi Qwen có tên không khớp câu trích và giá trị không có trong câu trích.`
         : null,
       stats.taskCandidates
         ? `Văn bản loại ${profile.label}: bóc thêm ${stats.taskCandidates} nhiệm vụ từ câu giao việc (bằng luật, cần đối chiếu đơn vị và hạn).`

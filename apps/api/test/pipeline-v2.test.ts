@@ -1359,3 +1359,67 @@ test('Worker: số đoạn gửi Qwen cùng lúc là 1 trên CPU, tự lên 2 kh
   assert.deepEqual(order(gpu.created), order(cpu.created));
   assert.deepEqual(order(fixed.created), order(cpu.created));
 });
+
+test('Worker: chỉ tiêu nhắc lại ở phần nhiệm vụ không thành dòng trùng; bản ghi Qwen bịa từ câu bên cạnh bị bỏ', async () => {
+  const workerRef: { id?: string } = {};
+  let created: any[] = [];
+  let completed: any = null;
+  const targets = '[Mục: Điều 3. Chỉ tiêu phát triển kinh tế - xã hội > a) Chỉ tiêu về kinh tế]\n'
+    + '(4) Tỷ trọng kinh tế số chiếm từ 30% GRDP.';
+  const tasks = '[Mục: Điều 4. Nhiệm vụ, giải pháp chủ yếu > 1.5. Cải cách hành chính, cải thiện môi trường đầu tư]\n'
+    + 'Phấn đấu đạt tỷ trọng kinh tế số chiếm khoảng 30%/GRDP. Triển khai Kế hoạch phát triển kinh tế tuần hoàn. Tập trung thu hút đầu tư các dự án có quy mô lớn.';
+  const llmItem = (name: string, value: number | null, unit: string | null, quote: string) => ({
+    indicatorName: name, ordinalNumber: null, parentIndicator: null, description: null, category: null, targetValue: value, unit,
+    valueDirection: 'HIGHER_IS_BETTER', reportingFrequency: 'YEARLY', deadline: null, targetYear: 2026,
+    responsibleDepartment: null, coordinatingDepartments: null, legalBasis: null, sourceQuote: quote, confidence: 0.95,
+    fieldConfidence: { name: 0.9, targetValue: 0.9, unit: 0.9, frequency: 0.5, deadline: 0.5, responsibleDepartment: 0.5 },
+  });
+  const tx = {
+    extractionJob: { updateMany: async ({ data }: any) => { if (data?.status === 'COMPLETED') completed = data; return { count: 1 }; }, findUnique: async () => null },
+    indicatorCandidate: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { created = data; } },
+  };
+  const prisma = {
+    extractionJob: {
+      findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+      updateMany: async () => ({ count: 1 }),
+    },
+    sourceDocument: { findUnique: async () => ({ id: 'doc-8', title: 'QĐ giao chỉ tiêu', docNumber: '08/QĐ-UBND', year: 2026, status: 'PROCESSED' }) },
+    documentChunk: {
+      findMany: async () => [
+        { id: 'c0', chunkIndex: 0, pageFrom: 2, pageTo: 2, text: targets, kind: 'section', hasDigits: true, headingPath: ['Điều 3. Chỉ tiêu phát triển kinh tế - xã hội', 'a) Chỉ tiêu về kinh tế'], elementIds: [], leadSentence: null },
+        { id: 'c1', chunkIndex: 1, pageFrom: 4, pageTo: 4, text: tasks, kind: 'section', hasDigits: true, headingPath: ['Điều 4. Nhiệm vụ, giải pháp chủ yếu', '1.5. Cải cách hành chính, cải thiện môi trường đầu tư'], elementIds: [], leadSentence: null },
+      ],
+    },
+    documentPage: { findMany: async () => [] },
+    localityProfile: { findUnique: async () => null },
+    department: { findMany: async () => [] },
+    ...fakeEmbeddingPrisma([]),
+    $transaction: async (fn: any) => fn(tx),
+  };
+  const ollama = {
+    ...fakeOllama(),
+    extractModel: 'qwen3-chitieu',
+    numCtx: 8192,
+    isAvailable: async () => true,
+    chatStructured: async (messages: { content: string }[]) => {
+      const text = messages[messages.length - 1].content;
+      const indicators = text.includes('Điều 4')
+        ? [
+          llmItem('Tỷ trọng kinh tế số trong GDP', 30, '%/GRDP', 'Phấn đấu đạt tỷ trọng kinh tế số chiếm khoảng 30%/GRDP'),
+          llmItem('Tỷ lệ hoàn thành chỉ tiêu đầu tư công', 0, '%', 'Triển khai Kế hoạch phát triển kinh tế tuần hoàn'),
+          llmItem('Tỷ lệ hoàn thành kế hoạch đầu tư công', null, null, 'Tập trung thu hút đầu tư các dự án có quy mô lớn'),
+        ]
+        : [llmItem('Tỷ trọng kinh tế số', 30, '% trong GRDP', 'Tỷ trọng kinh tế số chiếm từ 30% GRDP')];
+      return { content: JSON.stringify({ indicators }), model: 'qwen3-chitieu', durationMs: 1 };
+    },
+  };
+  const worker = workerWith(prisma, ollama);
+  workerRef.id = worker.workerId;
+  await worker.processExtractJob(
+    { id: 'job-8', documentId: 'doc-8', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' },
+    new AbortController().signal,
+  );
+  assert.deepEqual(created.map(row => [row.name, row.unit]), [['Tỷ trọng kinh tế số', '% trong GRDP']], 'giữ bản ở phần chỉ tiêu, bỏ bản nhắc lại và hai bản ghi bịa');
+  assert.equal(completed.stats.droppedUnsupported, 2);
+  assert.match(completed.note, /Bỏ 2 bản ghi Qwen/);
+});
