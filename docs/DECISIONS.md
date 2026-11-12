@@ -322,3 +322,15 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   `VIETOCR_DEVICE=auto` dùng GPU khi container thấy GPU và tự lùi về CPU khi không có. `docker-compose.gpu.yml` chỉ thêm
   phần cấp GPU cho container ocr.
 - **Chưa đo**: mức tăng tốc thật trên GPU (cần máy có GPU từ 8GB); con số trong tài liệu đề xuất là ước tính.
+
+## D-026 · 2026-11-12 · Báo cáo tổng kết tháng, quý, năm theo mẫu Phụ lục 1
+
+- **Bối cảnh**: phường nộp báo cáo kèm "Phụ lục 1": STT, chỉ tiêu chủ yếu, mã số, đơn vị tính, chỉ tiêu Đảng ủy, chỉ tiêu
+  UBND TP, luỹ kế đến hiện tại, ghi chú. File xuất sẵn có (`/exports/targets.xlsx`) là bảng theo dõi, không phải mẫu nộp.
+- **Chọn**: `GET /exports/summary-report.xlsx?period=2026|2026-Q3|2026-M09` (`summary-report.ts`), nút "Báo cáo tổng kết"
+  ở trang Báo cáo. Lấy chỉ tiêu kế hoạch (PLAN) của năm ở mọi bộ; chỉ tiêu cùng mã số (không có mã thì cùng tên) gộp một
+  dòng: cột Đảng ủy là chỉ tiêu cấp `LOCAL`, cột UBND TP là chỉ tiêu cấp trên giao, thiếu thì ghi "Không". Luỹ kế là
+  lượt báo cáo đã duyệt mới nhất tính đến hết kỳ (báo cáo tháng/quý theo kỳ nó ghi, báo cáo năm theo ngày nhập). Ghi chú
+  là ghi chú của lượt đó kèm "Đạt"/"Chưa đạt". Khổ A4 ngang, dòng tiêu đề lặp ở mỗi trang.
+- **Giới hạn**: mới có file Excel (Word chưa có); tên hai cột mức giao viết cứng theo mẫu; phần lời văn của báo cáo
+  không được sinh; số báo cáo và ngày ký để trống cho cán bộ điền.

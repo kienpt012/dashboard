@@ -6,8 +6,10 @@ import { audit, getActor, resolveDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
+import { isValidPeriodKey, parsePeriodKey, periodLabel } from './periods';
 import { PrismaService } from './prisma.service';
 import { brandName, loadLocality } from './locality';
+import { buildSummaryWorkbook, summaryRows } from './summary-report';
 
 const STATUS_LABELS: Record<TargetStatus, string> = {
   NOT_STARTED: 'Chưa bắt đầu',
@@ -301,5 +303,44 @@ export class ExportsController {
     const scope = scopeDepartment?.code ?? 'toan-phuong';
     const set = framework ? `_${filePart(framework.code)}` : frameworkId === 'none' ? '_ngoai-bo' : '';
     return sendWorkbook(res, await workbook.xlsx.writeBuffer(), `Bao_cao_chi_tieu${set}_${filePart(scope)}_${year}.xlsx`);
+  }
+
+  /** Báo cáo tổng kết theo mẫu Phụ lục 1. `period`: "2026" (năm), "2026-Q3" (quý), "2026-M09" (tháng), "2026-H1". */
+  @Get('summary-report.xlsx')
+  async summaryReport(
+    @Req() req: any,
+    @Res() res: Response,
+    @Query('period') periodRaw?: string,
+    @Query('departmentId') requestedDepartmentId?: string,
+  ) {
+    const actor = getActor(req);
+    const periodKey = periodRaw?.trim() || String(currentVietnamYear());
+    if (!isValidPeriodKey(periodKey)) throw new BadRequestException('Kỳ báo cáo không hợp lệ');
+    const year = parseYear(String(parsePeriodKey(periodKey)?.year));
+    const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    // Chỉ lấy chỉ tiêu kế hoạch: mẫu là bảng "chỉ tiêu chủ yếu", không gồm nhiệm vụ, điểm chấm hay số thống kê.
+    const targets = await this.prisma.target.findMany({
+      where: { year, isArchived: false, kind: FrameworkKind.PLAN, ...(departmentId ? { departmentId } : {}) },
+      select: {
+        id: true, title: true, standardCode: true, groupName: true, unit: true, targetText: true,
+        targetValue: true, direction: true, kind: true, issuingLevel: true,
+      },
+      orderBy: [{ framework: { sortOrder: 'asc' } }, { sortOrder: 'asc' }, { code: 'asc' }],
+    });
+    const updates = await this.prisma.progressUpdate.findMany({
+      where: { targetId: { in: targets.map(target => target.id) }, reviewStatus: ProgressReviewStatus.APPROVED },
+      select: { targetId: true, value: true, valueText: true, note: true, periodKey: true, createdAt: true },
+    });
+    const locality = await loadLocality(this.prisma);
+    const rows = summaryRows(targets, updates, periodKey);
+    const workbook = buildSummaryWorkbook({ rows, periodKey, agencyName: locality.agencyName, localityName: locality.name });
+    workbook.creator = brandName(locality);
+    await audit(this.prisma, actor, {
+      action: 'EXPORT_SUMMARY_REPORT',
+      entityType: 'REPORT_EXPORT',
+      departmentId: departmentId ?? null,
+      metadata: { period: periodKey, label: periodLabel(periodKey), rowCount: rows.length },
+    });
+    return sendWorkbook(res, await workbook.xlsx.writeBuffer(), `Bao_cao_tong_ket_${filePart(periodKey)}.xlsx`);
   }
 }
