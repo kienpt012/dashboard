@@ -1,6 +1,6 @@
 """Nhánh Excel và đổi định dạng Office đời cũ.
 
-- .doc, .xls được LibreOffice chạy ngầm đổi sang .docx, .xlsx trước khi xử lý (bản gốc vẫn lưu ở API).
+- .doc, .xls, .odt, .ods, .rtf được LibreOffice chạy ngầm đổi sang .docx, .xlsx trước khi xử lý (bản gốc vẫn lưu ở API).
 - Excel: openpyxl đọc giá trị ô đã tính (data_only), ô gộp và tên sheet; mỗi sheet là một trang có một bảng.
 """
 
@@ -18,12 +18,15 @@ from .vietnamese import normalize_text
 MAX_ROWS = 5000
 MAX_COLS = 60
 
+# Định dạng LibreOffice đổi sang .docx/.xlsx trước khi đọc.
+CONVERT_TARGET = {"doc": "docx", "xls": "xlsx", "odt": "docx", "rtf": "docx", "ods": "xlsx"}
+
 
 def convert_legacy(data: bytes, kind: str, timeout: int = 180) -> bytes:
-    target = {"doc": "docx", "xls": "xlsx"}[kind]
+    target = CONVERT_TARGET[kind]
     binary = shutil.which("soffice") or shutil.which("libreoffice")
     if not binary:
-        raise RuntimeError("Máy chủ OCR chưa cài LibreOffice nên không đọc được tệp .doc, .xls")
+        raise RuntimeError("Máy chủ OCR chưa cài LibreOffice nên không đọc được tệp .doc, .xls, .odt, .ods, .rtf")
     with tempfile.TemporaryDirectory(prefix="ioc-office-") as folder:
         source = Path(folder) / f"input.{kind}"
         source.write_bytes(data)

@@ -306,7 +306,7 @@ export type PublicTargetListResponse={
   department:string|null;
 };
 
-export type DocumentType='KE_HOACH'|'QUYET_DINH'|'CONG_VAN'|'BAO_CAO'|'NGHI_QUYET'|'PHU_LUC'|'KHAC';
+export type DocumentType='KE_HOACH'|'QUYET_DINH'|'CONG_VAN'|'BAO_CAO'|'NGHI_QUYET'|'NGHI_DINH'|'THONG_TU'|'CHI_THI'|'CHUONG_TRINH'|'THONG_BAO'|'PHU_LUC'|'KHAC';
 export type DocumentStatus='UPLOADED'|'PROCESSING'|'PROCESSED'|'FAILED';
 export type ExtractionJobKind='DOCUMENT_PARSE'|'INDICATOR_EXTRACT';
 export type ExtractionJobStatus='PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'|'DEAD_LETTER'|'CANCELLED';
@@ -338,6 +338,11 @@ export const documentTypeLabels:Record<DocumentType,string>={
   CONG_VAN:'Công văn',
   BAO_CAO:'Báo cáo',
   NGHI_QUYET:'Nghị quyết',
+  NGHI_DINH:'Nghị định',
+  THONG_TU:'Thông tư',
+  CHI_THI:'Chỉ thị',
+  CHUONG_TRINH:'Chương trình',
+  THONG_BAO:'Thông báo',
   PHU_LUC:'Phụ lục',
   KHAC:'Khác',
 };

@@ -22,8 +22,8 @@ export const DOC_STATUS: Record<DocumentStatus, { label: string; badge: 'default
   FAILED: { label: 'Lỗi xử lý', badge: 'error' },
 };
 
-// .doc/.xls (Office 97–2003) và TIFF đọc qua ocr-service; máy chủ chưa bật ocr-service thì từ chối .doc/.xls kèm hướng dẫn.
-const ACCEPT = '.pdf,.docx,.doc,.xlsx,.xls,.png,.jpg,.jpeg,.webp,.tif,.tiff';
+// .doc/.xls (Office 97–2003), .odt/.ods/.rtf và TIFF đọc qua ocr-service; máy chủ chưa bật ocr-service thì từ chối kèm hướng dẫn.
+const ACCEPT = '.pdf,.docx,.doc,.odt,.rtf,.xlsx,.xls,.ods,.png,.jpg,.jpeg,.webp,.tif,.tiff';
 const MAX = 25 * 1024 * 1024;
 
 /** Các trường thông tin văn bản dùng chung cho tải lên và sửa thông tin. */

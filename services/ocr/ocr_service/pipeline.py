@@ -22,7 +22,7 @@ from .config import SETTINGS, Settings
 from .docling_ocr import LEDGER, VietOcrOptions, register_plugin
 from .forms import extract_fields, load_templates, match_template
 from .line_ocr import get_line_reader
-from .office import convert_legacy, parse_xlsx
+from .office import CONVERT_TARGET, convert_legacy, parse_xlsx
 from .preprocess import prepare_image
 from .structure import (
     assign_pseudo_pages,
@@ -380,9 +380,10 @@ def parse(data: bytes, filename: str = "", pages_spec: str | None = None, settin
     with _PARSE_LOCK:
         # Yêu cầu chờ khoá trong lúc API đã bỏ đi (ví dụ lô trước bị hết giờ) thì không đọc nữa.
         _check(should_stop, "trước khi đọc")
-        if kind in ("doc", "xls"):
+        if kind in CONVERT_TARGET:
+            target = CONVERT_TARGET[kind]
             data = convert_legacy(data, kind)
-            kind = "docx" if kind == "doc" else "xlsx"
+            kind = target
         if kind == "xlsx":
             pages = parse_xlsx(data)
             for page in pages:

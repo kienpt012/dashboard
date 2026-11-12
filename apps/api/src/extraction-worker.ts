@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   CandidateKind,
   CandidateStatus,
+  DocumentType,
   DocumentStatus,
   ExtractionJobKind,
   ExtractionJobStatus,
@@ -14,6 +15,7 @@ import {
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import {
+  CONVERTED_MIME_TYPES,
   openPdf,
   parseDocx,
   parseImage,
@@ -65,6 +67,8 @@ import { pdfPageSpans } from './source-layout';
 import { textLayoutPage, unitSection, type LayoutSpan } from './source-locator';
 import { chunkFallbackPages, chunkStructuredPages, fallbackElements, resolveChunkingOptions, type ChunkingOptions, type StructuredChunk } from './structured-chunking';
 import { readDocumentTables, tableRowsInChunk, type TableChunkRows, type TableRecord } from './table-extraction';
+import { detectDocumentMeta, documentProfile } from './document-type';
+import { extractTasks, TASK_RULE_VERSION, type ProseTask } from './task-extraction';
 import { hasTargetFigure, sectionKind, unitWithDenominator } from './target-signal';
 
 interface ClaimedJob {
@@ -420,7 +424,10 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
   private async processParseJob(job: ClaimedJob): Promise<void> {
     const document = await this.prisma.sourceDocument.findUnique({
       where: { id: job.documentId },
-      select: { id: true, mimeType: true, originalName: true, data: true, status: true, autoExtract: true },
+      select: {
+        id: true, mimeType: true, originalName: true, data: true, status: true, autoExtract: true,
+        docType: true, docNumber: true, issuedDate: true,
+      },
     });
     if (!document) {
       await this.completeJob(job, {});
@@ -460,10 +467,21 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       throw new Error('Không đọc được nội dung văn bản nào từ tài liệu (kể cả sau OCR).');
     }
 
+    // Loại văn bản, số ký hiệu, ngày ban hành đọc từ trang đầu; chỉ điền chỗ cán bộ để trống (loại "Khác").
+    const meta = detectDocumentMeta(outcome.pages[0]?.text);
+    const metaUpdate: Prisma.SourceDocumentUpdateManyMutationInput = {};
+    if (meta.docType && document.docType === DocumentType.KHAC) {
+      metaUpdate.docType = meta.docType;
+      notes.push(`Loại văn bản nhận theo ${meta.basis}: ${documentProfile(meta.docType).label}.`);
+    }
+    if (meta.docNumber && document.docNumber === null) metaUpdate.docNumber = meta.docNumber;
+    if (meta.issuedDate && document.issuedDate === null) metaUpdate.issuedDate = new Date(`${meta.issuedDate}T00:00:00.000+07:00`);
+
     const chunks = outcome.chunks;
     const elapsedMs = Date.now() - startedAt;
     const stats = {
       ...outcome.stats,
+      detectedDocType: meta.docType,
       chunks: chunks.length,
       chunksWithoutDigits: chunks.filter(chunk => !chunk.hasDigits).length,
       elapsedMs,
@@ -509,6 +527,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
           ocrUsed: outcome.ocrUsed,
           parserVersion: outcome.parserVersion,
           processingError: null,
+          ...metaUpdate,
         },
       });
       // Nối tiếp tự động sang bước trích xuất chỉ tiêu (trừ văn bản chỉ lưu để tra cứu, định vị nguồn).
@@ -621,8 +640,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     } else if (document.mimeType.startsWith('image/')) {
       parsed = await parseImage(buffer, ocr);
       kind = 'image';
-    } else if (document.mimeType === 'application/msword' || document.mimeType === 'application/vnd.ms-excel') {
-      throw new Error('Tệp Word/Excel 97–2003 (.doc, .xls) cần ocr-service để chuyển đổi. Hãy bật ocr-service hoặc lưu lại thành .docx/.xlsx.');
+    } else if (CONVERTED_MIME_TYPES.includes(document.mimeType)) {
+      throw new Error('Tệp .doc, .xls, .odt, .ods, .rtf cần ocr-service để chuyển đổi. Hãy bật ocr-service hoặc lưu lại thành .docx/.xlsx.');
     } else {
       throw new Error(`Định dạng không được hỗ trợ: ${document.mimeType}`);
     }
@@ -758,7 +777,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     const startedAt = Date.now();
     const document = await this.prisma.sourceDocument.findUnique({
       where: { id: job.documentId },
-      select: { id: true, title: true, docNumber: true, year: true, status: true },
+      select: { id: true, title: true, docNumber: true, year: true, status: true, docType: true },
     });
     if (!document) {
       await this.completeJob(job, {});
@@ -859,13 +878,18 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       /** Bản ghi do bộ đọc bảng tạo: giữ mã số, ô kế hoạch nguyên văn, số thực hiện, nhóm trong bảng và vị trí hàng. */
       table?: TableRecord;
       position?: number;
+      /** Nhiệm vụ bóc từ câu giao việc trong văn xuôi (kế hoạch, công văn, chỉ thị). */
+      proseTask?: ProseTask;
     }
+    const isTask = (item: PendingCandidate) => !!item.proseTask || item.table?.kind === 'task';
+    const profile = documentProfile(document.docType);
     const pending: PendingCandidate[] = [];
     const stats = {
       chunks: chunks.length,
       skippedNoDigits: 0,
       skippedNoSignal: 0,
       skippedNoTarget: 0,
+      taskCandidates: 0,
       formChunks: 0,
       tableChunks: 0,
       llmChunks: 0,
@@ -893,7 +917,20 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     for (const [index, chunk] of chunks.entries()) {
       throwIfAborted(signal);
       // Phần của văn bản theo đề mục: phần nhiệm vụ, giải pháp đầy con số không phải mức cần đạt (ngày hạn, "02 đợt").
-      const section = sectionKind(Array.isArray(chunk.headingPath) ? (chunk.headingPath as string[]) : []);
+      const chunkHeadings = Array.isArray(chunk.headingPath) ? (chunk.headingPath as string[]) : [];
+      const section = sectionKind(chunkHeadings);
+      // Hồ sơ theo loại văn bản: kế hoạch, chương trình bóc nhiệm vụ ở phần nhiệm vụ/tổ chức thực hiện; công văn, chỉ thị,
+      // thông báo bóc ở mọi phần không phải phần chỉ tiêu. Bằng luật, không gọi Qwen.
+      if (profile.tasks !== 'none' && chunk.kind !== 'table' && chunk.kind !== 'form' && section !== 'target'
+        && (profile.tasks === 'all' || section === 'task')) {
+        for (const task of extractTasks(chunk.text, { headingPath: chunkHeadings, defaultYear: document.year, inTaskSection: section === 'task' })) {
+          stats.taskCandidates += 1;
+          pending.push({
+            chunk, method: ExtractionMethod.RULE_BASED, payload: taskPayload(task, document.year), fallbackReason: null, repaired: false,
+            proseTask: task, position: task.position,
+          });
+        }
+      }
       if (chunk.kind === 'form') {
         // Biểu mẫu cố định: luật tạo bản ghi từ ô đã khớp mẫu, không gọi Qwen (nhanh và đúng hơn).
         stats.formChunks += 1;
@@ -1044,11 +1081,15 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     // nhưng giá trị khác, tuyệt đối không được gộp.
     const deduplicated: typeof pending = [];
     const exactKey = (item: PendingCandidate) => `${item.payload.name.toLowerCase().trim()}|${item.payload.targetValue ?? ''}|${item.payload.unit ?? ''}`;
-    const tableOf = (item: PendingCandidate) => (Array.isArray(item.chunk.elementIds) ? String((item.chunk.elementIds as string[])[0] ?? '') : '');
+    // Hàng bảng và câu giao việc là bản ghi "theo dòng": nguồn là bảng (phần tử) hoặc đoạn chứa câu.
+    const rowLike = (item: PendingCandidate) => !!item.table || !!item.proseTask;
+    const tableOf = (item: PendingCandidate) => (item.table && Array.isArray(item.chunk.elementIds)
+      ? `t:${String((item.chunk.elementIds as string[])[0] ?? '')}`
+      : `c:${item.chunk.id}`);
     const isDuplicate = (kept: PendingCandidate, item: PendingCandidate) => {
-      // Hai hàng của cùng một bảng luôn là hai bản ghi riêng (nhiệm vụ cùng quy ước 100% có tên gần nhau là chuyện
-      // thường); hai bảng khác nhau chỉ trùng khi giống hệt tên, giá trị, đơn vị và hạn.
-      if (kept.table && item.table) {
+      // Hai hàng của cùng một bảng (hai câu giao việc của cùng một đoạn) luôn là hai bản ghi riêng: nhiệm vụ cùng quy
+      // ước 100% có tên gần nhau là chuyện thường. Khác nguồn thì chỉ trùng khi giống hệt tên, giá trị, đơn vị và hạn.
+      if (rowLike(kept) && rowLike(item)) {
         return tableOf(kept) !== tableOf(item)
           && exactKey(kept) === exactKey(item)
           && (kept.payload.deadline ?? '') === (item.payload.deadline ?? '');
@@ -1062,7 +1103,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
     };
     // "đạt 2 - 3% GRDP" đôi khi ra thêm một bản ghi lấy cận trên (3): cùng đoạn, tên giống, giá trị là cận của
     // khoảng mà bản ghi kia đã mang thì bỏ. Hàng của bảng là bản ghi riêng nên không xét.
-    const isBound = (range: PendingCandidate, bound: PendingCandidate) => !(range.table && bound.table) && isRangeBoundDuplicate(range, bound);
+    const isBound = (range: PendingCandidate, bound: PendingCandidate) => !rowLike(range) && !rowLike(bound) && isRangeBoundDuplicate(range, bound);
     for (const item of [...pending].sort((a, b) => b.payload.confidence - a.payload.confidence)) {
       if (deduplicated.some(kept => isDuplicate(kept, item) || isBound(kept, item))) continue;
       const bound = deduplicated.findIndex(kept => isBound(item, kept));
@@ -1105,9 +1146,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         sourceQuote: item.payload.sourceQuote,
         parentName: 'parentName' in item.payload ? item.payload.parentName : null,
         structureRepaired: item.repaired,
-        task: item.table?.kind === 'task',
+        task: isTask(item),
         planYear: document.year,
-        section: item.table || item.method === ExtractionMethod.FORM_TEMPLATE
+        section: item.table || item.proseTask || item.method === ExtractionMethod.FORM_TEMPLATE
           ? undefined
           : sectionKind(Array.isArray(item.chunk.headingPath) ? (item.chunk.headingPath as string[]) : []),
         expectedUnits: [match?.suggestion?.unit, match && match.matchClass !== 'MOI' ? match.best?.unit : null].filter(Boolean),
@@ -1150,7 +1191,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         : null;
       const isLlm = item.method === ExtractionMethod.LLM;
       // Bản ghi của bộ đọc bảng mang đủ trường như bản ghi của Qwen (số thứ tự, chỉ tiêu cha, mô tả).
-      const llmPayload = isLlm || item.table ? (payload as LlmExtractedIndicator) : null;
+      const llmPayload = isLlm || item.table || item.proseTask ? (payload as LlmExtractedIndicator) : null;
       const rulePayload = !llmPayload ? (payload as RuleExtractedIndicator) : null;
       const warnings = [...payload.warnings];
       if (item.fallbackReason) {
@@ -1158,8 +1199,8 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
       }
       const headingPath = headingPaths[index];
       // Số thứ tự như văn bản ghi ("(9)", "9.", ô STT): dò trong văn bản gốc trước, mô hình chỉ là phương án phụ.
-      const ordinal = item.table
-        ? item.table.ordinal
+      const ordinal = item.table || item.proseTask
+        ? (item.table ?? item.proseTask)!.ordinal
         : detectOrdinal(placed[index].body, placed[index].position, item.chunk.kind) ?? llmPayload?.ordinal ?? null;
 
       candidateRows.push({
@@ -1172,10 +1213,11 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         model: isLlm ? this.ollama.extractModel : null,
         promptVersion: isLlm ? EXTRACTION_PROMPT_VERSION
           : item.table ? TABLE_READER_VERSION
+            : item.proseTask ? TASK_RULE_VERSION
             : item.method === ExtractionMethod.FORM_TEMPLATE ? `form:${item.formTemplate ?? 'mau'}` : 'rule-v1',
-        ...(item.table?.kind === 'task' ? { targetKind: FrameworkKind.TASK } : {}),
+        ...(isTask(item) ? { targetKind: FrameworkKind.TASK } : {}),
         standardCode: item.table?.code ?? null,
-        targetText: item.table?.targetText ?? null,
+        targetText: item.table?.targetText ?? (item.proseTask ? TASK_TARGET_TEXT : null),
         actualValue: item.table?.actualValue ?? null,
         name: payload.name,
         ordinal,
@@ -1184,7 +1226,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         category: categories[index],
         groupName: groups[index],
         documentOrder: placed[index].order,
-        unit: item.table ? payload.unit : unitWithDenominator(payload.unit, payload.sourceQuote),
+        unit: item.table || item.proseTask ? payload.unit : unitWithDenominator(payload.unit, payload.sourceQuote),
         targetValue: payload.targetValue,
         targetYear: payload.targetYear ?? document.year ?? null,
         direction: payload.direction ?? TargetDirection.HIGHER_IS_BETTER,
@@ -1235,6 +1277,12 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
         : null,
       missingNotes.length
         ? `Còn ${missingNotes.length} mục đánh số có số liệu nhưng chưa có đề xuất, cần đối chiếu với văn bản: ${missingNotes.slice(0, 8).join('; ')}${missingNotes.length > 8 ? '; …' : ''}.`
+        : null,
+      stats.taskCandidates
+        ? `Văn bản loại ${profile.label}: bóc thêm ${stats.taskCandidates} nhiệm vụ từ câu giao việc (bằng luật, cần đối chiếu đơn vị và hạn).`
+        : null,
+      profile.reportsResults
+        ? 'Văn bản là báo cáo: con số trong câu văn có thể là kết quả đã thực hiện, không phải mức giao; cột "Thực hiện" của bảng được ghi vào số thực hiện.'
         : null,
       uncoveredNotes.length
         ? `Có ${uncoveredNotes.length} con số ghi như mức cần đạt nhưng chưa thuộc đề xuất nào, cần đối chiếu: ${uncoveredNotes.slice(0, 6).join('; ')}${uncoveredNotes.length > 6 ? '; …' : ''}.`
@@ -1365,6 +1413,33 @@ function countBy(values: (string | null | undefined)[]): Record<string, number> 
 const NARROWER_CATEGORIES: Record<string, string[]> = {
   'Văn hoá - xã hội': ['Y tế', 'Giáo dục'],
 };
+
+/** Mục tiêu quy ước của nhiệm vụ: hoàn thành 100% (màn duyệt bắt buộc đủ đơn vị, giá trị, năm, hạn cho mọi loại). */
+const TASK_TARGET_TEXT = 'Hoàn thành';
+
+/** Nhiệm vụ bóc từ văn xuôi theo đúng khuôn bản ghi trích xuất; hạn không ghi thì cuối năm kế hoạch. */
+export function taskPayload(task: ProseTask, year: number | null): LlmExtractedIndicator {
+  return {
+    name: task.name,
+    ordinal: task.ordinal,
+    parentName: null,
+    description: null,
+    category: null,
+    targetValue: 100,
+    unit: '%',
+    direction: TargetDirection.HIGHER_IS_BETTER,
+    frequency: task.frequency,
+    deadline: task.deadline ?? (year ? `${year}-12-31` : null),
+    targetYear: year,
+    responsibleDepartmentName: task.responsibleDepartmentName,
+    coordinatingDepartments: task.coordinatingDepartments,
+    legalBasis: null,
+    sourceQuote: task.sourceQuote,
+    confidence: task.confidence,
+    fieldConfidence: { name: task.confidence, responsibleDepartment: task.responsibleDepartmentName ? task.confidence : 0.3, deadline: task.deadline ? 0.8 : 0.3 },
+    warnings: [...task.warnings],
+  };
+}
 
 /** Phiên bản bộ đọc bảng, ghi vào promptVersion của đề xuất để biết bản ghi do bản luật nào tạo. */
 export const TABLE_READER_VERSION = 'table-v1';

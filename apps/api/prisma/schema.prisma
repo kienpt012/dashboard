@@ -116,6 +116,11 @@ enum DocumentType {
   NGHI_QUYET
   PHU_LUC
   KHAC
+  NGHI_DINH
+  THONG_TU
+  CHI_THI
+  CHUONG_TRINH
+  THONG_BAO
 }
 
 enum ExtractionJobKind {

@@ -36,7 +36,17 @@ export interface DocumentChunkInput {
 }
 
 // doc/xls (Office 97–2003) chỉ đọc được qua ocr-service (LibreOffice chuyển sang docx/xlsx).
-export type DetectedDocumentKind = 'pdf' | 'docx' | 'xlsx' | 'image' | 'doc' | 'xls';
+export type DetectedDocumentKind = 'pdf' | 'docx' | 'xlsx' | 'image' | 'doc' | 'xls' | 'odt' | 'ods' | 'rtf';
+
+/** Định dạng phải nhờ LibreOffice của ocr-service đổi sang .docx/.xlsx trước khi đọc. */
+export const CONVERTED_KINDS: readonly DetectedDocumentKind[] = ['doc', 'xls', 'odt', 'ods', 'rtf'];
+export const CONVERTED_MIME_TYPES: readonly string[] = [
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/rtf',
+];
 
 export interface DetectedDocument {
   kind: DetectedDocumentKind;
@@ -83,7 +93,18 @@ export function detectDocumentKind(buffer: Buffer): DetectedDocument | null {
     }
     return null;
   }
+  if (buffer.length >= 6 && buffer.subarray(0, 5).toString('ascii') === '{\\rtf') {
+    return { kind: 'rtf', mimeType: 'application/rtf' };
+  }
   if (buffer.length >= 4 && buffer.subarray(0, 4).equals(ZIP_MAGIC)) {
+    // OpenDocument: entry đầu tiên tên "mimetype", lưu không nén, nội dung là kiểu của tệp.
+    const head = buffer.subarray(0, 120).toString('latin1');
+    if (head.includes('mimetypeapplication/vnd.oasis.opendocument.text')) {
+      return { kind: 'odt', mimeType: 'application/vnd.oasis.opendocument.text' };
+    }
+    if (head.includes('mimetypeapplication/vnd.oasis.opendocument.spreadsheet')) {
+      return { kind: 'ods', mimeType: 'application/vnd.oasis.opendocument.spreadsheet' };
+    }
     const zipKind = sniffOoxmlKind(buffer);
     if (zipKind === 'docx') {
       return {

@@ -191,3 +191,29 @@ test('parsePlan giữ chữ gốc khi kế hoạch không chỉ là một con s�
   assert.equal(roman(4), 'IV');
   assert.equal(roman(12), 'XII');
 });
+
+test('Bảng có nhiệm vụ: thêm sheet "Nhiệm vụ" để xem và in; tải lên vẫn chỉ đọc sheet "Chỉ tiêu"', async () => {
+  const workbook = buildCandidateWorkbook({
+    document: { id: 'doc-1', title: 'Kế hoạch cải cách hành chính năm 2026', docNumber: '15/KH-UBND', year: 2026 },
+    candidates: [
+      ...sheetCandidates,
+      {
+        ...candidate('t1', { ordinal: '1', name: 'Rà soát thủ tục hành chính thuộc thẩm quyền', unit: '%', targetValue: 100, targetText: 'Hoàn thành', departmentName: 'Phòng Kinh tế', sourceQuote: '- Rà soát thủ tục hành chính thuộc thẩm quyền; hoàn thành trước ngày 30/6/2026.' }),
+        deadline: new Date('2026-06-30T00:00:00Z'), targetKind: 'TASK', coordinatingDepartments: 'Các khu phố',
+      },
+    ],
+    departments: departments.map(item => item.name),
+  });
+  const loaded = new ExcelJS.Workbook();
+  await loaded.xlsx.load(await workbook.xlsx.writeBuffer() as any);
+  const sheet = loaded.getWorksheet('Nhiệm vụ')!;
+  assert.ok(sheet, 'có sheet Nhiệm vụ');
+  assert.deepEqual([1, 2, 3, 4].map(column => sheet.getRow(4).getCell(column).value), ['STT', 'Nội dung nhiệm vụ', 'Đơn vị chủ trì', 'Đơn vị phối hợp']);
+  assert.deepEqual([1, 2, 3, 4].map(column => sheet.getRow(5).getCell(column).value), [1, 'Rà soát thủ tục hành chính thuộc thẩm quyền', 'Phòng Kinh tế', 'Các khu phố']);
+  assert.equal(sheet.rowCount, 5);
+  // Đọc lại bảng: nhiệm vụ vẫn là một hàng của sheet "Chỉ tiêu", không bị đọc hai lần.
+  const { rows, issues } = readCandidateWorkbook(loaded);
+  assert.deepEqual(issues, []);
+  assert.equal(rows.filter(row => row.id === 't1').length, 1);
+  assert.equal(rows.length, sheetCandidates.length + 1);
+});

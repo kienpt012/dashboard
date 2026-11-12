@@ -66,6 +66,7 @@ Biến môi trường của lớp AI (đọc trong `ollama.ts`, `document-proces
 | `EXTRACTION_MAX_LLM_CHUNKS` | 40 | Số chunk tối đa gửi qua LLM trong một tài liệu |
 | `EXTRACTION_RECHECK_MAX` | 10 | Kiểm tra đủ mục: số lần tối đa hỏi lại Qwen cho các mục đánh số còn thiếu trong một văn bản; 0 = chỉ ghi chú |
 | `EXTRACTION_LLM_CACHE_DAYS` | 90 | Số ngày nhớ kết quả Qwen theo đoạn; "Đọc lại" chỉ gọi Qwen cho đoạn, prompt hoặc model đã đổi. 0 = tắt |
+| (migration) | | Bản này thêm `20261112090000_table_reader` và `20261112100000_document_types` (thêm giá trị enum, API tự áp dụng khi khởi động); image `ocr` phải build lại để nhận .odt/.ods/.rtf và cách ghi số Excel mới |
 | `EXTRACTION_CHUNK_FILTER` | target | Lọc đoạn trước khi gọi Qwen: `target` chỉ gửi đoạn có con số trông như mức cần đạt (D-023); `basic` là bộ lọc cũ |
 | `EXTRACTION_TABLE_READER` | true | Bảng đã có hàng, cột (phụ lục, biểu giao chỉ tiêu, Excel) được đọc bằng code thay vì gửi Qwen (D-022); `false` để tắt |
 | `EXTRACTION_RULE_FILL_IN` | false | `true` thì đoạn Qwen đã đọc vẫn thêm ứng viên luật mà Qwen không có (D-007 cũ, xem D-016) |

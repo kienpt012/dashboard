@@ -107,6 +107,9 @@ export interface SheetCandidate {
   sourceQuote: string;
   confidence: number;
   flagged: boolean;
+  /** Loại đề xuất; nhiệm vụ (TASK) được liệt kê thêm ở sheet "Nhiệm vụ". */
+  targetKind?: string | null;
+  coordinatingDepartments?: string | null;
 }
 
 export interface SheetDocument {
@@ -296,11 +299,82 @@ export function buildCandidateWorkbook(input: {
   sheet.getColumn(COL.id).hidden = true;
   sheet.getColumn(COL.version).hidden = true;
 
+  const tasks = candidates.filter(candidate => candidate.targetKind === 'TASK');
+  if (tasks.length) addTaskSheet(workbook, document, tasks);
+
   const meta = workbook.addWorksheet(META_SHEET, { state: 'veryHidden' });
   meta.addRow(['schemaVersion', SHEET_VERSION]);
   meta.addRow(['documentId', document.id]);
   meta.addRow(['exportedAt', new Date().toISOString()]);
   return workbook;
+}
+
+export const TASK_SHEET_NAME = 'Nhiệm vụ';
+const TASK_COLUMNS = [
+  { header: 'STT', width: 6 },
+  { header: 'Nội dung nhiệm vụ', width: 60 },
+  { header: 'Đơn vị chủ trì', width: 26 },
+  { header: 'Đơn vị phối hợp', width: 26 },
+  { header: 'Thời hạn', width: 13 },
+  { header: 'Trang', width: 7 },
+  { header: 'Trích dẫn nguồn', width: 60 },
+];
+
+/**
+ * Bảng nhiệm vụ của kế hoạch, công văn, chỉ thị (mẫu B): chỉ để xem và in. Sửa nhiệm vụ ở sheet "Chỉ tiêu", nơi mỗi
+ * nhiệm vụ là một hàng có mục tiêu quy ước "Hoàn thành"; bảng tải lên chỉ đọc sheet đó.
+ */
+function addTaskSheet(workbook: ExcelJS.Workbook, document: SheetDocument, tasks: SheetCandidate[]) {
+  const sheet = workbook.addWorksheet(TASK_SHEET_NAME, {
+    pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '4:4' },
+    views: [{ state: 'frozen', ySplit: 4 }],
+  });
+  sheet.columns = TASK_COLUMNS.map(column => ({ width: column.width }));
+  const title = (rowNumber: number, text: string, font: Partial<ExcelJS.Font>) => {
+    sheet.mergeCells(rowNumber, 1, rowNumber, 5);
+    const cell = sheet.getCell(rowNumber, 1);
+    cell.value = text;
+    cell.font = { name: 'Times New Roman', size: 13, ...font };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  };
+  title(1, 'BẢNG PHÂN CÔNG NHIỆM VỤ', { bold: true });
+  title(2, `Trích từ văn bản: ${document.title}${document.docNumber ? ` (số ${document.docNumber})` : ''}`, { bold: true, size: 12 });
+  title(3, 'Bảng chỉ để xem và in; sửa nhiệm vụ ở sheet "Chỉ tiêu".', { italic: true, size: 10, color: { argb: 'FF475569' } });
+  sheet.getRow(2).height = 32;
+  const border: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    right: { style: 'thin', color: { argb: 'FF94A3B8' } },
+  };
+  const header = sheet.getRow(4);
+  TASK_COLUMNS.forEach((column, index) => {
+    const cell = header.getCell(index + 1);
+    cell.value = column.header;
+    cell.font = { bold: true, name: 'Times New Roman', size: 12 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: index < 5 ? 'FFE2E8F0' : 'FFF1F5F9' } };
+    cell.border = border;
+  });
+  header.height = 30;
+  tasks.forEach((task, index) => {
+    const row = sheet.addRow([
+      index + 1,
+      task.name,
+      task.departmentName ?? '',
+      task.coordinatingDepartments ?? '',
+      task.deadline ? excelDate(task.deadline) : '',
+      task.pageNumber ?? '',
+      task.sourceQuote,
+    ]);
+    row.eachCell({ includeEmpty: true }, (cell, column) => {
+      cell.font = { name: 'Times New Roman', size: 12, ...(column === 7 ? { size: 10, color: { argb: 'FF475569' } } : {}) };
+      cell.alignment = { vertical: 'top', wrapText: true, horizontal: column === 1 || column === 5 || column === 6 ? 'center' : 'left' };
+      cell.border = border;
+      if (task.flagged && column <= 5) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF9C3' } };
+    });
+    if (task.deadline) row.getCell(5).numFmt = 'dd/mm/yyyy';
+  });
 }
 
 export interface SheetRow {
@@ -649,7 +723,7 @@ export class CandidateSheetController {
     const [records, departments, locality] = await Promise.all([
       this.prisma.indicatorCandidate.findMany({
         where: { AND: [{ documentId: id, status: { in: [CandidateStatus.PROPOSED, CandidateStatus.SUBMITTED] } }, this.scope(actor)] },
-        select: SHEET_SELECT,
+        select: { ...SHEET_SELECT, targetKind: true, coordinatingDepartments: true },
         orderBy: [{ documentOrder: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.department.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: 'asc' } }),

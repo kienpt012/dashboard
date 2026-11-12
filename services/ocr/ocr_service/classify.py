@@ -35,7 +35,8 @@ class PageClass:
 
 
 def detect_kind(data: bytes, filename: str = "") -> str:
-    """pdf | docx | xlsx | image | doc | xls. Dựa vào chữ ký nội dung, đuôi tệp chỉ dùng để phân biệt doc/xls cũ."""
+    """pdf | docx | xlsx | image | doc | xls | odt | ods | rtf. Dựa vào chữ ký nội dung, đuôi tệp chỉ dùng để phân
+    biệt doc/xls cũ."""
     name = filename.lower()
     if data[:5] == b"%PDF-":
         return "pdf"
@@ -45,7 +46,15 @@ def detect_kind(data: bytes, filename: str = "") -> str:
         return "image"
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image"
+    if data[:5] == b"{\\rtf":
+        return "rtf"
     if data[:4] == b"PK\x03\x04":
+        # OpenDocument: entry đầu tiên tên "mimetype", lưu không nén, nội dung là kiểu của tệp.
+        head = data[:120]
+        if b"mimetypeapplication/vnd.oasis.opendocument.text" in head:
+            return "odt"
+        if b"mimetypeapplication/vnd.oasis.opendocument.spreadsheet" in head:
+            return "ods"
         try:
             names = zipfile.ZipFile(io.BytesIO(data)).namelist()
         except zipfile.BadZipFile:

@@ -47,7 +47,7 @@ import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { audit, getActor, isGlobalRole, resolveDepartmentScope, WORKING_ROLES } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
-import { detectDocumentKind } from './document-processing';
+import { CONVERTED_KINDS, detectDocumentKind } from './document-processing';
 import { VALIDATION_RULE_LABELS, type ValidationFlag } from './extraction-validation';
 import { resolveOcrServiceConfig } from './ocr-service';
 import { ExtractionWorker } from './extraction-worker';
@@ -241,7 +241,7 @@ export class DocumentsController {
     });
     const candidates = await this.prisma.indicatorCandidate.findMany({
       where: { createdAt: { gte: since }, origin: 'AI' },
-      select: { documentId: true, extractionMethod: true, validationFlags: true, matchClass: true, status: true, humanEdited: true, warnings: true },
+      select: { documentId: true, extractionMethod: true, promptVersion: true, validationFlags: true, matchClass: true, status: true, humanEdited: true, warnings: true },
       take: 20_000,
     });
     const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
@@ -264,14 +264,16 @@ export class DocumentsController {
     }
     const total = candidates.length;
     const ratio = (part: number, whole: number) => (whole ? Math.round((part / whole) * 1000) / 1000 : null);
-    const byMethod = (method: string) => candidates.filter(candidate => candidate.extractionMethod === method).length;
+    // Nhiệm vụ bóc từ câu giao việc cũng do luật tạo nhưng không phải "luật thay Qwen": đếm riêng.
+    const isProseTask = (candidate: { promptVersion: string | null }) => candidate.promptVersion === 'task-v1';
+    const byMethod = (method: string) => candidates.filter(candidate => candidate.extractionMethod === method && !isProseTask(candidate)).length;
     const perDocument = new Map<string, { candidates: number; flagged: number; rule: number; near: number }>();
     for (const candidate of candidates) {
       if (!candidate.documentId) continue;
       const entry = perDocument.get(candidate.documentId) ?? { candidates: 0, flagged: 0, rule: 0, near: 0 };
       entry.candidates += 1;
       if (Array.isArray(candidate.validationFlags) && candidate.validationFlags.length) entry.flagged += 1;
-      if (candidate.extractionMethod === 'RULE_BASED') entry.rule += 1;
+      if (candidate.extractionMethod === 'RULE_BASED' && !isProseTask(candidate)) entry.rule += 1;
       if (candidate.matchClass === 'GAN_TRUNG') entry.near += 1;
       perDocument.set(candidate.documentId, entry);
     }
@@ -315,6 +317,7 @@ export class DocumentsController {
         rule: byMethod('RULE_BASED'),
         form: byMethod('FORM_TEMPLATE'),
         table: byMethod('TABLE'),
+        task: candidates.filter(isProseTask).length,
         ruleRate: ratio(byMethod('RULE_BASED'), total),
         nearDuplicates: candidates.filter(candidate => candidate.matchClass === 'GAN_TRUNG').length,
         duplicates: candidates.filter(candidate => candidate.matchClass === 'TRUNG').length,
@@ -445,10 +448,10 @@ export class DocumentsController {
     }
     const detected = detectDocumentKind(file.buffer);
     if (!detected) {
-      throw new BadRequestException('Chỉ chấp nhận tệp PDF, Word (DOCX, DOC), Excel (XLSX, XLS) hoặc ảnh JPEG, PNG, WEBP, TIFF hợp lệ');
+      throw new BadRequestException('Chỉ chấp nhận tệp PDF, Word (DOCX, DOC, ODT, RTF), Excel (XLSX, XLS, ODS) hoặc ảnh JPEG, PNG, WEBP, TIFF hợp lệ');
     }
-    if ((detected.kind === 'doc' || detected.kind === 'xls') && !resolveOcrServiceConfig().baseUrl) {
-      throw new BadRequestException('Tệp Word/Excel 97–2003 (.doc, .xls) cần bật ocr-service để chuyển đổi. Hãy lưu lại thành .docx/.xlsx rồi tải lên.');
+    if (CONVERTED_KINDS.includes(detected.kind) && !resolveOcrServiceConfig().baseUrl) {
+      throw new BadRequestException('Tệp .doc, .xls, .odt, .ods, .rtf cần bật ocr-service để chuyển đổi. Hãy lưu lại thành .docx/.xlsx rồi tải lên.');
     }
     const departmentId = dto.departmentId?.trim() || undefined;
     if (departmentId) {

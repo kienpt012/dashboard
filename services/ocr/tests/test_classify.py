@@ -16,6 +16,14 @@ def test_detect_kind():
         archive.writestr("word/document.xml", "<x/>")
     assert detect_kind(buffer.getvalue()) == "docx"
     assert detect_kind(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1rest", "bao-cao.xls") == "xls"
+    # OpenDocument và RTF: LibreOffice đổi sang .docx/.xlsx trước khi đọc.
+    for mime, kind in (("application/vnd.oasis.opendocument.text", "odt"), ("application/vnd.oasis.opendocument.spreadsheet", "ods")):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr(zipfile.ZipInfo("mimetype"), mime)
+            archive.writestr("content.xml", "<x/>")
+        assert detect_kind(buffer.getvalue()) == kind
+    assert detect_kind(b"{\\rtf1\\ansi Ke hoach}") == "rtf"
     with pytest.raises(ValueError):
         detect_kind(b"hello")
 

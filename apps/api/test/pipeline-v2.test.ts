@@ -1049,7 +1049,7 @@ function tableElement(id: string, page: number, rows: (string | null)[][], extra
   return el(id, 'table', '', { page, table: { numRows: rows.length, numCols, cells }, ...extra });
 }
 
-async function runTableDocument(elements: StructuredElement[], env: Record<string, string> = {}, llmIndicators: any[] | null = null) {
+async function runTableDocument(elements: StructuredElement[], env: Record<string, string> = {}, llmIndicators: any[] | null = null, doc: Record<string, unknown> = {}) {
   const pages = [...new Set(elements.map(element => element.page))].map(page => ({ page, elements: elements.filter(element => element.page === page) }));
   const chunks = chunkStructuredPages(pages, { ...options, tableRowsPerChunk: 4 });
   const workerRef: { id?: string } = {};
@@ -1065,7 +1065,7 @@ async function runTableDocument(elements: StructuredElement[], env: Record<strin
       findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
       updateMany: async () => ({ count: 1 }),
     },
-    sourceDocument: { findUnique: async () => ({ id: 'doc-1', title: 'QĐ giao chỉ tiêu', docNumber: '333/QĐ-UBND', year: 2026, status: 'PROCESSED' }) },
+    sourceDocument: { findUnique: async () => ({ id: 'doc-1', title: 'QĐ giao chỉ tiêu', docNumber: '333/QĐ-UBND', year: 2026, status: 'PROCESSED', ...doc }) },
     documentChunk: { findMany: async () => chunks.map(chunk => ({ ...chunk, id: `c${chunk.chunkIndex}` })) },
     documentPage: { findMany: async () => pages.map(page => ({ pageNumber: page.page, elements: page.elements })) },
     localityProfile: { findUnique: async () => null },
@@ -1212,4 +1212,79 @@ test('Worker: đoạn không có mức cần đạt không gửi Qwen; số chư
     el('p1-e3', 'paragraph', 'Tổ chức 02 đợt tập huấn cho 150 cán bộ khu phố theo kế hoạch, hoàn thành trước ngày 30/6/2026.'),
   ], { EXTRACTION_CHUNK_FILTER: 'basic' }, []);
   assert.equal(basic.llmCalls, 1, 'bộ lọc cũ vẫn gửi đoạn giao việc');
+});
+
+test('Worker: kế hoạch bóc thêm nhiệm vụ từ câu giao việc bằng luật; quyết định thì không', async () => {
+  const elements = [
+    el('p1-e0', 'heading', 'III. TỔ CHỨC THỰC HIỆN'),
+    el('p1-e1', 'heading', '1. Phòng Kinh tế'),
+    el('p1-e2', 'paragraph', '- Chủ trì, phối hợp với Công an phường rà soát, lập danh sách hộ kinh doanh chưa đăng ký; hoàn thành trước ngày 30/6/2026.'),
+    el('p1-e3', 'paragraph', '- Tham mưu Ủy ban nhân dân phường ban hành kế hoạch chỉnh trang đô thị trong quý II/2026.'),
+    el('p1-e4', 'paragraph', '- Rà soát, lập danh sách hộ kinh doanh có nguy cơ ngừng hoạt động; hoàn thành trước ngày 30/9/2026.'),
+  ];
+  const plan = await runTableDocument(elements, {}, [], { docType: 'KE_HOACH', docNumber: '15/KH-UBND' });
+  assert.equal(plan.llmCalls, 0, 'đoạn giao việc không ghi mức cần đạt không gửi Qwen');
+  assert.equal(plan.completed.stats.taskCandidates, 3);
+  assert.match(plan.completed.note, /bóc thêm 3 nhiệm vụ/);
+  assert.deepEqual(plan.created.map((c: any) => [c.targetKind, c.extractionMethod, c.promptVersion, c.targetText, c.targetValue, c.unit]), [
+    ['TASK', 'RULE_BASED', 'task-v1', 'Hoàn thành', 100, '%'],
+    ['TASK', 'RULE_BASED', 'task-v1', 'Hoàn thành', 100, '%'],
+    ['TASK', 'RULE_BASED', 'task-v1', 'Hoàn thành', 100, '%'],
+  ]);
+  const [first, second, third] = plan.created;
+  assert.equal(first.name, 'Rà soát, lập danh sách hộ kinh doanh chưa đăng ký');
+  assert.equal(first.responsibleDepartmentId, 'dep-kt');
+  assert.equal(first.coordinatingDepartments, 'Công an phường');
+  assert.equal(first.deadline.toISOString().slice(0, 10), '2026-06-30');
+  assert.equal(second.deadline.toISOString().slice(0, 10), '2026-06-30');
+  assert.equal(third.deadline.toISOString().slice(0, 10), '2026-09-30');
+  for (const candidate of plan.created) {
+    const rules = ((candidate.validationFlags ?? []) as { rule: string }[]).map(flag => flag.rule);
+    assert.deepEqual(rules.filter(rule => rule === 'bam_nguon' || rule === 'cau_truc' || rule === 'loai_thong_tin'), [], candidate.name);
+  }
+  const decision = await runTableDocument(elements, {}, [], { docType: 'QUYET_DINH' });
+  assert.equal(decision.created.length, 0);
+});
+
+test('Worker đọc văn bản: loại "Khác" được điền loại, số ký hiệu và ngày ban hành từ trang đầu; loại cán bộ đã chọn giữ nguyên', async () => {
+  async function parse(document: Record<string, unknown>) {
+    const workerRef: { id?: string } = {};
+    let updated: any = null;
+    let completed: any = null;
+    const tx = {
+      documentPage: { deleteMany: async () => ({}), createMany: async () => ({}) },
+      documentChunk: { deleteMany: async () => ({}), createMany: async () => ({}) },
+      sourceDocument: { updateMany: async ({ data }: any) => { updated = data; return { count: 1 }; } },
+      extractionJob: { create: async () => ({}) },
+    };
+    const prisma = {
+      extractionJob: {
+        findUnique: async () => ({ status: 'PROCESSING', lockedBy: workerRef.id, cancelRequestedAt: null }),
+        updateMany: async ({ data }: any) => { if (data?.status === 'COMPLETED') completed = data; return { count: 1 }; },
+      },
+      sourceDocument: {
+        findUnique: async () => ({ id: 'doc-1', mimeType: 'application/pdf', originalName: 'kh.pdf', data: Buffer.from('%PDF-'), status: 'UPLOADED', autoExtract: false, ...document }),
+        updateMany: async () => ({ count: 1 }),
+      },
+      $transaction: async (fn: any) => fn(tx),
+    };
+    const worker = new ExtractionWorker(prisma as any, fakeOllama() as any, new ConfigService({})) as any;
+    workerRef.id = worker.workerId;
+    const text = 'ỦY BAN NHÂN DÂN PHƯỜNG\nSố: 15/KH-UBND\nLái Thiêu, ngày 05 tháng 02 năm 2026\nKẾ HOẠCH\nCải cách hành chính năm 2026';
+    worker.parseWithFallback = async () => ({
+      pages: [{ pageNumber: 1, text, ocrUsed: false, ocrConfidence: null, layout: null, kind: 'text', elements: null }],
+      pageCount: 1, hasTextLayer: true, ocrUsed: false, chunks: [], parserVersion: 'fallback pdf', notes: [], stats: {},
+    });
+    await worker.processParseJob({ id: 'job-p', documentId: 'doc-1', kind: ExtractionJobKind.DOCUMENT_PARSE, attempts: 1, createdById: 'u1' });
+    return { updated, completed };
+  }
+  const blank = await parse({ docType: 'KHAC', docNumber: null, issuedDate: null });
+  assert.equal(blank.updated.docType, 'KE_HOACH');
+  assert.equal(blank.updated.docNumber, '15/KH-UBND');
+  assert.equal(blank.updated.issuedDate.toISOString(), '2026-02-04T17:00:00.000Z');
+  assert.match(blank.completed.note, /Loại văn bản nhận theo số ký hiệu 15\/KH-UBND: Kế hoạch/);
+  const chosen = await parse({ docType: 'BAO_CAO', docNumber: '99/BC-UBND', issuedDate: new Date('2026-01-01') });
+  assert.equal(chosen.updated.docType, undefined);
+  assert.equal(chosen.updated.docNumber, undefined);
+  assert.equal(chosen.updated.issuedDate, undefined);
 });

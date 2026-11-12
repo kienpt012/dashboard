@@ -284,3 +284,28 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Bỏ trùng**: hai hàng của cùng một bảng luôn là hai bản ghi riêng (nhiệm vụ cùng quy ước 100% hay có tên gần nhau).
 - **Giới hạn**: lọc chặt hơn có thể làm sót chỉ tiêu viết khác thường ở phần nhiệm vụ ("xây mới 3 trường"); cần chấm
   lại trên bộ đề khi có thêm văn bản thật.
+
+## D-024 · 2026-11-12 · Tự nhận loại văn bản; hồ sơ xử lý theo loại; nhiệm vụ bóc bằng luật
+
+- **Bối cảnh**: quy trình chỉ bóc "chỉ tiêu kế hoạch" và cán bộ phải tự chọn loại văn bản. Kế hoạch, công văn, chỉ thị
+  chủ yếu giao việc có đơn vị thực hiện và thời hạn, không phải chỉ tiêu số.
+- **Nhận loại** (`document-type.ts`, không cần model): số ký hiệu theo Nghị định 30/2020/NĐ-CP ("333/QĐ-UBND",
+  "05-NQ/ĐU", "30/2020/NĐ-CP"; công văn là "tên cơ quan-đơn vị soạn thảo" như "1234/UBND-VP") rồi tới tên loại in hoa
+  ở đầu văn bản. Bước đọc văn bản chỉ điền loại, số ký hiệu, ngày ban hành khi cán bộ để trống (loại "Khác"); cán bộ
+  sửa được như cũ. Thêm năm loại: Nghị định, Thông tư, Chỉ thị, Chương trình, Thông báo.
+- **Hồ sơ xử lý** (một bảng trong `document-type.ts`): chỉ tiêu được bóc ở mọi loại (bảng bằng code, văn xuôi bằng
+  Qwen). Kế hoạch, chương trình bóc thêm nhiệm vụ ở phần nhiệm vụ/tổ chức thực hiện; công văn, chỉ thị, thông báo bóc
+  nhiệm vụ ở mọi phần không phải phần chỉ tiêu; báo cáo được ghi chú rằng con số trong câu văn có thể là kết quả.
+  Thêm loại mới là thêm một dòng.
+- **Nhiệm vụ từ văn xuôi** (`task-extraction.ts`, `promptVersion` = `task-v1`): câu giao việc có đơn vị ("Giao Phòng
+  Kinh tế chủ trì, phối hợp với…", "Công an phường tăng cường…", hoặc đề mục "2. Phòng Kinh tế") hoặc có thời hạn
+  ("trước ngày 30/6/2026", "trong quý II/2026"). Câu ghi mức cần đạt bằng số là chỉ tiêu, để Qwen đọc. Mỗi nhiệm vụ là
+  đề xuất loại Nhiệm vụ theo quy ước hoàn thành 100% như bảng nhiệm vụ (D-022).
+- **Vì sao bằng luật, chưa dùng model**: Qwen đã fine-tune chỉ học chỉ tiêu; thêm một lượt model cho nhiệm vụ làm
+  gấp đôi thời gian trên CPU, trong khi chưa có văn bản thật có đáp án để đo. Luật chạy tức thì và người duyệt thấy rõ
+  đơn vị, hạn lấy từ đâu. Khi có 2–3 kế hoạch, công văn thật kèm đáp án sẽ đo và quyết định có cần model hay không.
+- **Excel**: bảng tải về có thêm sheet "Nhiệm vụ" (STT, nội dung, chủ trì, phối hợp, thời hạn, trang, trích dẫn) để xem
+  và in; sửa và tải lên vẫn qua sheet "Chỉ tiêu".
+- **Định dạng**: nhận thêm .odt, .ods, .rtf (LibreOffice của ocr-service đổi sang .docx/.xlsx như .doc, .xls).
+- **Giới hạn**: quyết định ban hành kèm kế hoạch được nhận là Quyết định nên không bóc nhiệm vụ văn xuôi (bảng nhiệm vụ
+  vẫn được đọc); đổi loại thành Kế hoạch rồi "Đọc lại" nếu cần. Báo cáo chưa cập nhật tiến độ vào chỉ tiêu đã có.
