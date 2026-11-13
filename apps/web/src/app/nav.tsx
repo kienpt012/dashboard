@@ -91,6 +91,7 @@ export const navGroups: NavGroup[] = [
       { path: '/admin/audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, roles: ADMINS, screen: 'HT-05', keywords: 'nhat ky lich su thao tac' },
       { path: '/admin/bao-loi', label: 'Báo lỗi', icon: <BugOutlined />, roles: ADMINS, screen: 'HT-06', keywords: 'bao loi gop y' },
       { path: '/admin/profile', label: 'Hồ sơ cá nhân', icon: <UserOutlined />, roles: ALL, screen: 'HT-07', keywords: 'ho so mat khau bao mat' },
+      { path: '/admin/ung-dung', label: 'Ứng dụng công vụ', icon: <AppstoreOutlined />, roles: ADMINS, screen: 'HT-08', keywords: 'ung dung cong vu phan mem dock loi tat' },
     ],
   },
 ];

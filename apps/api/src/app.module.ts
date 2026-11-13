@@ -37,6 +37,9 @@ import { BugReportsController } from './bug-reports';
 import { AccountabilityWorker } from './accountability-worker';
 import { PublicScheduleController, ScheduleController } from './schedule';
 import { WorkspaceController } from './workspace';
+import { DeskNotesController } from './workspace-desk-notes';
+import { DeskBriefingController } from './workspace-desk-briefing';
+import { WorkAppsController } from './workspace-desk-apps';
 import {
   PublicDashboardAdminController,
   PublicDashboardPublicController,
@@ -88,6 +91,7 @@ import {
     WorkspaceController,
     ScheduleController,
     PublicScheduleController,
+    DeskNotesController, DeskBriefingController, WorkAppsController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,

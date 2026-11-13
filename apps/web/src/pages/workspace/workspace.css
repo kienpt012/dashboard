@@ -165,3 +165,43 @@
 @media (max-width:760px) { .ws-main { padding: 20px 17px 12px; } .ws-toolbar { gap: 10px; } .ws-identity { gap: 8px; } .ws-identity strong { font-size: 14px; } .ws-identity small { font-size: 6px; letter-spacing: 1.6px; } .ws-logo { width: 36px; height: 36px; font-size: 22px; } .ws-toolbar-actions { gap: 3px; } .ws-customize { font-size: 0 !important; padding: 8px; } .ws-customize .anticon { font-size: 15px; } .ws-toolbar-actions > .ws-icon-btn:first-of-type { display: none; } .ws-hero { padding: 35px 0 28px; gap: 15px; } .ws-hero h1 { font-size: 29px; letter-spacing: -1.2px; } .ws-hero p { font-size: 10px; max-width: 200px; line-height: 1.7; } .ws-hero-time { min-width: 100px; } .ws-hero-time time { font-size: 42px; letter-spacing: -2px; } .ws-hero-time > span { font-size: 8px; text-align: right; line-height: 1.6; max-width: 105px; } .ws-jarvis { font-size: 0 !important; padding: 4px 11px; gap: 2px; } .ws-jarvis > span:last-child { display: none; } .ws-eyebrow { font-size: 10px; gap: 6px; } .ws-space-bar { flex-wrap: wrap; gap: 10px; } .ws-spaces { max-width: 100%; } .ws-space-actions { width: 100%; justify-content: flex-end; } .ws-section-label { font-size: 8px; } .ws-shortcuts { padding-bottom: 22px; } .ws-shortcut { min-height: 47px; padding: 7px 10px; } .ws-shortcut-icon { width: 27px; height: 27px; font-size: 17px; } .ws-shortcut > span:nth-child(2) { font-size: 10px; } .ws-drawer .ant-drawer-body { padding: 20px; } .ws-library-card { padding: 16px; } .ws-library-card h3 { font-size: 12px; } .ws-library-card p { font-size: 10px; } .ws-library-intro h2 { font-size: 27px; } .ws-footer { padding-top: 23px; font-size: 8px; } .ws-footer button { font-size: 8px; } .ws-card-head { padding-inline: 18px; } .ws-card-body { padding-inline: 19px; } }
 @media (max-width:400px) { .ws-hero h1 { font-size: 25px; } .ws-hero-time time { font-size: 35px; } .ws-toolbar-actions .ws-icon-btn { width: 28px; } .ws-hero-time { min-width: 85px; } .ws-library-grid { gap: 9px; } }
 @media (prefers-reduced-motion:reduce) { .ws-root *, .ws-drawer * { animation: none !important; transition: none !important; } }
+
+/* Bàn làm việc 2.0: ưu tiên lịch và việc cần xử lý. */
+.ws-main { padding-bottom: 110px; }
+.ws-hero { padding: 30px 2px 25px; gap: 24px; }
+.ws-hero h1 { font-size: clamp(23px, 2.3vw, 33px); font-weight: 600; letter-spacing: -.7px; }
+.ws-hero-time { min-width: 115px; }
+.ws-hero-time time { font-size: 47px; letter-spacing: -2px; }
+.ws-date-line { font-size: 12px; line-height: 1.8; }
+.ws-jarvis { margin-top: 8px; }
+.ws-identity { min-width: 0; }.ws-identity > div { min-width: 0; }
+.ws-identity small { font-size: 10px; letter-spacing: 0; line-height: 1.6; max-width: 290px; white-space: normal; }
+.ws-dock-left .ws-main { padding-left: 96px; }
+.ws-light { color: #233c4c; background: #eaf1f6; --ws-muted: #536f7e; --ws-text: #233c4c; }
+.ws-light .ws-widget-ioc-bottom a, .ws-light .ws-widget-more { color: #176e61 !important; }
+.ws-light .ws-widget-text-btn { color: #176e61; }
+.ws-light > .ws-background { opacity: .18; }
+.ws-light .ws-shade { background: #f3f8fac9; }
+.ws-light .ws-identity small, .ws-light .ws-save, .ws-light .ws-hero p, .ws-light .ws-hero-time > span, .ws-light .ws-footer, .ws-light .ws-footer button { color: #486473; }
+.ws-light .ws-logo { color: #1e6d62; background: #ffffff9c; border-color: #9cbdb8; }
+.ws-light .ws-hero h1, .ws-light .ws-hero-time, .ws-light .ws-card-head h2, .ws-light .ws-empty h2 { color: #213c4c; }
+.ws-light .ws-icon-btn, .ws-light .ws-button, .ws-light .ws-jarvis { color: #315968; }
+.ws-light .ws-button, .ws-light .ws-jarvis { background: #ffffffbd; border-color: #99bbc65e; }
+.ws-light .ws-primary { background: #176e61; color: white; }
+.ws-light .ws-card { background: #fffffff0; border-color: #b7ccd5; color: #203d4c; box-shadow: 0 6px 20px #264a5f0d; }
+.ws-light .ws-card-head { border-color: #ccdce4; }.ws-light .ws-card-symbol { color: #287e71; }
+.ws-light .ws-space-tab { color: #557381; }.ws-light .ws-space-tab.active { color: #174d40; background: #ffffffce; border-color: #9dbeb5; }.ws-light .ws-tab-dot { background: #237f6a; }
+.ws-light .ws-shortcut { color: #294c60; background: #ffffffd9; border-color: #aec4ce; }.ws-light .ws-section-label { color: #38596a; }
+.ws-light .ws-edit-hint { color: #426473; background: #ffffffcf; }.ws-light .ws-edit-hint button { color: #145e4b; }
+.ws-light .ws-widget-live, .ws-light .ws-widget-hint, .ws-light .ws-widget-empty { color: #506d7c; }
+.ws-light .ws-widget-clock-time, .ws-light .ws-widget-stat-value, .ws-light .ws-widget-weather-temp { color: #233c4c; }
+[data-theme=light] .ws-drawer-title, [data-theme=light] .ws-settings-section h3, [data-theme=light] .ws-library-card h3, [data-theme=light] .ws-form > label, [data-theme=light] .ws-template-list strong { color: #284858; }
+[data-theme=light] .ws-settings-section p, [data-theme=light] .ws-setting-note, [data-theme=light] .ws-wallpaper-option small, [data-theme=light] .ws-daylight-toggle small, [data-theme=light] .ws-settings-section > label, [data-theme=light] .ws-template-list small, [data-theme=light] .ws-help p, [data-theme=light] .ws-help > div { color: #526e7e; }
+[data-theme=light] .ws-wallpaper-option strong { color: #294c5e; }
+[data-theme=light] .ws-library-card { background: #f1f6f8; border-color: #c8d6df; color: #355b70; }
+[data-theme=light] .ws-library-card small, [data-theme=light] .ws-category-tabs button { color: #3c6e62; }
+[data-theme=light] .ws-category-tabs button.active { background: #e6f4ee; border-color: #accdbd; }
+[data-theme=light] .ws-template-list button, [data-theme=light] .ws-daylight-toggle { border-color: #c4d5dd; background: #f4f8f9; }
+[data-theme=light] .ws-icon-picker button { color: #355b70; background: #f0f5f8; border-color: #c3d3dc; }
+@media (max-width: 1100px) { .ws-toolbar { flex-wrap: wrap; gap: 12px; }.ws-toolbar-actions { margin-left: auto; }.ws-dock-left .ws-main { padding-left: 90px; } }
+@media (max-width: 760px) { .ws-main, .ws-dock-left .ws-main { padding: 20px 17px 105px; }.ws-toolbar { flex-wrap: wrap; }.ws-toolbar-actions { width: 100%; justify-content: flex-end; }.ws-identity small { max-width: 100%; }.ws-toolbar-actions .desk-compose-button { margin-right: auto; }.ws-hero { padding: 24px 0 20px; gap: 12px; }.ws-hero h1 { font-size: 22px; line-height: 1.5; letter-spacing: -.4px; }.ws-hero-time { min-width: 78px; }.ws-hero-time time { font-size: 33px; letter-spacing: -1px; }.ws-hero p { font-size: 10px; max-width: none; margin-top: 8px; }.ws-date-line span { display: block; }.ws-jarvis { font-size: 10px !important; padding: 4px 8px; }.ws-library-card h3 { line-height: 1.6; }.ws-space-actions { justify-content: space-between; } }

@@ -19,6 +19,8 @@ import { EvaluationModal, EvaluationsTab } from './Evaluations';
 import { ExecutionTab, ReportModal, valueText } from './Execution';
 import { BasisCard, ExplanationRequestModal, ExplanationsCard, PeopleModal, ResponsibilityCard, SourceCard, TimelineTab, type PeopleAction } from './Side';
 import './dossier.css';
+import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
+import { useDeskNoteAction } from '@/pages/workspace/DeskNotes';
 
 const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE: 'Tỉnh/Thành phố giao', LOCAL: 'Địa phương tự đặt' };
 const TABS = ['thuc-hien', 'chi-dao', 'danh-gia', 'lich-su'] as const;
@@ -89,6 +91,7 @@ function DossierView({ d }: { d: DossierData }) {
   const [people, setPeople] = useState<PeopleAction | null>(null);
   const [explaining, setExplaining] = useState(false);
   const p = d.permissions;
+  const deskNote = useDeskNoteAction(d.id, d.title);
   const { me } = useDossier();
   const myPending = !can(me, LEADERSHIP) && d.reports.some(report => report.user.id === me.id && report.reviewStatus === 'PENDING');
   const canReport = d.valueSource === 'MANUAL' && p.canReport && can(me, REPORTERS) && !d.isArchived;
@@ -113,6 +116,7 @@ function DossierView({ d }: { d: DossierData }) {
   }
 
   const more: MenuProps['items'] = [
+    deskNote.item,
     ...(p.canAssign ? [{ key: 'assign', icon: <UserAddOutlined />, label: d.assignee ? 'Giao lại' : 'Giao chuyên viên', onClick: () => setPeople('assign') }] : []),
     ...(p.canTransfer ? [{ key: 'transfer', icon: <SwapOutlined />, label: 'Chuyển đồng nghiệp', onClick: () => setPeople('transfer') }] : []),
     ...(p.canReturn ? [{ key: 'return', icon: <UndoOutlined />, label: 'Trả về trưởng phòng', onClick: () => setPeople('return') }] : []),
@@ -155,6 +159,8 @@ function DossierView({ d }: { d: DossierData }) {
       }
       extra={
         <>
+          <PinToWorkspace targetId={d.id} title={d.title} />
+          {deskNote.modal}
           {more.length > 0 && !d.isArchived && (
             <Dropdown menu={{ items: more }} trigger={['click']} placement="bottomRight">
               <Button>
