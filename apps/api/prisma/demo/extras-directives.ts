@@ -2,10 +2,10 @@ import { DirectiveKind, PrismaClient } from '@prisma/client';
 import { parsePlanningDueDate } from '../../src/planning-date';
 import { evaluateTarget } from '../../src/metrics';
 
-// Chỉ bổ sung các dòng có khóa DEMO-DIRECTIVE; chạy lại giữ nguyên dữ liệu người dùng đã chỉnh.
+// Chỉ bổ sung các dòng có khóa VBCD-2026; chạy lại giữ nguyên dữ liệu người dùng đã chỉnh.
 const prisma = new PrismaClient();
 const definitions: { code: string; name: string; number: string; kind: DirectiveKind; issued: string; tasks: [string, string][]; source?: boolean }[] = [
-  { code: 'DEMO-DIRECTIVE-CT12', name: 'Chương trình công tác quý IV năm 2026 của UBND phường', number: '12/CTr-UBND', kind: 'CHUONG_TRINH', issued: '2026-10-01', tasks: [
+  { code: 'VBCD-2026-CT12', name: 'Chương trình công tác quý IV năm 2026 của UBND phường', number: '12/CTr-UBND', kind: 'CHUONG_TRINH', issued: '2026-10-01', tasks: [
     ['Rà soát các nhiệm vụ trọng tâm quý IV và lịch kiểm tra của UBND phường', 'VP'],
     ['Tổng hợp tiến độ thực hiện các công trình đầu tư công trên địa bàn', 'KTHTDT'],
     ['Tổ chức rà soát danh sách hộ cần hỗ trợ dịp cuối năm', 'VHXH'],
@@ -13,7 +13,7 @@ const definitions: { code: string; name: string; number: string; kind: Directive
     ['Kiểm tra phương án bảo đảm an ninh trật tự dịp cuối năm', 'CAND'],
     ['Chuẩn bị nội dung tổng kết công tác quốc phòng địa phương', 'QS'],
   ] },
-  { code: 'DEMO-DIRECTIVE-TB128', name: 'Kết luận của Chủ tịch UBND phường tại cuộc họp giao ban về giải ngân vốn đầu tư công', number: '128/TB-UBND', kind: 'THONG_BAO_KET_LUAN', issued: '2026-10-07', tasks: [
+  { code: 'VBCD-2026-TB128', name: 'Kết luận của Chủ tịch UBND phường tại cuộc họp giao ban về giải ngân vốn đầu tư công', number: '128/TB-UBND', kind: 'THONG_BAO_KET_LUAN', issued: '2026-10-07', tasks: [
     ['Rà soát hồ sơ thanh toán các công trình đã nghiệm thu để đẩy nhanh giải ngân vốn đầu tư công', 'KTHTDT'],
     ['Tổng hợp vướng mắc giải phóng mặt bằng và đề xuất hướng xử lý', 'KTHTDT'],
     ['Theo dõi kết quả thực hiện kết luận giao ban và tổng hợp báo cáo Chủ tịch', 'VP'],
@@ -21,7 +21,7 @@ const definitions: { code: string; name: string; number: string; kind: Directive
     ['Kiểm tra điều kiện an toàn giao thông tại các điểm thi công', 'CAND'],
     ['Công khai lịch tiếp nhận và giải quyết hồ sơ liên quan đến công trình', 'TTCC'],
   ] },
-  { code: 'DEMO-DIRECTIVE-KH45', name: 'Kế hoạch kiểm tra trật tự đô thị và vệ sinh môi trường quý IV năm 2026', number: '45/KH-UBND', kind: 'KE_HOACH', issued: '2026-10-09', tasks: [
+  { code: 'VBCD-2026-KH45', name: 'Kế hoạch kiểm tra trật tự đô thị và vệ sinh môi trường quý IV năm 2026', number: '45/KH-UBND', kind: 'KE_HOACH', issued: '2026-10-09', tasks: [
     ['Lập danh sách các tuyến đường trọng điểm cần kiểm tra trật tự đô thị', 'KTHTDT'],
     ['Tổ chức kiểm tra việc chấp hành quy định về lấn chiếm lòng đường, vỉa hè', 'CAND'],
     ['Thông tin lịch kiểm tra và vận động hộ kinh doanh tự khắc phục', 'VHXH'],
@@ -29,7 +29,7 @@ const definitions: { code: string; name: string; number: string; kind: Directive
     ['Rà soát điểm tập kết rác và đề xuất phương án khắc phục', 'KTHTDT'],
     ['Tổng hợp phản ánh của người dân về trật tự đô thị', 'TTCC'],
   ] },
-  { code: 'DEMO-DIRECTIVE-CV236', name: 'Tăng cường hướng dẫn dịch vụ công trực tuyến và chuyển đổi số tại phường', number: '236/UBND-VP', kind: 'CONG_VAN', issued: '2026-10-12', tasks: [
+  { code: 'VBCD-2026-CV236', name: 'Tăng cường hướng dẫn dịch vụ công trực tuyến và chuyển đổi số tại phường', number: '236/UBND-VP', kind: 'CONG_VAN', issued: '2026-10-12', tasks: [
     ['Rà soát tài khoản công vụ và phân quyền truy cập các phần mềm dùng chung', 'VP'],
     ['Tổ chức hướng dẫn người dân nộp hồ sơ trực tuyến tại Trung tâm', 'TTCC'],
     ['Cập nhật nội dung tuyên truyền về định danh điện tử và dịch vụ công', 'VHXH'],
@@ -37,7 +37,7 @@ const definitions: { code: string; name: string; number: string; kind: Directive
     ['Phối hợp hướng dẫn kích hoạt tài khoản định danh điện tử', 'CAND'],
     ['Báo cáo kết quả số hóa hồ sơ và đề xuất nhiệm vụ tháng 12', 'TTCC'],
   ] },
-  { code: 'DEMO-DIRECTIVE-QD333', name: 'Nhiệm vụ triển khai Chương trình công tác năm 2026 theo Quyết định 333/QĐ-UBND', number: '333/QĐ-UBND', kind: 'QUYET_DINH', issued: '2026-01-20', source: true, tasks: [
+  { code: 'VBCD-2026-QD333', name: 'Nhiệm vụ triển khai Chương trình công tác năm 2026 theo Quyết định 333/QĐ-UBND', number: '333/QĐ-UBND', kind: 'QUYET_DINH', issued: '2026-01-20', source: true, tasks: [
     ['Tổng hợp kết quả thực hiện chương trình công tác năm 2026', 'VP'],
     ['Rà soát tiến độ các chỉ tiêu phát triển kinh tế trên địa bàn', 'KTHTDT'],
     ['Đánh giá công tác bảo đảm an sinh xã hội trong năm', 'VHXH'],
@@ -84,7 +84,7 @@ async function main() {
           assignedById: index === 5 ? null : leader.id, ordinal: String(index + 1), sortOrder: (index + 1) * 10,
           dispatchedById: leader.id, dispatchedByName: leader.fullName, dispatchedAt: createdAt, lastReportedAt, status: metric.status,
           legalBasis: definition.number, sourceDocumentId: framework.sourceDocumentId, createdAt,
-          relatedTargetId: definition.code === 'DEMO-DIRECTIVE-TB128' && index === 0 ? relatedTarget?.id : null,
+          relatedTargetId: definition.code === 'VBCD-2026-TB128' && index === 0 ? relatedTarget?.id : null,
           coordinators: index === 0 ? { create: departments.filter(item => item.code === 'VP' && item.id !== department.id).map(item => ({ departmentId: item.id })) } : undefined,
         } });
         if (lastReportedAt && assignee) await tx.progressUpdate.create({ data: {
