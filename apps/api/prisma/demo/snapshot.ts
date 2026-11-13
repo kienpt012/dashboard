@@ -215,6 +215,20 @@ export async function loadSnapshot(prisma: PrismaClient, options: { adminPasswor
           );
         }
       }
+      // Lịch làm việc mẫu được dời nguyên tuần để tuần công khai mới nhất trùng tuần hiện tại: khối lịch trên trang công khai
+      // và mục Hôm nay · Ngày mai không bị trống khi nạp bộ mẫu vào một tuần khác tuần xuất.
+      const [shift] = await tx.$queryRawUnsafe<{ days: number | null }[]>(
+        `SELECT (date_trunc('week', now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - max("weekStart"))::int AS days FROM "WorkSchedule" WHERE "isPublic"`,
+      );
+      if (shift?.days) {
+        // Hai bước để không vướng ràng buộc mỗi tuần một lịch trong lúc dời.
+        await tx.$executeRawUnsafe(`UPDATE "WorkSchedule" SET "weekStart" = "weekStart" + 36500`);
+        await tx.$executeRawUnsafe(
+          `UPDATE "WorkSchedule" SET "weekStart" = "weekStart" - 36500 + $1::int, "publishedAt" = "publishedAt" + make_interval(days => $1::int)`,
+          shift.days,
+        );
+        await tx.$executeRawUnsafe(`UPDATE "WorkScheduleEntry" SET "date" = "date" + $1::int`, shift.days);
+      }
       // Trigger của bảng sự kiện phản ánh tự xếp thư thông báo vào hàng đợi khi nạp: bộ mẫu không được gửi thư thật.
       await tx.$executeRawUnsafe(`DELETE FROM "MailOutbox"`);
       await tx.$executeRawUnsafe(`UPDATE "User" SET "passwordHash" = $1 WHERE role = 'ADMIN'`, options.adminPasswordHash);

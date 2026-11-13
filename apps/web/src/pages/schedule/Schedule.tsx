@@ -100,7 +100,7 @@ export default function SchedulePage() {
     success: result => ((result as ScheduleData).isPublic ? 'Đã công khai lịch tuần' : 'Đã ngừng công khai lịch tuần'),
     refresh,
   });
-  const copy = useAction(() => http.post(`/schedules/${data!.weekStart}/copy-previous`), { success: 'Đã chép lịch từ tuần trước', refresh });
+  const copy = useAction(() => http.post(`/schedules/${data!.weekStart}/copy-previous`), { success: 'Đã chép lịch từ tuần gần nhất có lịch', refresh });
   const removeFile = useAction(() => http.delete(`/schedules/${data!.weekStart}/file`), { success: 'Đã gỡ tệp lịch', refresh });
 
   const leaders = useMemo(() => [...new Set([...draft.map(entry => entry.leader), ...LEADER_TITLES])], [draft]);
@@ -187,7 +187,7 @@ export default function SchedulePage() {
             </Button>
             {empty && !dirty && (
               <Button icon={<CopyOutlined />} loading={copy.isPending} onClick={() => copy.mutate()}>
-                Chép từ tuần trước
+                Chép từ tuần gần nhất
               </Button>
             )}
             {schedule?.file ? (

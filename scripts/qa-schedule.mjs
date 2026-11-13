@@ -5,6 +5,7 @@ const ADMIN_PASSWORD = process.env.QA_ADMIN_PASSWORD ?? process.env.DEMO_ADMIN_P
 const USER_PASSWORD = process.env.QA_USER_PASSWORD ?? process.env.DEMO_USER_PASSWORD;
 const WEEK = '2031-03-03'; // thứ Hai
 const PREVIOUS = '2031-02-24';
+const EARLIER = '2031-02-17';
 let failed = 0;
 
 function check(name, ok, detail = '') {
@@ -30,7 +31,7 @@ async function login(username, password) {
 const entry = (date, session, startTime, content, isPublic = true) => ({ date, session, startTime, content, leader: 'Chủ tịch UBND', location: 'Phòng họp số 1', isPublic });
 
 async function cleanup(token) {
-  for (const week of [WEEK, PREVIOUS]) {
+  for (const week of [WEEK, PREVIOUS, EARLIER]) {
     const current = await call(`/schedules?week=${week}`, { token });
     if (!current.data.schedule) continue;
     await call(`/schedules/${week}/visibility`, { token, method: 'POST', body: { isPublic: false } });
@@ -96,6 +97,12 @@ try {
   check('Xoá hết dòng của tuần', emptied.status === 200 && emptied.data.entries.length === 0);
   const copy = await call(`/schedules/${WEEK}/copy-previous`, { token: office, method: 'POST' });
   check('Chép lịch tuần trước, ngày lùi đúng 7 ngày', (copy.status === 201 || copy.status === 200) && copy.data.entries?.[0]?.date === '2031-03-06', JSON.stringify(copy.data).slice(0, 160));
+
+  await call(`/schedules/${WEEK}`, { token: office, method: 'PUT', body: { entries: [] } });
+  await call(`/schedules/${PREVIOUS}`, { token: office, method: 'PUT', body: { entries: [] } });
+  await call(`/schedules/${EARLIER}`, { token: office, method: 'PUT', body: { entries: [entry('2031-02-19', 'PM', '14:00', 'Họp giao ban')] } });
+  const gap = await call(`/schedules/${WEEK}/copy-previous`, { token: office, method: 'POST' });
+  check('Tuần liền trước trống thì chép từ tuần gần nhất có lịch, giữ đúng thứ trong tuần', (gap.status === 201 || gap.status === 200) && gap.data.entries?.[0]?.date === '2031-03-05', JSON.stringify(gap.data).slice(0, 160));
 
   await call(`/schedules/${WEEK}/visibility`, { token: office, method: 'POST', body: { isPublic: false } });
   check('Ngừng công khai thì tệp không còn tải được', (await call(`/public/schedule/${WEEK}/file`)).status === 404);

@@ -49,6 +49,7 @@ const DAY_MS = 86_400_000;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const COPY_LOOKBACK_WEEKS = 8;
 export const SCHEDULE_SESSIONS = ['ALLDAY', 'AM', 'PM', 'EVENING'] as const;
 export type ScheduleSession = typeof SCHEDULE_SESSIONS[number];
 
@@ -380,18 +381,21 @@ export class ScheduleController {
     return scheduleView(saved, 'staff');
   }
 
-  /** Chép các dòng của tuần liền trước sang tuần đang mở (chỉ khi tuần này chưa có dòng nào). */
+  /** Chép các dòng của tuần gần nhất có lịch (trong 8 tuần trước) sang tuần đang mở, chỉ khi tuần này chưa có dòng nào. */
   @Post(':week/copy-previous')
   async copyPrevious(@Req() req: any, @Param('week') week: string) {
     const actor = getActor(req);
     await this.requireEditor(actor);
     const weekStart = requireMonday(week);
     const saved = await this.prisma.$transaction(async tx => {
-      const previous = await tx.workSchedule.findUnique({
-        where: { weekStart: parseDay(addDays(weekStart, -7)) },
-        select: { entries: { select: ENTRY_SELECT } },
+      // Tuần liền trước có thể trống (nghỉ lễ, chưa lập): lấy tuần gần nhất có lịch để khỏi phải nhập lại từ đầu.
+      const previous = await tx.workSchedule.findFirst({
+        where: { weekStart: { lt: parseDay(weekStart), gte: parseDay(addDays(weekStart, -7 * COPY_LOOKBACK_WEEKS)) }, entries: { some: {} } },
+        orderBy: { weekStart: 'desc' },
+        select: { weekStart: true, entries: { select: ENTRY_SELECT } },
       });
-      if (!previous?.entries.length) throw new NotFoundException('Tuần trước chưa có dòng lịch nào để chép');
+      if (!previous) throw new NotFoundException(`${COPY_LOOKBACK_WEEKS} tuần gần đây chưa có lịch nào để chép`);
+      const shift = parseDay(weekStart).getTime() - previous.weekStart.getTime();
       const current = await tx.workSchedule.findUnique({
         where: { weekStart: parseDay(weekStart) },
         select: { id: true, _count: { select: { entries: true } } },
@@ -403,7 +407,7 @@ export class ScheduleController {
       await tx.workScheduleEntry.createMany({
         data: sortEntries(previous.entries).map((entry, index) => ({
           scheduleId: schedule.id,
-          date: new Date(entry.date.getTime() + 7 * DAY_MS),
+          date: new Date(entry.date.getTime() + shift),
           session: entry.session,
           startTime: entry.startTime,
           content: entry.content,
