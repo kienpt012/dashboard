@@ -1,3 +1,4 @@
+import { docRef } from './doc-ref';
 import {
   BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get,
   NotFoundException, Param, Post, Query, Req, UseGuards,
@@ -68,7 +69,7 @@ const relationInclude = {
 type LinkTarget = Prisma.TargetGetPayload<{ include: typeof relationInclude }>;
 
 function documentNumber(target: LinkTarget): string {
-  return target.sourceDocument?.docNumber || target.framework?.sourceDocument?.docNumber || target.framework?.legalBasis || target.legalBasis || target.framework?.name || 'Chưa gắn văn bản';
+  return docRef(target).docRef || 'Chưa gắn văn bản';
 }
 
 function linkRow(target: LinkTarget) {

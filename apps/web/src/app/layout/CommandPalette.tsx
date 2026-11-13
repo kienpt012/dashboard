@@ -1,3 +1,4 @@
+import { docRefText } from '@/components/DocRef';
 import { AimOutlined, BgColorsOutlined, EnterOutlined, LogoutOutlined, SearchOutlined } from '@ant-design/icons';
 import { Empty, Input, Modal, Spin, Tag } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -51,7 +52,7 @@ export function CommandPalette({ open, onClose, onCopilot, onTheme, onLogout }: 
             key: target.id,
             icon: <AimOutlined />,
             label: target.title,
-            hint: target.code,
+            hint: docRefText(target),
             to: `/admin/targets/${target.id}`,
             group: 'target',
           }))

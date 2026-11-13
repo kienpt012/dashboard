@@ -18,7 +18,7 @@ export const frameworkKindLabels:Record<FrameworkKind,string>={
 export const issuingLevelLabels:Record<IssuingLevel,string>={
   CENTRAL:'Trung ương giao',
   PROVINCE:'Tỉnh/Thành phố giao',
-  LOCAL:'Địa phương tự đặt',
+  LOCAL:'Phường giao',
 };
 
 export const frequencyLabels:Record<Frequency,string>={
@@ -98,6 +98,7 @@ export type FrameworkTemplate={
 };
 
 export type TargetBrief={
+  docRef?:string|null;
   id:string;
   code:string;
   title:string;

@@ -286,7 +286,7 @@ export function ApproveModal({ item, onClose, onMissing }: { item: Proposal | nu
       onClose();
       if (result?.target)
         modal.success({
-          title: `Đã tạo chỉ tiêu ${result.target.code}`,
+          title: 'Đã tạo chỉ tiêu',
           content: <Link to={`/admin/targets/${result.target.id}`}>Mở hồ sơ chỉ tiêu</Link>,
         });
     },
@@ -411,7 +411,7 @@ function ProposalDrawer({ item, onClose, onEdit, onApprove, onReject }: { item: 
               ? [{ label: item.status === 'REJECTED' ? 'Từ chối' : 'Duyệt', children: `${item.autoApproved ? 'Hệ thống tự thông qua' : item.reviewedBy?.fullName ?? '—'} · ${dateTime(item.reviewedAt)}` }]
               : []),
             ...(item.reviewNote ? [{ label: 'Ghi chú', children: <span className="tone-bad">{item.reviewNote}</span> }] : []),
-            ...(item.createdTarget ? [{ label: 'Chỉ tiêu đã tạo', children: <Link to={`/admin/targets/${item.createdTarget.id}`}>{item.createdTarget.code}</Link> }] : []),
+            ...(item.createdTarget ? [{ label: 'Chỉ tiêu đã tạo', children: <Link to={`/admin/targets/${item.createdTarget.id}`}>Xem hồ sơ chỉ tiêu</Link> }] : []),
           ]}
         />
         {item.sourceQuote && (

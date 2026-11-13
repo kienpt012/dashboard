@@ -311,7 +311,7 @@ function RecomputeResult({ data, onClose }: { data: { framework: Framework; outc
           pagination={false}
           dataSource={data?.outcomes ?? []}
           columns={[
-            { title: 'Chỉ tiêu', key: 'title', sorter: byText(row => row.code), render: (_, row) => <Link to={`/admin/targets/${row.targetId}`}>{row.code} · {row.title}</Link> },
+            { title: 'Chỉ tiêu', key: 'title', sorter: byText(row => row.code), render: (_, row) => <Link to={`/admin/targets/${row.targetId}`}>{row.title}</Link> },
             { title: 'Trước', dataIndex: 'previousValue', width: 90, align: 'right', sorter: byNumber(row => row.previousValue), sortDirections: NUMBER_FIRST, render: value => num(value) },
             { title: 'Sau', dataIndex: 'value', width: 90, align: 'right', sorter: byNumber(row => row.value), sortDirections: NUMBER_FIRST, render: (value, row) => <b className={row.changed ? 'tone-info' : undefined}>{num(value)}</b> },
             { title: 'Lưu ý', dataIndex: 'warnings', width: 220, sorter: byNumber(row => row.warnings.length), sortDirections: NUMBER_FIRST, render: (warnings: string[]) => (warnings.length ? <span className="tone-warn">{warnings.join('; ')}</span> : '') },
@@ -357,7 +357,7 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
                   onClick: () =>
                     framework.isActive
                       ? modal.confirm({
-                          title: `Ngừng sử dụng ${framework.code}?`,
+                          title: `Ngừng sử dụng ${framework.name}?`,
                           content: 'Bộ sẽ ẩn khỏi trung tâm điều hành và trình chiếu.',
                           okText: 'Ngừng sử dụng',
                           cancelText: 'Huỷ',
@@ -377,7 +377,7 @@ function FrameworkCard({ framework, onEdit, onRecompute, recomputing }: { framew
       <Space size={[6, 6]} wrap style={{ marginBottom: 10 }}>
         <KindTag kind={framework.kind} />
         <Tag>{framework.issuingLevelLabel}</Tag>
-        <Tag>{framework.code}</Tag>
+        <Tag>{framework.issuingLevelLabel}</Tag>
         {!framework.isActive && <Tag color="default">Ngừng sử dụng</Tag>}
         {!framework.showOnWallboard && <Tag>Không trình chiếu</Tag>}
       </Space>

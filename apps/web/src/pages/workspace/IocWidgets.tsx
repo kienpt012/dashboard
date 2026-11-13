@@ -1,3 +1,4 @@
+import { DocRef } from '@/components/DocRef';
 import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Empty, Progress, Select, Tag } from 'antd';
@@ -41,7 +42,7 @@ function TargetFigures({ item }: { item: TargetBrief }) {
 
 export function MyTargetsWidget() {
   const query = useData<TargetBrief[]>('/targets?mine=true');
-  return <Frame query={query}>{query.data?.length ? query.data.map(item => <Link className="ws-ioc-row" key={item.id} to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><TargetFigures item={item} /></Link>) : noWork}</Frame>;
+  return <Frame query={query}>{query.data?.length ? query.data.map(item => <Link className="ws-ioc-row" key={item.id} to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><DocRef value={item} /><TargetFigures item={item} /></Link>) : noWork}</Frame>;
 }
 
 export function TargetChartWidget({ widget, onChange }: Props) {
@@ -98,5 +99,5 @@ export function PinsWidget({ widget, onChange }: Props) {
   const [opened, setOpened] = useState<string | null>(null);
   const remove = (kind: string, id: string) => onChange({ ...widget.settings, items: pins.filter(item => item.kind !== kind || item.id !== id) });
   const unpin = (kind: string, id: string, title: string) => <Button type="text" size="small" icon={<DeleteOutlined />} aria-label={`Bỏ ghim ${title}`} onClick={() => remove(kind, id)} />;
-  return <><Frame query={query}>{query.data?.targets.map(item => <div className="ws-ioc-pin" key={item.id}><Link className="ws-ioc-row" to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><TargetFigures item={item} /></Link>{unpin('target', item.id, item.title)}</div>)}{query.data?.documents.map(item => <div className="ws-ioc-pin" key={item.id}><button type="button" className="ws-ioc-row" onClick={() => setOpened(item.id)}><strong>{item.title}</strong><small>{item.docNumber}</small></button>{unpin('document', item.id, item.title)}</div>)}{!query.data?.targets.length && !query.data?.documents.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có mục ghim" />}</Frame><DocumentViewer id={opened} onClose={() => setOpened(null)} /></>;
+  return <><Frame query={query}>{query.data?.targets.map(item => <div className="ws-ioc-pin" key={item.id}><Link className="ws-ioc-row" to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><DocRef value={item} /><TargetFigures item={item} /></Link>{unpin('target', item.id, item.title)}</div>)}{query.data?.documents.map(item => <div className="ws-ioc-pin" key={item.id}><button type="button" className="ws-ioc-row" onClick={() => setOpened(item.id)}><strong>{item.title}</strong><small>{item.docNumber}</small></button>{unpin('document', item.id, item.title)}</div>)}{!query.data?.targets.length && !query.data?.documents.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có mục ghim" />}</Frame><DocumentViewer id={opened} onClose={() => setOpened(null)} /></>;
 }

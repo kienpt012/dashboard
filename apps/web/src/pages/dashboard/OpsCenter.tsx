@@ -1,3 +1,4 @@
+import { docRefText } from '@/components/DocRef';
 import { FundProjectionScreenOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Col, Descriptions, Flex, Row, Table, Tabs, Tag, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
@@ -30,8 +31,6 @@ const ALERT_KINDS: Record<string, string> = {
   EXPLANATION_OVERDUE: 'Giải trình quá hạn',
 };
 
-/** Chỉ các loại cảnh báo này có detail là tên chỉ tiêu/nội dung; loại khác detail là câu giải thích của máy chủ. */
-const DETAIL_KINDS = new Set(['OVERDUE', 'AT_RISK', 'MISSING_REPORT', 'EXPLANATION_OVERDUE', 'STALLED']);
 
 function alertLink(alert: AlertItem, departments: OverviewDepartment[]) {
   if (alert.targetId) return `/admin/targets/${alert.targetId}`;
@@ -334,7 +333,7 @@ function Alerts({ data }: { data: Overview }) {
                 <i className={`sev ${alert.severity}`} />
                 <div className="feed-body">
                   {alert.targetKind && <Tag color={alert.targetKind === 'TASK' ? 'purple' : 'blue'}>{alert.targetKind === 'TASK' ? 'Nhiệm vụ' : 'Chỉ tiêu'}</Tag>}{to ? <Link to={to}>{alert.title}</Link> : <span>{alert.title}</span>}
-                  <span className="feed-meta">{[DETAIL_KINDS.has(alert.kind) ? alert.detail : null, alert.departmentName, alertWhen(alert)].filter(Boolean).join(' · ')}</span>
+                  <span className="feed-meta">{[alert.departmentName, docRefText(alert), alertWhen(alert)].filter(Boolean).join(' · ')}</span>
                 </div>
               </div>
             );
@@ -357,7 +356,7 @@ function Stalled({ data }: { data: Overview }) {
           <div className="feed-body">
             <Link to={`/admin/targets/${item.id}`}>{item.title}</Link>
             <span className="feed-meta">
-              {item.code} · {item.departmentName} · {item.reason}
+              {[docRefText(item), item.departmentName, item.reason].filter(Boolean).join(' · ')}
             </span>
           </div>
         </div>
@@ -375,7 +374,7 @@ function Recent({ data }: { data: Overview }) {
       <div className="feed free">
         {list.map(event => {
           const to = event.target ? `/admin/targets/${event.target.id}` : event.candidate ? `/admin/proposals?id=${event.candidate.id}` : undefined;
-          const subject = event.target ? `${event.target.code} · ${event.target.title}` : event.candidate?.name;
+          const subject = event.target ? event.target.title : event.candidate?.name;
           return (
             <div className="feed-item" key={event.id}>
               <div className="feed-body">

@@ -260,13 +260,13 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       if (latest) {
         const recipients = target.assigneeId ? [target.assigneeId, ...await departmentManagerIds(this.prisma, target.departmentId)] : await departmentManagerIds(this.prisma, target.departmentId);
         result.reminders += await notifyUsers(this.prisma, recipients, {
-          kind: 'MISSING_REPORT', title: `Chỉ tiêu ${target.code} chưa có báo cáo ${periodLabel(latest.key)}`,
+          kind: 'MISSING_REPORT', title: `Chỉ tiêu ${target.title} chưa có báo cáo ${periodLabel(latest.key)}`,
           body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `missing:${target.id}:${latest.key}`,
         });
         if (now.getTime() - latest.deadline.getTime() > 7 * DAY) {
           const sent = await this.prisma.$transaction(async tx => {
             const count = await notifyUsers(tx, await leaderIds(tx), {
-              kind: 'ESCALATED', title: `${target.code} trễ báo cáo ${periodLabel(latest.key)} quá 7 ngày`,
+              kind: 'ESCALATED', title: `${target.title} trễ báo cáo ${periodLabel(latest.key)} quá 7 ngày`,
               body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `missing-escalate:${target.id}:${latest.key}`,
             });
             if (count) {
@@ -285,7 +285,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       const current = periods.find(period => !period.overdue);
       if (current && !reported.has(current.key) && current.deadline.getTime() - now.getTime() < 3 * DAY && target.kind !== FrameworkKind.SCORE) {
         result.reminders += await notifyUsers(this.prisma, target.assigneeId ? [target.assigneeId] : await departmentManagerIds(this.prisma, target.departmentId), {
-          kind: 'DUE_SOON', title: `Sắp đến hạn báo cáo ${periodLabel(current.key)}: ${target.code}`,
+          kind: 'DUE_SOON', title: `Sắp đến hạn báo cáo ${periodLabel(current.key)}: ${target.title}`,
           body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `due-soon:${target.id}:${current.key}`,
         });
       }

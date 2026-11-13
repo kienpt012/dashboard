@@ -235,16 +235,16 @@ export class IocController {
     for (const item of evaluated.filter(entry => entry.isLeaf)) {
       const base = { targetKind: item.target.kind, targetId: item.target.id, departmentName: item.target.department.name };
       if (item.metric.status === TargetStatus.OVERDUE) {
-        alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: `${item.target.code} quá hạn`, detail: item.target.title, at: item.target.dueDate });
+        alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: `${item.target.title} quá hạn`, detail: item.target.title, at: item.target.dueDate });
       }
       if (item.explanation && item.explanation.dueAt < now) {
-        alerts.push({ ...base, severity: 'critical', kind: 'EXPLANATION_OVERDUE', title: `${item.target.code} chưa giải trình đúng hạn`, detail: item.explanation.message, at: item.explanation.dueAt });
+        alerts.push({ ...base, severity: 'critical', kind: 'EXPLANATION_OVERDUE', title: `${item.target.title} chưa giải trình đúng hạn`, detail: item.explanation.message, at: item.explanation.dueAt });
       }
       if (item.missingPeriods.length) {
-        alerts.push({ ...base, severity: 'warning', kind: 'MISSING_REPORT', title: `${item.target.code} thiếu báo cáo ${item.missingPeriods.map(periodLabel).slice(-2).join(', ')}`, detail: item.target.title, at: null });
+        alerts.push({ ...base, severity: 'warning', kind: 'MISSING_REPORT', title: `${item.target.title} thiếu báo cáo ${item.missingPeriods.map(periodLabel).slice(-2).join(', ')}`, detail: item.target.title, at: null });
       }
       if (item.metric.status === TargetStatus.AT_RISK) {
-        alerts.push({ ...base, severity: 'warning', kind: 'AT_RISK', title: `${item.target.code} có nguy cơ không đạt (${item.metric.progress}%)`, detail: item.target.title, at: item.target.lastReportedAt });
+        alerts.push({ ...base, severity: 'warning', kind: 'AT_RISK', title: `${item.target.title} có nguy cơ không đạt (${item.metric.progress}%)`, detail: item.target.title, at: item.target.lastReportedAt });
       }
     }
     const stalled = evaluated
@@ -257,7 +257,7 @@ export class IocController {
           : `Chưa giao người phụ trách sau ${daysSince(item.target.createdAt, now)} ngày`,
       }));
     for (const item of stalled.filter(entry => entry.bounceCount >= STALL_BOUNCES)) {
-      alerts.push({ severity: 'critical', kind: 'STALLED', title: `${item.code}: ${item.reason}`, detail: item.title, targetId: item.id, departmentName: item.departmentName });
+      alerts.push({ severity: 'critical', kind: 'STALLED', title: `${item.title}: ${item.reason}`, detail: item.title, targetId: item.id, departmentName: item.departmentName });
     }
     const unassignedByDepartment = new Map<string, number>();
     for (const item of evaluated.filter(entry => entry.overdueAssignment)) {

@@ -96,7 +96,7 @@ export default function Datasets() {
                           {item.usedBy.map(target => (
                             <li key={target.id}>
                               <Link to={`/admin/targets/${target.id}`} onClick={event => event.stopPropagation()}>
-                                {target.code}
+                                {target.title}
                               </Link>{' '}
                               {target.title}
                             </li>

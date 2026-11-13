@@ -3,6 +3,8 @@ import { ForecastController } from './forecast/controller';
 import { ForecastService } from './forecast/service';
 import { ReportRevisionsController } from './report-revisions';
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { DocRefInterceptor } from './doc-ref.interceptor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -104,6 +106,7 @@ import {
     ForecastController,
   ],
   providers: [
+    { provide: APP_INTERCEPTOR, useClass: DocRefInterceptor },
     PasswordResetDeliveryRegistry,
     PrismaService,
     ForecastService,

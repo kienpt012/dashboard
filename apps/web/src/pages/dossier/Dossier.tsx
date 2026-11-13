@@ -131,8 +131,8 @@ function DossierView({ d }: { d: DossierData }) {
     { label: d.kind === 'TASK' ? 'Văn bản chỉ đạo' : 'Danh mục chỉ tiêu', to: d.kind === 'TASK' ? '/admin/van-ban-chi-dao' : '/admin/targets' },
     ...(d.framework ? [{ label: d.framework.name, to: d.kind === 'TASK' ? `/admin/van-ban-chi-dao/${d.framework.id}` : `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
     ...(d.groupName ? [{ label: d.groupName }] : []),
-    ...(d.parent ? [{ label: d.parent.code, to: `/admin/targets/${d.parent.id}` }] : []),
-    { label: d.kind === 'TASK' ? 'Hồ sơ nhiệm vụ' : d.code },
+    ...(d.parent ? [{ label: d.parent.title, to: `/admin/targets/${d.parent.id}` }] : []),
+    { label: d.kind === 'TASK' ? 'Hồ sơ nhiệm vụ' : 'Hồ sơ chỉ tiêu' },
   ];
 
   const done = (value: boolean) => <Badge status={value ? 'success' : 'default'} />;

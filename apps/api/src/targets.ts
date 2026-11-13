@@ -57,6 +57,7 @@ import { PrismaService } from './prisma.service';
 import { createTargetWithGeneratedCode } from './target-create';
 import { archiveTargetData, restoreTargetData } from './target-lifecycle';
 import { assertTargetDefinitionAccess } from './dispatch';
+import { docRef, DOC_REF_INCLUDE } from './doc-ref';
 
 const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
@@ -221,7 +222,7 @@ export class TargetsController {
       return await this.prisma.$transaction(async (tx) => {
         const target = await tx.target.findUnique({
           where: { id },
-          include: { department: true },
+          include: { department: true, ...DOC_REF_INCLUDE },
         });
         if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
         if (target.isArchived) {
@@ -266,6 +267,9 @@ export class TargetsController {
                 publishedDirection: target.direction,
                 publishedStatus: evaluation!.status,
                 publishedCode: target.code,
+                publishedDocRef: docRef(target).docRef,
+                publishedOrdinal: docRef(target).ordinal,
+                publishedIssuingLevel: docRef(target).issuingLevel,
                 publishedTitle: target.title,
                 publishedDescription: target.description,
                 publishedUnit: target.unit,

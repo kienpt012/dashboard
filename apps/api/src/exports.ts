@@ -6,6 +6,7 @@ import { audit, getActor, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
+import { docRefText, DOC_REF_INCLUDE } from './doc-ref';
 import { PrismaService } from './prisma.service';
 import { brandName, loadLocality } from './locality';
 
@@ -101,7 +102,7 @@ export class ExportsController {
         ...(departmentId ? { departmentId } : {}),
         ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
       },
-      include: { department: true },
+      include: { department: true, ...DOC_REF_INCLUDE },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
     const evaluations = new Map(targets.map(target => [target.id, evaluateTarget({
@@ -221,8 +222,10 @@ export class ExportsController {
       { header: 'Hạn hoàn thành', width: 18 },
       { header: 'Cập nhật gần nhất', width: 20 },
       { header: 'Phiên bản', width: 12 },
+      { header: 'Văn bản giao', width: 48 },
     ];
     header(details.getRow(1));
+    details.getColumn(2).hidden = true; // Mã chỉ giữ để đối soát khi cần.
     targets.forEach((target, index) => {
       const evaluation = evaluations.get(target.id)!;
       const row = details.addRow([
@@ -240,6 +243,7 @@ export class ExportsController {
         target.dueDate,
         target.lastReportedAt,
         target.version,
+        docRefText(target),
       ]);
       row.getCell(5).numFmt = '#,##0.########';
       row.getCell(6).numFmt = '#,##0.########';

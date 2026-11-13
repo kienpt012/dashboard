@@ -1,3 +1,4 @@
+import { DocRef } from '@/components/DocRef';
 import { BellOutlined, CalendarOutlined, ClockCircleOutlined, FileDoneOutlined, FileTextOutlined, InboxOutlined, PushpinOutlined } from '@ant-design/icons';
 import { Alert, Button, Drawer, Empty, Segmented, Spin, Tag } from 'antd';
 import { useState } from 'react';
@@ -11,7 +12,7 @@ import { dueLabel } from './DeskNotes';
 import './desk.css';
 
 function BriefingItem({ item }: { item: DeskBriefingItem }) {
-  const content = <><strong>{item.title}</strong><span>{item.status}</span>{item.assignee && <small>{item.assignee.fullName} · {item.assignee.username}</small>}{item.autoApproveAt && <small>Tự thông qua: {dueLabel(item.autoApproveAt)}</small>}</>;
+  const content = <><strong>{item.title}</strong><DocRef value={item} /><span>{item.status}</span>{item.assignee && <small>{item.assignee.fullName} · {item.assignee.username}</small>}{item.autoApproveAt && <small>Tự thông qua: {dueLabel(item.autoApproveAt)}</small>}</>;
   return item.href ? <Link className={`desk-agenda-item desk-agenda-${item.kind}`} to={item.href}>{content}</Link> : <div className={`desk-agenda-item desk-agenda-${item.kind}`}>{content}</div>;
 }
 

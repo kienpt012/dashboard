@@ -1,3 +1,4 @@
+import { docRefText } from '@/components/DocRef';
 import { ReloadOutlined } from '@ant-design/icons';
 import { Badge, Button, Card, Grid, Result, Space, Table, Tabs, Tag, Tooltip } from 'antd';
 import { useMemo } from 'react';
@@ -46,8 +47,8 @@ function plan(target: TargetBrief) {
   return `${num(target.currentValue)} / ${target.targetText || `${num(target.targetValue)} ${target.unit}`}`;
 }
 
-function targetTitle(target: { id: string; code: string; title: string }, extra?: string) {
-  return <TitleCell title={target.title} sub={extra ? `${target.code} · ${extra}` : target.code} to={`/admin/targets/${target.id}`} />;
+function targetTitle(target: { id: string; code: string; title: string; kind?: string }, extra?: string) {
+  return <TitleCell title={<>{target.kind && <Tag color={target.kind === 'TASK' ? 'purple' : 'blue'}>{target.kind === 'TASK' ? 'Nhiệm vụ' : 'Chỉ tiêu'}</Tag>}{target.title}</>} sub={[docRefText(target), extra].filter(Boolean).join(' · ')} to={`/admin/targets/${target.id}`} />;
 }
 
 function Countdown({ at, soon = 2 * DAY }: { at?: string | null; soon?: number }) {
@@ -353,7 +354,7 @@ function Content({ data }: { data: MyWorkData }) {
               key: 'result',
               render: (_, item) =>
                 item.createdTarget ? (
-                  <Link to={`/admin/targets/${item.createdTarget.id}`}>Đã tạo {item.createdTarget.code}</Link>
+                  <Link to={`/admin/targets/${item.createdTarget.id}`}>Đã tạo chỉ tiêu</Link>
                 ) : item.reviewNote ? (
                   <span className="tone-bad">{item.reviewNote}</span>
                 ) : item.autoApproveAt ? (

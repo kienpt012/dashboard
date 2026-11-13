@@ -578,7 +578,7 @@ export class CopilotController {
       case 'DASHBOARD_SUMMARY': {
         // Cùng cách tính với Trung tâm điều hành: chỉ tiêu lá, không tính chỉ tiêu thống kê, bình quân theo trọng số.
         const snap = await iocSnapshot(this.prisma, actor, year, departmentId, plan.scope);
-        const leaves = snap.evaluated.filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT);
+        const leaves = snap.evaluated.filter(item => item.isLeaf && (item.target.kind === FrameworkKind.PLAN || item.target.kind === FrameworkKind.SCORE));
         const stats = snap.evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.STAT);
         const count = (status: TargetStatus) => leaves.filter(item => item.metric.status === status).length;
         const weight = leaves.reduce((sum, item) => sum + item.target.weight, 0);
@@ -600,7 +600,7 @@ export class CopilotController {
         const riskOnly = plan.intent === 'TARGETS_AT_RISK';
         const snap = await iocSnapshot(this.prisma, actor, year, departmentId, plan.scope);
         let targets = snap.evaluated
-          .filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT)
+          .filter(item => item.isLeaf && (item.target.kind === FrameworkKind.PLAN || item.target.kind === FrameworkKind.SCORE))
           .map(item => ({ ...item.target, departmentName: item.target.department.name, progress: item.metric.progress, status: item.metric.status }));
         if (riskOnly) {
           targets = targets.filter(target =>

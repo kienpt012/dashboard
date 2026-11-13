@@ -739,7 +739,7 @@ export async function approveCandidateById(
         const recipients = [candidate.proposedById, candidate.submittedById, ...await departmentManagerIds(tx, created.departmentId)];
         await notifyUsers(tx, recipients, {
           kind: options.auto ? 'PROPOSAL_AUTO_APPROVED' : 'PROPOSAL_APPROVED',
-          title: options.auto ? `Đề xuất "${candidate.name}" tự thành chỉ tiêu ${created.code} do quá hạn xử lý` : `Đề xuất "${candidate.name}" đã thành chỉ tiêu ${created.code}`,
+          title: options.auto ? `${candidate.name} — đề xuất tự thông qua` : `${candidate.name} — đề xuất đã duyệt`,
           body: 'Trưởng phòng hãy giao chuyên viên phụ trách.',
           link: targetLink(created.id), entityType: 'Target', entityId: created.id, dedupeKey: `proposal-approved:${id}`,
         }, options.auto ? null : actor.id);

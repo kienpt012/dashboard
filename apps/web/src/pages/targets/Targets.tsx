@@ -31,6 +31,7 @@ import { currentYear, date, dateTime, fromNow, num } from '@/lib/format';
 import { frequencyLabel, periodLabel } from '@/lib/periods';
 import { can, IMPORTERS, LEADERSHIP, REPORTERS } from '@/lib/roles';
 import type { Target } from '@/types/core';
+import { DocRef, docRefText } from '@/components/DocRef';
 import type { FrameworkKind, TargetStatusKey } from '@/types/domain';
 import { KIND_OPTIONS, TargetForm } from './TargetForm';
 
@@ -79,6 +80,7 @@ export default function Targets() {
   const frameworkId = params.get('frameworkId') ?? '';
   const departmentId = params.get('departmentId') ?? '';
   const kind = params.get('kind') ?? '';
+  const documentRef = params.get('docRef') ?? '';
   const status = params.get('status') ?? '';
   const risk = params.get('risk') ?? '';
   const linked = params.get('linked') === '1';
@@ -118,14 +120,15 @@ export default function Targets() {
   const rows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi');
     return (list.data ?? []).filter(target => {
+      if (documentRef && target.docRef !== documentRef) return false;
       if (status && target.status !== status) return false;
       if (linked && !target.linkGroupId) return false;
       if (risk && forecastMap.get(target.id)?.risk !== risk) return false;
       if (assignee === 'none' && (target.assigneeId || target.valueSource === 'COMPUTED' || target.valueSource === 'CHILDREN')) return false;
       if (!needle) return true;
-      return `${target.code} ${target.standardCode ?? ''} ${target.title} ${target.groupName ?? ''} ${target.assignee?.fullName ?? ''}`.toLocaleLowerCase('vi').includes(needle);
-    });
-  }, [list.data, search, status, assignee, linked, risk, forecastMap]);
+      return `${target.code} ${docRefText(target)} ${target.title} ${target.groupName ?? ''} ${target.assignee?.fullName ?? ''}`.toLocaleLowerCase('vi').includes(needle);
+    }).sort((a, b) => ({ CENTRAL: 0, PROVINCE: 1, LOCAL: 2 }[a.issuingLevel ?? 'LOCAL'] - { CENTRAL: 0, PROVINCE: 1, LOCAL: 2 }[b.issuingLevel ?? 'LOCAL']) || (a.docRef ?? '').localeCompare(b.docRef ?? '', 'vi') || (a.ordinal ?? '').localeCompare(b.ordinal ?? '', 'vi', { numeric: true }));
+  }, [list.data, search, status, assignee, linked, risk, forecastMap, documentRef]);
 
   const counts = useMemo(() => {
     const result: Partial<Record<TargetStatusKey, number>> = {};
@@ -202,7 +205,7 @@ export default function Targets() {
         <TitleCell
           title={<>{target.title}<LinkedIcon linked={target.linkGroupId} /></>}
           to={`/admin/targets/${target.id}`}
-          sub={[target.code, target.standardCode ? `Mã ${target.standardCode}` : null, target.ordinal ? `STT ${target.ordinal}` : null].filter(Boolean).join(' · ')}
+          sub={<DocRef value={target} />}
         />
       ),
     },
@@ -280,7 +283,6 @@ export default function Targets() {
       dataIndex: 'dueDate',
       width: 120,
       sorter: (a, b) => a.dueDate.localeCompare(b.dueDate),
-      defaultSortOrder: 'ascend',
       render: value => date(value),
     },
     {
@@ -351,6 +353,7 @@ export default function Targets() {
             }
             filters={
               <>
+            <Select allowClear showSearch={{ optionFilterProp: 'label' }} aria-label="Văn bản giao" placeholder="Văn bản giao" value={documentRef || undefined} onChange={value => update({ docRef: value ?? null })} options={[...new Set((list.data ?? []).map(item => item.docRef).filter((item): item is string => Boolean(item)))].map(value => ({ value, label: value }))} style={{ width: 250 }} />
             <Select allowClear aria-label="Nguy cơ dự báo" placeholder="Nguy cơ (dự báo)" value={risk || undefined} onChange={value => update({ risk: value ?? null })} options={Object.entries(RISK).map(([value, item]) => ({ value, label: item.label }))} style={{ width: 185 }} />
             <Select allowClear aria-label="Liên kết văn bản" placeholder="Liên kết văn bản" value={linked ? '1' : undefined} onChange={value => update({ linked: value ?? null })} options={[{ value: '1', label: 'Có ở nhiều văn bản' }]} style={{ width: 190 }} />
             <YearSelect value={year} onChange={value => update({ year: String(value) })} />
@@ -443,7 +446,7 @@ export default function Targets() {
 
       <ReasonModal
         open={Boolean(archiving)}
-        title={archiving?.isArchived ? `Khôi phục ${archiving.code}` : `Lưu trữ ${archiving?.code ?? ''}`}
+        title={archiving?.isArchived ? `Khôi phục ${archiving.title}` : `Lưu trữ ${archiving?.title ?? ''}`}
         okText={archiving?.isArchived ? 'Khôi phục' : 'Lưu trữ'}
         danger={!archiving?.isArchived}
         initial={archiving?.isArchived ? 'Khôi phục để tiếp tục kỳ kế hoạch' : 'Kết thúc kỳ kế hoạch'}

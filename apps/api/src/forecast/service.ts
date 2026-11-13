@@ -1,3 +1,4 @@
+import { docRef } from '../doc-ref';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type FrameworkKind, type PrismaClient } from '@prisma/client';
 import { type Actor, audit, isLeadership, resolveReadDepartmentScope } from '../access';
@@ -90,7 +91,7 @@ export class ForecastService {
     const input = inputFromTarget(target), model = deserialize(row), features = extractFeatures(input, now), probability = predict(model, features.x);
     const risk = probability >= 0.7 ? 'HIGH' : probability >= 0.4 ? 'MEDIUM' : 'LOW';
     return { applicable: true, targetId: target.id, title: target.title, departmentId: target.departmentId, departmentName: target.department.name,
-      documentNumber: target.sourceDocument?.docNumber ?? target.framework?.sourceDocument?.docNumber ?? target.legalBasis ?? target.framework?.legalBasis ?? null,
+      ...docRef(target), documentNumber: docRef(target).docRef,
       unit: target.unit, targetValue: target.targetValue, currentValue: features.currentValue, direction: target.direction, dueDate: target.dueDate, probability, risk,
       riskLabel: risk === 'HIGH' ? 'Cao' : risk === 'MEDIUM' ? 'Trung bình' : 'Thấp',
       ...projectValue(input, now), factors: explain(input, now, model), sourceLabel: sourceLabel(model, row?.trainedAt), model: modelInfo(row), generatedAt: now,
