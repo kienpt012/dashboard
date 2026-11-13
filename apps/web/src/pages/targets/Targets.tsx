@@ -11,7 +11,7 @@ import {
   SearchOutlined,
   UndoOutlined,
 } from '@ant-design/icons';
-import { App, Badge, Button, Card, Descriptions, Dropdown, Input, Segmented, Select, Space, Table, Tag, Tooltip, type MenuProps, type TableColumnsType } from 'antd';
+import { App, Badge, Button, Card, Descriptions, Dropdown, Grid, Input, Segmented, Select, Space, Table, Tag, Tooltip, type MenuProps, type TableColumnsType } from 'antd';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
@@ -65,6 +65,7 @@ function inSync(target: Target) {
 }
 
 export default function Targets() {
+  const screens = Grid.useBreakpoint();
   const user = useMe();
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -195,7 +196,7 @@ export default function Targets() {
     {
       title: 'Chỉ tiêu',
       key: 'title',
-      width: 340,
+      width: screens.md ? 340 : 240,
       sorter: (a, b) => a.title.localeCompare(b.title, 'vi'),
       render: (_, target) => (
         <TitleCell
