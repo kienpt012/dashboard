@@ -228,6 +228,13 @@ export async function loadSnapshot(prisma: PrismaClient, options: { adminPasswor
         );
         await tx.$executeRawUnsafe(`UPDATE "WorkScheduleEntry" SET "date" = "date" + $1::int`, shift.days);
       }
+      // Giấy note mẫu cũng dời theo: hạn "hôm nay", "ngày mai" của note giữ đúng nghĩa so với lúc nạp.
+      await tx.$executeRawUnsafe(`
+        WITH shift AS (SELECT now() - max("createdAt") AS delta FROM "DeskNote"),
+        notes AS (UPDATE "DeskNote" SET "createdAt" = "createdAt" + (SELECT delta FROM shift), "dueAt" = "dueAt" + (SELECT delta FROM shift) RETURNING 1),
+        seen AS (UPDATE "DeskNoteRecipient" SET "seenAt" = "seenAt" + (SELECT delta FROM shift), "doneAt" = "doneAt" + (SELECT delta FROM shift) RETURNING 1)
+        UPDATE "DeskNoteReply" SET "createdAt" = "createdAt" + (SELECT delta FROM shift)
+      `);
       // Trigger của bảng sự kiện phản ánh tự xếp thư thông báo vào hàng đợi khi nạp: bộ mẫu không được gửi thư thật.
       await tx.$executeRawUnsafe(`DELETE FROM "MailOutbox"`);
       await tx.$executeRawUnsafe(`UPDATE "User" SET "passwordHash" = $1 WHERE role = 'ADMIN'`, options.adminPasswordHash);
