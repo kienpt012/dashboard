@@ -45,6 +45,9 @@ try {
   assert.deepEqual(group.items.map(item => item.issuingLevel), ['PROVINCE', 'LOCAL']);
   checks.push('Trưởng phòng liên kết; người xem chỉ đọc; cấp Thành phố đứng trước Địa phương');
   const source = await prisma.target.findUniqueOrThrow({ where: { id: a } });
+  await request(`/targets/${a}`, tokens.admin, 'PATCH', { frequency: 'QUARTERLY', expectedVersion: source.version, expectedPublicationVersion: source.publicationVersion }, [409]);
+  await request('/targets', tokens.admin, 'POST', { title: 'Không thêm con vào chỉ tiêu liên kết', unit: '%', targetValue: 100, year: 2026, frequency: 'MONTHLY', dueDate: '2026-12-31', departmentId: source.departmentId, parentId: a }, [409]);
+  checks.push('Không đổi tần suất hoặc thêm con làm hỏng cấu trúc nhóm liên kết');
   await request(`/targets/${a}/progress`, tokens.admin, 'POST', { value: 96, periodKey: '2026-M09', baseVersion: source.version, note: 'Số liệu kiểm tra liên kết' }, [201]);
   let peer = await request(`/targets/${b}/dossier`, tokens.viewer);
   const firstMirror = peer.reports.find(item => item.periodKey === '2026-M09');
