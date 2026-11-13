@@ -31,6 +31,13 @@ export function proposalWorkWhere(actor: Actor): Prisma.IndicatorCandidateWhereI
 export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now = new Date()) {
   const scope = deskWorkScope(actor);
   const year = currentVietnamYear(now);
+  const todayKey = vietnamDayKey(now);
+  const tomorrowKey = vietnamDayKey(new Date(now.getTime() + DAY));
+  const localDay = new Date(`${todayKey}T00:00:00+07:00`);
+  const weekday = new Date(`${todayKey}T12:00:00Z`).getUTCDay();
+  const weekStart = new Date(localDay.getTime() - ((weekday + 6) % 7) * DAY);
+  const weekStartKey = vietnamDayKey(weekStart);
+  const weekEnd = vietnamDayKey(new Date(weekStart.getTime() + 6 * DAY));
   const [targets, setting, proposals, notes, workspace, notifications, feedback] = await Promise.all([
     prisma.target.findMany({ where: { isArchived: false, year, ...scope }, include: {
       assignee: { select: { fullName: true, username: true } },
@@ -100,22 +107,20 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
       personal.push({ id: `private:${task.id}`, kind: 'private-task', title: task.text, status: 'Việc riêng', dueAt: due.toISOString(), href: '/admin' });
     }
   }
-  for (let offset = 0; offset < 7; offset++) {
-    const day = new Date(now.getTime() + offset * DAY);
+  // Monday–Sunday in Vietnam, plus next Monday when it is tomorrow.
+  for (let offset = 0; offset < (weekday === 0 ? 8 : 7); offset++) {
+    const day = new Date(weekStart.getTime() + offset * DAY);
     for (const [index, holiday] of holidaysOn(day).entries()) personal.push({ id: `holiday:${vietnamDayKey(day)}:${index}`, kind: 'holiday', title: holiday.name, status: holiday.official ? 'Ngày lễ' : 'Ngày kỷ niệm', dueAt: `${vietnamDayKey(day)}T12:00:00+07:00`, href: '/admin' });
   }
   const showCards = briefingShowsCards(actor);
   const events = [...(showCards ? calendar : []), ...personal].sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
-  const todayKey = vietnamDayKey(now);
-  const tomorrowKey = vietnamDayKey(new Date(now.getTime() + DAY));
-  const weekEnd = vietnamDayKey(new Date(now.getTime() + 6 * DAY));
   const onDay = (item: BriefingItem, key: string) => !!item.dueAt && vietnamDayKey(new Date(item.dueAt)) === key;
   return {
     generatedAt: now.toISOString(),
     counts: { reports: system.filter(item => item.kind === 'report').length, notes: notes.filter(row => !row.seenAt).length, approvals: system.filter(item => item.kind === 'approval').length, work: system.length, proposals: proposals.length, feedback, notifications },
     systemNotes: showCards ? system.sort((a, b) => (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999')) : [],
     today: events.filter(item => onDay(item, todayKey)), tomorrow: events.filter(item => onDay(item, tomorrowKey)),
-    week: events.filter(item => item.dueAt && vietnamDayKey(new Date(item.dueAt)) >= todayKey && vietnamDayKey(new Date(item.dueAt)) <= weekEnd),
+    week: events.filter(item => item.dueAt && vietnamDayKey(new Date(item.dueAt)) >= weekStartKey && vietnamDayKey(new Date(item.dueAt)) <= weekEnd),
   };
 }
 

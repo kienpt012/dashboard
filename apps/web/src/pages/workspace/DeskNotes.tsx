@@ -17,7 +17,7 @@ const COLORS = [{ value: 'yellow', label: 'Vàng' }, { value: 'pink', label: 'H�
 
 export function dueLabel(dueAt: string, now = Date.now()) {
   const minutes = Math.ceil((new Date(dueAt).getTime() - now) / 60_000);
-  if (minutes < 0) return `Quá hạn ${Math.max(1, Math.floor(-minutes / 60)) >= 24 ? `${Math.floor(-minutes / 1440)} ngày` : `${Math.max(1, Math.floor(-minutes / 60))} giờ`}`;
+  if (minutes < 0) return `Quá hạn ${-minutes < 60 ? `${-minutes} phút` : -minutes < 1440 ? `${Math.floor(-minutes / 60)} giờ` : `${Math.floor(-minutes / 1440)} ngày`}`;
   if (minutes < 60) return `Còn ${minutes} phút`;
   if (minutes < 1440) return `Còn ${Math.floor(minutes / 60)} giờ`;
   return `Còn ${Math.ceil(minutes / 1440)} ngày`;
@@ -142,8 +142,8 @@ export function SentNotesWidget() {
   return <div className="desk-sent-widget">{notes.error ? <Alert type="warning" title="Chưa tải được note đã dán" /> : notes.isLoading ? <Spin /> : !rows.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa dán note" /> : <div className="desk-sent-list">{rows.slice(0, 5).map(n => <button key={n.id} onClick={() => { setOpen(true); }}><strong>{n.target?.title || n.content}</strong><span>{n.recipients.length} người nhận · {n.recipients.filter(r => r.seenAt).length} đã xem · {n.recipients.filter(r => r.doneAt).length} đã xong</span>{n.recalledAt && <Tag>Đã thu hồi</Tag>}</button>)}</div>}<Button size="small" onClick={() => setOpen(true)}>Note đã dán</Button>
     <Drawer title="Note đã dán" open={open} onClose={() => setOpen(false)} size={900}><Table rowKey="id" dataSource={rows} pagination={{ pageSize: 10 }} scroll={{ x: 650 }} columns={[
       { title: 'Nội dung', render: (_, n) => <div className="desk-sent-content">{n.target && <Link to={`/admin/targets/${n.target.id}`}>{n.target.title}</Link>}<p>{n.content}</p><small>{dateTime(n.createdAt)}</small></div> },
-      { title: 'Theo dõi', width: 240, render: (_, n) => <div>{n.recipients.map(r => <div className="desk-recipient-status" key={r.userId}><strong>{r.user.fullName}</strong><small>{r.doneAt ? `Đã xong ${dateTime(r.doneAt)}` : r.seenAt ? `Đã xem ${dateTime(r.seenAt)}` : 'Chưa xem'}</small></div>)}</div> },
-      { title: 'Thao tác', width: 150, render: (_, n) => <Space direction="vertical"><Button size="small" icon={<CommentOutlined />} onClick={() => setConversation(n.id)}>Trả lời</Button>{n.recalledAt ? <Tag>Đã thu hồi</Tag> : <Button size="small" danger icon={<UndoOutlined />} loading={recall.isPending} onClick={() => modal.confirm({ title: 'Thu hồi note?', content: 'Note sẽ được gỡ khỏi bàn của người nhận.', okText: 'Thu hồi', cancelText: 'Hủy', onOk: () => recall.mutateAsync(n.id) })}>Thu hồi</Button>}</Space> },
+      { title: 'Theo dõi', width: 240, render: (_, n) => <div>{n.recipients.map(r => <div className="desk-recipient-status" key={r.userId}><strong>{r.user.fullName}</strong><small>{r.seenAt ? `Đã xem ${dateTime(r.seenAt)}` : 'Chưa xem'}</small>{r.doneAt && <small>Đã xong {dateTime(r.doneAt)}</small>}</div>)}</div> },
+      { title: 'Thao tác', width: 150, render: (_, n) => <Space orientation="vertical"><Button size="small" icon={<CommentOutlined />} onClick={() => setConversation(n.id)}>Trả lời</Button>{n.recalledAt ? <Tag>Đã thu hồi</Tag> : <Button size="small" danger icon={<UndoOutlined />} loading={recall.isPending} onClick={() => modal.confirm({ title: 'Thu hồi note?', content: 'Note sẽ được gỡ khỏi bàn của người nhận.', okText: 'Thu hồi', cancelText: 'Hủy', onOk: () => recall.mutateAsync(n.id) })}>Thu hồi</Button>}</Space> },
     ]} /></Drawer><NoteConversation note={rows.find(n => n.id === conversation) ?? null} onClose={() => setConversation(null)} />
   </div>;
 }

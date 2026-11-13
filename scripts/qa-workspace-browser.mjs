@@ -14,7 +14,8 @@ const prisma = new PrismaClient();
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const checks = [];
 const sockets = [];
-let actors, chrome, profile, failure;
+let actors, chrome, profile, failure, deskTargetId;
+const deskNoteIds = [];
 
 async function request(path, token, method = 'GET', body) {
   const response = await fetch(`${api}${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(15_000) });
@@ -140,6 +141,39 @@ try {
   assert.equal(await b.evaluate(`document.querySelector('textarea[aria-label="Nội dung ghi chú"]').value`), 'Bản nháp khi API mất mạng');
   assert.equal((await request('/workspace', token)).config.spaces[0].widgets[0].settings.text, 'Bản nháp khi API mất mạng');
   checks.push('Mất API khi lưu và refresh: Thử lại phục hồi nháp rồi đồng bộ thành công');
+
+  // Exercise the actual target action, composer and recipient conversation, then verify persisted state.
+  await a.send('Page.bringToFront');
+  const target = await prisma.target.create({ data: { code: `QA-BROWSER-${actors.runId}`, title: 'Chỉ tiêu kiểm tra thao tác note', unit: '%', targetValue: 100, currentValue: 20, year: new Date().getFullYear(), dueDate: new Date(Date.now() + 86400000), departmentId: actors.departments.primary.id, assigneeId: actors.staff.id } });
+  deskTargetId = target.id;
+  await a.send('Page.navigate', { url: `${web}/admin/targets/${target.id}` });
+  await a.until(`document.body.innerText.includes('Thao tác')`, 'mở hồ sơ chỉ tiêu');
+  await a.evaluate(clickText('Thao tác'));
+  await a.until(`!![...document.querySelectorAll('.ant-dropdown-menu-item')].find(e=>e.textContent.includes('Dán note nhắc việc'))`, 'menu dán note');
+  await a.evaluate(`[...document.querySelectorAll('.ant-dropdown-menu-item')].find(e=>e.textContent.includes('Dán note nhắc việc')).click()`);
+  await a.until(`!!document.querySelector('.desk-compose-form textarea') && !!document.querySelector('.desk-compose-form .ant-select-selection-item')`, 'người nhận mặc định theo hồ sơ');
+  await a.evaluate(`(()=>{const e=document.querySelector('.desk-compose-form textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Note kiểm thử từ giao diện hồ sơ');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+  await a.evaluate(clickText('Dán note', "document.querySelector('.ant-modal-footer')"));
+  await a.until(`!document.querySelector('.desk-compose-form')`, 'gửi note từ biểu mẫu');
+  const created = (await request('/workspace/notes', token)).sent.find(n => n.content === 'Note kiểm thử từ giao diện hồ sơ');
+  assert.ok(created); deskNoteIds.push(created.id);
+  assert.ok(created.recipients.some(r => r.userId === actors.manager.id));
+  assert.ok(created.recipients.some(r => r.userId === actors.staff.id));
+  await a.evaluate(`document.querySelector('.page-extra [aria-label="Ghim vào bàn làm việc"]').click()`);
+  await a.until(`document.body.innerText.includes('Đã ghim')`, 'ghim hồ sơ');
+  assert.ok((await request('/workspace', token)).config.spaces.flatMap(s=>s.widgets).some(w=>w.type==='pins' && w.settings.items.some(p=>p.id===target.id)));
+  const managerAuth = await request('/auth/login', '', 'POST', { username: actors.manager.username, password: actors.password });
+  await a.evaluate(`localStorage.setItem('ioc_token',${JSON.stringify(managerAuth.accessToken)});localStorage.setItem('ioc_user',${JSON.stringify(JSON.stringify(managerAuth.user))});true`);
+  await a.send('Page.navigate', { url: `${web}/admin?note=${created.id}` });
+  await a.until(`!!document.querySelector('textarea[aria-label="Nội dung trả lời"]')`, 'người nhận mở note từ thông báo');
+  await a.evaluate(`(()=>{const e=document.querySelector('textarea[aria-label="Nội dung trả lời"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Đã nhận và sẽ rà soát');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+  await a.evaluate(clickText('Trả lời', "document.querySelector('.ant-drawer-body')"));
+  await a.until(`document.querySelector('.desk-replies')?.textContent.includes('Đã nhận và sẽ rà soát')`, 'trả lời note từ giao diện');
+  const detail = await request(`/workspace/notes/${created.id}`, token);
+  assert.ok(detail.replies.some(r=>r.author.id===actors.manager.id));
+  assert.ok(detail.recipients.find(r=>r.userId===actors.manager.id).seenAt);
+  checks.push('UI thật: hồ sơ → dán note theo vai trò → ghim chỉ tiêu → người nhận mở thông báo và trả lời');
+
 } catch (error) { failure = error; }
 finally {
   for (const socket of sockets) socket.close();
@@ -150,7 +184,15 @@ finally {
       try { rmSync(target, { recursive: true, force: true }); } catch { /* Chrome may retain a short-lived handle. */ }
     }
   }
-  try { await cleanupQaActors(prisma, actors); checks.push('Đã dọn tài khoản, cấu hình và audit QA'); }
+  try {
+    if (deskTargetId) {
+      const notes = await prisma.deskNote.findMany({ where: { targetId: deskTargetId }, select: { id: true } });
+      deskNoteIds.push(...notes.map(n=>n.id));
+      await prisma.notification.deleteMany({ where: { entityType: 'DeskNote', entityId: { in: deskNoteIds } } });
+      await prisma.deskNote.deleteMany({ where: { id: { in: deskNoteIds } } });
+      await prisma.target.delete({ where: { id: deskTargetId } });
+    }
+    await cleanupQaActors(prisma, actors); checks.push('Đã dọn tài khoản, cấu hình và audit QA'); }
   catch (error) { failure = new Error(`${failure?.message || ''}; dọn QA: ${error.message}`); }
   await prisma.$disconnect();
 }

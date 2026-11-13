@@ -126,10 +126,11 @@ export class DeskNotesController {
     const actor = getActor(req);
     this.rateLimit.consume('desk-note-state', actor.id, { limit: 180, windowMs: 60_000 });
     return this.prisma.$transaction(async tx => {
-      const note = await tx.deskNote.findFirst({ where: { id, recalledAt: null, recipients: { some: { userId: actor.id } } }, select: { id: true } });
+      const note = await tx.deskNote.findFirst({ where: { id, recalledAt: null, recipients: { some: { userId: actor.id } } }, select: { id: true, recipients: { where: { userId: actor.id }, select: { seenAt: true } } } });
       if (!note) throw new NotFoundException('Không tìm thấy note');
       const now = new Date();
-      const data = { ...(dto.seen === undefined ? {} : { seenAt: dto.seen ? now : null }), ...(dto.done === undefined ? {} : { doneAt: dto.done ? now : null, ...(dto.done ? { seenAt: now } : {}) }), ...(dto.hidden === undefined ? {} : { hiddenAt: dto.hidden ? now : null }), ...(dto.x === undefined ? {} : { x: dto.x }), ...(dto.y === undefined ? {} : { y: dto.y }) };
+      const firstSeen = note.recipients[0]?.seenAt ?? now;
+      const data = { ...(dto.seen === undefined ? {} : { seenAt: dto.seen ? firstSeen : null }), ...(dto.done === undefined ? {} : { doneAt: dto.done ? now : null, ...(dto.done ? { seenAt: firstSeen } : {}) }), ...(dto.hidden === undefined ? {} : { hiddenAt: dto.hidden ? now : null }), ...(dto.x === undefined ? {} : { x: dto.x }), ...(dto.y === undefined ? {} : { y: dto.y }) };
       const result = await tx.deskNoteRecipient.update({ where: { noteId_userId: { noteId: id, userId: actor.id } }, data });
       await audit(tx, actor, { action: 'DESK_NOTE_STATE_UPDATED', entityType: 'DeskNote', entityId: id, metadata: { changedFields: Object.keys(data) } });
       return result;

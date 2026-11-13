@@ -86,12 +86,17 @@ test('briefing scopes actionable work by assignee, department, leadership and vi
 test('briefing reuses reporting periods, suppresses submitted periods, shows leadership counts only and private dated tasks', async () => {
   const now = new Date('2026-11-13T03:00:00Z');
   const target = { id: 't', title: 'Tỷ lệ giải ngân', year: 2026, frequency: 'MONTHLY', reportDueDay: 14, createdAt: new Date('2026-11-01'), kind: 'PLAN', framework: null, currentValue: 30, targetValue: 100, direction: 'HIGHER_IS_BETTER', dueDate: new Date('2026-12-31'), lastReportedAt: now, valueSource: 'MANUAL', assigneeId: 'STAFF', assignee: { fullName: 'Thảo', username: 'thao.ktht' }, updates: [], explanationRequests: [], _count: { children: 0 } };
-  const db = { target: { findMany: async (args: any) => args.where.id === '__none__' ? [] : [target] }, systemSetting: { findUnique: async () => null }, indicatorCandidate: { findMany: async () => [] }, deskNoteRecipient: { findMany: async () => [] }, userWorkspace: { findUnique: async () => ({ config: { spaces: [{ widgets: [{ type: 'tasks', settings: { items: [{ id: 'private', text: 'Chuẩn bị tài liệu', dueAt: '2026-11-13', done: false }] } }] }] } }) }, notification: { count: async () => 2 }, feedback: { count: async () => 3 } };
+  const db = { target: { findMany: async (args: any) => args.where.id === '__none__' ? [] : [target] }, systemSetting: { findUnique: async () => null }, indicatorCandidate: { findMany: async () => [] }, deskNoteRecipient: { findMany: async () => [] }, userWorkspace: { findUnique: async () => ({ config: { spaces: [{ widgets: [{ type: 'tasks', settings: { items: [{ id: 'private', text: 'Chuẩn bị tài liệu', dueAt: '2026-11-13', done: false }, { id: 'monday', text: 'Việc đầu tuần', dueAt: '2026-11-09', done: false }, { id: 'next-week', text: 'Việc tuần sau', dueAt: '2026-11-16', done: false }] } }] }] } }) }, notification: { count: async () => 2 }, feedback: { count: async () => 3 } };
   const staff = await buildDeskBriefing(db as never, actor(Role.STAFF), now);
   assert.equal(staff.counts.reports, 1);
   assert.equal(staff.tomorrow[0].periodKey, '2026-M11');
   assert.equal(staff.tomorrow[0].href, '/admin/targets/t?bao-cao=2026-M11');
   assert.equal(staff.today[0].title, 'Chuẩn bị tài liệu');
+  assert.ok(staff.week.some(item => item.id === 'private:monday'));
+  assert.ok(!staff.week.some(item => item.id === 'private:next-week'));
+  const sunday = await buildDeskBriefing(db as never, actor(Role.STAFF), new Date('2026-11-15T16:59:00Z'));
+  assert.ok(sunday.tomorrow.some(item => item.id === 'private:next-week'));
+  assert.ok(!sunday.week.some(item => item.id === 'private:next-week'));
   assert.equal(staff.systemNotes[0].assignee?.username, 'thao.ktht');
   const leader = await buildDeskBriefing(db as never, actor(Role.LEADER), now);
   assert.equal(leader.counts.reports, 1);

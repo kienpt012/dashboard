@@ -12,6 +12,7 @@ import { date, dateTime, num } from '@/lib/format';
 import { periodLabel } from '@/lib/periods';
 import type { Dossier, MyWork, Overview, TargetBrief } from '@/types/domain';
 import type { WorkspaceWidget } from './model';
+import type { DeskBriefingData } from './desk-api';
 import './ioc-widgets.css';
 
 type Props = { widget: WorkspaceWidget; onChange: (settings: Record<string, unknown>) => void };
@@ -28,9 +29,19 @@ function Frame({ query, children }: { query: { isPending: boolean; error: unknow
 }
 const noWork = <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có việc" />;
 
+export function DepartmentWorkWidget() {
+  const query = useData<DeskBriefingData>('/workspace/briefing');
+  return <Frame query={query}>{query.data?.systemNotes.length ? query.data.systemNotes.map(item => <Link className="ws-ioc-row" key={item.id} to={item.href ?? '/admin/viec-cua-toi'}><strong>{item.title}</strong><span>{item.status}</span><small>{item.assignee ? `${item.assignee.fullName} · ${item.assignee.username}` : 'Chưa giao người phụ trách'}</small></Link>) : noWork}</Frame>;
+}
+
+function TargetFigures({ item }: { item: TargetBrief }) {
+  const reported = !!(item.lastReportedAt || item.hasReport);
+  return <><span>{item.kind !== 'STAT' && <StatusTag status={item.status} />}{reported ? `${num(item.currentValue)}${item.kind === 'STAT' ? '' : ` / ${num(item.targetValue)}`} ${item.unit}` : 'Chưa có số liệu'}</span>{item.kind !== 'STAT' && reported && <Progress size="small" percent={Math.min(100, Math.max(0, item.progress))} />}</>;
+}
+
 export function MyTargetsWidget() {
   const query = useData<TargetBrief[]>('/targets?mine=true');
-  return <Frame query={query}>{query.data?.length ? query.data.map(item => <Link className="ws-ioc-row" key={item.id} to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><span><StatusTag status={item.status} />{num(item.currentValue)} / {num(item.targetValue)} {item.unit}</span><Progress size="small" percent={Math.min(100, Math.max(0, item.progress))} /></Link>) : noWork}</Frame>;
+  return <Frame query={query}>{query.data?.length ? query.data.map(item => <Link className="ws-ioc-row" key={item.id} to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><TargetFigures item={item} /></Link>) : noWork}</Frame>;
 }
 
 export function TargetChartWidget({ widget, onChange }: Props) {
@@ -87,5 +98,5 @@ export function PinsWidget({ widget, onChange }: Props) {
   const [opened, setOpened] = useState<string | null>(null);
   const remove = (kind: string, id: string) => onChange({ ...widget.settings, items: pins.filter(item => item.kind !== kind || item.id !== id) });
   const unpin = (kind: string, id: string, title: string) => <Button type="text" size="small" icon={<DeleteOutlined />} aria-label={`Bỏ ghim ${title}`} onClick={() => remove(kind, id)} />;
-  return <><Frame query={query}>{query.data?.targets.map(item => <div className="ws-ioc-pin" key={item.id}><Link className="ws-ioc-row" to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><span><StatusTag status={item.status} />{num(item.currentValue)}/{num(item.targetValue)} {item.unit}</span><Progress size="small" percent={Math.max(0, Math.min(100, item.progress))} /></Link>{unpin('target', item.id, item.title)}</div>)}{query.data?.documents.map(item => <div className="ws-ioc-pin" key={item.id}><button type="button" className="ws-ioc-row" onClick={() => setOpened(item.id)}><strong>{item.title}</strong><small>{item.docNumber}</small></button>{unpin('document', item.id, item.title)}</div>)}{!query.data?.targets.length && !query.data?.documents.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có mục ghim" />}</Frame><DocumentViewer id={opened} onClose={() => setOpened(null)} /></>;
+  return <><Frame query={query}>{query.data?.targets.map(item => <div className="ws-ioc-pin" key={item.id}><Link className="ws-ioc-row" to={`/admin/targets/${item.id}`}><strong>{item.title}</strong><TargetFigures item={item} /></Link>{unpin('target', item.id, item.title)}</div>)}{query.data?.documents.map(item => <div className="ws-ioc-pin" key={item.id}><button type="button" className="ws-ioc-row" onClick={() => setOpened(item.id)}><strong>{item.title}</strong><small>{item.docNumber}</small></button>{unpin('document', item.id, item.title)}</div>)}{!query.data?.targets.length && !query.data?.documents.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có mục ghim" />}</Frame><DocumentViewer id={opened} onClose={() => setOpened(null)} /></>;
 }

@@ -177,7 +177,9 @@
 .ws-identity { min-width: 0; }.ws-identity > div { min-width: 0; }
 .ws-identity small { font-size: 10px; letter-spacing: 0; line-height: 1.6; max-width: 290px; white-space: normal; }
 .ws-dock-left .ws-main { padding-left: 96px; }
-.ws-light { color: #233c4c; background: #eaf1f6; --ws-muted: #536f7e; }
+.ws-light { color: #233c4c; background: #eaf1f6; --ws-muted: #536f7e; --ws-text: #233c4c; }
+.ws-light .ws-widget-ioc-bottom a, .ws-light .ws-widget-more { color: #176e61 !important; }
+.ws-light .ws-widget-text-btn { color: #176e61; }
 .ws-light > .ws-background { opacity: .18; }
 .ws-light .ws-shade { background: #f3f8fac9; }
 .ws-light .ws-identity small, .ws-light .ws-save, .ws-light .ws-hero p, .ws-light .ws-hero-time > span, .ws-light .ws-footer, .ws-light .ws-footer button { color: #486473; }

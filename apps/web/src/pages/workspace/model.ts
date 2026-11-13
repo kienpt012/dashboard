@@ -53,7 +53,7 @@ export function templateWidgets(template: string): WorkspaceWidget[] {
     clerk: ['documents', 'proposals', 'agenda'],
     viewer: ['ioc'],
   };
-  if (roles[template]) return roles[template].map((type, index) => ({ ...makeWidget(type, (index % 2) * 6, Math.floor(index / 2) * 6), w: 6, h: 6 }));
+  if (roles[template]) return roles[template].map((type, index) => ({ ...makeWidget(type, (index % 2) * 6, Math.floor(index / 2) * 6), ...(template === 'manager' && type === 'work' ? { title: 'Việc của phòng' } : {}), w: 6, h: 6 }));
   if (template === 'focus') return [makeWidget('focus', 0, 0), { ...makeWidget('tasks', 3, 0), w: 5 }, { ...makeWidget('notes', 8, 0), w: 4, h: 6 }, makeWidget('clock', 0, 6), makeWidget('calendar', 4, 6)];
   if (template === 'data') return [makeWidget('ioc', 0, 0), makeWidget('api', 6, 0), makeWidget('work', 0, 6), makeWidget('weather', 6, 6)];
   return [makeWidget('ioc', 0, 0), makeWidget('tasks', 6, 0), makeWidget('focus', 9, 0), makeWidget('notes', 0, 6), makeWidget('weather', 4, 6), makeWidget('calendar', 8, 6)];

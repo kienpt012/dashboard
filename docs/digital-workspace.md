@@ -67,7 +67,7 @@ Bộ kiểm tra tạo các tài khoản QA tạm thời, kiểm tra lưu cấu h
 
 ## Bàn làm việc 2.0 (G-01 đến G-09)
 
-Đầu bàn có tên gọi, thứ/ngày dương/ngày âm, đồng hồ và lịch **Hôm nay · Ngày mai** (tối đa bốn mục mỗi ngày, mở đầy đủ bằng Xem tất cả). Lịch gom hạn báo cáo, nhiệm vụ, note có hạn, việc riêng có ngày và ngày lễ/kỷ niệm. Số đếm được máy chủ tính theo người đăng nhập. Lịch dùng ngày Việt Nam; mốc kỷ niệm không phải lịch nghỉ bù chính thức.
+Đầu bàn có tên gọi, thứ/ngày dương/ngày âm, đồng hồ và lịch **Hôm nay · Ngày mai** (tối đa bốn mục mỗi ngày, mở đầy đủ bằng Xem tất cả). Lịch gom hạn báo cáo, nhiệm vụ, note có hạn, việc riêng có ngày và ngày lễ/kỷ niệm. Số đếm được máy chủ tính theo người đăng nhập. Lịch dùng ngày Việt Nam, Tuần này tính từ thứ Hai đến Chủ nhật; mốc kỷ niệm không phải lịch nghỉ bù chính thức.
 
 ### Giấy note
 
@@ -107,4 +107,8 @@ Cấu hình mới dùng `schemaVersion: 2`. V1 được chuyển khi mở mà gi
 
 Migration `20261113100000_desk_notes_apps` thêm DeskNote, DeskNoteRecipient, DeskNoteReply, WorkApp; không xóa dữ liệu. Sau khi áp dụng migration và generate Prisma, chạy `npx tsx apps/api/prisma/demo/extras-desk.ts` với DATABASE_URL của CSDL mẫu để thêm sáu ứng dụng và note minh họa; chạy lại không nhân đôi.
 
+Migration `20261113100100_desk_note_initial_position` cho phép vị trí note chưa kéo là `null` để giao diện xếp chồng ở góc phải; các vị trí cũ `(0, 0)` được chuyển sang trạng thái mặc định này. Vị trí đã kéo khác được giữ nguyên.
+
 Kiểm tra bổ sung: `node scripts/qa-desk.mjs` với `QA_API_URL` và `DATABASE_URL` trỏ vào CSDL QA riêng. Không chạy kịch bản QA hoặc seed vào CSDL sản xuất.
+
+`node scripts/qa-workspace-browser.mjs` dùng Chrome headless thật để kiểm tra Markdown/iframe, hai tab xung đột, refresh bản nháp, API mất kết nối, và luồng hồ sơ → dán note → ghim → người nhận trả lời. Cần `QA_API_URL`, `QA_WEB_URL`, `DATABASE_URL`; có thể đặt `CHROME_PATH` nếu Chrome ở vị trí khác. Kịch bản tự tạo và dọn tài khoản/dữ liệu tạm, không thay bố cục tài khoản mẫu. `QA_SHOTS_DIR` tùy chọn lưu ảnh trạng thái 409.

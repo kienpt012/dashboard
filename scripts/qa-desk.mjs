@@ -59,10 +59,12 @@ try {
   await api(`/workspace/notes/${note.id}/replies`, tokens.otherStaff, 'POST', { content: 'Không được đọc' }, 404);
   await api(`/workspace/notes/${note.id}/recipient`, tokens.staff, 'PATCH', { done: true }, 404);
   await api(`/workspace/notes/${note.id}/recipient`, tokens.manager, 'PATCH', { x: null }, 400);
+  const firstSeen = await api(`/workspace/notes/${note.id}/recipient`, tokens.manager, 'PATCH', { seen: true });
   await api(`/workspace/notes/${note.id}/recipient`, tokens.manager, 'PATCH', { seen: true, x: 101, y: 32, done: true });
   let detail = await api(`/workspace/notes/${note.id}`, tokens.staff);
   const recipient = detail.recipients.find(row => row.userId === actors.manager.id);
   assert.ok(recipient.seenAt && recipient.doneAt);
+  assert.equal(recipient.seenAt, firstSeen.seenAt, 'Hoàn thành không đổi thời điểm xem lần đầu');
   assert.equal(recipient.x, 101);
   await api(`/workspace/notes/${note.id}/replies`, tokens.manager, 'POST', { content: 'Đã hoàn tất phần kiểm tra' }, 201);
   detail = await api(`/workspace/notes/${note.id}`, tokens.staff);
