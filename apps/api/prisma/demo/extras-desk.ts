@@ -24,12 +24,16 @@ async function main() {
   const today = new Date();
   const nextDay = new Date(today.getTime() + 86_400_000);
   const notes = [
-    { id: 'demo-desk-note-chair', authorId: chair.id, content: 'Chị Lan Anh rà soát tiến độ giải ngân vốn đầu tư công, tổng hợp các vướng mắc cần UBND phường chỉ đạo xử lý để trao đổi tại giao ban.', color: 'yellow', dueAt: nextDay, targetId: target?.id, recipients: [{ userId: manager.id, seenAt: today, x: 12, y: 12 }] },
-    { id: 'demo-desk-note-manager', authorId: manager.id, content: 'Thảo kiểm tra số liệu kỳ này, bổ sung minh chứng và gửi báo cáo để phòng rà soát trước hạn.', color: 'pink', dueAt: today, targetId: staffTarget?.id, recipients: [{ userId: staff.id, x: 20, y: 12 }] },
-    { id: 'demo-desk-note-staff', authorId: staff.id, content: 'Em xin ý kiến Chủ tịch về các nội dung phối hợp liên phòng trong báo cáo tiến độ. Em đã tổng hợp tài liệu để trao đổi khi anh bố trí thời gian.', color: 'blue', dueAt: nextDay, recipients: [{ userId: chair.id, seenAt: today, doneAt: today, x: 10, y: 10 }] },
-    { id: 'demo-desk-note-private', authorId: staff.id, content: 'Kiểm tra lại nguồn số liệu và tệp minh chứng trước khi trình báo cáo.', color: 'green', dueAt: nextDay, recipients: [{ userId: staff.id, seenAt: today, x: 35, y: 32 }] },
+    { id: 'demo-desk-note-chair', authorId: chair.id, content: 'Chị Lan Anh rà soát tiến độ giải ngân vốn đầu tư công, tổng hợp các vướng mắc cần UBND phường chỉ đạo xử lý để trao đổi tại giao ban.', color: 'yellow', dueAt: nextDay, targetId: target?.id, recipients: [{ userId: manager.id, seenAt: today }] },
+    { id: 'demo-desk-note-manager', authorId: manager.id, content: 'Thảo kiểm tra số liệu kỳ này, bổ sung minh chứng và gửi báo cáo để phòng rà soát trước hạn.', color: 'pink', dueAt: today, targetId: staffTarget?.id, recipients: [{ userId: staff.id }] },
+    { id: 'demo-desk-note-staff', authorId: staff.id, content: 'Em xin ý kiến Chủ tịch về các nội dung phối hợp liên phòng trong báo cáo tiến độ. Em đã tổng hợp tài liệu để trao đổi khi anh bố trí thời gian.', color: 'blue', dueAt: nextDay, recipients: [{ userId: chair.id, seenAt: today, doneAt: today }] },
+    { id: 'demo-desk-note-private', authorId: staff.id, content: 'Kiểm tra lại nguồn số liệu và tệp minh chứng trước khi trình báo cáo.', color: 'green', dueAt: nextDay, recipients: [{ userId: staff.id, seenAt: today }] },
   ];
   for (const { recipients, ...note } of notes) await prisma.deskNote.upsert({ where: { id: note.id }, create: { ...note, recipients: { create: recipients } }, update: {} });
+  // Upgrade only the original sample coordinates; preserve subsequent user placements.
+  for (const [noteId, x, y] of [['demo-desk-note-chair', 12, 12], ['demo-desk-note-manager', 20, 12], ['demo-desk-note-staff', 10, 10], ['demo-desk-note-private', 35, 32]] as const) {
+    await prisma.deskNoteRecipient.updateMany({ where: { noteId, x, y }, data: { x: null, y: null } });
+  }
   await prisma.deskNoteReply.upsert({ where: { id: 'demo-desk-reply-chair' }, create: { id: 'demo-desk-reply-chair', noteId: 'demo-desk-note-staff', authorId: chair.id, content: 'Em gửi nội dung tổng hợp cho Văn phòng để bố trí trao đổi tại giao ban.' }, update: {} });
   for (const note of notes) for (const recipient of note.recipients) await prisma.notification.upsert({ where: { dedupeKey: `desk-note:${note.id}:${recipient.userId}` }, create: { userId: recipient.userId, kind: 'DESK_NOTE', title: 'Có note nhắc việc trên bàn làm việc', link: `/admin?note=${note.id}`, entityType: 'DeskNote', entityId: note.id, dedupeKey: `desk-note:${note.id}:${recipient.userId}` }, update: {} });
   console.log('Đã bổ sung 6 ứng dụng công vụ và 4 note mẫu; chạy lại không nhân đôi.');

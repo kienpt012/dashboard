@@ -11,7 +11,8 @@ import type { DeskCounts, WorkApp, WorkAppsData } from './desk-api';
 import './desk.css';
 
 export const APP_ICONS = { global: <GlobalOutlined />, mail: <MailOutlined />, bank: <BankOutlined />, document: <FileTextOutlined />, inbox: <InboxOutlined />, approval: <FileDoneOutlined />, message: <MessageOutlined />, bell: <BellOutlined />, team: <TeamOutlined />, link: <LinkOutlined /> };
-export function WorkAppIcon({ icon, color }: { icon: string; color: string }) { return <span className="desk-app-icon" style={{ '--app-color': color } as CSSProperties}>{APP_ICONS[icon as keyof typeof APP_ICONS] ?? icon.slice(0, 3)}</span>; }
+const ICON_ALIASES: Record<string, keyof typeof APP_ICONS> = { MailOutlined: 'mail', GlobalOutlined: 'global', SolutionOutlined: 'inbox', CustomerServiceOutlined: 'message', ReadOutlined: 'document', BankOutlined: 'bank', '◈': 'bank', '☑': 'inbox', '▤': 'document', '▥': 'document', '▦': 'inbox', pin: 'link' };
+export function WorkAppIcon({ icon, color }: { icon: string; color: string }) { return <span className="desk-app-icon" style={{ '--app-color': color } as CSSProperties}>{APP_ICONS[(ICON_ALIASES[icon] ?? icon) as keyof typeof APP_ICONS] ?? icon.slice(0, 3)}</span>; }
 const BADGES: Record<string, keyof DeskCounts> = { '/admin/approvals': 'approvals', '/admin/viec-cua-toi': 'work', '/admin/proposals': 'proposals', '/admin/feedback': 'feedback', '/admin/notifications': 'notifications' };
 type AppItem = { id: string; name: string; url: string; icon: string; color: string; group: string; description: string; badge?: number; shortcut?: Shortcut };
 

@@ -335,8 +335,8 @@ model DeskNoteRecipient {
   seenAt DateTime?
   doneAt DateTime?
   hiddenAt DateTime?
-  x Float @default(0)
-  y Float @default(0)
+  x Float?
+  y Float?
   @@id([noteId, userId])
   @@index([userId, hiddenAt])
 }

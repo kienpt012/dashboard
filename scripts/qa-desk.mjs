@@ -26,7 +26,7 @@ try {
   const passwordHash = (await prisma.user.findUniqueOrThrow({ where: { id: actors.admin.id }, select: { passwordHash: true } })).passwordHash;
   const office = await prisma.department.findFirstOrThrow({ where: { kind: 'OFFICE', isActive: true } });
   for (const [name, role, departmentId] of [['leader', 'LEADER', null], ['clerk', 'CLERK', null], ['office', 'MANAGER', office.id], ['otherStaff', 'STAFF', actors.departments.secondary.id]]) {
-    actors[name] = await prisma.user.create({ data: { username: `qa.desk.${name}.${actors.runId}`, fullName: `QA bàn làm việc ${name}`, passwordHash, role, departmentId } });
+    actors[name] = await prisma.user.create({ data: { username: `qa.desk.${name}.${actors.runId}`.toLowerCase(), fullName: `QA bàn làm việc ${name}`, passwordHash, role, departmentId } });
     additionalUserIds.push(actors[name].id);
   }
   for (const name of ['admin', 'manager', 'staff', 'viewer', 'otherManager', 'leader', 'clerk', 'office', 'otherStaff']) {
