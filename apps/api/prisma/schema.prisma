@@ -1184,3 +1184,44 @@ model BugReport {
 
   @@index([status, createdAt])
 }
+
+// Lịch làm việc theo tuần của lãnh đạo UBND (G-40). Mỗi tuần một bản ghi, khoá theo ngày thứ Hai. Tệp lịch đã ký (PDF)
+// là tuỳ chọn. Người dân chỉ thấy tuần đã công khai và những dòng được đánh dấu công khai.
+model WorkSchedule {
+  id            String              @id @default(cuid())
+  weekStart     DateTime            @unique @db.Date
+  title         String?
+  note          String?
+  isPublic      Boolean             @default(false)
+  publishedAt   DateTime?
+  publishedById String?
+  fileName      String?
+  fileMime      String?
+  fileSize      Int?
+  fileData      Bytes?
+  createdById   String?
+  updatedById   String?
+  version       Int                 @default(1)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  entries       WorkScheduleEntry[]
+}
+
+model WorkScheduleEntry {
+  id           String       @id @default(cuid())
+  scheduleId   String
+  schedule     WorkSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date         DateTime     @db.Date
+  // ALLDAY | AM | PM | EVENING
+  session      String
+  startTime    String?
+  content      String
+  // Lãnh đạo chủ trì, ghi như trên lịch đã ký.
+  leader       String
+  location     String?
+  participants String?
+  isPublic     Boolean      @default(true)
+  sortOrder    Int          @default(0)
+
+  @@index([scheduleId, date, sortOrder])
+}

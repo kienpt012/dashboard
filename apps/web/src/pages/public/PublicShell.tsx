@@ -10,6 +10,7 @@ import './public.css';
 const LINKS = [
   { to: '/', label: 'Trang chủ', end: true },
   { to: '/phan-anh', label: 'Gửi và tra cứu phản ánh', end: false },
+  { to: '/lich-lam-viec', label: 'Lịch làm việc', end: false },
 ];
 
 /** Khung chung của khu vực dành cho người dân: đầu trang, điều hướng, chân trang. */

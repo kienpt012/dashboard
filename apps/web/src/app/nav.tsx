@@ -5,6 +5,7 @@ import {
   AuditOutlined,
   BarChartOutlined,
   BugOutlined,
+  CalendarOutlined,
   ControlOutlined,
   DashboardOutlined,
   DatabaseOutlined,
@@ -52,6 +53,7 @@ export const navGroups: NavGroup[] = [
       { path: '/admin/viec-cua-toi', label: 'Việc của tôi', icon: <InboxOutlined />, roles: ALL, screen: 'DH-02', keywords: 'viec cua toi can lam' },
       { path: '/trinh-chieu', label: 'Trình chiếu', icon: <FundProjectionScreenOutlined />, roles: ALL, screen: 'DH-03', keywords: 'trinh chieu man hinh lon phong hop', standalone: true },
       { path: '/admin/trach-nhiem', label: 'Trách nhiệm', icon: <AuditOutlined />, roles: SUPERVISORS, screen: 'DH-04', keywords: 'trach nhiem cham duyet nguoi dung dau' },
+      { path: '/admin/lich-lam-viec', label: 'Lịch làm việc', icon: <CalendarOutlined />, roles: ALL, screen: 'DH-08', keywords: 'lich lam viec lich cong tac lanh dao tuan' },
     ],
   },
   {

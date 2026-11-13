@@ -65,6 +65,7 @@ export const PUBLIC_DASHBOARD_WIDGET_TYPES = [
   'departmentProgress',
   'feedbackList',
   'documentList',
+  'leaderSchedule',
   'richText',
   'customHtml',
   'cta',
@@ -82,6 +83,7 @@ export const PUBLIC_DASHBOARD_WIDGET_MIN_HEIGHTS: Record<
   departmentProgress: { desktop: 5, tablet: 4, mobile: 5 },
   feedbackList: { desktop: 4, tablet: 4, mobile: 5 },
   documentList: { desktop: 4, tablet: 4, mobile: 5 },
+  leaderSchedule: { desktop: 5, tablet: 5, mobile: 6 },
   richText: { desktop: 2, tablet: 2, mobile: 2 },
   customHtml: { desktop: 2, tablet: 2, mobile: 2 },
   cta: { desktop: 2, tablet: 2, mobile: 3 },
@@ -598,6 +600,11 @@ function parseWidgetSettings(
         maxItems: optionalInteger(raw.maxItems, `${path}.maxItems`, 1, 30) ?? 6,
         publicationIds: stringArray(raw.publicationIds, `${path}.publicationIds`, PUBLICATION_ID_PATTERN, 100),
       };
+    }
+    case 'leaderSchedule': {
+      // Dữ liệu lịch do trình duyệt lấy từ /public/schedule; khối chỉ giữ số dòng tối đa.
+      assertKeys(raw, ['maxItems'], path);
+      return { maxItems: optionalInteger(raw.maxItems, `${path}.maxItems`, 1, 24) ?? 8 };
     }
     case 'richText': {
       assertKeys(raw, ['body'], path);

@@ -35,6 +35,7 @@ import { NotificationsController } from './notifications';
 import { IocController } from './ioc';
 import { BugReportsController } from './bug-reports';
 import { AccountabilityWorker } from './accountability-worker';
+import { PublicScheduleController, ScheduleController } from './schedule';
 import { WorkspaceController } from './workspace';
 import {
   PublicDashboardAdminController,
@@ -85,6 +86,8 @@ import {
     IocController,
     BugReportsController,
     WorkspaceController,
+    ScheduleController,
+    PublicScheduleController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,

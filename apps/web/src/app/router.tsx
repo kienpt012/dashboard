@@ -38,6 +38,8 @@ const pages = {
   PublicHome: lazy(() => import('@/pages/public/PublicHome')),
   FeedbackPublic: lazy(() => import('@/pages/public/FeedbackPublic')),
   PublishedFeedback: lazy(() => import('@/pages/public/PublishedFeedback')),
+  Schedule: lazy(() => import('@/pages/schedule/Schedule')),
+  SchedulePublic: lazy(() => import('@/pages/public/SchedulePublic')),
 };
 
 function guarded(Page: LazyExoticComponent<ComponentType>, roles: readonly Role[] = ALL) {
@@ -73,6 +75,7 @@ const router = createBrowserRouter([
       { path: '/', element: <pages.PublicHome /> },
       { path: '/phan-anh', element: <pages.FeedbackPublic /> },
       { path: '/phan-anh/cong-khai/:code', element: <pages.PublishedFeedback /> },
+      { path: '/lich-lam-viec', element: <pages.SchedulePublic /> },
       { path: '/admin/login', element: <Login /> },
       { path: '/admin/forgot-password', element: <ForgotPassword /> },
       { path: '/dang-nhap', element: <Navigate to="/admin/login" replace /> },
@@ -100,6 +103,7 @@ const router = createBrowserRouter([
       { path: 'dieu-hanh', element: guarded(pages.OpsCenter) },
       { path: 'viec-cua-toi', element: guarded(pages.MyWork) },
       { path: 'trach-nhiem', element: guarded(pages.Accountability, SUPERVISORS) },
+      { path: 'lich-lam-viec', element: guarded(pages.Schedule) },
       { path: 'bo-chi-tieu', element: guarded(pages.Frameworks) },
       { path: 'targets', element: guarded(pages.Targets) },
       { path: 'targets/:id', element: <DossierRoute /> },

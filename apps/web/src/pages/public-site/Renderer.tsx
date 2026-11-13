@@ -14,10 +14,13 @@ import DOMPurify from 'dompurify';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useThemeMode } from '@/app/theme';
+import { useApi } from '@/hooks/useApi';
 import { apiBaseUrl } from '@/lib/api';
 import { date, dateTime, num } from '@/lib/format';
 import type { PublicTarget } from '@/types/core';
 import { FEEDBACK_CATEGORY } from '../feedback/labels';
+import { ScheduleWeek } from '../schedule/ScheduleWeek';
+import { sortEntries, weekRange, type PublicScheduleResponse } from '../schedule/model';
 import { COLS, GAP, METRICS, ROW_HEIGHT } from './model';
 import type { CustomHtmlBinding, PublicDashboardBreakpoint, PublicDashboardConfig, PublicDashboardData, PublicDashboardWidget } from './types';
 import './renderer.css';
@@ -402,6 +405,39 @@ function CustomHtml({ widget, data, colors }: { widget: PublicDashboardWidget; d
   );
 }
 
+/** Lịch tuần đã công khai: từ hôm nay trở đi trong tuần, tối đa số dòng đã đặt. */
+function LeaderSchedule({ widget }: { widget: PublicDashboardWidget }) {
+  const query = useApi<PublicScheduleResponse>('/public/schedule', { staleTime: 60_000 });
+  const data = query.data;
+  const limit = clampItems(widget.settings.maxItems, 8, 24);
+  const all = sortEntries(data?.schedule?.entries ?? []);
+  const upcoming = data ? all.filter(entry => entry.date >= data.today) : [];
+  // Cuối tuần còn ít việc thì hiện các dòng cuối của cả tuần để khối không trống.
+  const entries = upcoming.length >= 3 ? upcoming.slice(0, limit) : all.slice(-limit);
+  return (
+    <>
+      <Head
+        title={widget.title}
+        extra={
+          <Link className="pd-link" to="/lich-lam-viec">
+            {data ? `Tuần ${weekRange(data.weekStart)}` : 'Xem cả tuần'} <ArrowRightOutlined />
+          </Link>
+        }
+      />
+      {data?.schedule && entries.length ? (
+        <div className="pd-schedule">
+          <ScheduleWeek weekStart={data.schedule.weekStart} entries={entries} today={data.today} hideEmptyDays />
+        </div>
+      ) : (
+        <div className="pd-empty">
+          <CalendarOutlined />
+          <span>{query.isLoading ? 'Đang tải lịch' : 'Tuần này chưa công bố lịch làm việc'}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Nội dung một khối. Dùng chung cho trang công khai và khung chỉnh sửa. */
 export function WidgetView({ widget, data, colors }: { widget: PublicDashboardWidget; data: PublicDashboardData; colors: { text: string; accent: string } }) {
   switch (widget.type) {
@@ -415,6 +451,8 @@ export function WidgetView({ widget, data, colors }: { widget: PublicDashboardWi
       return <Feedbacks widget={widget} data={data} />;
     case 'documentList':
       return <Documents widget={widget} data={data} />;
+    case 'leaderSchedule':
+      return <LeaderSchedule widget={widget} />;
     case 'richText':
       return <RichText widget={widget} />;
     case 'customHtml':
