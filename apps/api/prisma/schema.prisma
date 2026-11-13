@@ -273,6 +273,8 @@ model User {
   // Chức vụ hiển thị (Chủ tịch, Trưởng phòng, Chuyên viên…) — thẩm quyền vẫn do role quyết định.
   position                String?
   email                   String?                  @unique
+  // Số di động nhận mã khôi phục mật khẩu qua tin nhắn (dạng 0xxxxxxxxx); do quản trị viên khai báo.
+  phone                   String?
   role                    Role                     @default(STAFF)
   isActive                Boolean                  @default(true)
   departmentId            String?

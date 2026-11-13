@@ -19,6 +19,7 @@ import { AuditLogsController } from './audit-logs';
 import { RateLimitService } from './rate-limit';
 import { HealthController } from './health';
 import { FeedbackMailOutboxWorker, MailService } from './mail';
+import { SmsService } from './sms';
 import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
 import { DocumentsController } from './documents';
 import { CandidatesController } from './candidates';
@@ -100,6 +101,7 @@ import {
     RolesGuard,
     RateLimitService,
     MailService,
+    SmsService,
     FeedbackMailOutboxWorker,
     OllamaService,
     ExtractionWorker,

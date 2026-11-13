@@ -44,6 +44,7 @@ function dependencies(overrides: Record<string, any> = {}) {
       config as any,
       mail as any,
       passwordResetDeliveries as any,
+      (overrides.sms || { isConfigured: () => false, sendPasswordResetOtp: async () => undefined }) as any,
     ),
     prisma,
     rateLimit,

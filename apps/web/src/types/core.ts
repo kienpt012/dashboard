@@ -74,6 +74,7 @@ export type User={
   username:string;
   fullName:string;
   email?:string;
+  phone?:string|null;
   role:Role;
   isActive:boolean;
   departmentId?:string|null;
