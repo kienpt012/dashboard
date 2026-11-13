@@ -36,7 +36,7 @@ Khi đổi tài khoản hoặc đăng xuất trong một tab khác, các tab cò
 
 Máy chủ kiểm tra địa chỉ IP, chặn mạng nội bộ/loopback/link-local và cố định kết quả DNS cho kết nối TLS. Không đi theo chuyển hướng. Phản hồi tối đa 1 MB; thời gian phân giải DNS tối đa 5 giây và kết nối tải tối đa 8 giây. Giới hạn tải là 60 yêu cầu mỗi phút cho mỗi tài khoản và 600 yêu cầu mỗi phút toàn hệ thống.
 
-Nginx chỉ mở khung HTTPS cho tài liệu SPA `/admin` và `/login`; nguồn ảnh ngoài không được mở rộng. Trang công khai giữ chính sách bảo mật cũ. Iframe chỉ có `sandbox="allow-scripts"`, `referrerPolicy="no-referrer"`, không có quyền camera, micro hay cùng nguồn. Trình duyệt tiếp tục gọi API cùng nguồn, qua máy chủ IOC.
+Nginx chỉ mở khung HTTPS cho tài liệu SPA `/admin` và `/dang-nhap`; nguồn ảnh ngoài không được mở rộng. Trang công khai giữ chính sách bảo mật cũ. Iframe chỉ có `sandbox="allow-scripts"`, `referrerPolicy="no-referrer"`, không có quyền camera, micro hay cùng nguồn. Trình duyệt tiếp tục gọi API cùng nguồn, qua máy chủ IOC.
 
 ## Khởi động và kiểm tra
 

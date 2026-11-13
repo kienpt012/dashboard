@@ -119,7 +119,7 @@ function NotesWidget({ widget, onChange }: Props) {
           {value.trim() ? <Markdown text={value} onToggle={index => onChange({ ...widget.settings, text: toggleCheck(value, index) })} /> : <State>Chưa có ghi chú</State>}
         </div>
       ) : (
-        <textarea aria-label="Nội dung ghi chú" placeholder="Một ý tưởng, một điều cần nhớ…\nDùng **chữ đậm**, # tiêu đề hoặc - [ ] việc cần làm." value={value} maxLength={20_000} onChange={event => onChange({ ...widget.settings, text: event.target.value })} />
+        <textarea aria-label="Nội dung ghi chú" placeholder="Nhập ghi chú…" value={value} maxLength={20_000} onChange={event => onChange({ ...widget.settings, text: event.target.value })} />
       )}
       <div className="ws-widget-note-footer"><span>Ghi chú riêng · hỗ trợ Markdown</span><span>{value.length.toLocaleString('vi-VN')} ký tự</span></div>
     </div>
