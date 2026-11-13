@@ -8,7 +8,7 @@ import { FeedbackController } from '../src/feedback';
 import { ImportController } from '../src/import';
 import { TargetsController } from '../src/targets';
 
-// Quyền của hai vai trò mới ở các phân hệ có từ bản 1 (D-014): lãnh đạo UBND làm được mọi việc nghiệp vụ như quản trị,
+// Quyền của hai vai trò mới ở các phân hệ có từ bản 1 (D-014): lãnh đạo UBND chỉ xem và duyệt số liệu,
 // văn thư tiếp nhận văn bản và chuyển phản ánh nhưng không xử lý thay phòng chuyên môn, không báo cáo số liệu.
 
 function rolesOf(controller: { prototype: object }, method: string): string[] {
@@ -45,23 +45,18 @@ test('lãnh đạo UBND xử lý, duyệt, công bố phản ánh như quản tr
   }
 });
 
-test('lãnh đạo nhập Excel được duyệt thẳng; văn thư không nhập số liệu', () => {
-  const methods = Object.getOwnPropertyNames(ImportController.prototype).filter(name => name !== 'constructor');
-  const guarded = methods.filter(name => rolesOf(ImportController, name).length);
-  assert.ok(guarded.length >= 3);
-  for (const method of guarded) {
+test('lãnh đạo chỉ xem Excel, không xem trước hoặc ghi nhận phiên nhập', () => {
+  for (const method of ['preview', 'apply']) {
     const roles = rolesOf(ImportController, method);
-    assert.ok(roles.includes(Role.LEADER), `${method} phải cho lãnh đạo`);
-    assert.ok(!roles.includes(Role.CLERK), `${method} không được cho văn thư`);
+    assert.ok(!roles.includes(Role.LEADER));
+    assert.ok(!roles.includes(Role.CLERK));
+    assert.ok(roles.includes(Role.ADMIN));
   }
-  assert.equal(isLeadership(actor(Role.LEADER)), true);
-  assert.equal(isLeadership(actor(Role.CLERK)), false);
-  assert.equal(isLeadership(actor(Role.MANAGER, 'd1')), false);
 });
 
 test('văn thư không báo cáo số liệu; lãnh đạo và trưởng phòng duyệt báo cáo', () => {
   assert.ok(!rolesOf(TargetsController, 'progress').includes(Role.CLERK));
-  assert.ok(rolesOf(TargetsController, 'progress').includes(Role.LEADER));
+  assert.ok(!rolesOf(TargetsController, 'progress').includes(Role.LEADER));
   const roles = rolesOf(TargetsController, 'review');
   assert.ok(roles.includes(Role.LEADER) && roles.includes(Role.MANAGER) && !roles.includes(Role.CLERK));
 });

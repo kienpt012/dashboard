@@ -1,3 +1,7 @@
+import { mirrorApprovedReport, rollupLinkedParents } from './target-links';
+import { resolveReportRevisions } from './report-revisions';
+import { periodKeyFor } from './periods';
+import { recordWorkEvent } from './work';
 import {
   BadRequestException,
   ConflictException,
@@ -18,7 +22,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ImportBatchStatus, ProgressReviewStatus, Role } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import { audit, assertDepartmentAccess, getActor, isLeadership, resolveDepartmentScope } from './access';
+import { audit, assertCanEnterProgress, assertDepartmentAccess, getActor, isLeadership, resolveDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { PrismaService } from './prisma.service';
@@ -406,11 +410,12 @@ export class ImportController {
 
   @Post('targets/preview')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'MANAGER', 'STAFF')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE, files: 1 } }))
   async preview(@UploadedFile() uploaded: Express.Multer.File, @Req() req: any) {
-    const file = validateWorkbookFile(uploaded);
     const actor = getActor(req);
+    assertCanEnterProgress(actor);
+    const file = validateWorkbookFile(uploaded);
     const workbook = new ExcelJS.Workbook();
     try {
       await workbook.xlsx.load(file.buffer as any);
@@ -595,9 +600,10 @@ export class ImportController {
 
   @Post(':id/apply')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'LEADER', 'MANAGER', 'STAFF')
+  @Roles('ADMIN', 'MANAGER', 'STAFF')
   async apply(@Param('id') id: string, @Req() req: any) {
     const actor = getActor(req);
+    assertCanEnterProgress(actor);
     const existing = await this.prisma.importBatch.findUnique({ where: { id } });
     if (!existing) throw new BadRequestException('Không tìm thấy lần import');
     if (existing.departmentId) assertDepartmentAccess(actor, existing.departmentId);
@@ -653,7 +659,7 @@ export class ImportController {
         }
         if (conflicts.length) throw new ConflictException({ message: 'Dữ liệu đã thay đổi sau bước xem trước', errors: conflicts });
 
-        // Lãnh đạo UBND và quản trị ghi nhận thẳng; trưởng phòng, chuyên viên tạo báo cáo chờ duyệt.
+        // Quản trị ghi nhận thẳng; trưởng phòng, chuyên viên tạo báo cáo chờ duyệt.
         const approved = isLeadership(actor);
         if (!approved) {
           const pending = await tx.progressUpdate.findMany({
@@ -672,11 +678,12 @@ export class ImportController {
         const setting = approved ? await tx.systemSetting.findUnique({ where: { id: 'default' } }) : null;
         for (const change of changes) {
           const target = targetMap.get(change.targetId)!;
-          await tx.progressUpdate.create({
+          const report = await tx.progressUpdate.create({
             data: {
               targetId: target.id,
               userId: actor.id,
               value: change.newValue,
+              periodKey: periodKeyFor(target.frequency, appliedAt),
               note: change.note,
               reviewStatus: approved ? ProgressReviewStatus.APPROVED : ProgressReviewStatus.PENDING,
               baseVersion: change.baseVersion,
@@ -705,7 +712,10 @@ export class ImportController {
               },
             });
             if (updated.count !== 1) throw new ConflictException(`Chỉ tiêu ${target.code} vừa được cập nhật bởi người khác`);
+            await resolveReportRevisions(tx, target.id, report.periodKey);
+            await mirrorApprovedReport(tx, report.id, actor);
           }
+          await recordWorkEvent(tx, { action: approved ? 'REPORT_APPROVED' : 'REPORT_SUBMITTED', actor, targetId: target.id, departmentId: target.departmentId, note: approved ? 'Quản trị ghi nhận từ Excel' : 'Gửi báo cáo từ Excel', metadata: { progressUpdateId: report.id } });
         }
         const batch = await tx.importBatch.update({
           where: { id },

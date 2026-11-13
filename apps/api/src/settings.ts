@@ -10,6 +10,9 @@ import { currentVietnamYear } from './planning-date';
 const ValidateIfDefined = () => ValidateIf((_object, value) => value !== undefined);
 
 export class UpdateSystemSettingDto {
+  @ValidateIfDefined()
+  @IsBoolean()
+  crossDepartmentView?: boolean;
   @IsInt()
   @Min(1)
   expectedVersion!: number;
@@ -113,8 +116,8 @@ export class SettingsController {
   @Get('client')
   @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF, Role.VIEWER)
   async client() {
-    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true } });
-    return { jarvisIntro: setting?.jarvisIntro ?? true };
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true, crossDepartmentView: true } });
+    return { jarvisIntro: setting?.jarvisIntro ?? true, crossDepartmentView: setting?.crossDepartmentView ?? true };
   }
 
   @Get()
@@ -144,6 +147,7 @@ export class SettingsController {
       maxTransfers: 1,
       wallboardRotateSeconds: 20,
       jarvisIntro: true,
+      crossDepartmentView: true,
       version: 1,
       updatedBy: null,
       updatedAt: null,
@@ -189,11 +193,14 @@ export class SettingsController {
           maxTransfers: dto.maxTransfers ?? 1,
           wallboardRotateSeconds: dto.wallboardRotateSeconds ?? 20,
           jarvisIntro: dto.jarvisIntro ?? true,
+          crossDepartmentView: dto.crossDepartmentView ?? true,
           updatedBy: actor.username,
         } });
         changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
       } else {
         const updates = {
+          ...(dto.crossDepartmentView !== undefined && dto.crossDepartmentView !== current.crossDepartmentView
+            ? { crossDepartmentView: dto.crossDepartmentView } : {}),
           ...(dto.defaultYear !== undefined && dto.defaultYear !== current.defaultYear
             ? { defaultYear: dto.defaultYear }
             : {}),

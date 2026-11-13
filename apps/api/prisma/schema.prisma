@@ -336,6 +336,8 @@ model Target {
   issuingLevel             IssuingLevel         @default(LOCAL)
   ordinal                  String?
   standardCode             String?
+  // Cùng số liệu thực hiện, giữ riêng mức giao và văn bản của từng chỉ tiêu.
+  linkGroupId              String?
   // Nhóm trong bộ chỉ tiêu (vd "02. Kinh tế", "Nhận thức số") để hiển thị theo mục như văn bản giao.
   groupName                String?
   sortOrder                Int                  @default(0)
@@ -424,10 +426,18 @@ model Target {
   @@index([frameworkId, sortOrder])
   @@index([parentId])
   @@index([assigneeId])
+  @@index([linkGroupId])
 }
 
 model ProgressUpdate {
+  revisionRequestedAt DateTime?
+  revisionRequestedBy String?
+  revisionReason String?
+  revisionResolvedAt DateTime?
   id            String               @id @default(cuid())
+  mirroredFromId String?
+  mirroredFrom   ProgressUpdate?      @relation("MirroredReport", fields: [mirroredFromId], references: [id], onDelete: SetNull)
+  mirrors        ProgressUpdate[]     @relation("MirroredReport")
   value         Float
   // Kỳ báo cáo: 2026, 2026-H1, 2026-Q3, 2026-M09.
   periodKey     String?
@@ -453,6 +463,16 @@ model ProgressUpdate {
   @@index([reviewStatus, targetId])
   @@index([targetId, periodKey])
   @@index([importBatchId, reviewStatus])
+  @@unique([targetId, mirroredFromId])
+}
+
+// Bỏ qua gợi ý theo cặp; mã cặp sắp xếp ổn định, không phụ thuộc chiều gợi ý.
+model TargetLinkDismissal {
+  pairKey     String   @id
+  targetId    String
+  otherTargetId String
+  actorId     String
+  createdAt   DateTime @default(now())
 }
 
 model ImportBatch {
@@ -476,6 +496,7 @@ model ImportBatch {
 }
 
 model SystemSetting {
+  crossDepartmentView         Boolean  @default(true)
   id                          String   @id @default("default")
   defaultYear                 Int      @default(2026)
   warningDays                 Int      @default(14)
@@ -1183,4 +1204,50 @@ model BugReport {
   createdAt      DateTime        @default(now())
 
   @@index([status, createdAt])
+}
+
+// Mô hình thống kê có phiên bản; chỉ số chỉ tính trên tập kiểm tra tách theo chỉ tiêu.
+model ForecastModel {
+  id               String   @id @default(cuid())
+  featureVersion   String
+  trained          Boolean
+  coefficients     Json
+  means            Json
+  scales           Json
+  intercept        Float
+  sampleCount      Int
+  targetCount      Int
+  trainSamples     Int
+  testSamples      Int
+  simulatedSamples Int      @default(0)
+  metrics          Json?
+  fallbackReason   String?
+  trainedById      String?
+  trainedAt        DateTime @default(now())
+
+  @@index([trainedAt(sort: Desc)])
+}
+
+// Dữ liệu nhập riêng để huấn luyện; không thay số liệu vận hành của Target/ProgressUpdate.
+model ForecastHistory {
+  id           String          @id @default(cuid())
+  seriesKey    String
+  year         Int
+  title        String
+  periodKey    String
+  value        Float
+  targetValue  Float
+  unit         String          @default("")
+  direction    TargetDirection @default(HIGHER_IS_BETTER)
+  kind         FrameworkKind   @default(PLAN)
+  frequency    TargetFrequency @default(MONTHLY)
+  reportedAt   DateTime
+  dueDate      DateTime
+  simulated    Boolean         @default(false)
+  source       String
+  importedById String?
+  createdAt    DateTime        @default(now())
+
+  @@unique([seriesKey, year, periodKey, simulated])
+  @@index([year, simulated])
 }

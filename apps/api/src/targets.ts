@@ -1,3 +1,5 @@
+import { mirrorApprovedReport, rollupLinkedParents } from './target-links';
+import { resolveReportRevisions } from './report-revisions';
 import {
   BadRequestException,
   Body,
@@ -44,7 +46,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { type Actor, audit, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, LEADERSHIP_ROLES, resolveDepartmentScope } from './access';
+import { type Actor, audit, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, LEADERSHIP_ROLES, resolveDepartmentScope, resolveReadDepartmentScope, assertCanEnterProgress } from './access';
 import { rollupParents } from './datasets';
 import { isValidPeriodKey, periodKeyFor, periodLabel } from './periods';
 import { departmentManagerIds, notifyUsers, recordWorkEvent, targetLink } from './work';
@@ -327,10 +329,11 @@ export class TargetsController {
     @Query('frameworkId') frameworkId?: string,
     @Query('mine') mineRaw?: string,
     @Query('kind') kindRaw?: string,
+    @Query('scope') scope?: string,
   ) {
     const actor = getActor(req);
     const kind = kindRaw && Object.values(FrameworkKind).includes(kindRaw as FrameworkKind) ? kindRaw as FrameworkKind : undefined;
-    const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, requestedDepartmentId, scope);
     const year = yearRaw ? Number(yearRaw) : undefined;
     if (yearRaw && (!Number.isInteger(year) || year! < 2000 || year! > 2100)) {
       throw new BadRequestException('Năm kế hoạch không hợp lệ');
@@ -804,9 +807,10 @@ export class TargetsController {
 
   @Post(':id/progress')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.LEADER, Role.MANAGER, Role.STAFF)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.STAFF)
   async progress(@Param('id') id: string, @Body() dto: ProgressDto, @Req() req: any) {
     const actor = getActor(req);
+    assertCanEnterProgress(actor);
     const target = await this.targetInScope(actor, id);
     if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
     if (target.isArchived) throw new ConflictException('Chỉ tiêu đã được lưu trữ và không còn nhận báo cáo mới');
@@ -957,9 +961,11 @@ export class TargetsController {
         });
         await recordWorkEvent(tx, {
           action: 'REPORT_APPROVED', actor, targetId: id, departmentId: currentTarget.departmentId,
-          note: periodLabel(periodKey) + ': ' + valueLabel + ' (lãnh đạo cập nhật trực tiếp)',
+          note: periodLabel(periodKey) + ': ' + valueLabel + ' (Quản trị ghi nhận)',
           metadata: { progressUpdateId: createdUpdate.id },
         });
+        await resolveReportRevisions(tx, id, createdUpdate.periodKey);
+        await mirrorApprovedReport(tx, createdUpdate.id, actor);
         const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
         await audit(tx, actor, {
           action: 'PROGRESS_APPROVED_DIRECTLY',
@@ -971,6 +977,7 @@ export class TargetsController {
         return current;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       if (updated.parentId) await rollupParents(this.prisma, [updated.parentId], actor);
+      await rollupLinkedParents(this.prisma, updated.id, actor);
       return { reviewStatus: ProgressReviewStatus.APPROVED, target: updated };
     } catch (error) {
       if (isTargetConcurrencyError(error)) {
@@ -1078,6 +1085,8 @@ export class TargetsController {
         if (reviewChanged.count !== 1) throw new ConflictException('Báo cáo này vừa được người khác xử lý');
         const target = await tx.target.findUniqueOrThrow({ where: { id: update.targetId } });
         const progressUpdate = await tx.progressUpdate.findUniqueOrThrow({ where: { id: updateId } });
+        await resolveReportRevisions(tx, update.targetId, progressUpdate.periodKey);
+        await mirrorApprovedReport(tx, updateId, actor);
         await audit(tx, actor, {
           action: 'PROGRESS_APPROVED',
           entityType: 'ProgressUpdate',
@@ -1100,6 +1109,7 @@ export class TargetsController {
         return { target, progressUpdate };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).then(async result => {
         if (result.target.parentId) await rollupParents(this.prisma, [result.target.parentId], actor);
+        await rollupLinkedParents(this.prisma, result.target.id, actor);
         return result;
       });
     } catch (error) {

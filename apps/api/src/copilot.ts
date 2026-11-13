@@ -21,7 +21,8 @@ import {
 } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsString, MaxLength, MinLength } from 'class-validator';
-import { type Actor, audit, getActor, isLeadership, resolveDepartmentScope } from './access';
+import { type Actor, audit, getActor, isLeadership, resolveReadDepartmentScope } from './access';
+import { ForecastService } from './forecast/service';
 import { approveCandidateById, missingApprovalFields } from './candidates';
 import { JwtAuthGuard } from './common';
 import { iocSnapshot } from './ioc';
@@ -53,6 +54,7 @@ export type CopilotIntent =
   | 'DASHBOARD_SUMMARY'
   | 'LIST_TARGETS'
   | 'TARGETS_AT_RISK'
+  | 'FORECAST_RISK'
   | 'TARGETS_MISSING_REPORT'
   | 'SEARCH_DOCUMENTS'
   | 'LIST_CANDIDATES'
@@ -61,6 +63,7 @@ export type CopilotIntent =
 
 export interface CopilotPlan {
   intent: CopilotIntent;
+  scope?: 'mine' | 'all';
   year?: number | null;
   departmentName?: string | null;
   status?: TargetStatus | null;
@@ -81,6 +84,7 @@ const INTENT_SCHEMA = {
         'DASHBOARD_SUMMARY',
         'LIST_TARGETS',
         'TARGETS_AT_RISK',
+        'FORECAST_RISK',
         'TARGETS_MISSING_REPORT',
         'SEARCH_DOCUMENTS',
         'LIST_CANDIDATES',
@@ -112,6 +116,7 @@ Phân loại câu của người dùng vào đúng một intent:
 - DASHBOARD_SUMMARY: hỏi tổng quan, tiến độ chung, tình hình thực hiện.
 - LIST_TARGETS: liệt kê/lọc chỉ tiêu (theo phòng ban, trạng thái, dưới ngưỡng %).
 - TARGETS_AT_RISK: chỉ tiêu sắp trễ hạn, quá hạn, có rủi ro, cần chú ý.
+- FORECAST_RISK: dự báo xác suất chỉ tiêu không đạt hoặc trễ, yếu tố nguy cơ và giá trị cuối kỳ.
 - TARGETS_MISSING_REPORT: chỉ tiêu chưa có/thiếu số liệu báo cáo trong kỳ.
 - SEARCH_DOCUMENTS: tìm văn bản, tài liệu, kế hoạch, quyết định trong kho.
 - LIST_CANDIDATES: đề xuất chỉ tiêu do AI trích xuất đang chờ xác minh/đã duyệt/đã từ chối.
@@ -143,6 +148,9 @@ export function ruleBasedPlan(message: string): CopilotPlan {
     };
   }
   // "Quá hạn báo cáo" là thiếu báo cáo kỳ, không phải chỉ tiêu quá hạn hoàn thành: xét trước nhóm rủi ro.
+  if (/(dự báo|dự đoán|xác suất|nguy cơ.*(trễ|không đạt))/.test(normalized)) {
+    return { intent: 'FORECAST_RISK', year };
+  }
   if (/(chưa có số liệu|thiếu số liệu|thiếu báo cáo|chưa báo cáo|chậm báo cáo|chưa nộp|chưa cập nhật|(quá hạn|trễ hạn|trễ|chậm) (nộp )?báo cáo)/.test(normalized)) {
     return { intent: 'TARGETS_MISSING_REPORT', year };
   }
@@ -176,7 +184,7 @@ function sanitizePlan(raw: unknown): CopilotPlan | null {
   if (!raw || typeof raw !== 'object') return null;
   const candidate = raw as Record<string, unknown>;
   const intents: CopilotIntent[] = [
-    'DASHBOARD_SUMMARY', 'LIST_TARGETS', 'TARGETS_AT_RISK',
+    'DASHBOARD_SUMMARY', 'LIST_TARGETS', 'TARGETS_AT_RISK', 'FORECAST_RISK',
     'TARGETS_MISSING_REPORT', 'SEARCH_DOCUMENTS', 'LIST_CANDIDATES',
     'BULK_APPROVE_CANDIDATES', 'HELP',
   ];
@@ -256,6 +264,8 @@ export class CopilotController {
       }
     }
 
+    // Phạm vi do câu người hỏi xác định; không nhận quyền truy cập do LLM suy đoán.
+    plan.scope = /(toàn (địa phương|phường|xã)|mọi phòng|các phòng)/i.test(dto.message) ? 'all' : 'mine';
     const answer = plan.intent === 'BULK_APPROVE_CANDIDATES'
       ? await this.proposeBulkApprove(actor, plan, planner, dto.message)
       : await this.execute(actor, plan, planner);
@@ -544,19 +554,30 @@ export class CopilotController {
       });
       const match = matchDepartmentByName(plan.departmentName, departments);
       if (match) {
-        departmentId = resolveDepartmentScope(actor, match.id);
+        departmentId = await resolveReadDepartmentScope(this.prisma, actor, match.id, plan.scope);
       } else {
-        departmentNote = ` (không tìm thấy phòng ban "${plan.departmentName}" nên trả kết quả toàn phường)`;
-        departmentId = resolveDepartmentScope(actor, undefined);
+        departmentNote = ` (không tìm thấy phòng ban "${plan.departmentName}", dùng phạm vi được phép)`;
+        departmentId = await resolveReadDepartmentScope(this.prisma, actor, undefined, plan.scope);
       }
     } else {
-      departmentId = resolveDepartmentScope(actor, undefined);
+      departmentId = await resolveReadDepartmentScope(this.prisma, actor, undefined, plan.scope);
     }
 
     switch (plan.intent) {
+      case 'FORECAST_RISK': {
+        const result = await new ForecastService(this.prisma).list(actor, { year: String(year), departmentId, scope: plan.scope });
+        const rows = result.items.slice(0, 10);
+        return {
+          reply: rows.length ? `Dự báo ${result.items.length} chỉ tiêu còn hạn năm ${year}${departmentNote}. ${result.model.sourceLabel}. `
+            + rows.slice(0, 3).map(row => `${row.title}: xác suất không đạt đúng hạn ${Math.round(row.probability * 100)}%, dự báo ${Math.round(row.projectedValue * 100) / 100} ${row.unit}; ${row.factors[0]}.`).join(' ')
+            : `Không có chỉ tiêu còn hạn để dự báo năm ${year}${departmentNote}.`,
+          intent: plan.intent, planner, source: { tool: 'forecastRisk', parameters: { year, departmentId: departmentId ?? 'ALL', scope: plan.scope } }, rowType: 'targets',
+          rows: rows.map(row => ({ id: row.targetId, title: row.title, department: row.departmentName, status: `Nguy cơ ${row.riskLabel.toLowerCase()} (${Math.round(row.probability * 100)}%)`, currentValue: row.currentValue, targetValue: row.targetValue, unit: row.unit, dueDate: row.dueDate, probability: row.probability, projectedValue: row.projectedValue })),
+        };
+      }
       case 'DASHBOARD_SUMMARY': {
         // Cùng cách tính với Trung tâm điều hành: chỉ tiêu lá, không tính chỉ tiêu thống kê, bình quân theo trọng số.
-        const snap = await iocSnapshot(this.prisma, actor, year, departmentId);
+        const snap = await iocSnapshot(this.prisma, actor, year, departmentId, plan.scope);
         const leaves = snap.evaluated.filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT);
         const stats = snap.evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.STAT);
         const count = (status: TargetStatus) => leaves.filter(item => item.metric.status === status).length;
@@ -577,7 +598,7 @@ export class CopilotController {
       case 'LIST_TARGETS':
       case 'TARGETS_AT_RISK': {
         const riskOnly = plan.intent === 'TARGETS_AT_RISK';
-        const snap = await iocSnapshot(this.prisma, actor, year, departmentId);
+        const snap = await iocSnapshot(this.prisma, actor, year, departmentId, plan.scope);
         let targets = snap.evaluated
           .filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT)
           .map(item => ({ ...item.target, departmentName: item.target.department.name, progress: item.metric.progress, status: item.metric.status }));
@@ -621,7 +642,7 @@ export class CopilotController {
       }
       case 'TARGETS_MISSING_REPORT': {
         // Cùng tiêu chí "Thiếu báo cáo kỳ" của Trung tâm điều hành: kỳ đã qua hạn báo cáo mà chưa có báo cáo.
-        const snap = await iocSnapshot(this.prisma, actor, year, departmentId);
+        const snap = await iocSnapshot(this.prisma, actor, year, departmentId, plan.scope);
         const reporting = snap.evaluated.filter(item => item.isLeaf && item.target.valueSource === 'MANUAL');
         const missing = reporting
           .filter(item => item.missingPeriods.length)

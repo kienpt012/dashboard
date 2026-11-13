@@ -1,3 +1,4 @@
+import { attachLinkedReportEvidence, linkedEvidenceWhere } from './target-links';
 import {
   BadRequestException,
   Body,
@@ -52,6 +53,7 @@ import {
   isGlobalRole,
   isLeadership,
   resolveDepartmentScope,
+  resolveReadDepartmentScope,
   WORKING_ROLES,
 } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
@@ -174,8 +176,8 @@ function blankToNull(value: string | undefined | null) {
 export class DossierController {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async loadTarget(actor: Actor, id: string): Promise<DossierTarget> {
-    const departmentId = resolveDepartmentScope(actor);
+  private async loadTarget(actor: Actor, id: string, readOnly = false): Promise<DossierTarget> {
+    const departmentId = readOnly ? await resolveReadDepartmentScope(this.prisma, actor, undefined, 'all') : resolveDepartmentScope(actor);
     const target = await this.prisma.target.findFirst({
       where: {
         id,
@@ -200,7 +202,9 @@ export class DossierController {
     const supervise = canSuperviseDepartment(actor, target.departmentId);
     const isAssignee = target.assigneeId === actor.id;
     return {
-      canReport: this.canContribute(actor, target) && !target.isArchived && target.valueSource === ValueSource.MANUAL,
+      readOnly: !isGlobalRole(actor.role) && (actor.role === Role.VIEWER || actor.departmentId !== target.departmentId),
+      canRequestRevision: supervise && !target.isArchived,
+      canReport: ([Role.ADMIN, Role.MANAGER, Role.STAFF] as Role[]).includes(actor.role) && this.canContribute(actor, target) && !target.isArchived && target.valueSource === ValueSource.MANUAL,
       canContribute: this.canContribute(actor, target) && !target.isArchived,
       canAssign: supervise && !target.isArchived,
       canTransfer: isAssignee && target.transferCount < maxTransfers && !target.isArchived,
@@ -215,7 +219,7 @@ export class DossierController {
   @Get(':id/dossier')
   async dossier(@Req() req: any, @Param('id') id: string) {
     const actor = getActor(req);
-    const base = await this.loadTarget(actor, id);
+    const base = await this.loadTarget(actor, id, true);
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const target = await this.prisma.target.findUniqueOrThrow({
       where: { id: base.id },
@@ -292,6 +296,7 @@ export class DossierController {
       orderBy: { fullName: 'asc' },
     });
     const { updates, ...rest } = target;
+    const reports = await attachLinkedReportEvidence(this.prisma, updates);
     return {
       ...rest,
       ...metric,
@@ -302,7 +307,7 @@ export class DossierController {
         execution: Boolean(target.lastReportedAt),
         evaluation: target.evaluations.length > 0,
       },
-      reports: updates.map(update => ({
+      reports: reports.map(update => ({
         ...update,
         periodLabel: update.periodKey ? periodLabel(update.periodKey) : null,
         reviewerName: update.reviewedBy ? reviewerNames.get(update.reviewedBy) ?? null : null,
@@ -461,8 +466,8 @@ export class DossierController {
   @Get(':id/evidence/:evidenceId/download')
   async downloadEvidence(@Req() req: any, @Param('id') id: string, @Param('evidenceId') evidenceId: string, @Res() res: Response) {
     const actor = getActor(req);
-    const target = await this.loadTarget(actor, id);
-    const evidence = await this.prisma.evidence.findFirst({ where: { id: evidenceId, targetId: target.id, kind: EvidenceKind.FILE } });
+    const target = await this.loadTarget(actor, id, true);
+    const evidence = await this.prisma.evidence.findFirst({ where: { ...linkedEvidenceWhere(target.id, evidenceId), kind: EvidenceKind.FILE } });
     if (!evidence?.data || !evidence.mimeType) throw new NotFoundException('Không tìm thấy tệp minh chứng');
     const name = evidence.originalName ?? 'minh-chung';
     res.setHeader('Content-Type', evidence.mimeType);

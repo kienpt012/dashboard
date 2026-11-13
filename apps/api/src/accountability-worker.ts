@@ -13,6 +13,8 @@ import { audit, SYSTEM_ACTOR } from './access';
 import { approveCandidateById } from './candidates';
 import { recomputeTargets, rollupParents } from './datasets';
 import { evaluateTarget } from './metrics';
+import { mirrorApprovedReport, rollupLinkedParents } from './target-links';
+import { resolveReportRevisions } from './report-revisions';
 import { dueReportPeriods, periodLabel } from './periods';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
@@ -155,6 +157,8 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
             },
           });
           if (reviewChanged.count !== 1) throw new Prisma.PrismaClientKnownRequestError('Báo cáo vừa được xử lý', { code: 'P2034', clientVersion: Prisma.prismaVersion.client });
+          await resolveReportRevisions(tx, target.id, update.periodKey, now);
+          await mirrorApprovedReport(tx, update.id, SYSTEM_ACTOR);
           await refreshImportBatchStatus(tx, update.importBatchId);
           await recordWorkEvent(tx, {
             action: 'REPORT_AUTO_APPROVED', actor: null, targetId: target.id, departmentId: target.departmentId,
@@ -176,6 +180,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
         if (approved) {
           result.autoApprovedReports += 1;
           if (target.parentId) await rollupParents(this.prisma, [target.parentId], SYSTEM_ACTOR);
+          await rollupLinkedParents(this.prisma, target.id, SYSTEM_ACTOR);
         }
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2034', 'P2025'].includes(error.code)) continue;

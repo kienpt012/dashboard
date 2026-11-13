@@ -1,3 +1,7 @@
+import { TargetLinksController } from './target-links';
+import { ForecastController } from './forecast/controller';
+import { ForecastService } from './forecast/service';
+import { ReportRevisionsController } from './report-revisions';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -85,10 +89,14 @@ import {
     IocController,
     BugReportsController,
     WorkspaceController,
+    TargetLinksController,
+    ReportRevisionsController,
+    ForecastController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,
     PrismaService,
+    ForecastService,
     JwtStrategy,
     RolesGuard,
     RateLimitService,
