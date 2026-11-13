@@ -123,3 +123,57 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
   hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
 - **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
+
+## D-030 · 2026-11-13 · Bàn làm việc số là trang vào của cán bộ; cấu hình cá nhân một bản ghi JSON, nghiệp vụ lấy trực tiếp
+
+- **Bối cảnh**: góp ý sau buổi báo cáo 21/10/2026 (G-01…G-09): công chức dùng khoảng năm phần mềm, sáng đăng nhập cần
+  thấy ngay hôm nay làm gì; lãnh đạo muốn dán giấy nhắc lên bàn của cán bộ.
+- **Chọn**: `/admin` là Bàn làm việc; Trung tâm điều hành chuyển sang `/admin/dieu-hanh`. Bố cục, tiện ích, lối tắt, hình
+  nền của mỗi người nằm trong một bản ghi `UserWorkspace` (JSON có phiên bản, kiểm tra bằng một bộ quy tắc dùng chung cho
+  máy chủ và trình duyệt). Dữ liệu nghiệp vụ trên bàn (nhắc việc, lịch, số đếm, mục ghim) **không lưu trong cấu hình** mà
+  tính trực tiếp theo quyền mỗi lần mở (`GET /workspace/briefing`, `/workspace/pins`) — mất quyền là mất mục, không có bản
+  sao lệch.
+- **Không chọn**: kiến trúc connector/macro và kênh SSE riêng của bản thử trước (PR #26): thêm một tầng hạ tầng cho nhu cầu
+  mà hỏi lại định kỳ 30 giây đã đáp ứng.
+- **Căn cứ**: một nguồn sự thật cho quyền (các hàm phạm vi sẵn có), cấu hình cá nhân tách khỏi nghiệp vụ nên hỏng cấu hình
+  không ảnh hưởng số liệu.
+
+## D-031 · 2026-11-13 · Giấy note là thư riêng giữa người gửi và người nhận; nhắc việc của hệ thống không lưu bảng
+
+- **Chọn**: note người gửi (`DeskNote`, `DeskNoteRecipient`, `DeskNoteReply`) chỉ tác giả và người nhận đọc được — kể cả
+  quản trị viên cũng không đọc note của người khác; nhật ký chỉ ghi siêu dữ liệu, không ghi nội dung. Ai gửi được cho ai
+  theo bậc: chuyên viên → cùng phòng, lãnh đạo, Chánh Văn phòng; trưởng phòng → thêm cả phòng mình và trưởng phòng khác;
+  lãnh đạo, Chánh Văn phòng, quản trị → bất kỳ ai, một phòng, một vai trò hoặc toàn cơ quan. Giới hạn 30 note và 60 trả lời
+  mỗi giờ cho một người.
+- **Chọn**: "note hệ thống" (thiếu báo cáo, có nguy cơ, nhiệm vụ đến hạn, chờ giải trình, chờ duyệt…) là kết quả tính từ
+  dữ liệu chỉ tiêu tại thời điểm xem, không tạo bản ghi; "Ẩn đến mai" lưu trên thiết bị.
+- **Căn cứ**: note là kênh nhắc việc cá nhân chứ không phải văn bản giao việc — việc chính thức vẫn là chỉ tiêu, nhiệm vụ,
+  chỉ đạo có nhật ký. Nhắc việc tính trực tiếp thì việc xong là giấy tự biến mất, không phải dọn.
+
+## D-032 · 2026-11-13 · Ứng dụng công vụ là danh mục liên kết do quản trị viên khai báo; số trên biểu tượng lấy từ JSON công khai
+
+- **Chọn**: bảng `WorkApp` (tên, địa chỉ, biểu tượng, nhóm, công dụng, đối tượng theo vai trò HOẶC phòng, thứ tự, ẩn/hiện).
+  Hệ thống chỉ mở liên kết sang phần mềm khác, không đăng nhập hộ. Huy hiệu số: ứng dụng nội bộ lấy từ IOC theo quyền; ứng
+  dụng ngoài khai báo một địa chỉ JSON HTTPS công khai, máy chủ gọi hộ qua lớp chống SSRF (chặn địa chỉ nội bộ, chuyển
+  hướng, phản hồi nén/quá cỡ), lưu tạm 5 phút cả khi lỗi; lỗi thì chỉ ẩn con số.
+- **Không chọn**: lưu tài khoản/mật khẩu phần mềm khác hoặc RPA đăng nhập hộ — rủi ro bảo mật vượt quá lợi ích "thấy con số".
+- **Câu hỏi mở**: khi các phần mềm của tỉnh có API xác thực (SSO), huy hiệu cần thêm cơ chế uỷ quyền theo người dùng.
+
+## D-033 · 2026-11-13 · Lịch làm việc của lãnh đạo: dòng lịch có cấu trúc theo tuần, kèm tệp đã ký; công khai theo tuần và theo dòng
+
+- **Bối cảnh**: G-40 — người dân cần xem lịch làm việc của lãnh đạo UBND; đề xuất ban đầu là tải tệp lịch lên như văn bản.
+- **Chọn**: mỗi tuần một `WorkSchedule` (thứ Hai là khoá) gồm các `WorkScheduleEntry` (ngày, buổi/giờ, nội dung, lãnh đạo
+  chủ trì, địa điểm, thành phần, có công khai không) và tuỳ chọn một tệp PDF lịch đã ký. Văn phòng, văn thư, lãnh đạo, quản
+  trị lập lịch; mọi cán bộ xem. Trang công khai chỉ nhận tuần đã bấm công khai và chỉ các dòng được đánh dấu công khai —
+  máy chủ lọc, không trả mã bản ghi hay ghi chú nội bộ.
+- **Căn cứ**: dòng lịch có cấu trúc mới đưa được vào "Hôm nay · Ngày mai" của Bàn làm việc, đọc tốt trên điện thoại và
+  tách được cuộc họp nội bộ khỏi bản công khai; tệp PDF giữ giá trị pháp lý của bản đã ký.
+
+## D-034 · 2026-11-13 · Mã khôi phục mật khẩu qua tin nhắn: cổng SMS HTTP tuỳ chọn, số điện thoại do quản trị viên khai báo
+
+- **Chọn**: giữ luồng mã một lần sẵn có (HMAC, 10 phút, 5 lần thử, không lộ tài khoản có tồn tại hay không) và thêm kênh
+  tin nhắn gọi một cổng SMS HTTP bất kỳ qua biến môi trường (`SMS_GATEWAY_URL`, `SMS_GATEWAY_TOKEN`, `SMS_GATEWAY_BODY`,
+  `SMS_OTP_TEMPLATE`). Chưa khai báo thì màn Quên mật khẩu không hiện lựa chọn tin nhắn. Thêm trần 5 yêu cầu tin nhắn mỗi
+  giờ cho một tài khoản. Số di động thuộc hồ sơ tài khoản và chỉ quản trị viên sửa được, như email công vụ.
+- **Căn cứ**: hệ thống không ràng buộc nhà mạng; người dùng không tự đổi được nơi nhận mã nên chiếm phiên đăng nhập không
+  dẫn tới chiếm tài khoản.
