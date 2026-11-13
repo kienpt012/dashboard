@@ -14,7 +14,7 @@ try {
   assert.equal(result.status, 0, result.stderr);
   const after = await snapshot();
   assert.deepEqual(after, before, 'Chạy lại seed không được thêm bản ghi');
-  const targets = await prisma.target.findMany({ where: { framework: { code: 'DEMO-DANG-UY-2026' } } });
+  const targets = await prisma.target.findMany({ where: { framework: { code: 'LT-NQDU-2026' } } });
   assert.equal(targets.length, 7);
   assert.equal(targets.filter(row => row.linkGroupId).length, 4);
   assert.equal(await prisma.forecastHistory.count({ where: { simulated: true } }), 768);

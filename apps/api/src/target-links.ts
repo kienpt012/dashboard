@@ -2,13 +2,14 @@ import {
   BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get,
   NotFoundException, Param, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
-import { DepartmentKind, IssuingLevel, Prisma, ProgressReviewStatus, Role, ValueSource } from '@prisma/client';
+import { FrameworkKind, IssuingLevel, Prisma, ProgressReviewStatus, Role, ValueSource } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import { Actor, audit, canSuperviseDepartment, getActor, isLeadership, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { rollupParents } from './datasets';
+import { dispatchSetting, isDispatcher } from './dispatch';
 import { evaluateTarget } from './metrics';
 import { PrismaService } from './prisma.service';
 import { resolveReportRevisions } from './report-revisions';
@@ -80,7 +81,10 @@ function linkRow(target: LinkTarget) {
   };
 }
 
-export function assertLinkableTargets(targets: Array<Pick<LinkTarget, 'isArchived' | 'valueSource' | 'children' | 'year' | 'unit' | 'frequency' | 'direction'>>): void {
+export function assertLinkableTargets(targets: Array<Pick<LinkTarget, 'isArchived' | 'valueSource' | 'children' | 'year' | 'unit' | 'frequency' | 'direction'> & { kind?: FrameworkKind }>): void {
+  if (targets.some(target => target.kind === FrameworkKind.TASK)) {
+    throw new BadRequestException('Nhiệm vụ của văn bản chỉ đạo không liên kết theo nhóm chỉ tiêu');
+  }
   if (targets.some(target => target.isArchived || target.valueSource !== ValueSource.MANUAL || target.children.length)) {
     throw new BadRequestException('Chỉ liên kết chỉ tiêu nhập tay đang hoạt động và không có chỉ tiêu con');
   }
@@ -191,11 +195,8 @@ export class TargetLinksController {
   constructor(private readonly prisma: PrismaService) {}
 
   private async dispatcher(actor: Actor): Promise<boolean> {
-    if (actor.role !== Role.MANAGER || !actor.departmentId || !actor.department?.isActive) return false;
-    // WP-B sở hữu schema dispatchMode. Thiếu cấu hình nghĩa là LEADER, không tự cấp quyền cho Văn phòng.
-    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
-    if ((setting as unknown as { dispatchMode?: string } | null)?.dispatchMode !== 'OFFICE') return false;
-    return (await this.prisma.department.findUnique({ where: { id: actor.departmentId }, select: { kind: true } }))?.kind === DepartmentKind.OFFICE;
+    // Chánh Văn phòng chỉ có quyền này khi hệ thống đặt Người phân việc là Văn phòng (xem dispatch.ts).
+    return actor.role === Role.MANAGER && isDispatcher(actor, await dispatchSetting(this.prisma));
   }
 
   private async requireRead(actor: Actor, target: { departmentId: string }) {
@@ -207,7 +208,7 @@ export class TargetLinksController {
     const actor = getActor(req);
     const departmentId = await resolveReadDepartmentScope(this.prisma, actor, undefined, 'all');
     const [targets, dismissed, dispatcher] = await Promise.all([
-      this.prisma.target.findMany({ where: { isArchived: false, valueSource: ValueSource.MANUAL, frameworkId: { not: null }, children: { none: { isArchived: false } }, ...(departmentId ? { departmentId } : {}), ...(query.year ? { year: query.year } : {}) }, include: relationInclude, orderBy: [{ year: 'desc' }, { title: 'asc' }] }),
+      this.prisma.target.findMany({ where: { isArchived: false, kind: { not: FrameworkKind.TASK }, valueSource: ValueSource.MANUAL, frameworkId: { not: null }, children: { none: { isArchived: false } }, ...(departmentId ? { departmentId } : {}), ...(query.year ? { year: query.year } : {}) }, include: relationInclude, orderBy: [{ year: 'desc' }, { title: 'asc' }] }),
       this.prisma.targetLinkDismissal.findMany({ select: { pairKey: true } }), this.dispatcher(actor),
     ]);
     const ignored = new Set(dismissed.map(item => item.pairKey));
