@@ -49,6 +49,13 @@ function Landscape() {
   </svg>;
 }
 
+/** Tên gọi trong lời chào: hai chữ cuối của họ tên ("Lan Anh", "Thành Đạt"); bỏ chữ lót "Thị", "Văn". */
+export function greetingName(fullName: string) {
+  const words = fullName.trim().split(/\s+/);
+  const middle = words.at(-2)?.toLocaleLowerCase('vi');
+  return words.length >= 3 && middle !== 'thị' && middle !== 'văn' ? words.slice(-2).join(' ') : words.at(-1) ?? '';
+}
+
 export default function Workspace() {
   const me = useMe();
   return <WorkspaceForUser key={me.id} />;
@@ -196,7 +203,7 @@ function WorkspaceForUser() {
   const filtered = useMemo(() => WIDGETS.filter(w => (category === 'Tất cả' || category === w.category) && fold(`${w.title} ${w.description}`).includes(fold(search))), [category, search]);
   const hour = new Date(now.getTime() + 7 * 3_600_000).getUTCHours();
   const greeting = hour < 11 ? 'Chào buổi sáng' : hour < 14 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
-  const name = /quản trị|hệ thống|tài khoản|văn thư|người xem|chuyên viên|trưởng phòng|lãnh đạo/i.test(me.fullName) ? me.fullName.trim() : me.fullName.trim().split(/\s+/).at(-1);
+  const name = /quản trị|hệ thống|tài khoản|văn thư|người xem|chuyên viên|trưởng phòng|lãnh đạo/i.test(me.fullName) ? me.fullName.trim() : greetingName(me.fullName);
   const visibleWallpaper = config.appearance.daylight ? resolveDaylightPreset(now) : config.appearance.wallpaper;
   const backgroundStyle = { '--ws-accent': config.appearance.accent, '--ws-blur': `${config.appearance.blur}px`, '--ws-overlay': config.appearance.overlay / 100 } as CSSProperties;
 

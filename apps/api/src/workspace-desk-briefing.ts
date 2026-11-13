@@ -9,8 +9,11 @@ import { PrismaService } from './prisma.service';
 import { vietnamDayKey } from './work';
 import { deskTargetScope, deskWorkScope } from './workspace-desk-policy';
 import { holidaysOn } from './workspace-desk-calendar';
+import { weekStartOf } from './schedule';
 
 const DAY = 86_400_000;
+const SCHEDULE_FALLBACK_TIME: Record<string, string> = { ALLDAY: '00:00', AM: '08:00', PM: '14:00', EVENING: '18:30' };
+const SCHEDULE_SESSION_LABEL: Record<string, string> = { ALLDAY: 'Cả ngày', AM: 'Buổi sáng', PM: 'Buổi chiều', EVENING: 'Buổi tối' };
 export interface BriefingItem {
   id: string; kind: string; title: string; status: string; href: string;
   dueAt?: string; targetId?: string; periodKey?: string; autoApproveAt?: string;
@@ -38,7 +41,8 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
   const weekStart = new Date(localDay.getTime() - ((weekday + 6) % 7) * DAY);
   const weekStartKey = vietnamDayKey(weekStart);
   const weekEnd = vietnamDayKey(new Date(weekStart.getTime() + 6 * DAY));
-  const [targets, setting, proposals, notes, workspace, notifications, feedback] = await Promise.all([
+  const scheduleUntil = new Date(`${vietnamDayKey(new Date(weekStart.getTime() + (weekday === 0 ? 7 : 6) * DAY))}T00:00:00.000Z`);
+  const [targets, setting, proposals, notes, workspace, notifications, feedback, schedule] = await Promise.all([
     prisma.target.findMany({ where: { isArchived: false, year, ...scope }, include: {
       assignee: { select: { fullName: true, username: true } },
       framework: { select: { kind: true } },
@@ -52,6 +56,8 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
     prisma.userWorkspace.findUnique({ where: { userId: actor.id }, select: { config: true } }),
     prisma.notification.count({ where: { userId: actor.id, readAt: null } }),
     actor.role === Role.VIEWER ? Promise.resolve(0) : prisma.feedback.count({ where: { status: { notIn: [FeedbackStatus.RESOLVED, FeedbackStatus.CLOSED, FeedbackStatus.REJECTED] }, ...(isLeadership(actor) || actor.role === Role.CLERK ? {} : { departmentId: actor.departmentId ?? '__none__' }) } }),
+    // Lịch làm việc của lãnh đạo: mọi tài khoản nội bộ đều xem được, giống màn Lịch làm việc.
+    prisma.workScheduleEntry.findMany({ where: { date: { gte: new Date(`${weekStartKey}T00:00:00.000Z`), lte: scheduleUntil } }, select: { id: true, date: true, session: true, startTime: true, content: true, leader: true, location: true } }),
   ]);
   const system: BriefingItem[] = [];
   const calendar: BriefingItem[] = [];
@@ -111,6 +117,15 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
   for (let offset = 0; offset < (weekday === 0 ? 8 : 7); offset++) {
     const day = new Date(weekStart.getTime() + offset * DAY);
     for (const [index, holiday] of holidaysOn(day).entries()) personal.push({ id: `holiday:${vietnamDayKey(day)}:${index}`, kind: 'holiday', title: holiday.name, status: holiday.official ? 'Ngày lễ' : 'Ngày kỷ niệm', dueAt: `${vietnamDayKey(day)}T12:00:00+07:00`, href: '/admin' });
+  }
+  for (const entry of schedule) {
+    const day = entry.date.toISOString().slice(0, 10);
+    const time = entry.startTime ?? SCHEDULE_FALLBACK_TIME[entry.session] ?? '00:00';
+    personal.push({
+      id: `schedule:${entry.id}`, kind: 'schedule', title: entry.content,
+      status: [entry.startTime ?? SCHEDULE_SESSION_LABEL[entry.session], entry.leader, entry.location].filter(Boolean).join(' · '),
+      dueAt: `${day}T${time}:00+07:00`, href: `/admin/lich-lam-viec?tuan=${weekStartOf(day)}`,
+    });
   }
   const showCards = briefingShowsCards(actor);
   const events = [...(showCards ? calendar : []), ...personal].sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));

@@ -86,12 +86,16 @@ test('briefing scopes actionable work by assignee, department, leadership and vi
 test('briefing reuses reporting periods, suppresses submitted periods, shows leadership counts only and private dated tasks', async () => {
   const now = new Date('2026-11-13T03:00:00Z');
   const target = { id: 't', title: 'Tỷ lệ giải ngân', year: 2026, frequency: 'MONTHLY', reportDueDay: 14, createdAt: new Date('2026-11-01'), kind: 'PLAN', framework: null, currentValue: 30, targetValue: 100, direction: 'HIGHER_IS_BETTER', dueDate: new Date('2026-12-31'), lastReportedAt: now, valueSource: 'MANUAL', assigneeId: 'STAFF', assignee: { fullName: 'Thảo', username: 'thao.ktht' }, updates: [], explanationRequests: [], _count: { children: 0 } };
-  const db = { target: { findMany: async (args: any) => args.where.id === '__none__' ? [] : [target] }, systemSetting: { findUnique: async () => null }, indicatorCandidate: { findMany: async () => [] }, deskNoteRecipient: { findMany: async () => [] }, userWorkspace: { findUnique: async () => ({ config: { spaces: [{ widgets: [{ type: 'tasks', settings: { items: [{ id: 'private', text: 'Chuẩn bị tài liệu', dueAt: '2026-11-13', done: false }, { id: 'monday', text: 'Việc đầu tuần', dueAt: '2026-11-09', done: false }, { id: 'next-week', text: 'Việc tuần sau', dueAt: '2026-11-16', done: false }] } }] }] } }) }, notification: { count: async () => 2 }, feedback: { count: async () => 3 } };
+  const db = { target: { findMany: async (args: any) => args.where.id === '__none__' ? [] : [target] }, systemSetting: { findUnique: async () => null }, indicatorCandidate: { findMany: async () => [] }, deskNoteRecipient: { findMany: async () => [] }, userWorkspace: { findUnique: async () => ({ config: { spaces: [{ widgets: [{ type: 'tasks', settings: { items: [{ id: 'private', text: 'Chuẩn bị tài liệu', dueAt: '2026-11-13', done: false }, { id: 'monday', text: 'Việc đầu tuần', dueAt: '2026-11-09', done: false }, { id: 'next-week', text: 'Việc tuần sau', dueAt: '2026-11-16', done: false }] } }] }] } }) }, notification: { count: async () => 2 }, feedback: { count: async () => 3 }, workScheduleEntry: { findMany: async () => [{ id: 's1', date: new Date('2026-11-13T00:00:00Z'), session: 'PM', startTime: '14:00', content: 'Họp Ban Chỉ đạo chuyển đổi số', leader: 'Chủ tịch UBND', location: 'Phòng họp số 2' }, { id: 's2', date: new Date('2026-11-14T00:00:00Z'), session: 'AM', startTime: null, content: 'Tiếp công dân định kỳ', leader: 'Chủ tịch UBND', location: null }] } };
   const staff = await buildDeskBriefing(db as never, actor(Role.STAFF), now);
   assert.equal(staff.counts.reports, 1);
-  assert.equal(staff.tomorrow[0].periodKey, '2026-M11');
-  assert.equal(staff.tomorrow[0].href, '/admin/targets/t?bao-cao=2026-M11');
+  const dueReport = staff.tomorrow.find(item => item.kind === 'report');
+  assert.equal(dueReport?.periodKey, '2026-M11');
+  assert.equal(dueReport?.href, '/admin/targets/t?bao-cao=2026-M11');
   assert.equal(staff.today[0].title, 'Chuẩn bị tài liệu');
+  const meeting = staff.today.find(item => item.kind === 'schedule');
+  assert.equal(meeting?.status, '14:00 · Chủ tịch UBND · Phòng họp số 2');
+  assert.equal(meeting?.href, '/admin/lich-lam-viec?tuan=2026-11-09');
   assert.ok(staff.week.some(item => item.id === 'private:monday'));
   assert.ok(!staff.week.some(item => item.id === 'private:next-week'));
   const sunday = await buildDeskBriefing(db as never, actor(Role.STAFF), new Date('2026-11-15T16:59:00Z'));
@@ -101,7 +105,7 @@ test('briefing reuses reporting periods, suppresses submitted periods, shows lea
   const leader = await buildDeskBriefing(db as never, actor(Role.LEADER), now);
   assert.equal(leader.counts.reports, 1);
   assert.deepEqual(leader.systemNotes, []);
-  assert.equal(leader.tomorrow.length, 0);
+  assert.deepEqual(leader.tomorrow.map(item => [item.kind, item.status]), [['schedule', 'Buổi sáng · Chủ tịch UBND']]);
   const viewer = await buildDeskBriefing(db as never, actor(Role.VIEWER), now);
   assert.equal(viewer.counts.reports, 0);
   assert.equal(viewer.counts.feedback, 0);
