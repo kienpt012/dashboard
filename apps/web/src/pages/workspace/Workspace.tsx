@@ -2,7 +2,7 @@ import {
   AppstoreAddOutlined, ArrowDownOutlined, ArrowUpOutlined, CheckOutlined, CloudSyncOutlined,
   CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ExpandOutlined,
   FullscreenExitOutlined, HolderOutlined, LinkOutlined, PlusOutlined, SearchOutlined,
-  SettingOutlined, ThunderboltOutlined, UploadOutlined,
+  SettingOutlined, DesktopOutlined, RobotOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { Alert, App, Button, ConfigProvider, Drawer, Dropdown, Empty, Input, Modal, Select, Slider, Spin, Switch, Tooltip, theme } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -10,6 +10,12 @@ import { GridLayout, useContainerWidth, type Layout } from 'react-grid-layout';
 import { useNavigate } from 'react-router-dom';
 import { fold, navItems } from '@/app/nav';
 import { useMe } from '@/app/session';
+import { useThemeMode } from '@/app/theme';
+import { lunarLabel } from '@/lib/lunar';
+import { DeskBriefingHeader, DeskSystemNotes } from './DeskBriefing';
+import { DeskNotesLayer, NoteComposerButton } from './DeskNotes';
+import { APP_ICONS, DeskApps, WorkAppIcon } from './DeskApps';
+import { WidgetIcon } from './WidgetIcon';
 import { can } from '@/lib/roles';
 import { errorText, saveBlob } from '@/lib/api';
 import { WIDGETS, makeWidget, safeShortcut, templateWidgets, uid, validConfig, type Shortcut, type WidgetType, type WorkspaceConfig, type WorkspaceWidget } from './model';
@@ -30,7 +36,7 @@ const WALLPAPERS = [
   ...EXTRA_WALLPAPERS,
 ];
 const ACCENTS = ['#7ce6c5', '#9bbcff', '#c4a6ff', '#f2b7cc', '#f4ce8b', '#9ddbe7'];
-const ICONS = ['◈', '☑', '▤', '▦', '▥', '↗', '✦', '⌘', '◎', '⚑', '✉', '☀', '⌁', '▶', '✎'];
+const ICONS = Object.keys(APP_ICONS);
 const requestCommand = () => window.dispatchEvent(new Event('ioc:open-command'));
 const requestJarvis = () => window.dispatchEvent(new Event('ioc:open-jarvis'));
 
@@ -51,8 +57,9 @@ export default function Workspace() {
 function WorkspaceForUser() {
   const me = useMe();
   const navigate = useNavigate();
+  const { dark } = useThemeMode();
   const { message, modal } = App.useApp();
-  const { config, setConfig, ready, status, error, reload, retry } = useWorkspace(me.id);
+  const { config, setConfig, ready, status, error, reload, retry, keepLocal } = useWorkspace(me.id);
   const { width, containerRef, mounted } = useContainerWidth();
   const [editing, setEditing] = useState(false);
   const [focus, setFocus] = useState(false);
@@ -172,7 +179,7 @@ function WorkspaceForUser() {
     const entry = WIDGETS.find(w => w.type === widget.type)!;
     return <div key={widget.id} className={`ws-card ws-card-${widget.type}${editing ? ' ws-card-edit' : ''}`} style={mobile ? { minHeight: widget.h * 44, height: widget.h * 44 + 40 } : undefined}>
       <div className="ws-card-head">
-        <div className="ws-drag-handle" title={editing ? 'Kéo để di chuyển tiện ích' : undefined}>{editing ? <HolderOutlined /> : <span className="ws-card-symbol">{entry.icon}</span>}<h2>{widget.title}</h2></div>
+        <div className="ws-drag-handle" title={editing ? 'Kéo để di chuyển tiện ích' : undefined}>{editing ? <HolderOutlined /> : <span className="ws-card-symbol"><WidgetIcon type={entry.type} /></span>}<h2>{widget.title}</h2></div>
         <Dropdown trigger={['click']} menu={{ items: [
           { key: 'settings', label: 'Cài đặt tiện ích', icon: <SettingOutlined />, onClick: () => setWidgetDraft(structuredClone(widget)) },
           { key: 'copy', label: 'Nhân bản', icon: <CopyOutlined />, disabled: space.widgets.length >= 40, onClick: () => { snapshot(); changeWidgets(list => [...list, { ...structuredClone(widget), id: uid(), x: 0, y: Math.max(0, ...list.map(w => w.y + w.h)) }]); } },
@@ -187,23 +194,24 @@ function WorkspaceForUser() {
     </div>;
   }
   const filtered = useMemo(() => WIDGETS.filter(w => (category === 'Tất cả' || category === w.category) && fold(`${w.title} ${w.description}`).includes(fold(search))), [category, search]);
-  const greeting = now.getHours() < 11 ? 'Chào buổi sáng' : now.getHours() < 14 ? 'Chào buổi trưa' : now.getHours() < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
-  const name = me.fullName.trim().split(/\s+/).slice(-2).join(' ');
+  const hour = new Date(now.getTime() + 7 * 3_600_000).getUTCHours();
+  const greeting = hour < 11 ? 'Chào buổi sáng' : hour < 14 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+  const name = /quản trị|hệ thống|tài khoản|văn thư|người xem|chuyên viên|trưởng phòng|lãnh đạo/i.test(me.fullName) ? me.fullName.trim() : me.fullName.trim().split(/\s+/).at(-1);
   const visibleWallpaper = config.appearance.daylight ? resolveDaylightPreset(now) : config.appearance.wallpaper;
   const backgroundStyle = { '--ws-accent': config.appearance.accent, '--ws-blur': `${config.appearance.blur}px`, '--ws-overlay': config.appearance.overlay / 100 } as CSSProperties;
 
-  return <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: config.appearance.accent, colorBgBase: '#101e29', borderRadius: 12, fontFamily: "'Be Vietnam Pro', system-ui, sans-serif" } }}>
-    <section className={`ws-root ws-theme-${visibleWallpaper}${focus ? ' ws-is-focused' : ''}`} style={backgroundStyle} aria-label="Bàn làm việc cá nhân">
+  return <ConfigProvider theme={{ algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm, token: { colorPrimary: dark ? config.appearance.accent : '#176e61', colorBgBase: dark ? '#101e29' : '#ffffff', borderRadius: 12, fontFamily: "'Be Vietnam Pro', system-ui, sans-serif" } }}>
+    <section className={`ws-root ws-theme-${visibleWallpaper}${dark ? '' : ' ws-light'} ws-dock-${config.appearance.dock ?? 'bottom'}${focus ? ' ws-is-focused' : ''}`} style={backgroundStyle} aria-label="Bàn làm việc cá nhân">
       <div className="ws-background" style={visibleWallpaper === 'custom' && config.appearance.customWallpaper ? { backgroundImage: `url("${config.appearance.customWallpaper}")` } : undefined}><Landscape /><WallpaperArtwork preset={visibleWallpaper} /></div>
       <div className="ws-shade" />
       <main className="ws-main">
         <header className="ws-toolbar">
-          <div className="ws-identity"><span className="ws-logo">✦</span><div><strong>Bàn làm việc</strong><small>KHÔNG GIAN CỦA BẠN</small></div></div>
+          <div className="ws-identity"><span className="ws-logo"><DesktopOutlined /></span><div><strong>Bàn làm việc</strong><small>{me.department?.name || me.position || 'Cá nhân'}</small></div></div>
           <div className="ws-toolbar-actions">
             <span className={`ws-save ws-save-${status}`} aria-live="polite">{status === 'saved' ? <CheckOutlined /> : status === 'saving' ? <CloudSyncOutlined spin /> : <span className="ws-status-dot" />}{({ loading: 'Đang tải', saved: 'Đã đồng bộ', pending: 'Chờ lưu', saving: 'Đang lưu', error: 'Chưa lưu', conflict: 'Cần đồng bộ' })[status]}</span>
             <Tooltip title="Tìm trong IOC · Ctrl K"><button className="ws-icon-btn" aria-label="Tìm trong IOC" onClick={requestCommand}><SearchOutlined /></button></Tooltip>
             <Tooltip title={focus ? 'Thoát tập trung · Esc' : 'Chế độ tập trung · Ctrl Shift F'}><button className="ws-icon-btn" aria-label={focus ? 'Thoát tập trung' : 'Chế độ tập trung'} onClick={() => setFocus(v => !v)}>{focus ? <FullscreenExitOutlined /> : <ExpandOutlined />}</button></Tooltip>
-            <button className="ws-button ws-customize" onClick={() => setAppearance(true)} disabled={!ready}><SettingOutlined /> Cá nhân hóa</button>
+            <NoteComposerButton /><button className="ws-button ws-customize" onClick={() => setAppearance(true)} disabled={!ready}><SettingOutlined /> Cá nhân hóa</button>
             <Dropdown trigger={['click']} menu={{ items: [
               { key: 'export', label: 'Xuất bản sao bàn làm việc', icon: <DownloadOutlined />, disabled: !ready, onClick: exportWorkspace },
               { key: 'import', label: 'Nhập bản sao JSON', icon: <UploadOutlined />, disabled: !ready, onClick: () => importRef.current?.click() },
@@ -213,35 +221,39 @@ function WorkspaceForUser() {
           </div>
         </header>
         <div ref={containerRef} className="ws-content">
-        {!ready ? <div className="ws-loading">{error ? <><h2>Chưa tải được bàn làm việc</h2><p>{error}</p><Button onClick={() => void reload()}>Thử lại</Button></> : <><Spin size="large" /><p>Đang mở không gian của bạn…</p></>}</div> : <>
-          {error && <Alert className="ws-error" type="warning" showIcon title={status === 'conflict' ? 'Bàn làm việc đã được cập nhật ở phiên khác' : 'Thay đổi đang được giữ trong phiên này, chưa lưu lên máy chủ'} description={error} action={<div className="ws-error-actions"><Button onClick={exportWorkspace}>Xuất bản sao</Button>{status !== 'conflict' && <Button onClick={retry}>Lưu lại</Button>}<Button onClick={() => modal.confirm({ title: 'Tải lại bản đã lưu trên máy chủ?', content: 'Hãy xuất bản sao nếu muốn giữ thay đổi chưa lưu ở phiên này.', okText: 'Tải lại', cancelText: 'Hủy', onOk: () => reload() })}>Tải bản đã lưu</Button></div>} />}
+        {!ready ? <div className="ws-loading">{error ? <><h2>Chưa tải được bàn làm việc</h2><p>{error}</p><Button onClick={() => void reload()}>Thử lại</Button></> : <><Spin size="large" /><p>Đang tải bàn làm việc…</p></>}</div> : <>
+          {error && <Alert className="ws-error" type="warning" showIcon title={status === 'conflict' ? 'Bàn làm việc đã được cập nhật ở phiên khác' : 'Thay đổi đang được giữ trong phiên này, chưa lưu lên máy chủ'} description={error} action={<div className="ws-error-actions"><Button onClick={exportWorkspace}>Xuất bản sao</Button>{status === 'conflict' ? <Button onClick={() => void keepLocal()}>Giữ bản của tôi</Button> : <Button onClick={retry}>Lưu lại</Button>}<Button onClick={() => modal.confirm({ title: 'Tải lại bản đã lưu trên máy chủ?', content: 'Hãy xuất bản sao nếu muốn giữ thay đổi chưa lưu ở phiên này.', okText: 'Tải lại', cancelText: 'Hủy', onOk: () => reload() })}>Tải bản đã lưu</Button></div>} />}
           <div className="ws-hero">
-            <div className="ws-hero-copy"><div className="ws-eyebrow"><i />{greeting}, {name}</div><h1>Mọi thứ bạn cần.<br/><span>Trong không gian của bạn.</span></h1><p>Một điểm bắt đầu. Vô vàn cách làm việc.</p></div>
-            <div className="ws-hero-time"><time>{now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</time><span>{now.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}</span><button className="ws-jarvis" onClick={requestJarvis}><span>✦</span> Sẵn sàng cùng Jarvis <span>↗</span></button></div>
+            <div className="ws-hero-copy"><h1>{greeting}, {name}</h1><p className="ws-date-line">{now.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}<span> · {lunarLabel(now)} âm lịch</span></p></div>
+            <div className="ws-hero-time"><time>{now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}</time><button className="ws-jarvis" onClick={requestJarvis}><RobotOutlined /> Jarvis</button></div>
           </div>
-          <section className="ws-shortcuts-section" aria-label="Lối tắt của bạn">
+          <DeskBriefingHeader />
+          <DeskSystemNotes />
+          <DeskNotesLayer />
+          {editing && <section className="ws-shortcuts-section" aria-label="Lối tắt của bạn">
             <div className="ws-section-label">TRUY CẬP NHANH <span>Alt + số để mở</span></div>
             <div className="ws-shortcuts">
               {shortcuts.map((shortcut, index) => <div className="ws-shortcut-wrap" key={shortcut.id}>
-                <button className="ws-shortcut" onClick={() => openShortcut(shortcut)} title={`${shortcut.url}${shortcut.hotkey ? ` · Alt ${shortcut.hotkey}` : ''}`}><span className="ws-shortcut-icon" style={{ '--shortcut-color': shortcut.color } as CSSProperties}>{shortcut.icon}</span><span>{shortcut.title}</span>{shortcut.hotkey && <kbd>{shortcut.hotkey}</kbd>}</button>
+                <button className="ws-shortcut" onClick={() => openShortcut(shortcut)} title={`${shortcut.url}${shortcut.hotkey ? ` · Alt ${shortcut.hotkey}` : ''}`}><span className="ws-shortcut-icon" style={{ '--shortcut-color': shortcut.color } as CSSProperties}><WorkAppIcon icon={shortcut.icon} color={shortcut.color} /></span><span>{shortcut.title}</span>{shortcut.hotkey && <kbd>{shortcut.hotkey}</kbd>}</button>
                 {editing && <Dropdown trigger={['click']} menu={{ items: [
                   { key: 'edit', label: 'Sửa lối tắt', onClick: () => setShortcutDraft({ ...shortcut }) },
                   { key: 'left', label: 'Chuyển lên trước', disabled: index === 0, onClick: () => { snapshot(); change(c => { const list = [...c.shortcuts]; const at = list.findIndex(s => s.id === shortcut.id); if (at > 0) [list[at - 1], list[at]] = [list[at], list[at - 1]]; return { ...c, shortcuts: list }; }); } },
                   { key: 'remove', label: 'Gỡ lối tắt', danger: true, onClick: () => { snapshot(); change(c => ({ ...c, shortcuts: c.shortcuts.filter(s => s.id !== shortcut.id) })); } },
                 ] }}><button className="ws-shortcut-edit ws-icon-btn" aria-label={`Sửa ${shortcut.title}`}><EditOutlined /></button></Dropdown>}
               </div>)}
-              <button className="ws-shortcut ws-shortcut-add" onClick={() => setShortcutDraft({ id: uid(), title: '', url: '', icon: '↗', color: ACCENTS[0] })}><span className="ws-shortcut-icon"><PlusOutlined /></span><span>Thêm lối tắt</span></button>
+              <button className="ws-shortcut ws-shortcut-add" onClick={() => setShortcutDraft({ id: uid(), title: '', url: '', icon: 'link', color: ACCENTS[0] })}><span className="ws-shortcut-icon"><PlusOutlined /></span><span>Thêm lối tắt</span></button>
             </div>
-          </section>
+          </section>}
           <div className="ws-space-bar">
             <div className="ws-spaces" role="tablist" aria-label="Không gian làm việc">{config.spaces.map(s => <button key={s.id} role="tab" aria-selected={s.id === space.id} className={`ws-space-tab${s.id === space.id ? ' active' : ''}`} onClick={() => change(c => ({ ...c, activeSpace: s.id }))}>{s.id === space.id && <span className="ws-tab-dot" />}{s.name}</button>)}<button className="ws-icon-btn" onClick={() => setSpaceDraft({ name: '' })} disabled={config.spaces.length >= 8} aria-label="Thêm không gian"><PlusOutlined /></button></div>
             <div className="ws-space-actions"><button className={`ws-button ws-edit-button${editing ? ' active' : ''}`} onClick={() => setEditing(v => !v)}>{editing ? <CheckOutlined /> : <HolderOutlined />}{editing ? 'Xong' : 'Sắp xếp'}</button><button className="ws-button ws-primary" onClick={() => setLibrary(true)}><PlusOutlined /> Thêm tiện ích</button></div>
           </div>
           {editing && <div className="ws-edit-hint"><HolderOutlined /><span>{mobile ? 'Dùng menu của tiện ích để đổi thứ tự và kích thước.' : 'Kéo thanh tiêu đề để sắp xếp. Kéo góc dưới để đổi kích thước.'} Mọi thay đổi được tự động lưu.</span><button onClick={() => setSpaceDraft({ id: space.id, name: space.name })}>Đổi tên không gian</button>{config.spaces.length > 1 && <button onClick={() => modal.confirm({ title: `Xóa không gian “${space.name}”?`, content: 'Bạn có thể hoàn tác từ menu bàn làm việc.', okText: 'Xóa không gian', cancelText: 'Hủy', onOk: () => { snapshot(); change(c => { const spaces = c.spaces.filter(s => s.id !== c.activeSpace); return { ...c, spaces, activeSpace: spaces[0].id }; }); } })}>Xóa không gian</button>}</div>}
           <div className="ws-grid-container">
-            {!space.widgets.length ? <div className="ws-empty"><span>✦</span><h2>Khoảng trống cho ý tưởng của bạn</h2><p>Thêm một tiện ích để bắt đầu xây dựng không gian này.</p><button className="ws-button ws-primary" onClick={() => setLibrary(true)}><AppstoreAddOutlined /> Khám phá tiện ích</button></div> : mounted && (mobile ? <div className="ws-mobile-grid">{[...space.widgets].sort((a,b) => a.y - b.y || a.x - b.x).map(widgetCard)}</div> : <GridLayout key={space.id} width={width} layout={space.widgets.map(w => ({ i: w.id, x: w.x, y: w.y, w: w.w, h: w.h, minW: 3, minH: 4, maxH: 24 }))} gridConfig={{ cols: 12, rowHeight: 38, margin: [18,18], containerPadding: [0,0] }} dragConfig={{ enabled: editing, handle: '.ws-drag-handle', cancel: 'button,input,textarea,a' }} resizeConfig={{ enabled: editing, handles: ['se'] }} onLayoutChange={updateLayout}>{space.widgets.map(widgetCard)}</GridLayout>)}
+            {!space.widgets.length ? <div className="ws-empty"><span><AppstoreAddOutlined /></span><h2>Chưa có tiện ích</h2><button className="ws-button ws-primary" onClick={() => setLibrary(true)}><AppstoreAddOutlined /> Thêm tiện ích</button></div> : mounted && (mobile ? <div className="ws-mobile-grid">{[...space.widgets].sort((a,b) => a.y - b.y || a.x - b.x).map(widgetCard)}</div> : <GridLayout key={space.id} width={width} layout={space.widgets.map(w => ({ i: w.id, x: w.x, y: w.y, w: w.w, h: w.h, minW: 3, minH: 4, maxH: 24 }))} gridConfig={{ cols: 12, rowHeight: 38, margin: [18,18], containerPadding: [0,0] }} dragConfig={{ enabled: editing, handle: '.ws-drag-handle', cancel: 'button,input,textarea,a' }} resizeConfig={{ enabled: editing, handles: ['se'] }} onLayoutChange={updateLayout}>{space.widgets.map(widgetCard)}</GridLayout>)}
           </div>
-          <footer className="ws-footer"><span><i/> Không gian riêng của {me.fullName}</span><button onClick={() => setHelp(true)}>Tạo nhịp làm việc của riêng bạn <span>⌘</span></button></footer>
+          <DeskApps shortcuts={shortcuts} position={config.appearance.dock ?? 'bottom'} editing={editing} onAdd={() => setShortcutDraft({ id: uid(), title: '', url: '', icon: 'link', color: ACCENTS[0] })} onEdit={setShortcutDraft} />
+          <footer className="ws-footer"><span><i/> {me.fullName}</span><button onClick={() => setHelp(true)}>Phím tắt bàn phím</button></footer>
         </>}
         </div>
       </main>
@@ -249,17 +261,16 @@ function WorkspaceForUser() {
       <input ref={wallpaperRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => void uploadWallpaper(event.target.files?.[0])}/>
     </section>
 
-    <Drawer title={<span className="ws-drawer-title">✦ Kho tiện ích</span>} open={library} onClose={() => setLibrary(false)} size={620} className="ws-drawer">
-      <div className="ws-library-intro"><span>THIẾT KẾ NHỊP LÀM VIỆC</span><h2>Một bàn làm việc.<br/>Nhiều khả năng hơn.</h2><p>Chọn những gì hữu ích với bạn. Kết hợp, di chuyển và tùy chỉnh theo cách riêng.</p></div>
+    <Drawer title={<span className="ws-drawer-title"><AppstoreAddOutlined /> Kho tiện ích</span>} open={library} onClose={() => setLibrary(false)} size={620} className="ws-drawer">
       <Input size="large" prefix={<SearchOutlined />} placeholder="Tìm tiện ích, biểu đồ, ghi chú…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Tìm tiện ích"/>
       <div className="ws-category-tabs">{['Tất cả','Năng suất','Dữ liệu','Hằng ngày','Kết nối'].map(c => <button key={c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>{c}</button>)}</div>
-      <div className="ws-library-grid">{filtered.map(w => <button key={w.type} className={`ws-library-card ws-library-${w.type}`} onClick={() => addWidget(w.type)}><span className="ws-library-icon">{w.icon}</span><span className="ws-library-plus"><PlusOutlined /></span><h3>{w.title}</h3><p>{w.description}</p><small>{w.category}</small></button>)}</div>
+      <div className="ws-library-grid">{filtered.map(w => <button key={w.type} className={`ws-library-card ws-library-${w.type}`} onClick={() => addWidget(w.type)}><span className="ws-library-icon"><WidgetIcon type={w.type} /></span><span className="ws-library-plus"><PlusOutlined /></span><Tooltip title={w.description}><h3>{w.title}</h3></Tooltip><small>{w.category}</small></button>)}</div>
       {!filtered.length && <Empty description="Chưa tìm thấy tiện ích phù hợp" />}
-      <div className="ws-library-note"><ThunderboltOutlined /><span>Dữ liệu IOC theo đúng quyền của tài khoản. Các tiện ích API kết nối nguồn JSON công khai qua máy chủ.</span></div>
     </Drawer>
 
     <Drawer title="Cá nhân hóa không gian" open={appearance} onClose={() => setAppearance(false)} size={460} className="ws-drawer">
-      <section className="ws-settings-section"><h3>Hình nền</h3><p>Một không gian khiến bạn muốn bắt đầu.</p><label className="ws-daylight-toggle"><span>Theo nhịp ngày đêm<small>Tự đổi cảnh sáng, trưa, chiều và đêm</small></span><Switch aria-label="Hình nền theo nhịp ngày đêm" checked={!!config.appearance.daylight} onChange={daylight => change(c => ({ ...c, appearance: { ...c.appearance, daylight } }))}/></label><div className="ws-wallpapers">{WALLPAPERS.map(w => <button key={w.id} className={`ws-wallpaper-option${visibleWallpaper === w.id ? ' selected' : ''}`} onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: w.id, daylight: false } }))}><span className={`ws-wallpaper-preview ws-theme-${w.id}`}><span className="ws-background"><WallpaperArtwork preset={w.id}/></span>{visibleWallpaper === w.id && <CheckOutlined />}</span><strong>{w.name}</strong><small>{w.caption}</small></button>)}</div><Button block icon={<UploadOutlined />} onClick={() => wallpaperRef.current?.click()}>Tải hình nền của bạn</Button><small className="ws-setting-note">JPG, PNG, WebP · tối đa 15 MB · tự tối ưu trước khi lưu</small>{config.appearance.customWallpaper && <Button block onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: 'custom', daylight: false } }))}>Dùng lại ảnh đã tải</Button>}</section>
+      <section className="ws-settings-section"><h3>Khay ứng dụng</h3><Select style={{ width: '100%', marginTop: 12 }} aria-label="Vị trí khay ứng dụng" value={config.appearance.dock ?? 'bottom'} options={[{ value: 'bottom', label: 'Đáy bàn' }, { value: 'left', label: 'Cạnh trái' }, { value: 'hidden', label: 'Ẩn' }]} onChange={dock => change(c => ({ ...c, appearance: { ...c.appearance, dock } }))} /></section>
+      <section className="ws-settings-section"><h3>Hình nền</h3><label className="ws-daylight-toggle"><span>Theo nhịp ngày đêm<small>Tự đổi cảnh sáng, trưa, chiều và đêm</small></span><Switch aria-label="Hình nền theo nhịp ngày đêm" checked={!!config.appearance.daylight} onChange={daylight => change(c => ({ ...c, appearance: { ...c.appearance, daylight } }))}/></label><div className="ws-wallpapers">{WALLPAPERS.map(w => <button key={w.id} className={`ws-wallpaper-option${visibleWallpaper === w.id ? ' selected' : ''}`} onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: w.id, daylight: false } }))}><span className={`ws-wallpaper-preview ws-theme-${w.id}`}><span className="ws-background"><WallpaperArtwork preset={w.id}/></span>{visibleWallpaper === w.id && <CheckOutlined />}</span><strong>{w.name}</strong></button>)}</div><Button block icon={<UploadOutlined />} onClick={() => wallpaperRef.current?.click()}>Tải hình nền của bạn</Button><small className="ws-setting-note">JPG, PNG, WebP · tối đa 15 MB · tự tối ưu trước khi lưu</small>{config.appearance.customWallpaper && <Button block onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, wallpaper: 'custom', daylight: false } }))}>Dùng lại ảnh đã tải</Button>}</section>
       <section className="ws-settings-section"><h3>Màu nhấn</h3><div className="ws-colors">{ACCENTS.map(color => <button key={color} aria-label={`Màu ${color}`} style={{ background: color }} className={config.appearance.accent === color ? 'selected' : ''} onClick={() => change(c => ({ ...c, appearance: { ...c.appearance, accent: color } }))}>{config.appearance.accent === color && <CheckOutlined />}</button>)}<input type="color" aria-label="Chọn màu nhấn riêng" value={config.appearance.accent} onChange={e => change(c => ({ ...c, appearance: { ...c.appearance, accent: e.target.value } }))}/></div><label>Độ tối hình nền <span>{config.appearance.overlay}%</span></label><Slider value={config.appearance.overlay} min={0} max={90} onChange={overlay => change(c => ({ ...c, appearance: { ...c.appearance, overlay } }))}/><label>Độ mờ kính <span>{config.appearance.blur}px</span></label><Slider value={config.appearance.blur} min={0} max={40} onChange={blur => change(c => ({ ...c, appearance: { ...c.appearance, blur } }))}/></section>
       <section className="ws-settings-section"><h3>Bắt đầu từ một bố cục</h3><p>Áp dụng cho không gian “{space.name}”.</p><div className="ws-template-list">{[{id:'default',icon:'◈',name:'Ngày làm việc',text:'Điều hành, ghi chú, việc cần làm & thời tiết'},{id:'focus',icon:'◷',name:'Tập trung sâu',text:'Pomodoro, việc ưu tiên & góc ghi chú'},{id:'data',icon:'⌁',name:'Góc dữ liệu',text:'IOC, công việc & kết nối API'}].map(t => <button key={t.id} onClick={() => applyTemplate(t.id)}><b>{t.icon}</b><span><strong>{t.name}</strong><small>{t.text}</small></span><span>↗</span></button>)}</div></section>
     </Drawer>
@@ -268,7 +279,7 @@ function WorkspaceForUser() {
       {widgetDraft && <div className="ws-form"><label>Tên tiện ích<Input maxLength={120} value={widgetDraft.title} onChange={e => setWidgetDraft({ ...widgetDraft, title: e.target.value })}/></label><WidgetSettings widget={widgetDraft} onChange={settings => setWidgetDraft({ ...widgetDraft, settings })}/></div>}
     </Modal>
     <Modal title={shortcutDraft && config.shortcuts.some(s => s.id === shortcutDraft.id) ? 'Sửa lối tắt' : 'Thêm lối tắt'} open={!!shortcutDraft} onCancel={() => setShortcutDraft(null)} onOk={commitShortcut} okText="Lưu lối tắt" cancelText="Hủy" destroyOnHidden>
-      {shortcutDraft && <div className="ws-form"><label>Chọn nhanh tính năng IOC<Select<string> placeholder="Hoặc nhập website bên dưới" value={undefined} options={navItems.filter(n => can(me,n.roles)).map(n => ({ value:n.path,label:n.label }))} onChange={url => { const item = navItems.find(n => n.path === url)!; setShortcutDraft({ ...shortcutDraft, url, title: item.label }); }}/></label><label>Tên hiển thị<Input maxLength={80} value={shortcutDraft.title} onChange={e => setShortcutDraft({ ...shortcutDraft,title:e.target.value })} placeholder="Ví dụ: Cổng dịch vụ công"/></label><label>Đường dẫn<Input maxLength={2048} prefix={<LinkOutlined />} value={shortcutDraft.url} onChange={e => setShortcutDraft({ ...shortcutDraft,url:e.target.value })} placeholder="https://… hoặc /admin/…"/></label><label>Biểu tượng<div className="ws-icon-picker">{ICONS.map(icon => <button key={icon} className={shortcutDraft.icon === icon ? 'selected' : ''} onClick={() => setShortcutDraft({ ...shortcutDraft,icon })}>{icon}</button>)}</div></label><label>Màu biểu tượng<input type="color" value={shortcutDraft.color} onChange={e => setShortcutDraft({ ...shortcutDraft,color:e.target.value })}/></label><label>Phím tắt bàn phím<Select allowClear placeholder="Chưa gán" value={shortcutDraft.hotkey || undefined} options={Array.from({length:9},(_,i) => ({ value:String(i+1),label:`Alt + ${i+1}` }))} onChange={hotkey => setShortcutDraft({ ...shortcutDraft, hotkey })}/></label><p className="ws-setting-note">Website bên ngoài mở trong thẻ mới. Các trang IOC vẫn kiểm tra phân quyền khi truy cập.</p></div>}
+      {shortcutDraft && <div className="ws-form"><label>Chọn nhanh tính năng IOC<Select<string> placeholder="Hoặc nhập website bên dưới" value={undefined} options={navItems.filter(n => can(me,n.roles)).map(n => ({ value:n.path,label:n.label }))} onChange={url => { const item = navItems.find(n => n.path === url)!; setShortcutDraft({ ...shortcutDraft, url, title: item.label }); }}/></label><label>Tên hiển thị<Input maxLength={80} value={shortcutDraft.title} onChange={e => setShortcutDraft({ ...shortcutDraft,title:e.target.value })} placeholder="Ví dụ: Cổng dịch vụ công"/></label><label>Đường dẫn<Input maxLength={2048} prefix={<LinkOutlined />} value={shortcutDraft.url} onChange={e => setShortcutDraft({ ...shortcutDraft,url:e.target.value })} placeholder="https://… hoặc /admin/…"/></label><label>Biểu tượng<div className="ws-icon-picker">{ICONS.map(icon => <button key={icon} className={shortcutDraft.icon === icon ? 'selected' : ''} aria-label={icon} onClick={() => setShortcutDraft({ ...shortcutDraft,icon })}>{APP_ICONS[icon as keyof typeof APP_ICONS]}</button>)}</div></label><label>Màu biểu tượng<input type="color" value={shortcutDraft.color} onChange={e => setShortcutDraft({ ...shortcutDraft,color:e.target.value })}/></label><label>Phím tắt bàn phím<Select allowClear placeholder="Chưa gán" value={shortcutDraft.hotkey || undefined} options={Array.from({length:9},(_,i) => ({ value:String(i+1),label:`Alt + ${i+1}` }))} onChange={hotkey => setShortcutDraft({ ...shortcutDraft, hotkey })}/></label><p className="ws-setting-note">Website bên ngoài mở trong thẻ mới. Các trang IOC vẫn kiểm tra phân quyền khi truy cập.</p></div>}
     </Modal>
     <Modal title={spaceDraft?.id ? 'Đổi tên không gian' : 'Tạo không gian mới'} open={!!spaceDraft} onCancel={() => setSpaceDraft(null)} onOk={commitSpace} okText="Lưu" cancelText="Hủy" destroyOnHidden><Input autoFocus maxLength={80} placeholder="Ví dụ: Dự án của tôi" value={spaceDraft?.name ?? ''} onChange={e => setSpaceDraft(s => s ? { ...s,name:e.target.value } : null)} onPressEnter={commitSpace}/></Modal>
     <Modal title="Làm quen với bàn làm việc" open={help} onCancel={() => setHelp(false)} footer={<Button onClick={() => setHelp(false)}>Đã hiểu</Button>}><div className="ws-help"><p>Mỗi tài khoản có bàn làm việc riêng, tự lưu trên máy chủ. Tạo đến 8 không gian và chọn tiện ích từ thư viện.</p>{[['Ctrl K','Tìm kiếm màn hình và chỉ tiêu'],['Ctrl J','Mở trợ lý Jarvis'],['Ctrl Shift E','Bật / tắt sắp xếp'],['Ctrl Shift F','Bật / tắt chế độ tập trung'],['Alt 1 … 9','Mở lối tắt được gán'],['Esc','Thoát chế độ tập trung']].map(([key,desc]) => <div key={key}><kbd>{key}</kbd><span>{desc}</span></div>)}<p>API: nhập URL HTTPS trả về JSON công khai, chọn đường dẫn dữ liệu và dạng hiển thị. Không nhập mật khẩu hoặc khóa bí mật vào URL. Website có thể chặn nhúng; khi đó dùng nút mở trang.</p><p>Menu ⋯ có xuất/nhập bản sao và hoàn tác thao tác bố cục gần nhất.</p></div></Modal>

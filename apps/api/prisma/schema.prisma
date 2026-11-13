@@ -293,6 +293,9 @@ model User {
   explanationRequests     ExplanationRequest[]     @relation("ExplanationRequester")
   bugReports              BugReport[]
   workspace               UserWorkspace?
+  authoredDeskNotes       DeskNote[] @relation("DeskNoteAuthor")
+  deskNoteRecipients     DeskNoteRecipient[]
+  deskNoteReplies        DeskNoteReply[]
 }
 
 // Bàn làm việc riêng; không chia sẻ cấu hình, ghi chú hay lối tắt giữa tài khoản.
@@ -303,6 +306,69 @@ model UserWorkspace {
   version   Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DeskNote {
+  id String @id @default(cuid())
+  authorId String
+  author User @relation("DeskNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  content String @db.VarChar(500)
+  color String @default("yellow")
+  dueAt DateTime?
+  targetId String?
+  target Target? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  documentId String?
+  document SourceDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  recalledAt DateTime?
+  createdAt DateTime @default(now())
+  recipients DeskNoteRecipient[]
+  replies DeskNoteReply[]
+  @@index([authorId, createdAt])
+  @@index([targetId])
+}
+
+model DeskNoteRecipient {
+  noteId String
+  note DeskNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seenAt DateTime?
+  doneAt DateTime?
+  hiddenAt DateTime?
+  x Float @default(0)
+  y Float @default(0)
+  @@id([noteId, userId])
+  @@index([userId, hiddenAt])
+}
+
+model DeskNoteReply {
+  id String @id @default(cuid())
+  noteId String
+  note DeskNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  authorId String
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content String @db.VarChar(300)
+  createdAt DateTime @default(now())
+  @@index([noteId, createdAt])
+}
+
+model WorkApp {
+  id String @id @default(cuid())
+  name String @db.VarChar(80)
+  url String @db.VarChar(2048)
+  icon String @default("AppstoreOutlined") @db.VarChar(40)
+  color String @default("#1677ff")
+  group String @default("Công vụ") @db.VarChar(80)
+  description String @default("") @db.VarChar(200)
+  roles Role[] @default([])
+  departmentIds String[] @default([])
+  sortOrder Int @default(0)
+  isActive Boolean @default(true)
+  badgeUrl String? @db.VarChar(2048)
+  badgePath String? @db.VarChar(200)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([isActive, sortOrder])
 }
 
 model PasswordResetChallenge {
@@ -417,6 +483,7 @@ model Target {
   workEvents               WorkEvent[]
   explanationRequests      ExplanationRequest[]
   sourceAnchor             SourceAnchor?
+  deskNotes                DeskNote[]
 
   @@index([year, status])
   @@index([departmentId])
@@ -673,6 +740,7 @@ model SourceDocument {
   evidences       Evidence[]
   frameworks      Framework[]
   anchors         SourceAnchor[]
+  deskNotes       DeskNote[]
 
   @@index([status, createdAt])
   @@index([departmentId, createdAt])

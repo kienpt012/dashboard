@@ -36,6 +36,9 @@ import { IocController } from './ioc';
 import { BugReportsController } from './bug-reports';
 import { AccountabilityWorker } from './accountability-worker';
 import { WorkspaceController } from './workspace';
+import { DeskNotesController } from './workspace-desk-notes';
+import { DeskBriefingController } from './workspace-desk-briefing';
+import { WorkAppsController } from './workspace-desk-apps';
 import {
   PublicDashboardAdminController,
   PublicDashboardPublicController,
@@ -85,6 +88,7 @@ import {
     IocController,
     BugReportsController,
     WorkspaceController,
+    DeskNotesController, DeskBriefingController, WorkAppsController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,
