@@ -10,10 +10,10 @@ import { LoadError, PageSkeleton } from '@/components/States';
 import { useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, useDepartments } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
-import { dateTime, fileSize, fromNow, msUntil, num, until } from '@/lib/format';
+import { date, dateTime, fileSize, fromNow, msUntil, num, until } from '@/lib/format';
 import { can, isGlobal, LEADERSHIP } from '@/lib/roles';
 import type { Feedback, FeedbackListResponse, FeedbackStats, User } from '@/types/core';
-import { FEEDBACK_CATEGORY, FEEDBACK_EVENT, FEEDBACK_PRIORITY, FEEDBACK_STATUS, options } from './labels';
+import { FEEDBACK_CATEGORY, FEEDBACK_CATEGORY_COLOR, FEEDBACK_EVENT, FEEDBACK_PRIORITY, FEEDBACK_STATUS, options } from './labels';
 
 type Action = 'triage' | 'assign' | 'start' | 'request' | 'contact' | 'message' | 'submit' | 'approve' | 'return' | 'close' | 'closeNoResponse' | 'reject' | 'reopen' | 'rejectReopen' | 'publish' | 'unpublish';
 
@@ -322,7 +322,7 @@ function FeedbackDrawer({ id, onClose }: { id: string | null; onClose: () => voi
             </Typography.Title>
             <Space size={[6, 6]} wrap>
               <Tag color={FEEDBACK_PRIORITY[item.priority].color}>{FEEDBACK_PRIORITY[item.priority].label}</Tag>
-              <Tag>{FEEDBACK_CATEGORY[item.category]}</Tag>
+              <Tag color={FEEDBACK_CATEGORY_COLOR[item.category]}>{FEEDBACK_CATEGORY[item.category]}</Tag>
               {overdue(item) && <Tag color="red">{item.status === 'WAITING_CITIZEN' ? 'Quá hạn bổ sung' : 'Quá hạn xử lý'}</Tag>}
               {item.isPublic && <Tag color="cyan">Đang công khai</Tag>}
               {item.rating ? <Tag color="gold">Đánh giá {item.rating}/5</Tag> : null}
@@ -562,7 +562,7 @@ export default function FeedbackAdmin() {
             rowKey="id"
             loading={list.isLoading || list.isPlaceholderData}
             dataSource={list.data?.items ?? []}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1120 }}
             pagination={{ current: page, pageSize: 20, total: list.data?.total ?? 0, onChange: setPage, showSizeChanger: false, showTotal: total => `${num(total)} hồ sơ` }}
             onRow={item => ({ onClick: () => setParams({ id: item.id }, { replace: true }), className: 'link-row' })}
             locale={{ emptyText: 'Không có phản ánh' }}
@@ -573,13 +573,14 @@ export default function FeedbackAdmin() {
               setPage(1);
             }}
             columns={[
-              { title: 'Phản ánh', key: 'title', sorter: true, sortOrder: sortOrder('title'), render: (_, item) => <TitleCell title={item.title} sub={`${item.code} · ${FEEDBACK_CATEGORY[item.category]}`} /> },
+              { title: 'Phản ánh', key: 'title', sorter: true, sortOrder: sortOrder('title'), render: (_, item) => <TitleCell title={item.title} sub={item.code} /> },
+              { title: 'Lĩnh vực', key: 'category', dataIndex: 'category', width: 170, render: (value: Feedback['category']) => <Tag color={FEEDBACK_CATEGORY_COLOR[value]}>{FEEDBACK_CATEGORY[value]}</Tag> },
               { title: 'Ưu tiên', key: 'priority', dataIndex: 'priority', width: 110, sorter: true, sortOrder: sortOrder('priority'), sortDirections: ['descend', 'ascend'], render: (value: Feedback['priority']) => <Tag color={FEEDBACK_PRIORITY[value].color}>{FEEDBACK_PRIORITY[value].label}</Tag> },
               { title: 'Trạng thái', key: 'status', dataIndex: 'status', width: 190, sorter: true, sortOrder: sortOrder('status'), render: (value: Feedback['status'], item) => <Flex vertical align="start" gap={4}><Tag color={FEEDBACK_STATUS[value].color}>{FEEDBACK_STATUS[value].label}</Tag>{item.reopenRequestedAt && <Tag color="orange">Đề nghị xem xét lại</Tag>}</Flex> },
               {
                 title: 'Đơn vị xử lý',
                 key: 'dept',
-                width: 220,
+                width: 190,
                 render: (_, item) => (
                   <div className="cell-title">
                     <span style={{ color: 'var(--ioc-color-text)', fontSize: 13 }}>{item.department?.name ?? 'Chưa phân công'}</span>
@@ -590,7 +591,7 @@ export default function FeedbackAdmin() {
               {
                 title: 'Hạn',
                 key: 'due',
-                width: 150,
+                width: 120,
                 render: (_, item) => {
                   const at = deadline(item);
                   if (!at || DONE.includes(item.status)) return <span className="muted">—</span>;
@@ -601,7 +602,7 @@ export default function FeedbackAdmin() {
                   );
                 },
               },
-              { title: 'Tiếp nhận', key: 'createdAt', dataIndex: 'createdAt', width: 130, sorter: true, sortOrder: sortOrder('createdAt'), sortDirections: ['descend', 'ascend'], render: value => <Tooltip title={dateTime(value)}>{fromNow(value)}</Tooltip> },
+              { title: 'Tiếp nhận', key: 'createdAt', dataIndex: 'createdAt', width: 120, sorter: true, sortOrder: sortOrder('createdAt'), sortDirections: ['descend', 'ascend'], render: value => <Tooltip title={`${dateTime(value)} · ${fromNow(value)}`}>{date(value)}</Tooltip> },
             ]}
           />
         )}

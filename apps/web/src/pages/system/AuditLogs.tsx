@@ -162,7 +162,7 @@ const ENTITY: Record<string, string> = {
   TargetEvaluation: 'Đánh giá',
   TargetEvidence: 'Minh chứng',
   ExplanationRequest: 'Giải trình',
-  BugReport: 'Báo lỗi',
+  BugReport: 'Góp ý, báo lỗi',
   LocalityProfile: 'Địa phương',
   AgentAction: 'Thao tác của Jarvis',
   Copilot: 'Jarvis',
