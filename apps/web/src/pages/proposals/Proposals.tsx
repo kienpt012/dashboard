@@ -20,7 +20,7 @@ import { can, isGlobal, WORKING } from '@/lib/roles';
 import type { FrameworkKind, Frequency, IssuingLevel, Proposal as BaseProposal } from '@/types/domain';
 import { DIRECTION_OPTIONS, FREQUENCY_OPTIONS, KIND_OPTIONS } from '../targets/TargetForm';
 
-export type Proposal = BaseProposal & { targetKind?: FrameworkKind; issuingLevel?: IssuingLevel | null; standardCode?: string | null; proposedById?: string | null };
+export type Proposal = BaseProposal & { targetKind?: FrameworkKind; issuingLevel?: IssuingLevel | null; standardCode?: string | null; proposedById?: string | null; permissions?: { canDispatch: boolean } };
 
 const STATUS: Record<Proposal['status'], { label: string; color: string }> = {
   PROPOSED: { label: 'Chưa trình', color: 'default' },
@@ -83,11 +83,15 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
   const [form] = Form.useForm<FormValues>();
   const departments = useDepartments();
   const frameworks = useFrameworks();
+  const selectedKind = Form.useWatch('targetKind', form);
+  const selectedFramework = Form.useWatch('frameworkId', form);
+  const isTask = selectedKind === 'TASK' || frameworks.data?.some(item => item.id === selectedFramework && item.kind === 'TASK');
+  useEffect(() => { if (isTask) form.setFieldsValue({ targetKind: 'TASK', targetValue: 100, unit: '%', frequency: 'YEARLY', direction: 'HIGHER_IS_BETTER' }); }, [isTask, form]);
   const [submitMode, setSubmitMode] = useState(false);
   const submitIntent = useRef(false);
   const version = useRef(item?.version);
   const initialized = useRef<string | null>(null);
-  const departmentLocked = Boolean(item && !isGlobal(user) && item.proposedById !== user.id);
+  const departmentLocked = Boolean(item && !isGlobal(user) && !item.permissions?.canDispatch && item.proposedById !== user.id);
   const requiredForSubmit = { validator: (_: unknown, value: unknown) => submitIntent.current && (value === null || value === undefined || (typeof value === 'string' && !value.trim())) ? Promise.reject(new Error('Cần bổ sung trước khi trình')) : Promise.resolve() };
 
   useEffect(() => {
@@ -228,22 +232,22 @@ export function ProposalForm({ open, item, onClose }: { open: boolean; item?: Pr
         <Form.Item name="frameworkId" label="Bộ chỉ tiêu">
           <Select allowClear options={frameworkOptions(frameworks.data)} showSearch={{ optionFilterProp: 'label' }} />
         </Form.Item>
-        <Form.Item name="targetValue" label="Giá trị mục tiêu" rules={[requiredForSubmit, { type: 'number', min: 0 }]}>
+        <Form.Item name="targetValue" label="Giá trị mục tiêu" hidden={isTask} rules={[requiredForSubmit, { type: 'number', min: 0 }]}>
           <InputNumber min={0} style={{ width: '100%' }} decimalSeparator="," />
         </Form.Item>
-        <Form.Item name="unit" label="Đơn vị tính" rules={[requiredForSubmit, { max: 50 }]}>
+        <Form.Item name="unit" label="Đơn vị tính" hidden={isTask} rules={[requiredForSubmit, { max: 50 }]}>
           <Input maxLength={50} />
         </Form.Item>
         <Form.Item name="targetText" label="Mục tiêu ghi bằng chữ">
           <Input maxLength={300} />
         </Form.Item>
-        <Form.Item name="direction" label="Chiều đánh giá">
+        <Form.Item name="direction" label="Chiều đánh giá" hidden={isTask}>
           <Select options={DIRECTION_OPTIONS} />
         </Form.Item>
         <Form.Item name="targetYear" label="Năm" rules={[requiredForSubmit, { type: 'integer', min: 2000, max: 2100 }]}>
           <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
         </Form.Item>
-        <Form.Item name="frequency" label="Kỳ báo cáo" rules={[requiredForSubmit]}>
+        <Form.Item name="frequency" label="Kỳ báo cáo" hidden={isTask} rules={[requiredForSubmit]}>
           <Select allowClear options={FREQUENCY_OPTIONS} />
         </Form.Item>
         <Form.Item name="deadline" label="Hạn hoàn thành" rules={[requiredForSubmit]}>
@@ -425,7 +429,8 @@ function ProposalDrawer({ item, onClose, onEdit, onApprove, onReject }: { item: 
 
 export default function Proposals() {
   const user = useMe();
-  const global = isGlobal(user);
+  const clientSettings = useApi<{ permissions: { canDispatch: boolean } }>('/settings/client');
+  const global = isGlobal(user) || Boolean(clientSettings.data?.permissions.canDispatch);
   const [params, setParams] = useSearchParams();
   const status = params.get('status') ?? 'OPEN';
   const origin = params.get('origin') ?? '';
@@ -587,6 +592,7 @@ export default function Proposals() {
                 render: (_, item) => (
                   <Flex vertical gap={2} align="flex-start">
                     <Tag color={STATUS[item.status].color}>{item.autoApproved ? 'Tự thông qua' : STATUS[item.status].label}</Tag>
+                    {item.reviewedAt && <span className="entry-meta">{item.status === 'REJECTED' ? 'Từ chối' : 'Duyệt'}: {item.autoApproved ? 'Hệ thống' : item.reviewedBy?.fullName ?? '—'} · {dateTime(item.reviewedAt)}</span>}
                     {item.status === 'SUBMITTED' && item.autoApproveAt && (
                       <span className={`entry-meta${msUntil(item.autoApproveAt) <= DAY ? ' tone-bad' : ''}`}>Tự thông qua {until(item.autoApproveAt)}</span>
                     )}

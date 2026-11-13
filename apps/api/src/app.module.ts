@@ -41,6 +41,7 @@ import { WorkspaceController } from './workspace';
 import { DeskNotesController } from './workspace-desk-notes';
 import { DeskBriefingController } from './workspace-desk-briefing';
 import { WorkAppsController } from './workspace-desk-apps';
+import { DirectivesController } from './directives';
 import {
   PublicDashboardAdminController,
   PublicDashboardPublicController,
@@ -93,6 +94,7 @@ import {
     ScheduleController,
     PublicScheduleController,
     DeskNotesController, DeskBriefingController, WorkAppsController,
+    DirectivesController,
   ],
   providers: [
     PasswordResetDeliveryRegistry,

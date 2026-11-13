@@ -16,6 +16,8 @@ export type DossierData = Omit<Dossier, 'reports' | 'directives'> & {
   assignedAt?: string | null;
   archivedAt?: string | null;
   archiveReason?: string | null;
+  dispatchedByName?: string | null;
+  dispatchedAt?: string | null;
 };
 
 type Ctx = { d: DossierData; me: CurrentUser; refresh: () => Promise<void> };
@@ -37,7 +39,7 @@ export function useDossierRun() {
     try {
       const result = await task();
       if (success) message.success(success);
-      await Promise.all([refresh(), invalidate(client, ['/targets', '/ioc', '/my-work', '/notifications'])]);
+      await Promise.all([refresh(), invalidate(client, ['/targets', '/ioc', '/my-work', '/notifications', '/directives'])]);
       return result;
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {

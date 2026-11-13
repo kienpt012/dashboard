@@ -206,6 +206,11 @@ enum DirectiveKind {
   KHAC
 }
 
+enum DispatchMode {
+  LEADER
+  OFFICE
+}
+
 enum EvaluationResult {
   EXCEEDED
   ACHIEVED
@@ -410,6 +415,12 @@ model Target {
   parentId                 String?
   parent                   Target?              @relation("TargetTree", fields: [parentId], references: [id], onDelete: SetNull)
   children                 Target[]             @relation("TargetTree")
+  relatedTargetId          String?
+  relatedTarget            Target?              @relation("RelatedTask", fields: [relatedTargetId], references: [id], onDelete: SetNull)
+  relatedTasks             Target[]             @relation("RelatedTask")
+  dispatchedById           String?
+  dispatchedByName         String?
+  dispatchedAt             DateTime?
   // Mục tiêu nguyên văn trong văn bản giao ("≥95", "Phấn đấu 100%") bên cạnh giá trị số.
   targetText               String?
   maxScore                 Float?
@@ -493,6 +504,7 @@ model Target {
   @@index([frameworkId, sortOrder])
   @@index([parentId])
   @@index([assigneeId])
+  @@index([relatedTargetId])
 }
 
 model ProgressUpdate {
@@ -546,6 +558,7 @@ model ImportBatch {
 
 model SystemSetting {
   id                          String   @id @default("default")
+  dispatchMode                DispatchMode @default(LEADER)
   defaultYear                 Int      @default(2026)
   warningDays                 Int      @default(14)
   riskThreshold               Float    @default(70)
@@ -1037,6 +1050,11 @@ model Framework {
   maxScore         Float?
   templateKey      String?
   sourceDocumentId String?
+  directiveKind    DirectiveKind?
+  docNumber        String?
+  issuedDate       DateTime?
+  issuer           String?
+  signer           String?
   sourceDocument   SourceDocument?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   sortOrder        Int                  @default(0)
   showOnWallboard  Boolean              @default(true)
@@ -1048,6 +1066,7 @@ model Framework {
   candidates       IndicatorCandidate[]
 
   @@index([isActive, sortOrder])
+  @@index([kind, issuedDate])
 }
 
 model TargetCoordinator {

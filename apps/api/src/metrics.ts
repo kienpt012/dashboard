@@ -67,6 +67,9 @@ export function evaluateTarget(input: TargetMetricInput): TargetMetric {
   if (pastDue) {
     return { progress, status: TargetStatus.OVERDUE, completed: false };
   }
+  if (input.kind === FrameworkKind.TASK) {
+    return { progress, status: TargetStatus.ON_TRACK, completed: false };
+  }
   const threshold = Math.max(0, Math.min(100, input.riskThreshold ?? 70));
   return {
     progress,

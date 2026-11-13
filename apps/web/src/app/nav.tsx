@@ -53,6 +53,8 @@ export const navGroups: NavGroup[] = [
       { path: '/admin/viec-cua-toi', label: 'Việc của tôi', icon: <InboxOutlined />, roles: ALL, screen: 'DH-02', keywords: 'viec cua toi can lam' },
       { path: '/trinh-chieu', label: 'Trình chiếu', icon: <FundProjectionScreenOutlined />, roles: ALL, screen: 'DH-03', keywords: 'trinh chieu man hinh lon phong hop', standalone: true },
       { path: '/admin/trach-nhiem', label: 'Trách nhiệm', icon: <AuditOutlined />, roles: SUPERVISORS, screen: 'DH-04', keywords: 'trach nhiem cham duyet nguoi dung dau' },
+      { path: '/admin/van-ban-chi-dao', label: 'Văn bản chỉ đạo', icon: <FileTextOutlined />, roles: ALL, screen: 'DH-05', keywords: 'van ban chi dao nhiem vu phan viec thong ke' },
+      { path: '/admin/viec-theo-thang', label: 'Việc theo tháng', icon: <InboxOutlined />, roles: ALL, screen: 'DH-07', keywords: 'viec theo thang ke hoach cong tac in danh sach' },
       { path: '/admin/lich-lam-viec', label: 'Lịch làm việc', icon: <CalendarOutlined />, roles: ALL, screen: 'DH-08', keywords: 'lich lam viec lich cong tac lanh dao tuan' },
     ],
   },
@@ -99,6 +101,7 @@ export const navGroups: NavGroup[] = [
 export const navItems = navGroups.flatMap(group => group.items);
 
 const EXTRA: { prefix: string; label: string; screen: string; group: string }[] = [
+  { prefix: '/admin/van-ban-chi-dao/', label: 'Chi tiết văn bản chỉ đạo', screen: 'DH-06', group: 'Điều hành' },
   { prefix: '/admin/targets/', label: 'Hồ sơ chỉ tiêu', screen: 'CT-06', group: 'Chỉ tiêu' },
   { prefix: '/admin/documents/', label: 'Xác minh trích xuất', screen: 'DL-04', group: 'Dữ liệu' },
   { prefix: '/admin/kho-du-lieu/', label: 'Bảng dữ liệu', screen: 'DL-05', group: 'Dữ liệu' },

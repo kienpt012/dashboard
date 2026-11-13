@@ -17,6 +17,8 @@ import { dueReportPeriods, periodLabel } from './periods';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
 import { refreshImportBatchStatus } from './targets';
+import { remindTaskDeadlines } from './task-reminders';
+import { dispatcherIds } from './dispatch';
 import { departmentManagerIds, leaderIds, notifyUsers, recordWorkEvent, targetLink, vietnamDayKey } from './work';
 
 // Bộ giám sát thời hạn — hiện thực yêu cầu "không để việc bị treo" của khách hàng:
@@ -90,6 +92,9 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       await this.remindProposalsDueSoon(now, result);
     }
     await this.remindMissingReports(now, result);
+    const taskReminders = await remindTaskDeadlines(this.prisma, setting, now);
+    result.reminders += taskReminders.reminders;
+    result.escalations += taskReminders.escalations;
     const stallDays = setting?.assignmentStallDays ?? 3;
     if (stallDays > 0) await this.remindUnassigned(now, stallDays, result);
     await this.escalateExplanations(now, result);
@@ -118,7 +123,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
         // Số liệu chỉ tiêu đã đổi sau lúc gửi: không được tự ghi đè, báo người duyệt và lãnh đạo xử lý.
         const sent = await this.prisma.$transaction(async tx => {
           const count = await notifyUsers(tx, [...reviewers, ...await leaderIds(tx)], {
-            kind: 'REPORT_AUTO_BLOCKED', title: `Báo cáo ${target.code} quá hạn duyệt nhưng không tự thông qua được`,
+            kind: 'REPORT_AUTO_BLOCKED', title: `${target.title} · Báo cáo quá hạn duyệt, cần kiểm tra`,
             body: 'Chỉ tiêu đã có số liệu mới sau lúc gửi. Hãy xem và trả lại để người gửi báo cáo lại.',
             link: '/admin/approvals', entityType: 'ProgressUpdate', entityId: update.id, dedupeKey: `report-blocked:${update.id}`,
           });
@@ -167,7 +172,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
             metadata: { targetId: target.id, value: update.value, code: target.code },
           });
           await notifyUsers(tx, [update.userId, ...reviewers, ...await leaderIds(tx)], {
-            kind: 'REPORT_AUTO_APPROVED', title: `Báo cáo ${target.code} tự thông qua do quá ${days} ngày không duyệt`,
+            kind: 'REPORT_AUTO_APPROVED', title: `${target.title} · Báo cáo tự thông qua sau ${days} ngày`,
             body: `Người duyệt chịu trách nhiệm: ${who}.`, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
             dedupeKey: `report-auto:${update.id}`,
           });
@@ -207,7 +212,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
             action: 'PROPOSAL_AUTO_BLOCKED', actor: null, candidateId: candidate.id, departmentId: candidate.responsibleDepartmentId,
             note: error instanceof Error ? error.message : 'Thiếu thông tin bắt buộc',
           });
-          await notifyUsers(tx, [...await leaderIds(tx), ...await departmentManagerIds(tx, candidate.responsibleDepartmentId)], {
+          await notifyUsers(tx, [...await dispatcherIds(tx), ...await departmentManagerIds(tx, candidate.responsibleDepartmentId)], {
             kind: 'PROPOSAL_AUTO_BLOCKED', title: `Đề xuất "${candidate.name}" quá hạn nhưng thiếu thông tin để tự thành chỉ tiêu`,
             body: error instanceof Error ? error.message : null, link: `/admin/proposals?id=${candidate.id}`,
             entityType: 'IndicatorCandidate', entityId: candidate.id, dedupeKey: `proposal-blocked:${candidate.id}`,
@@ -225,7 +230,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       take: BATCH,
     });
     for (const candidate of soon) {
-      result.reminders += await notifyUsers(this.prisma, [...await leaderIds(this.prisma), ...await departmentManagerIds(this.prisma, candidate.responsibleDepartmentId)], {
+      result.reminders += await notifyUsers(this.prisma, [...await dispatcherIds(this.prisma), ...await departmentManagerIds(this.prisma, candidate.responsibleDepartmentId)], {
         kind: 'PROPOSAL_DUE_SOON', title: `Còn dưới 24 giờ: đề xuất "${candidate.name}" sẽ tự thành chỉ tiêu`,
         body: 'Hãy duyệt hoặc từ chối (kèm lý do) nếu đề xuất chưa phù hợp.', link: `/admin/proposals?id=${candidate.id}`,
         entityType: 'IndicatorCandidate', entityId: candidate.id, dedupeKey: `proposal-due:${candidate.id}`,
@@ -236,7 +241,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
   private async remindMissingReports(now: Date, result: AccountabilityRunResult) {
     const year = currentVietnamYear(now);
     const targets = await this.prisma.target.findMany({
-      where: { year, isArchived: false, valueSource: ValueSource.MANUAL, children: { none: {} } },
+      where: { year, isArchived: false, kind: { not: FrameworkKind.TASK }, valueSource: ValueSource.MANUAL, children: { none: {} } },
       select: {
         id: true, code: true, title: true, frequency: true, year: true, reportDueDay: true, assigneeId: true, departmentId: true, kind: true, createdAt: true,
         updates: { where: { reviewStatus: { not: ProgressReviewStatus.REJECTED }, periodKey: { not: null } }, select: { periodKey: true } },
@@ -294,7 +299,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
     });
     for (const target of targets) {
       result.reminders += await notifyUsers(this.prisma, await departmentManagerIds(this.prisma, target.departmentId), {
-        kind: 'UNASSIGNED', title: `Chỉ tiêu ${target.code} chưa giao chuyên viên phụ trách`,
+        kind: 'UNASSIGNED', title: `${target.title} · Chưa giao người phụ trách`,
         body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `unassigned:${target.id}:${vietnamDayKey(now).slice(0, 7)}`,
       });
@@ -302,7 +307,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
         const sent = await this.prisma.$transaction(async tx => {
           const managers = await departmentManagerIds(tx, target.departmentId);
           const count = await notifyUsers(tx, await leaderIds(tx), {
-            kind: 'ESCALATED', title: `Chỉ tiêu ${target.code} bị treo: chưa giao người phụ trách`,
+            kind: 'ESCALATED', title: `${target.title} · Quá hạn giao người phụ trách`,
             body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `unassigned-escalate:${target.id}`,
           });
           if (count) {
@@ -328,7 +333,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       const sent = await this.prisma.$transaction(async tx => {
         const managers = await departmentManagerIds(tx, request.target.departmentId);
         const count = await notifyUsers(tx, [request.requestedById, ...managers, request.target.assigneeId], {
-          kind: 'EXPLANATION_OVERDUE', title: `Quá hạn giải trình chỉ tiêu ${request.target.code}`,
+          kind: 'EXPLANATION_OVERDUE', title: `${request.target.title} · Quá hạn giải trình`,
           body: request.message, link: targetLink(request.target.id), entityType: 'Target', entityId: request.target.id,
           dedupeKey: `explain-overdue:${request.id}`,
         });

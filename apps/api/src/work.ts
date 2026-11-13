@@ -112,7 +112,7 @@ export async function departmentManagerIds(tx: WorkClient, departmentId: string 
 }
 
 /** Lãnh đạo UBND đang hoạt động; địa phương chưa tạo tài khoản lãnh đạo thì gửi cho quản trị hệ thống. */
-export async function leaderIds(tx: WorkClient): Promise<string[]> {
+export async function leaderIds(tx: Pick<WorkClient, 'user'>): Promise<string[]> {
   const leaders = await tx.user.findMany({ where: { role: Role.LEADER, isActive: true }, select: { id: true } });
   if (leaders.length) return leaders.map(user => user.id);
   const admins = await tx.user.findMany({ where: { role: Role.ADMIN, isActive: true }, select: { id: true } });

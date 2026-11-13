@@ -115,7 +115,7 @@ function loadOrder(tables: string[], keys: ForeignKey[]) {
 }
 
 /** Bảng tự tham chiếu (chỉ tiêu cha–con): xếp dòng cha trước dòng con để nạp theo lô không vỡ khoá ngoại. */
-function parentsFirst(rows: Record<string, unknown>[], column: string) {
+function parentsFirst(rows: Record<string, unknown>[], columns: string[]) {
   const ids = new Set(rows.map(row => row.id));
   const placed = new Set<unknown>();
   const result: Record<string, unknown>[] = [];
@@ -123,8 +123,7 @@ function parentsFirst(rows: Record<string, unknown>[], column: string) {
   while (pending.length) {
     const next: Record<string, unknown>[] = [];
     for (const row of pending) {
-      const parent = row[column];
-      if (parent == null || !ids.has(parent) || placed.has(parent)) {
+      if (columns.every(column => row[column] == null || !ids.has(row[column]) || placed.has(row[column]))) {
         result.push(row);
         placed.add(row.id);
       } else next.push(row);
@@ -191,8 +190,8 @@ export async function loadSnapshot(prisma: PrismaClient, options: { adminPasswor
       for (const table of order) {
         let rows = snapshot.tables[table] ?? [];
         if (!rows.length) continue;
-        const self = keys.find(key => key.child === table && key.parent === table);
-        if (self) rows = parentsFirst(rows, self.column);
+        const self = keys.filter(key => key.child === table && key.parent === table);
+        if (self.length) rows = parentsFirst(rows, self.map(key => key.column));
         // Chỉ nạp những cột bảng hiện có; cột mới thêm sau khi chụp nhận giá trị mặc định.
         const columns = await tx.$queryRawUnsafe<{ name: string }[]>(
           `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
