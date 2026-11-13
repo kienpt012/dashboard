@@ -1,4 +1,4 @@
-import { mirrorApprovedReport, rollupLinkedParents } from './target-links';
+import { mirrorApprovedReport } from './target-links';
 import { resolveReportRevisions } from './report-revisions';
 import { periodKeyFor } from './periods';
 import { recordWorkEvent } from './work';

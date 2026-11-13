@@ -1,4 +1,4 @@
-import { mirrorApprovedReport, rollupLinkedParents } from './target-links';
+import { assertLinkedTargetDefinition, mirrorApprovedReport, rollupLinkedParents } from './target-links';
 import { resolveReportRevisions } from './report-revisions';
 import {
   BadRequestException,
@@ -549,6 +549,7 @@ export class TargetsController {
     const actor = getActor(req);
     const target = await this.targetInScope(actor, id);
     if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
+    assertLinkedTargetDefinition(target, dto);
     if (target.isArchived) {
       throw new ConflictException('Chỉ tiêu đã được lưu trữ. Hãy khôi phục chỉ tiêu trước khi chỉnh sửa.');
     }

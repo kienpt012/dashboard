@@ -48,7 +48,7 @@ export function extractFeatures(input: ForecastInput, at: Date) {
   const recent = observations.slice(-5).map(row => ({ x: (row.at.getTime() - start.getTime()) / duration, y: attainment(row.value, input.targetValue, input.direction) }));
   const slope = clamp(linearFit(recent).slope, -5, 5);
   const due = dueReportPeriods(input.frequency, input.year, input.reportDueDay, at, input.createdAt).filter(row => row.overdue && row.deadline <= input.dueDate);
-  const submitted = input.observations.filter(row => row.at <= at && row.status !== 'REJECTED');
+  const submitted = input.observations.filter(row => row.at <= at && (row.status !== 'REJECTED' || Boolean(row.approvedAt && row.approvedAt > at)));
   const reported = new Set(submitted.map(row => row.periodKey));
   const missing = due.filter(row => !reported.has(row.key)).length;
   const late = due.filter(period => {
