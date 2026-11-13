@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { YearSelect } from '@/components/Data';
 import { FilterBar, Page } from '@/components/Page';
 import { Query } from '@/components/States';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
 import { useApi } from '@/hooks/useApi';
 import { query } from '@/lib/api';
 import { currentYear, date, num } from '@/lib/format';
@@ -16,14 +17,15 @@ import type { DirectiveFilters, DirectiveList, DirectiveOptions } from './types'
 import './directives.css';
 
 export default function Directives() {
+  const readScope = useReadScope();
   const screens = Grid.useBreakpoint();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
   const year = Number(params.get('year')) || currentYear();
   const tab = ['list', 'month', 'statistics'].includes(params.get('tab') ?? '') ? params.get('tab')! : 'list';
-  const filters: DirectiveFilters = { year, kind: params.get('kind') || undefined, departmentId: params.get('departmentId') || undefined, status: params.get('status') || undefined, q: params.get('q') || undefined, includeArchived: params.get('includeArchived') === 'true' || undefined };
-  const options = useApi<DirectiveOptions>('/directives/options');
+  const filters: DirectiveFilters = { year, scope: readScope.scope, kind: params.get('kind') || undefined, departmentId: readScope.scope === 'all' ? params.get('departmentId') || undefined : undefined, status: params.get('status') || undefined, q: params.get('q') || undefined, includeArchived: params.get('includeArchived') === 'true' || undefined };
+  const options = useApi<DirectiveOptions>(`/directives/options?scope=${readScope.scope}`);
   const list = useApi<DirectiveList>(`/directives${query(filters)}`, { keepPrevious: true });
   function update(key: string, value?: string) {
     const next = new URLSearchParams(params);
@@ -32,6 +34,7 @@ export default function Directives() {
   }
   const kinds = options.data?.kinds ?? [];
   return <div className="directive-page"><Page title="Văn bản chỉ đạo" wide extra={<>
+    <ReadScopeSwitch value={readScope} />
     {options.data?.permissions.canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>Thêm văn bản</Button>}
     <Tooltip title="Tải lại"><Button icon={<ReloadOutlined spin={list.isFetching} />} aria-label="Tải lại" onClick={() => void list.refetch()} /></Tooltip>
   </>}>

@@ -354,7 +354,7 @@ export class TargetsController {
           isArchived: archivedRaw === 'true',
           ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
           ...(mineRaw === 'true' ? { assigneeId: actor.id } : {}),
-          ...(kind ? { kind } : {}),
+          kind: kind ?? { not: FrameworkKind.TASK },
           ...(departmentId ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }] } : {}),
           ...(normalizedSearch
             ? {

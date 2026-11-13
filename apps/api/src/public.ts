@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Controller, Get, Query } from '@nestjs/common';
-import { Prisma, TargetStatus } from '@prisma/client';
+import { FrameworkKind, Prisma, TargetStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { calculateProgress } from './metrics';
@@ -58,6 +58,7 @@ const publicTargetOrderBy: Prisma.TargetOrderByWithRelationInput[] = [
 function publicTargetWhere(year: number): Prisma.TargetWhereInput {
   return {
     isPublic: true,
+    kind: { not: FrameworkKind.TASK },
     isArchived: false,
     publishedValue: { not: null },
     publishedTargetValue: { not: null },

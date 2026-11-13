@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { Page } from '@/components/Page';
 import { PrintDocument } from '@/components/PrintDocument';
 import { NoData, Query } from '@/components/States';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
 import { useApi } from '@/hooks/useApi';
 import { query } from '@/lib/api';
 import { date, num, vn } from '@/lib/format';
@@ -14,11 +15,12 @@ import type { DirectiveOptions, MonthlyWork as MonthlyData } from './types';
 import './directives.css';
 
 export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
+  const readScope = useReadScope();
   const [params, setParams] = useSearchParams();
   const rawMonth = params.get('month');
   const month = rawMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(rawMonth) ? rawMonth : vn().format('YYYY-MM');
-  const departmentId = params.has('monthDepartmentId') ? params.get('monthDepartmentId') || '' : options.defaultDepartmentId || '';
-  const suffix = query({ month, departmentId });
+  const departmentId = readScope.scope === 'mine' ? options.defaultDepartmentId || '' : params.get('monthDepartmentId') || '';
+  const suffix = query({ month, departmentId, scope: readScope.scope });
   const data = useApi<MonthlyData>(`/directives/monthly${suffix}`, { keepPrevious: true });
   const [printedAt, setPrintedAt] = useState(() => new Date());
   function update(key: string, value: string) {
@@ -31,9 +33,10 @@ export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
   return <div className="directive-page">
     <Flex wrap justify="space-between" gap={12} className="directive-month-tools">
       <Flex wrap gap={8}>
+        <ReadScopeSwitch value={readScope} />
         <DatePicker picker="month" allowClear={false} format="MM/YYYY" value={dayjs(`${month}-01`)} aria-label="Tháng công tác" onChange={value => value && update('month', value.format('YYYY-MM'))} />
         <Select value={departmentId} aria-label="Phòng ban" showSearch={{ optionFilterProp: 'label' }} onChange={value => update('monthDepartmentId', value)} options={[
-          ...(options.permissions.canDispatch || !options.defaultDepartmentId ? [{ value: '', label: 'Toàn địa phương' }] : []),
+          ...(readScope.scope === 'all' || options.permissions.canDispatch ? [{ value: '', label: 'Toàn địa phương' }] : []),
           ...options.departments.map(item => ({ value: item.id, label: item.name })),
         ]} />
       </Flex>
@@ -70,7 +73,8 @@ export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
 }
 
 export default function MonthlyWork() {
-  const options = useApi<DirectiveOptions>('/directives/options');
+  const readScope = useReadScope();
+  const options = useApi<DirectiveOptions>(`/directives/options?scope=${readScope.scope}`);
   return <Page title="Việc theo tháng" breadcrumb={[{ label: 'Văn bản chỉ đạo', to: '/admin/van-ban-chi-dao' }, { label: 'Việc theo tháng' }]} wide>
     <Query query={options}>{data => <MonthlyWorkPanel options={data} />}</Query>
   </Page>;

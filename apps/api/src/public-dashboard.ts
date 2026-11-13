@@ -905,6 +905,7 @@ type DashboardTargetRow = Prisma.TargetGetPayload<{ select: typeof dashboardTarg
 
 function dashboardTargetWhere(year?: number): Prisma.TargetWhereInput {
   return {
+    kind: { not: 'TASK' },
     isPublic: true,
     isArchived: false,
     publishedValue: { not: null },

@@ -20,6 +20,8 @@ import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
 import { WORK_ACTIONS } from './work';
 import { isDispatcher } from './dispatch';
+import { isIndicator, isPerformanceIndicator } from './indicator-scope';
+import { summarizeTasks, taskMetric } from './directives-logic';
 
 // Trung tâm điều hành: một lượt truy vấn tổng hợp đủ để lãnh đạo nắm tình hình, thấy ai đang chậm và vì sao.
 // Mọi con số ở đây đều bấm vào được tới chỉ tiêu, hồ sơ và dòng thời gian trách nhiệm.
@@ -35,6 +37,7 @@ interface AlertItem {
   title: string;
   detail: string;
   targetId?: string;
+  targetKind?: FrameworkKind;
   candidateId?: string;
   departmentName?: string | null;
   at?: Date | null;
@@ -151,12 +154,12 @@ export class IocController {
     const workDepartmentId = resolveDepartmentScope(actor);
     const workSnap = workDepartmentId && snap.departmentId !== workDepartmentId ? await this.snapshot(actor, year) : snap;
     const workItems = workSnap.evaluated;
-    const leaves = evaluated.filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT);
+    const leaves = evaluated.filter(item => item.isLeaf && isPerformanceIndicator(item.target.kind));
     const statLeaves = evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.STAT);
-    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, kind: { not: FrameworkKind.TASK } }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     const frameworkSummaries = frameworks
       .map(framework => {
-        const own = evaluated.filter(item => item.target.frameworkId === framework.id);
+        const own = evaluated.filter(item => isIndicator(item.target.kind) && item.target.frameworkId === framework.id);
         if (!own.length) return null;
         return {
           id: framework.id, code: framework.code, name: framework.name, kind: framework.kind, kindLabel: FRAMEWORK_KIND_LABELS[framework.kind],
@@ -179,10 +182,20 @@ export class IocController {
         total: 0, completed: 0, onTrack: 0, atRisk: 0, overdue: 0, notStarted: 0, missingReports: 0, unassigned: 0,
         pendingReports: 0, oldestPendingDays: 0, openExplanations: 0, weighted: 0, weight: 0,
         withDirective: 0, withEvaluation: 0, reported: 0, statTotal: 0, statReported: 0,
+        tasks: { total: 0, completed: 0, overdue: 0, dueSoon: 0 },
       };
     }
     for (const item of evaluated.filter(entry => entry.isLeaf)) {
       const department = departmentMap.get(item.target.departmentId) ?? emptyDepartment(item.target.department);
+      if (item.target.kind === FrameworkKind.TASK) {
+        const metric = taskMetric(item.target, now);
+        department.tasks.total += 1;
+        department.tasks.completed += metric.status === 'COMPLETED' ? 1 : 0;
+        department.tasks.overdue += metric.status === 'OVERDUE' ? 1 : 0;
+        department.tasks.dueSoon += metric.status !== 'COMPLETED' && item.target.dueDate >= now && item.target.dueDate.getTime() <= now.getTime() + 7 * DAY ? 1 : 0;
+        departmentMap.set(item.target.departmentId, department);
+        continue;
+      }
       if (item.target.kind === FrameworkKind.STAT) {
         department.statTotal += 1;
         if (item.target.lastReportedAt) department.statReported += 1;
@@ -220,7 +233,7 @@ export class IocController {
 
     const alerts: AlertItem[] = [];
     for (const item of evaluated.filter(entry => entry.isLeaf)) {
-      const base = { targetId: item.target.id, departmentName: item.target.department.name };
+      const base = { targetKind: item.target.kind, targetId: item.target.id, departmentName: item.target.department.name };
       if (item.metric.status === TargetStatus.OVERDUE) {
         alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: `${item.target.code} quá hạn`, detail: item.target.title, at: item.target.dueDate });
       }
@@ -318,6 +331,7 @@ export class IocController {
         feedbackOpen,
         feedbackOverdue,
       },
+      tasks: summarizeTasks(evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.TASK).map(item => taskMetric(item.target, now)), 0, now, evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.TASK).map(item => item.target.dueDate)),
       frameworks: frameworkSummaries,
       departments,
       alerts: alerts.slice(0, 40),
@@ -336,7 +350,7 @@ export class IocController {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
     const snap = await this.snapshot(actor, year, undefined, scope);
-    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, showOnWallboard: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, showOnWallboard: true, kind: { not: FrameworkKind.TASK } }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     const departments = await this.prisma.department.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
     const brief = (item: (typeof snap.evaluated)[number]) => ({
       ...this.targetBrief(item),
@@ -345,7 +359,7 @@ export class IocController {
     });
     const slides = [
       ...frameworks.map(framework => {
-        const own = snap.evaluated.filter(item => item.target.frameworkId === framework.id);
+        const own = snap.evaluated.filter(item => isIndicator(item.target.kind) && item.target.frameworkId === framework.id);
         return {
           type: 'framework' as const,
           id: framework.id,
@@ -362,7 +376,7 @@ export class IocController {
         };
       }).filter(slide => slide.targets.length),
       ...departments.map(department => {
-        const own = snap.evaluated.filter(item => item.target.departmentId === department.id && item.isLeaf && item.target.kind !== FrameworkKind.STAT);
+        const own = snap.evaluated.filter(item => item.target.departmentId === department.id && item.isLeaf && isPerformanceIndicator(item.target.kind));
         return {
           type: 'department' as const,
           id: department.id,

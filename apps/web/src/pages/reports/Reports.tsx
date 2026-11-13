@@ -115,7 +115,7 @@ export default function Reports() {
   const year = Number(params.get('year')) || currentYear();
   const departmentId = params.get('departmentId') ?? '';
   const frameworks = useFrameworks();
-  const yearFrameworks = useMemo(() => (frameworks.data ?? []).filter(item => (item.year ?? year) === year), [frameworks.data, year]);
+  const yearFrameworks = useMemo(() => (frameworks.data ?? []).filter(item => item.kind !== 'TASK' && (item.year ?? year) === year), [frameworks.data, year]);
   const frameworkId = params.get('frameworkId') ?? '';
   const departments = useDepartments();
   const [exporting, setExporting] = useState(false);
@@ -132,7 +132,7 @@ export default function Reports() {
   const list = useApi<Target[]>(frameworkId ? `/targets${query({ year, frameworkId, scope: readScope.scope, departmentId: global ? departmentId || undefined : undefined })}` : null, { keepPrevious: true });
   // Báo cáo của một phòng chỉ gồm chỉ tiêu phòng chủ trì (máy chủ trả cả chỉ tiêu phòng phối hợp).
   const scopeDepartment = readScope.scope === 'all' ? departmentId : user.departmentId;
-  const rows = useMemo(() => (list.data ?? []).filter(row => !scopeDepartment || row.department.id === scopeDepartment), [list.data, scopeDepartment]);
+  const rows = useMemo(() => (list.data ?? []).filter(row => row.kind !== 'TASK' && (!scopeDepartment || row.department.id === scopeDepartment)), [list.data, scopeDepartment]);
   const framework = yearFrameworks.find(item => item.id === frameworkId);
   const department = (departments.data ?? []).find(item => item.id === (global ? departmentId : user.departmentId));
   const scope = department ? department.name : locality.configured ? localityTitle(locality) : 'Toàn địa phương';

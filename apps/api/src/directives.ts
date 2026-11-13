@@ -5,7 +5,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsEnum, Is
 import { randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import { Actor, audit, getActor, resolveDepartmentScope } from './access';
+import { Actor, audit, getActor, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { isDispatcher } from './dispatch';
 import { DIRECTIVE_KINDS, monthlyPeriods, monthRange, parsePastedTasks, summarizeTasks, TASK_STATUS, taskMetric, taskStatistics } from './directives-logic';
@@ -23,6 +23,7 @@ const DateDay = () => Matches(/^(20\d{2}|2100)-\d{2}-\d{2}$/);
 class DirectiveQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(2000) @Max(2100) year?: number;
   @IsOptional() @IsEnum(DirectiveKind) kind?: DirectiveKind;
+  @IsOptional() @Matches(/^(mine|all)$/) scope?: string;
   @IsOptional() @IsString() @MaxLength(100) departmentId?: string;
   @IsOptional() @Matches(/^(NOT_STARTED|IN_PROGRESS|COMPLETED|OVERDUE|DUE_SOON)$/) status?: string;
   @IsOptional() @IsString() @MaxLength(200) q?: string;
@@ -30,6 +31,7 @@ class DirectiveQuery {
 }
 class MonthlyQuery {
   @Matches(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/) month!: string;
+  @IsOptional() @Matches(/^(mine|all)$/) scope?: string;
   @IsOptional() @IsString() @MaxLength(100) departmentId?: string;
 }
 class CreateDirectiveDto {
@@ -114,10 +116,10 @@ function fitsStatus(task: DirectiveTask, status: string | undefined, now: Date) 
 export class DirectivesController {
   constructor(private readonly prisma: PrismaService, private readonly rateLimit: RateLimitService) {}
 
-  private async context(actor: Actor, requestedDepartmentId?: string) {
+  private async context(actor: Actor, requestedDepartmentId?: string, scope?: string) {
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const canDispatch = isDispatcher(actor, setting);
-    const departmentId = canDispatch ? requestedDepartmentId?.trim() || undefined : resolveDepartmentScope(actor, requestedDepartmentId);
+    const departmentId = canDispatch ? requestedDepartmentId?.trim() || undefined : await resolveReadDepartmentScope(this.prisma, actor, requestedDepartmentId, scope);
     if (departmentId && !await this.prisma.department.count({ where: { id: departmentId, isActive: true } })) throw new BadRequestException('Phòng ban không tồn tại hoặc đã ngừng hoạt động');
     return { departmentId, permissions: { canDispatch, canCreate: canDispatch || actor.role === Role.CLERK } };
   }
@@ -147,9 +149,9 @@ export class DirectivesController {
   }
 
   @Get('options')
-  async options(@Req() req: any) {
+  async options(@Req() req: any, @Query('scope') scope?: string) {
     const actor = getActor(req);
-    const ctx = await this.context(actor);
+    const ctx = await this.context(actor, undefined, scope);
     const [departments, documents, relatedTargets] = await Promise.all([
       this.prisma.department.findMany({ where: { isActive: true }, select: { id: true, name: true, color: true }, orderBy: { sortOrder: 'asc' } }),
       ctx.permissions.canCreate ? this.prisma.sourceDocument.findMany({ select: { id: true, title: true, docNumber: true, issuedDate: true, issuedBy: true }, orderBy: { issuedDate: 'desc' }, take: 500 }) : [],
@@ -159,7 +161,7 @@ export class DirectivesController {
   }
 
   private async dataset(actor: Actor, query: DirectiveQuery) {
-    const ctx = await this.context(actor, query.departmentId);
+    const ctx = await this.context(actor, query.departmentId, query.scope);
     const now = new Date();
     const q = query.q?.trim();
     const frameworks = await this.prisma.framework.findMany({
@@ -199,7 +201,7 @@ export class DirectivesController {
 
   private async monthlyData(actor: Actor, query: MonthlyQuery) {
     const { start, end, year } = monthRange(query.month);
-    const ctx = await this.context(actor, query.departmentId);
+    const ctx = await this.context(actor, query.departmentId, query.scope);
     const now = new Date();
     const targets = await this.prisma.target.findMany({
       where: { isArchived: false, ...scopeWhere(ctx.departmentId), AND: [

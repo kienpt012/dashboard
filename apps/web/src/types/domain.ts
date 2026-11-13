@@ -126,6 +126,7 @@ export type TargetBrief={
 };
 
 export type AlertItem={
+  targetKind?:FrameworkKind;
   severity:'critical'|'warning'|'info';
   kind:string;
   title:string;
@@ -137,6 +138,7 @@ export type AlertItem={
 };
 
 export type OverviewDepartment={
+  tasks:{total:number;completed:number;overdue:number;dueSoon:number};
   id:string;
   name:string;
   color:string;

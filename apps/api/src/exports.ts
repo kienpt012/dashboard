@@ -97,6 +97,7 @@ export class ExportsController {
       where: {
         year,
         isArchived: false,
+        kind: { not: FrameworkKind.TASK },
         ...(departmentId ? { departmentId } : {}),
         ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
       },

@@ -1,5 +1,5 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
-import { ProgressReviewStatus, TargetStatus } from '@prisma/client';
+import { FrameworkKind, ProgressReviewStatus, TargetStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PrismaService } from './prisma.service';
@@ -45,7 +45,7 @@ export class DashboardController {
   @Get()
   async overview(@Query() query: DashboardQueryDto, @Req() req: any) {
     const { departmentId, year, riskThreshold, warningDays } = await this.context(query, req);
-    const where = { year, isArchived: false, ...(departmentId ? { departmentId } : {}) };
+    const where = { year, isArchived: false, kind: { not: FrameworkKind.TASK }, ...(departmentId ? { departmentId } : {}) };
     const rawTargets = await this.prisma.target.findMany({
       where,
       include: { department: true },
@@ -142,7 +142,7 @@ export class DashboardController {
   async report(@Query() query: DashboardQueryDto, @Req() req: any) {
     const { departmentId, year, riskThreshold } = await this.context(query, req);
     const rows = await this.prisma.target.findMany({
-      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
+      where: { year, isArchived: false, kind: { not: FrameworkKind.TASK }, ...(departmentId ? { departmentId } : {}) },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });

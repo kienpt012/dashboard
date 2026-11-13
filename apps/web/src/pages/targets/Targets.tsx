@@ -299,12 +299,12 @@ export default function Targets() {
 
   return (
     <Page
-      title={scoped ? 'Chỉ tiêu của phòng' : 'Danh mục chỉ tiêu'}
+      title={kind === 'TASK' ? 'Danh mục nhiệm vụ' : scoped ? 'Chỉ tiêu của phòng' : 'Danh mục chỉ tiêu'}
       meta={
         list.data && (
           <span>
             {num(rows.length)}
-            {rows.length !== list.data.length ? ` / ${num(list.data.length)}` : ''} chỉ tiêu · Năm {year}
+            {rows.length !== list.data.length ? ` / ${num(list.data.length)}` : ''} {kind === 'TASK' ? 'nhiệm vụ' : 'chỉ tiêu'} · Năm {year}
             {archived ? ' · Đã lưu trữ' : ''}
           </span>
         )

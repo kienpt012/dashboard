@@ -240,6 +240,7 @@ function Departments({ data }: { data: Overview }) {
           },
         },
         { title: 'Chỉ tiêu', dataIndex: 'total', width: 96, align: 'center', sorter: (a, b) => a.total - b.total, render: value => <span className="num">{num(value)}</span> },
+        { title: 'Nhiệm vụ', key: 'tasks', width: 145, render: (_, department) => <Link to={`/admin/van-ban-chi-dao?departmentId=${department.id}&year=${data.year}`}><span>{num(department.tasks.completed)}/{num(department.tasks.total)} xong</span>{department.tasks.overdue > 0 && <div className="tone-bad">{num(department.tasks.overdue)} quá hạn</div>}</Link> },
         {
           title: 'Tình trạng',
           key: 'dist',
@@ -332,7 +333,7 @@ function Alerts({ data }: { data: Overview }) {
               <div className="feed-item" key={`${alert.kind}-${alert.targetId ?? alert.candidateId ?? index}`}>
                 <i className={`sev ${alert.severity}`} />
                 <div className="feed-body">
-                  {to ? <Link to={to}>{alert.title}</Link> : <span>{alert.title}</span>}
+                  {alert.targetKind && <Tag color={alert.targetKind === 'TASK' ? 'purple' : 'blue'}>{alert.targetKind === 'TASK' ? 'Nhiệm vụ' : 'Chỉ tiêu'}</Tag>}{to ? <Link to={to}>{alert.title}</Link> : <span>{alert.title}</span>}
                   <span className="feed-meta">{[DETAIL_KINDS.has(alert.kind) ? alert.detail : null, alert.departmentName, alertWhen(alert)].filter(Boolean).join(' · ')}</span>
                 </div>
               </div>
