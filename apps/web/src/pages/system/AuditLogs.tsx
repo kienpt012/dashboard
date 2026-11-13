@@ -1,3 +1,4 @@
+import { activityColor } from '@/lib/activity';
 import { SearchOutlined } from '@ant-design/icons';
 import { Card, DatePicker, Descriptions, Input, Select, Table, Tag, Typography } from 'antd';
 import type { Dayjs } from 'dayjs';
@@ -417,7 +418,7 @@ export default function AuditLogs() {
                   </div>
                 ),
               },
-              { title: 'Thao tác', key: 'action', dataIndex: 'action', width: 220, render: value => ACTION[value] ?? value },
+              { title: 'Thao tác', key: 'action', dataIndex: 'action', width: 220, render: value => <Tag color={activityColor(value)}>{ACTION[value] ?? value}</Tag> },
               {
                 title: 'Đối tượng',
                 key: 'entity',

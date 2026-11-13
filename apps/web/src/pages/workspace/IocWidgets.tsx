@@ -1,3 +1,4 @@
+import { activityColor } from '@/lib/activity';
 import { DocRef } from '@/components/DocRef';
 import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -61,14 +62,14 @@ export function TargetChartWidget({ widget, onChange }: Props) {
 }
 
 const alertLabel: Record<string, string> = { OVERDUE: 'Quá hạn', MISSING_REPORT: 'Thiếu báo cáo', AT_RISK: 'Có nguy cơ', EXPLANATION_OVERDUE: 'Quá hạn giải trình', STALLED: 'Chờ xử lý trách nhiệm', PROPOSAL_PENDING: 'Đề xuất chờ xử lý', UNASSIGNED: 'Chưa giao người' };
-const actionColor = (action: string) => /REJECT|RETURN/.test(action) ? 'red' : /APPROV|EVALUAT/.test(action) ? 'green' : /REPORT|SUBMIT/.test(action) ? 'blue' : /ASSIGN|TRANSFER/.test(action) ? 'purple' : /EXPLAN|REMIND/.test(action) ? 'orange' : 'cyan';
 export function OverviewWidget({ kind }: { kind: 'alerts' | 'departments' | 'activity' }) {
   const query = useData<Overview>('/ioc/overview');
-  const names = useData<TargetBrief[]>(kind === 'alerts' ? '/targets' : null);
+  const [action, setAction] = useState<string>();
   const data = query.data;
-  return <Frame query={query}>{kind === 'departments' ? (data?.departments.length ? data.departments.map(item => <Link className="ws-ioc-row" key={item.id} to={`/admin/targets?departmentId=${item.id}`}><strong>{item.name}</strong><span>{item.completed}/{item.total} hoàn thành · {item.overdue} quá hạn</span><Progress size="small" percent={Math.max(0, Math.min(100, item.progress))} strokeColor={item.color} /></Link>) : noWork)
-    : kind === 'activity' ? (data?.recent.length ? data.recent.map(item => <div className="ws-ioc-row" key={item.id}><div><Tag color={actionColor(item.action)}>{item.label}</Tag><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div>{item.target ? <Link to={`/admin/targets/${item.target.id}`}><strong>{item.target.title}</strong></Link> : item.candidate ? <Link to="/admin/proposals">{item.candidate.name}</Link> : null}<small>{item.actorName}</small></div>) : noWork)
-    : data?.alerts.length ? data.alerts.map((item, index) => <Link className="ws-ioc-row" key={`${item.targetId ?? item.candidateId ?? item.kind}-${index}`} to={item.targetId ? `/admin/targets/${item.targetId}` : item.candidateId ? '/admin/proposals' : '/admin/targets'}><strong>{item.targetId ? names.data?.find(target => target.id === item.targetId)?.title ?? (item.kind === 'EXPLANATION_OVERDUE' ? 'Chỉ tiêu cần giải trình' : item.detail) : item.title.replace(/^Đề xuất chờ duyệt: /, '')}</strong><span><Tag color={item.severity === 'critical' ? 'red' : 'orange'}>{alertLabel[item.kind] ?? 'Cần xử lý'}</Tag>{item.departmentName}</span></Link>) : noWork}</Frame>;
+  const recent = (data?.recent ?? []).filter(item => !action || item.action === action).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return <Frame query={query}>{kind === 'activity' && <Select allowClear aria-label="Loại hoạt động" placeholder="Loại hoạt động" value={action} onChange={setAction} options={[...new Map((data?.recent ?? []).map(item => [item.action, { value: item.action, label: item.label }])).values()]} />}{kind === 'departments' ? (data?.departments.length ? data.departments.map(item => <Link className="ws-ioc-row" key={item.id} to={`/admin/targets?departmentId=${item.id}`}><strong>{item.name}</strong><span>{item.completed}/{item.total} hoàn thành · {item.overdue} quá hạn</span><Progress size="small" percent={Math.max(0, Math.min(100, item.progress))} strokeColor={item.color} /></Link>) : noWork)
+    : kind === 'activity' ? (recent.length ? recent.map(item => <div className="ws-ioc-row" key={item.id}><div><Tag color={activityColor(item.action)}>{item.label}</Tag><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div>{item.target ? <Link to={`/admin/targets/${item.target.id}`}><strong>{item.target.title}</strong></Link> : item.candidate ? <Link to="/admin/proposals">{item.candidate.name}</Link> : null}<small>{item.actorName}</small></div>) : noWork)
+    : data?.alerts.length ? data.alerts.map((item, index) => <Link className="ws-ioc-row" key={`${item.targetId ?? item.candidateId ?? item.kind}-${index}`} to={item.targetId ? `/admin/targets/${item.targetId}` : item.candidateId ? '/admin/proposals' : '/admin/targets'}><strong>{item.title}</strong><span><Tag color={item.severity === 'critical' ? 'red' : 'orange'}>{alertLabel[item.kind] ?? 'Cần xử lý'}</Tag>{item.targetKind && <Tag color={item.targetKind === 'TASK' ? 'purple' : 'blue'}>{item.targetKind === 'TASK' ? 'Nhiệm vụ' : 'Chỉ tiêu'}</Tag>}{item.departmentName}<DocRef value={item} /></span></Link>) : noWork}</Frame>;
 }
 
 export function ApprovalWidget() {
