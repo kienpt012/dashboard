@@ -1,5 +1,6 @@
 import { Prisma, Role } from '@prisma/client';
 import type { Actor } from './access';
+import { docRefText, DOC_REF_INCLUDE } from './doc-ref';
 
 // Dòng thời gian trách nhiệm và thông báo trong ứng dụng.
 // Mọi thao tác giao, chuyển, trả, duyệt, tự thông qua… đều ghi một WorkEvent trong CÙNG transaction với
@@ -42,7 +43,7 @@ export const WORK_ACTIONS = {
 
 export type WorkAction = keyof typeof WORK_ACTIONS;
 
-type WorkClient = Pick<Prisma.TransactionClient, 'workEvent' | 'notification' | 'user'>;
+type WorkClient = Pick<Prisma.TransactionClient, 'workEvent' | 'notification' | 'user'> & Partial<Pick<Prisma.TransactionClient, 'target'>>;
 
 export interface WorkEventInput {
   action: WorkAction;
@@ -91,6 +92,10 @@ export async function notifyUsers(
 ): Promise<number> {
   const recipients = [...new Set([...userIds].filter((id): id is string => Boolean(id) && id !== exceptUserId && id !== 'system'))];
   if (!recipients.length) return 0;
+  if (input.entityType === 'Target' && input.entityId && tx.target?.findUnique) {
+    const target = await tx.target.findUnique({ where: { id: input.entityId }, include: { department: { select: { name: true } }, ...DOC_REF_INCLUDE } });
+    if (target) input = { ...input, title: target.code ? input.title.replaceAll(target.code, target.title) : input.title, body: [target.department?.name, docRefText(target), input.body === target.title ? null : input.body].filter(Boolean).join(' · ') };
+  }
   const result = await tx.notification.createMany({
     data: recipients.map(userId => ({
       userId,

@@ -1,3 +1,4 @@
+import { alertTitle } from './alert-text';
 import { BadRequestException, Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -260,7 +261,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       if (latest) {
         const recipients = target.assigneeId ? [target.assigneeId, ...await departmentManagerIds(this.prisma, target.departmentId)] : await departmentManagerIds(this.prisma, target.departmentId);
         result.reminders += await notifyUsers(this.prisma, recipients, {
-          kind: 'MISSING_REPORT', title: `Chỉ tiêu ${target.title} chưa có báo cáo ${periodLabel(latest.key)}`,
+          kind: 'MISSING_REPORT', title: alertTitle(target.title, 'MISSING_REPORT', { period: periodLabel(latest.key) }),
           body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `missing:${target.id}:${latest.key}`,
         });
         if (now.getTime() - latest.deadline.getTime() > 7 * DAY) {
@@ -285,7 +286,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
       const current = periods.find(period => !period.overdue);
       if (current && !reported.has(current.key) && current.deadline.getTime() - now.getTime() < 3 * DAY && target.kind !== FrameworkKind.SCORE) {
         result.reminders += await notifyUsers(this.prisma, target.assigneeId ? [target.assigneeId] : await departmentManagerIds(this.prisma, target.departmentId), {
-          kind: 'DUE_SOON', title: `Sắp đến hạn báo cáo ${periodLabel(current.key)}: ${target.title}`,
+          kind: 'DUE_SOON', title: alertTitle(target.title, 'DUE_SOON', { period: periodLabel(current.key) }),
           body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `due-soon:${target.id}:${current.key}`,
         });
       }
@@ -304,7 +305,7 @@ export class AccountabilityWorker implements OnApplicationBootstrap, OnModuleDes
     });
     for (const target of targets) {
       result.reminders += await notifyUsers(this.prisma, await departmentManagerIds(this.prisma, target.departmentId), {
-        kind: 'UNASSIGNED', title: `${target.title} · Chưa giao người phụ trách`,
+        kind: 'UNASSIGNED', title: alertTitle(target.title, 'UNASSIGNED'),
         body: target.title, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `unassigned:${target.id}:${vietnamDayKey(now).slice(0, 7)}`,
       });

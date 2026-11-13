@@ -1,6 +1,7 @@
 import { FrameworkKind, Prisma, ValueSource } from '@prisma/client';
 import { type DispatchSetting, dispatcherIds } from './dispatch';
 import { evaluateTarget } from './metrics';
+import { alertTitle } from './alert-text';
 import { departmentManagerIds, notifyUsers, recordWorkEvent, targetLink } from './work';
 
 const DAY = 86_400_000;
@@ -38,7 +39,7 @@ export async function remindTaskDeadlines(prisma: ReminderClient, setting: Dispa
     const deadlineKey = target.dueDate.toISOString();
     if (stage === 'DUE_SOON') {
       result.reminders += await notifyUsers(prisma, target.assigneeId ? [target.assigneeId] : managers, {
-        kind: 'TASK_DUE_SOON', title: `${target.title} · Sắp đến hạn hoàn thành`,
+        kind: 'TASK_DUE_SOON', title: alertTitle(target.title, 'DUE_SOON'),
         body: 'Còn không quá 3 ngày. Cập nhật kết quả và minh chứng trong hồ sơ nhiệm vụ.',
         link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `task-due:${target.id}:${deadlineKey}`,
@@ -46,14 +47,14 @@ export async function remindTaskDeadlines(prisma: ReminderClient, setting: Dispa
       continue;
     }
     result.reminders += await notifyUsers(prisma, managers, {
-      kind: 'TASK_OVERDUE', title: `${target.title} · Quá hạn hoàn thành`,
+      kind: 'TASK_OVERDUE', title: alertTitle(target.title, 'OVERDUE', { days: Math.floor((now.getTime() - target.dueDate.getTime()) / DAY) }),
       body: 'Kiểm tra việc thực hiện và yêu cầu người phụ trách báo cáo kết quả.',
       link: targetLink(target.id), entityType: 'Target', entityId: target.id,
       dedupeKey: `task-overdue:${target.id}:${deadlineKey}`,
     });
     if (stage === 'ESCALATED') {
       const count = await notifyUsers(prisma, await dispatcherIds(prisma, setting), {
-        kind: 'ESCALATED', title: `${target.title} · Quá hạn từ 3 ngày`,
+        kind: 'ESCALATED', title: alertTitle(target.title, 'OVERDUE', { days: Math.floor((now.getTime() - target.dueDate.getTime()) / DAY) }),
         body: 'Đã báo trưởng phòng chủ trì; cần người phân việc và lãnh đạo kiểm tra.',
         link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `task-escalated:${target.id}:${deadlineKey}`,

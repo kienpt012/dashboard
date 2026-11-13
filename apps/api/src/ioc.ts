@@ -1,3 +1,5 @@
+import { alertTitle } from './alert-text';
+import { docRefText, DOC_REF_INCLUDE } from './doc-ref';
 import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import {
   CandidateOrigin,
@@ -70,7 +72,7 @@ export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: num
     include: {
       department: { select: { id: true, name: true, color: true, sortOrder: true } },
       assignee: { select: { id: true, fullName: true } },
-      framework: { select: { id: true, name: true, kind: true } },
+      ...DOC_REF_INCLUDE,
       _count: { select: { directives: true, evaluations: true, children: true } },
     },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
@@ -233,18 +235,18 @@ export class IocController {
 
     const alerts: AlertItem[] = [];
     for (const item of evaluated.filter(entry => entry.isLeaf)) {
-      const base = { targetKind: item.target.kind, targetId: item.target.id, departmentName: item.target.department.name };
+      const base = { targetKind: item.target.kind, targetId: item.target.id, departmentName: item.target.department.name, detail: docRefText(item.target) };
       if (item.metric.status === TargetStatus.OVERDUE) {
-        alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: `${item.target.title} quá hạn`, detail: item.target.title, at: item.target.dueDate });
+        alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: alertTitle(item.target.title, 'OVERDUE', { days: daysSince(item.target.dueDate, now) }), detail: base.detail, at: item.target.dueDate });
       }
       if (item.explanation && item.explanation.dueAt < now) {
-        alerts.push({ ...base, severity: 'critical', kind: 'EXPLANATION_OVERDUE', title: `${item.target.title} chưa giải trình đúng hạn`, detail: item.explanation.message, at: item.explanation.dueAt });
+        alerts.push({ ...base, severity: 'critical', kind: 'EXPLANATION_OVERDUE', title: alertTitle(item.target.title, 'EXPLANATION_OVERDUE', { days: daysSince(item.explanation.dueAt, now) }), detail: base.detail, at: item.explanation.dueAt });
       }
       if (item.missingPeriods.length) {
-        alerts.push({ ...base, severity: 'warning', kind: 'MISSING_REPORT', title: `${item.target.title} thiếu báo cáo ${item.missingPeriods.map(periodLabel).slice(-2).join(', ')}`, detail: item.target.title, at: null });
+        alerts.push({ ...base, severity: 'warning', kind: 'MISSING_REPORT', title: alertTitle(item.target.title, 'MISSING_REPORT', { period: item.missingPeriods.map(periodLabel).slice(-2).join(', ') }), detail: base.detail, at: null });
       }
       if (item.metric.status === TargetStatus.AT_RISK) {
-        alerts.push({ ...base, severity: 'warning', kind: 'AT_RISK', title: `${item.target.title} có nguy cơ không đạt (${item.metric.progress}%)`, detail: item.target.title, at: item.target.lastReportedAt });
+        alerts.push({ ...base, severity: 'warning', kind: 'AT_RISK', title: alertTitle(item.target.title, 'AT_RISK'), detail: base.detail, at: item.target.lastReportedAt });
       }
     }
     const stalled = evaluated
@@ -257,17 +259,16 @@ export class IocController {
           : `Chưa giao người phụ trách sau ${daysSince(item.target.createdAt, now)} ngày`,
       }));
     for (const item of stalled.filter(entry => entry.bounceCount >= STALL_BOUNCES)) {
-      alerts.push({ severity: 'critical', kind: 'STALLED', title: `${item.title}: ${item.reason}`, detail: item.title, targetId: item.id, departmentName: item.departmentName });
+      alerts.push({ severity: 'critical', kind: 'STALLED', title: alertTitle(item.title, 'STALLED', { count: item.bounceCount }), detail: item.title, targetId: item.id, departmentName: item.departmentName });
     }
-    const unassignedByDepartment = new Map<string, number>();
     for (const item of evaluated.filter(entry => entry.overdueAssignment)) {
-      unassignedByDepartment.set(item.target.department.name, (unassignedByDepartment.get(item.target.department.name) ?? 0) + 1);
+      alerts.push({ severity: 'warning', kind: 'UNASSIGNED', targetKind: item.target.kind, targetId: item.target.id,
+        title: alertTitle(item.target.title, 'UNASSIGNED'), detail: docRefText(item.target), departmentName: item.target.department.name });
     }
-    for (const [departmentName, count] of unassignedByDepartment) {
-      alerts.push({
-        severity: 'warning', kind: 'UNASSIGNED', title: `${departmentName}: ${count} chỉ tiêu chưa giao người phụ trách`,
-        detail: 'Trưởng phòng cần giao từng chỉ tiêu cho chuyên viên để rõ người chịu trách nhiệm cập nhật số liệu.', departmentName,
-      });
+    for (const report of snap.pendingReports) {
+      const item = evaluated.find(entry => entry.target.id === report.targetId);
+      if (item) alerts.push({ severity: 'warning', kind: 'REPORT_PENDING', targetKind: item.target.kind, targetId: item.target.id,
+        title: alertTitle(item.target.title, 'REPORT_PENDING', { days: daysSince(report.createdAt, now) }), detail: docRefText(item.target), departmentName: item.target.department.name, at: report.createdAt });
     }
     const pendingProposals = await this.prisma.indicatorCandidate.findMany({
       where: { status: CandidateStatus.SUBMITTED, ...(workDepartmentId ? { responsibleDepartmentId: workDepartmentId } : {}) },
@@ -277,7 +278,7 @@ export class IocController {
     });
     for (const proposal of pendingProposals) {
       alerts.push({
-        severity: 'info', kind: 'PROPOSAL_PENDING', title: `Đề xuất chờ duyệt: ${proposal.name}`,
+        severity: 'info', kind: 'PROPOSAL_PENDING', title: alertTitle(proposal.name, 'PROPOSAL_PENDING', { days: daysSince(proposal.submittedAt, now) }),
         detail: proposal.autoApproveAt ? `Tự thông qua lúc ${proposal.autoApproveAt.toISOString()}` : 'Chưa có hạn tự thông qua',
         candidateId: proposal.id, departmentName: proposal.responsibleDepartment?.name ?? null, at: proposal.submittedAt,
       });
