@@ -20,12 +20,16 @@ import { FilterBar, Page } from '@/components/Page';
 import { ReasonModal } from '@/components/ReasonModal';
 import { LoadError } from '@/components/States';
 import { DeptTag, KindTag, StatusTag, STATUS, STATUS_ORDER } from '@/components/Tags';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
+import { ForecastRiskTag, RISK } from '../forecast/ForecastViews';
+import type { ForecastList } from '../forecast/types';
+import { LinkedIcon, TargetLinkSuggestions } from './TargetLinks';
 import { useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, frameworkOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
 import { currentYear, date, dateTime, fromNow, num } from '@/lib/format';
 import { frequencyLabel, periodLabel } from '@/lib/periods';
-import { can, IMPORTERS, isGlobal, LEADERSHIP, REPORTERS } from '@/lib/roles';
+import { can, IMPORTERS, LEADERSHIP, REPORTERS } from '@/lib/roles';
 import type { Target } from '@/types/core';
 import type { FrameworkKind, TargetStatusKey } from '@/types/domain';
 import { KIND_OPTIONS, TargetForm } from './TargetForm';
@@ -65,7 +69,8 @@ export default function Targets() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const [params, setParams] = useSearchParams();
-  const global = isGlobal(user);
+  const readScope = useReadScope();
+  const global = readScope.scope === 'all';
   const leader = can(user, LEADERSHIP);
 
   const year = Number(params.get('year')) || currentYear();
@@ -74,6 +79,10 @@ export default function Targets() {
   const departmentId = params.get('departmentId') ?? '';
   const kind = params.get('kind') ?? '';
   const status = params.get('status') ?? '';
+  const risk = params.get('risk') ?? '';
+  const linked = params.get('linked') === '1';
+  const forecasts = useApi<ForecastList>(`/forecast${query({ year, scope: readScope.scope })}`, { staleTime: 60_000 });
+  const forecastMap = useMemo(() => new Map((forecasts.data?.items ?? []).map(item => [item.targetId, item])), [forecasts.data]);
   const assignee = params.get('assignee') ?? '';
   const archived = params.get('archived') === '1';
   const formDefaults = useMemo(() => ({
@@ -91,7 +100,7 @@ export default function Targets() {
   const departments = useDepartments();
   const frameworks = useFrameworks();
   const list = useApi<Target[]>(
-    `/targets${query({ year, archived, frameworkId: frameworkId || undefined, departmentId: global ? departmentId || undefined : undefined, kind: kind || undefined, mine: assignee === 'me' ? true : undefined })}`,
+    `/targets${query({ year, archived, scope: readScope.scope, frameworkId: frameworkId || undefined, departmentId: global ? departmentId || undefined : undefined, kind: kind || undefined, mine: assignee === 'me' ? true : undefined })}`,
     { keepPrevious: true },
   );
 
@@ -109,11 +118,13 @@ export default function Targets() {
     const needle = search.trim().toLocaleLowerCase('vi');
     return (list.data ?? []).filter(target => {
       if (status && target.status !== status) return false;
+      if (linked && !target.linkGroupId) return false;
+      if (risk && forecastMap.get(target.id)?.risk !== risk) return false;
       if (assignee === 'none' && (target.assigneeId || target.valueSource === 'COMPUTED' || target.valueSource === 'CHILDREN')) return false;
       if (!needle) return true;
       return `${target.code} ${target.standardCode ?? ''} ${target.title} ${target.groupName ?? ''} ${target.assignee?.fullName ?? ''}`.toLocaleLowerCase('vi').includes(needle);
     });
-  }, [list.data, search, status, assignee]);
+  }, [list.data, search, status, assignee, linked, risk, forecastMap]);
 
   const counts = useMemo(() => {
     const result: Partial<Record<TargetStatusKey, number>> = {};
@@ -142,7 +153,7 @@ export default function Targets() {
   async function exportExcel() {
     setExporting(true);
     try {
-      const blob = await http.blob(`/exports/targets.xlsx${query({ year, departmentId: global ? departmentId || undefined : undefined })}`);
+      const blob = await http.blob(`/exports/targets.xlsx${query({ year, scope: readScope.scope, departmentId: global ? departmentId || undefined : undefined })}`);
       saveBlob(blob, `chi-tieu-${year}.xlsx`);
     } catch (error) {
       message.error(errorText(error, 'Không xuất được tệp Excel'));
@@ -153,7 +164,7 @@ export default function Targets() {
 
   function rowMenu(target: Target): MenuProps['items'] {
     const items: MenuProps['items'] = [{ key: 'open', icon: <FolderOpenOutlined />, label: 'Mở hồ sơ', onClick: () => navigate(`/admin/targets/${target.id}`) }];
-    if (can(user, REPORTERS) && target.valueSource === 'MANUAL' && !target.isArchived) {
+    if (can(user, REPORTERS) && (user.role === 'ADMIN' || (user.departmentId === target.department.id && (user.role === 'MANAGER' || target.assigneeId === user.id))) && target.valueSource === 'MANUAL' && !target.isArchived) {
       items.push({ key: 'report', icon: <EditOutlined />, label: 'Báo cáo số liệu', onClick: () => navigate(`/admin/targets/${target.id}?bao-cao=1`) });
     }
     if (!leader) return items;
@@ -187,7 +198,7 @@ export default function Targets() {
       sorter: (a, b) => a.title.localeCompare(b.title, 'vi'),
       render: (_, target) => (
         <TitleCell
-          title={target.title}
+          title={<>{target.title}<LinkedIcon linked={target.linkGroupId} /></>}
           to={`/admin/targets/${target.id}`}
           sub={[target.code, target.standardCode ? `Mã ${target.standardCode}` : null, target.ordinal ? `STT ${target.ordinal}` : null].filter(Boolean).join(' · ')}
         />
@@ -261,6 +272,7 @@ export default function Targets() {
         </Space>
       ),
     },
+    { title: 'Nguy cơ (dự báo)', key: 'forecast', width: 170, sorter: (a, b) => (forecastMap.get(a.id)?.probability ?? -1) - (forecastMap.get(b.id)?.probability ?? -1), render: (_, target) => <ForecastRiskTag item={forecastMap.get(target.id)} /> },
     {
       title: 'Hạn',
       dataIndex: 'dueDate',
@@ -297,6 +309,8 @@ export default function Targets() {
       }
       extra={
         <>
+          <ReadScopeSwitch value={readScope} />
+          <TargetLinkSuggestions year={year} />
           <Button icon={<FileExcelOutlined />} loading={exporting} onClick={() => void exportExcel()}>
             Xuất Excel
           </Button>
@@ -317,7 +331,7 @@ export default function Targets() {
       <Card className="card-flush">
         <div className="table-filters">
           <FilterBar
-            active={[frameworkId, departmentId, kind, status, assignee].filter(Boolean).length}
+            active={[frameworkId, departmentId, kind, status, assignee, risk, linked].filter(Boolean).length}
             search={
             <Input
               allowClear
@@ -335,6 +349,8 @@ export default function Targets() {
             }
             filters={
               <>
+            <Select allowClear aria-label="Nguy cơ dự báo" placeholder="Nguy cơ (dự báo)" value={risk || undefined} onChange={value => update({ risk: value ?? null })} options={Object.entries(RISK).map(([value, item]) => ({ value, label: item.label }))} style={{ width: 185 }} />
+            <Select allowClear aria-label="Liên kết văn bản" placeholder="Liên kết văn bản" value={linked ? '1' : undefined} onChange={value => update({ linked: value ?? null })} options={[{ value: '1', label: 'Có ở nhiều văn bản' }]} style={{ width: 190 }} />
             <YearSelect value={year} onChange={value => update({ year: String(value) })} />
             <Select
               allowClear

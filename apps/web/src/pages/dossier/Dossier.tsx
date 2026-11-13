@@ -18,6 +18,8 @@ import { DirectivesTab } from './Directives';
 import { EvaluationModal, EvaluationsTab } from './Evaluations';
 import { ExecutionTab, ReportModal, valueText } from './Execution';
 import { BasisCard, ExplanationRequestModal, ExplanationsCard, PeopleModal, ResponsibilityCard, SourceCard, TimelineTab, type PeopleAction } from './Side';
+import { ForecastCard } from '../forecast/ForecastViews';
+import { TargetLinksCard } from '../targets/TargetLinks';
 import './dossier.css';
 
 const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE: 'Tỉnh/Thành phố giao', LOCAL: 'Địa phương tự đặt' };
@@ -145,6 +147,7 @@ function DossierView({ d }: { d: DossierData }) {
           <span>{ISSUING[d.issuingLevel] ?? d.issuingLevel}</span>
           <TargetSource variant="chip" targetId={d.id} targetTitle={d.title} canEdit={d.permissions.canEditSourceCard && !d.isArchived} />
           <Space size={6}>
+            {p.readOnly && <Tag>Chỉ xem</Tag>}
             <KindTag kind={d.kind} />
             <StatusTag status={d.status} />
             {d.valueSource === 'COMPUTED' && <Tag color="cyan">Tự tính</Tag>}
@@ -176,7 +179,7 @@ function DossierView({ d }: { d: DossierData }) {
               </Tooltip>
             ) : (
               <Button type="primary" icon={<SendOutlined />} onClick={() => setReporting({})}>
-                Báo cáo số liệu
+                {me.role === 'ADMIN' ? 'Quản trị ghi nhận' : 'Báo cáo số liệu'}
               </Button>
             ))}
         </>
@@ -191,6 +194,7 @@ function DossierView({ d }: { d: DossierData }) {
         />
       )}
       <Figures />
+      <Flex vertical gap={16} style={{ marginTop: 16 }}><TargetLinksCard targetId={d.id} />{d.kind !== 'STAT' && <ForecastCard targetId={d.id} />}</Flex>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
           <Card className="card-tabs dossier-tabs">

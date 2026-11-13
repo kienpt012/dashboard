@@ -7,9 +7,10 @@ import { NoData } from '@/components/States';
 import { DeptTag, ReviewTag } from '@/components/Tags';
 import { http } from '@/lib/api';
 import { date, dateTime, num } from '@/lib/format';
-import { APPROVERS, can, isGlobal, LEADERSHIP } from '@/lib/roles';
+import { APPROVERS, can, isGlobal } from '@/lib/roles';
 import { useDossier, useDossierRun, type DossierData, type DossierReport } from './context';
 import { EvidenceList, EvidencePicker, uploadEvidenceFiles } from './evidence';
+import { RevisionRequest } from './RevisionRequest';
 import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
 
 export function valueText(value: number | null | undefined, unit: string) {
@@ -33,7 +34,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
   const [form] = Form.useForm<ReportValues>();
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
-  const leader = can(me, LEADERSHIP);
+  const leader = me.role === 'ADMIN';
   const periodKey = Form.useWatch('periodKey', form);
   const value = Form.useWatch('value', form);
 
@@ -83,7 +84,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
-      okText={leader ? 'Ghi nhận' : 'Gửi báo cáo'}
+      okText={leader ? 'Quản trị ghi nhận' : 'Gửi báo cáo'}
       okButtonProps={{ icon: <SendOutlined /> }}
       confirmLoading={saving}
       width={680}
@@ -395,6 +396,7 @@ function ReportItem({ report }: { report: DossierReport }) {
         </div>
       )}
       <EvidenceList targetId={d.id} items={report.evidences} />
+      <RevisionRequest report={report} />
       <Flex justify="space-between" align="center" gap={12} wrap style={{ marginTop: 8 }}>
         <span className="entry-meta">
           {report.user.fullName} · {dateTime(report.createdAt)}

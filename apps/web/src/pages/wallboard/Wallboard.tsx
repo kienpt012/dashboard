@@ -6,6 +6,9 @@ import { localityInitials, type PublicLocality } from '@/app/locality';
 import { useUser } from '@/app/session';
 import { Chart, type ChartOption } from '@/components/Chart';
 import { STATUS, STATUS_ORDER } from '@/components/Tags';
+import { useReadScope } from '@/components/ReadScope';
+import { ForecastWall } from '../forecast/ForecastViews';
+import type { ForecastList } from '../forecast/types';
 import { useApi } from '@/hooks/useApi';
 import { errorText } from '@/lib/api';
 import { num, vn } from '@/lib/format';
@@ -24,6 +27,7 @@ type Stalled = WallTarget & { reason?: string; bounceCount?: number };
 type Wall = { year: number; generatedAt: string; rotateSeconds: number; locality: PublicLocality; slides: Slide[]; stalled: Stalled[] };
 
 type Frame =
+  | { kind: 'forecast'; key: string; group: number }
   | { kind: 'overview'; key: string; group: number }
   | { kind: 'slide'; key: string; group: number; slide: Slide; rows: WallTarget[]; page: number; pages: number }
   | { kind: 'stalled'; key: string; group: number; rows: Stalled[]; page: number; pages: number };
@@ -484,7 +488,9 @@ export default function Wallboard() {
   const navigate = useNavigate();
   const user = useUser();
   const scale = useScale();
-  const wall = useApi<Wall>('/ioc/wallboard', { refetchInterval: 120_000 });
+  const readScope = useReadScope();
+  const forecasts = useApi<ForecastList>(`/forecast?scope=${readScope.scope}`, { refetchInterval: 120_000 });
+  const wall = useApi<Wall>(`/ioc/wallboard?scope=${readScope.scope}`, { refetchInterval: 120_000 });
   const data = wall.data;
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -507,6 +513,7 @@ export default function Wallboard() {
       pages.forEach((rows, page) => list.push({ kind: 'stalled', key: `stalled-${page}`, group, rows, page, pages: pages.length }));
       group += 1;
     }
+    list.push({ kind: 'forecast', key: 'forecast', group: group++ });
     return list;
   }, [data]);
 
@@ -606,7 +613,7 @@ export default function Wallboard() {
   } else {
     body = (
       <main className="wb-stage" key={frame.key}>
-        {frame.kind === 'overview' ? <OverviewView data={data} /> : frame.kind === 'slide' ? <SlideView frame={frame} /> : <StalledView frame={frame} />}
+        {frame.kind === 'overview' ? <OverviewView data={data} /> : frame.kind === 'slide' ? <SlideView frame={frame} /> : frame.kind === 'forecast' ? <ForecastWall items={forecasts.data?.items ?? []} sourceLabel={forecasts.data?.model.sourceLabel} /> : <StalledView frame={frame} />}
       </main>
     );
   }

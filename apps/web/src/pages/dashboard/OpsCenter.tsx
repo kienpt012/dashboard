@@ -11,6 +11,8 @@ import { ScrollBox } from '@/components/Scroll';
 import { NoData, PageSkeleton, Query } from '@/components/States';
 import { LegalBasis } from '@/components/LegalBasis';
 import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
+import { ForecastTop } from '../forecast/ForecastViews';
 import { useApi } from '@/hooks/useApi';
 import { currentYear, date, dateTime, fromNow, num, pct } from '@/lib/format';
 import { APPROVERS, can, FRAMEWORK_EDITORS, SUPERVISORS } from '@/lib/roles';
@@ -442,7 +444,8 @@ export default function OpsCenter() {
   const [params, setParams] = useSearchParams();
   const requested = Number(params.get('year'));
   const year = Number.isInteger(requested) && requested >= 2000 && requested <= 2100 ? requested : currentYear();
-  const overview = useApi<Overview>(`/ioc/overview?year=${year}`, { refetchInterval: 120_000, keepPrevious: true });
+  const readScope = useReadScope();
+  const overview = useApi<Overview>(`/ioc/overview?year=${year}&scope=${readScope.scope}`, { refetchInterval: 120_000, keepPrevious: true });
   const data = overview.data;
   const departmentScope = data?.scope === 'department';
   const title = departmentScope && data?.departments[0] ? data.departments[0].name : 'Trung tâm điều hành';
@@ -453,6 +456,7 @@ export default function OpsCenter() {
       meta={data && <span>Số liệu lúc {dateTime(data.dataAsOf ?? data.generatedAt)}</span>}
       extra={
         <>
+          <ReadScopeSwitch value={readScope} />
           <YearSelect value={year} onChange={value => setParams({ year: String(value) }, { replace: true })} />
           <Button icon={<FundProjectionScreenOutlined />} href="/trinh-chieu" target="_blank">
             Trình chiếu
@@ -482,6 +486,7 @@ export default function OpsCenter() {
               </Col>
             </Row>
 
+            <ForecastTop year={year} scope={readScope.scope} />
             <Card title="Bộ chỉ tiêu" className="card-flush">
               <Frameworks data={data} />
             </Card>

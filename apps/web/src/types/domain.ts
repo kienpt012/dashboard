@@ -218,6 +218,10 @@ export type Directive={
 };
 
 export type Report={
+  revisionRequestedAt?:string|null;
+  revisionRequestedBy?:string|null;
+  revisionReason?:string|null;
+  revisionResolvedAt?:string|null;
   id:string;
   value:number;
   valueText?:string|null;
@@ -264,6 +268,8 @@ export type ExplanationRequest={
 };
 
 export type DossierPermissions={
+  readOnly?:boolean;
+  canRequestRevision?:boolean;
   canReport:boolean;
   canContribute:boolean;
   canAssign:boolean;
@@ -337,6 +343,7 @@ export type Dossier={
 };
 
 export type MyWork={
+  revisionRequests?:{id:string;periodKey:string|null;periodLabel:string|null;reason:string;requestedAt:string;target:{id:string;title:string;code:string}}[];
   year:number;
   generatedAt:string;
   counts:{needReport:number;rejectedReports:number;toReview:number;proposals:number;explanations:number;unassigned:number;unread:number};

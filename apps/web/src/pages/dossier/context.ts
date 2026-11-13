@@ -37,7 +37,7 @@ export function useDossierRun() {
     try {
       const result = await task();
       if (success) message.success(success);
-      await Promise.all([refresh(), invalidate(client, ['/targets', '/ioc', '/my-work', '/notifications'])]);
+      await Promise.all([refresh(), invalidate(client, ['/targets', '/ioc', '/my-work', '/notifications', '/forecast', '/target-links'])]);
       return result;
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {

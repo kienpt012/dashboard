@@ -1,0 +1,27 @@
+.forecast-card { min-width: 0; }
+.forecast-figures { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; }
+.forecast-figures > div { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; }
+.forecast-figures strong { font-size: 23px; line-height: 1.4; overflow-wrap: anywhere; }
+.forecast-figures small { font-size: 13px; font-weight: 400; }
+.forecast-factors { margin: 18px 0; padding-left: 20px; line-height: 1.9; }
+.forecast-source.ant-typography { margin: 14px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.forecast-top-row { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 13px 0; border-bottom: 1px solid var(--ioc-color-border); }
+.forecast-top-row:first-child { padding-top: 0; }
+.forecast-top-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.forecast-top-row > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.forecast-top-row a { font-weight: 600; overflow-wrap: anywhere; }
+.forecast-model { display: flex; flex-direction: column; gap: 16px; }
+.forecast-model .ant-card { min-width: 0; }
+.forecast-model-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.linked-suggestion { padding: 16px 0; border-bottom: 1px solid var(--ioc-color-border); }
+.linked-suggestion p { margin: 8px 0; overflow-wrap: anywhere; }
+.wb-forecast { padding: 25px 48px; color: #edf5ff; }
+.wb-forecast h2 { font-size: 44px; margin: 0 0 8px; }
+.wb-forecast > p { font-size: 21px; color: #bac8de; }
+.wb-forecast-row { display: grid; grid-template-columns: minmax(0,1fr) 165px 300px; align-items: center; gap: 32px; padding: 22px 0; border-bottom: 1px solid #ffffff20; }
+.wb-forecast-row > div { display: flex; flex-direction: column; gap: 9px; }
+.wb-forecast-row strong { font-size: 27px; }
+.wb-forecast-row b { font-size: 32px; color: #ffcb69; }
+.wb-forecast-row span { font-size: 18px; color: #bac8de; }
+.wb-forecast .wb-forecast-source { font-size: 17px; margin-top: 22px; }
+@media(max-width: 600px) { .forecast-figures { grid-template-columns: 1fr; gap: 16px; } .forecast-figures strong { font-size: 22px; } .forecast-top-row { flex-direction: column; gap: 8px; } }
