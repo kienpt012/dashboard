@@ -1,10 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { docRef, DOC_REF_INCLUDE } from '../../src/doc-ref';
+import { dataStatus } from './snapshot';
 
-// Bổ sung tham chiếu cho bản công bố của bộ mẫu; không tạo bản ghi trùng.
+// Bổ sung văn bản giao cho các chỉ tiêu đã công bố của bộ mẫu (thẻ chỉ tiêu trên trang công khai); chạy lại không đổi gì thêm.
+//   npx tsx apps/api/prisma/demo/extras-public-docref.ts
 const prisma = new PrismaClient();
 async function main() {
-  if (new URL(process.env.DATABASE_URL!).pathname !== '/ioc_wp_d') throw new Error('Chỉ chạy trên CSDL mẫu ioc_wp_d');
+  const { state } = await dataStatus(prisma);
+  if (state === 'real' || state === 'empty') throw new Error('Script này chỉ chạy trên bộ dữ liệu mẫu, không chạy trên dữ liệu thật của địa phương');
   const rows = await prisma.target.findMany({ where: { isPublic: true, publishedDocRef: null }, include: DOC_REF_INCLUDE });
   let count = 0;
   for (const target of rows) {
