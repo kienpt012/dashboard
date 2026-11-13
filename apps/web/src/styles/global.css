@@ -1605,3 +1605,43 @@ a.donut-row:hover {
   background: transparent;
   cursor: crosshair;
 }
+
+/* ===== Điểm nhấn thị giác (G-30): tiêu đề khối, tiêu đề trang và thanh đầu trang tách hẳn khỏi nội dung ===== */
+.shell .ant-card > .ant-card-head {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ioc-color-primary) 6%, var(--ioc-color-bg-container)), var(--ioc-color-bg-container));
+  border-bottom: 1px solid var(--ioc-color-border-secondary);
+}
+
+.shell .ant-card > .ant-card-head .ant-card-head-title {
+  position: relative;
+  padding-left: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--ioc-color-text);
+}
+
+.shell .ant-card > .ant-card-head .ant-card-head-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--ioc-color-primary);
+  transform: translateY(-50%);
+}
+
+.page-title h1.ant-typography {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.shell-header {
+  box-shadow: 0 1px 0 var(--ioc-color-border-secondary), 0 6px 16px -8px rgba(16, 24, 40, 0.18);
+}
+
+.shell .ant-table-thead > tr > th.ant-table-cell {
+  font-weight: 700;
+}
