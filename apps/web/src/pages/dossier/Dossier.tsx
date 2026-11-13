@@ -21,6 +21,7 @@ import { RelatedTasks } from './RelatedTasks';
 import { BasisCard, ExplanationRequestModal, ExplanationsCard, PeopleModal, ResponsibilityCard, SourceCard, TimelineTab, type PeopleAction } from './Side';
 import { ForecastCard } from '../forecast/ForecastViews';
 import { TargetLinksCard } from '../targets/TargetLinks';
+import { ResponsiveDetails } from '@/components/ResponsiveDetails';
 import './dossier.css';
 import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
 import { useDeskNoteAction } from '@/pages/workspace/DeskNotes';
@@ -203,7 +204,7 @@ function DossierView({ d }: { d: DossierData }) {
       )}
       <Figures />
       <RelatedTasks />
-      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <TargetLinksCard targetId={d.id} />}{d.kind !== 'STAT' && d.kind !== 'TASK' && <ForecastCard targetId={d.id} />}</Flex>
+      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <ResponsiveDetails title="Mức giao theo văn bản"><TargetLinksCard targetId={d.id} /></ResponsiveDetails>}{d.kind !== 'STAT' && d.kind !== 'TASK' && <ResponsiveDetails title="Dự báo"><ForecastCard targetId={d.id} /></ResponsiveDetails>}</Flex>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
           <Card className="card-tabs dossier-tabs">

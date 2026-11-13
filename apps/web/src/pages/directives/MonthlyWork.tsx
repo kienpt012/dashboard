@@ -49,7 +49,7 @@ export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
     <Query query={data}>{result => <>
       {result.groups.length ? <Flex vertical gap={16}>{result.groups.map(group => <Card key={group.id} title={group.name} extra={<span className="muted">{num(group.items.length)} việc</span>} className="card-flush">
         <Table rowKey={item => `${item.id}-${item.periodLabel ?? ''}`} dataSource={group.items} pagination={false} scroll={{ x: 850 }} sticky columns={[
-          { title: 'STT', key: 'index', width: 60, render: (_, __, index) => index + 1 },
+          { title: <span style={{ whiteSpace: 'nowrap' }}>STT</span>, key: 'index', width: 76, render: (_, __, index) => index + 1 },
           { title: 'Nội dung', key: 'title', render: (_, item) => <div className="directive-name"><Link to={`/admin/targets/${item.targetId || item.id}`}>{item.title}</Link><DocRef value={item} />{item.periodLabel && <span className="directive-cell-meta">{item.periodLabel}</span>}</div> },
           { title: 'Phòng chủ trì', key: 'department', width: 200, render: (_, item) => item.department.name },
           { title: 'Người phụ trách', key: 'assignee', width: 160, render: (_, item) => item.assignee?.fullName || <span className="muted">Chưa giao người</span> },

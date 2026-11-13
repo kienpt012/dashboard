@@ -170,9 +170,9 @@ export async function attachLinkedReportEvidence<T extends { mirroredFromId?: st
 ): Promise<T[]> {
   const sourceIds = [...new Set(reports.map(report => report.mirroredFromId).filter((id): id is string => Boolean(id)))];
   if (!sourceIds.length) return reports;
-  const sources = await prisma.progressUpdate.findMany({ where: { id: { in: sourceIds } }, select: { id: true, evidences: { select: sharedEvidenceSelect } } });
+  const sources = await prisma.progressUpdate.findMany({ where: { id: { in: sourceIds } }, select: { id: true, targetId: true, evidences: { select: sharedEvidenceSelect } } });
   const byId = new Map(sources.map(source => [source.id, source.evidences]));
-  return reports.map(report => ({ ...report, evidences: [...report.evidences, ...(report.mirroredFromId ? byId.get(report.mirroredFromId) ?? [] : [])] }));
+  return reports.map(report => ({ ...report, mirroredFromTargetId: report.mirroredFromId ? sources.find(source => source.id === report.mirroredFromId)?.targetId ?? null : null, evidences: [...report.evidences, ...(report.mirroredFromId ? byId.get(report.mirroredFromId) ?? [] : [])] }));
 }
 
 /** Chỉ cho tải minh chứng thuộc hồ sơ hoặc báo cáo gốc được bản đồng bộ của hồ sơ tham chiếu. */
