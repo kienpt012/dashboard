@@ -506,7 +506,7 @@ export class DossierController {
       });
       await audit(tx, actor, { action: 'TARGET_ASSIGNED', entityType: 'Target', entityId: target.id, departmentId: target.departmentId, metadata: { code: target.code, username: assignee.username } });
       await notifyUsers(tx, [assignee.id], {
-        kind: 'ASSIGNED', title: `Bạn được giao phụ trách chỉ tiêu ${target.code}`, body: target.title,
+        kind: 'ASSIGNED', title: `Bạn được giao phụ trách chỉ tiêu ${target.title}`, body: target.title,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `assign:${target.id}:${Date.now()}`,
       }, actor.id);
       return tx.target.findUniqueOrThrow({ where: { id: target.id }, include: { assignee: { select: { id: true, fullName: true } } } });
@@ -542,7 +542,7 @@ export class DossierController {
       });
       const managers = await departmentManagerIds(tx, target.departmentId);
       await notifyUsers(tx, [receiver.id, ...managers], {
-        kind: 'TRANSFERRED', title: `${actor.fullName} chuyển chỉ tiêu ${target.code} cho ${receiver.fullName}`, body: dto.reason,
+        kind: 'TRANSFERRED', title: `${actor.fullName} chuyển chỉ tiêu ${target.title} cho ${receiver.fullName}`, body: dto.reason,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `transfer:${target.id}:${target.bounceCount + 1}`,
       }, actor.id);
       await this.escalateBounces(tx, target, target.bounceCount + 1, actor);
@@ -569,7 +569,7 @@ export class DossierController {
         note: `Trả lại trưởng phòng. Lý do: ${dto.reason}`, metadata: { bounceCount: target.bounceCount + 1 },
       });
       await notifyUsers(tx, managers, {
-        kind: 'RETURNED', title: `${actor.fullName} trả lại chỉ tiêu ${target.code} — cần phân công lại`, body: dto.reason,
+        kind: 'RETURNED', title: `${actor.fullName} trả lại chỉ tiêu ${target.title} — cần phân công lại`, body: dto.reason,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `return:${target.id}:${target.bounceCount + 1}`,
       }, actor.id);
       await this.escalateBounces(tx, target, target.bounceCount + 1, actor);
@@ -585,7 +585,7 @@ export class DossierController {
       note: `Chỉ tiêu đã bị chuyển/trả ${bounceCount} lần — báo lãnh đạo UBND`, metadata: { bounceCount },
     });
     await notifyUsers(tx, await leaderIds(tx), {
-      kind: 'ESCALATED', title: `Chỉ tiêu ${target.code} bị chuyển qua lại ${bounceCount} lần`,
+      kind: 'ESCALATED', title: `Chỉ tiêu ${target.title} bị chuyển qua lại ${bounceCount} lần`,
       body: `${target.title} — ${target.department.name}`, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
       dedupeKey: `bounce:${target.id}:${bounceCount}`,
     }, actor.id);
@@ -632,7 +632,7 @@ export class DossierController {
       await audit(tx, actor, { action: 'TARGET_EVALUATED', entityType: 'Target', entityId: target.id, departmentId: target.departmentId, metadata: { code: target.code, outcome: dto.result } });
       const recipients = [...await departmentManagerIds(tx, target.departmentId), target.assigneeId];
       await notifyUsers(tx, recipients, {
-        kind: 'EVALUATED', title: `Chỉ tiêu ${target.code} được đánh giá ${EVALUATION_LABELS[dto.result].toLowerCase()} (${periodLabel(dto.periodKey)})`,
+        kind: 'EVALUATED', title: `Chỉ tiêu ${target.title} được đánh giá ${EVALUATION_LABELS[dto.result].toLowerCase()} (${periodLabel(dto.periodKey)})`,
         body: dto.note ?? null, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `evaluate:${target.id}:${dto.periodKey}:${evaluation.version}`,
       }, actor.id);
@@ -662,7 +662,7 @@ export class DossierController {
       });
       await audit(tx, actor, { action: 'TARGET_EXPLANATION_REQUESTED', entityType: 'Target', entityId: target.id, departmentId: target.departmentId, metadata: { code: target.code } });
       await notifyUsers(tx, [...managers, target.assigneeId], {
-        kind: 'EXPLANATION_REQUESTED', title: `${actor.position || 'Lãnh đạo'} ${actor.fullName} yêu cầu giải trình chỉ tiêu ${target.code}`,
+        kind: 'EXPLANATION_REQUESTED', title: `${actor.position || 'Lãnh đạo'} ${actor.fullName} yêu cầu giải trình chỉ tiêu ${target.title}`,
         body: `${dto.message} (hạn ${days} ngày)`, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `explain:${request.id}`,
       }, actor.id);
@@ -689,7 +689,7 @@ export class DossierController {
       if (changed.count !== 1) throw new ConflictException('Yêu cầu giải trình đã được trả lời hoặc vừa thay đổi');
       await recordWorkEvent(tx, { action: 'EXPLANATION_ANSWERED', actor, targetId: target.id, departmentId: target.departmentId, note: dto.response });
       await notifyUsers(tx, [request.requestedById], {
-        kind: 'EXPLANATION_ANSWERED', title: `${actor.fullName} đã giải trình chỉ tiêu ${target.code}`, body: dto.response.slice(0, 300),
+        kind: 'EXPLANATION_ANSWERED', title: `${actor.fullName} đã giải trình chỉ tiêu ${target.title}`, body: dto.response.slice(0, 300),
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `explain-answer:${request.id}`,
       }, actor.id);
       return tx.explanationRequest.findUniqueOrThrow({ where: { id: request.id } });
@@ -738,7 +738,7 @@ export class DossierController {
     const recipients = target.assigneeId ? [target.assigneeId] : await departmentManagerIds(this.prisma, target.departmentId);
     const sent = await this.prisma.$transaction(async tx => {
       const count = await notifyUsers(tx, recipients, {
-        kind: 'REMINDER', title: `Nhắc cập nhật số liệu chỉ tiêu ${target.code}`, body: `${actor.fullName} nhắc: ${target.title}`,
+        kind: 'REMINDER', title: `Nhắc cập nhật số liệu chỉ tiêu ${target.title}`, body: `${actor.fullName} nhắc: ${target.title}`,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `remind:${target.id}:${vietnamDayKey()}`,
       }, actor.id);
       if (count) await recordWorkEvent(tx, { action: 'REMINDER', actor, targetId: target.id, departmentId: target.departmentId, responsibleUserId: recipients[0] ?? null, note: 'Nhắc cập nhật số liệu' });

@@ -467,6 +467,9 @@ model Target {
   publishedDirection       TargetDirection?
   publishedStatus          TargetStatus?
   publishedCode            String?
+  publishedDocRef          String?
+  publishedOrdinal         String?
+  publishedIssuingLevel    IssuingLevel?
   publishedTitle           String?
   publishedDescription     String?
   publishedUnit            String?

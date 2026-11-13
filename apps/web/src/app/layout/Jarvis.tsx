@@ -1,3 +1,4 @@
+import { DocRef } from '@/components/DocRef';
 import { AudioOutlined, ClearOutlined, SendOutlined, SettingOutlined } from '@ant-design/icons';
 import { App, Button, Drawer, Flex, Input, Popover, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
@@ -71,7 +72,7 @@ function Rows({ answer }: { answer: CopilotResponse }) {
               dataIndex: 'title',
               render: (value, row) => (
                 <>
-                  <Typography.Text type="secondary">{row.code}</Typography.Text> {row.id ? <Link to={`/admin/targets/${row.id}`}>{value}</Link> : value}
+                  <Typography.Text type="secondary"><DocRef value={row} /></Typography.Text> {row.id ? <Link to={`/admin/targets/${row.id}`}>{value}</Link> : value}
                 </>
               ),
             },
@@ -130,7 +131,7 @@ function Rows({ answer }: { answer: CopilotResponse }) {
           dataSource={answer.rows}
           columns={[
             { title: 'Chỉ tiêu', dataIndex: 'name' },
-            { title: 'Kết quả', dataIndex: 'ok', width: 120, render: (ok, row) => (ok ? <Tag color="green">{row.code}</Tag> : <Tag color="red">{row.error}</Tag>) },
+            { title: 'Kết quả', dataIndex: 'ok', width: 120, render: (ok, row) => (ok ? <Tag color="green">{row.name}</Tag> : <Tag color="red">{row.error}</Tag>) },
           ]}
         />
       );

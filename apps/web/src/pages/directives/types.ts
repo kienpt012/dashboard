@@ -26,7 +26,7 @@ export type DirectiveOptions = {
   kinds: { value: string; label: string }[];
   permissions: DirectivePermissions; defaultDepartmentId: string | null;
 };
-export type DirectiveFilters = { year?: number; kind?: string; departmentId?: string; status?: string; q?: string; includeArchived?: boolean };
+export type DirectiveFilters = { year?: number; scope?: 'mine' | 'all'; kind?: string; departmentId?: string; status?: string; q?: string; includeArchived?: boolean };
 export type DirectiveStatistic = {
   id: string; name: string; total: number; completedOnTime: number; completedLate: number;
   inProgress: number; notStarted: number; overdue: number; completionRate: number; averageLateDays: number;

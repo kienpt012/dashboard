@@ -1,3 +1,4 @@
+import { DocRef } from '@/components/DocRef';
 import {
   ApartmentOutlined,
   ArrowRightOutlined,
@@ -109,11 +110,11 @@ function TargetCard({ target }: { target: PublicTarget }) {
   const progress = Math.max(0, Math.min(100, Math.round(target.progress)));
   return (
     <article className="pd-target">
+      <h3 title={target.title}>{target.title}</h3>
       <div className="pd-target-top">
-        <span className="pd-code">{target.code}</span>
+        <span className="pd-code"><DocRef value={target} /></span>
         <span className={`pd-status ${status.tone}`}>{status.label}</span>
       </div>
-      <h3 title={target.title}>{target.title}</h3>
       <span className="pd-dept">
         <i style={{ background: target.departmentColor }} />
         {target.department}

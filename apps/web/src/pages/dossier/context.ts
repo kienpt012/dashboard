@@ -7,7 +7,7 @@ import type { CurrentUser } from '@/types/auth';
 import type { Directive, Dossier, Report } from '@/types/domain';
 
 /** API trả thêm vài trường mà kiểu chung chưa khai báo. */
-export type DossierReport = Report & { userId: string; baseVersion: number; reviewedBy?: string | null };
+export type DossierReport = Report & { userId: string; baseVersion: number; reviewedBy?: string | null; mirroredFromId?: string | null; mirroredFromTargetId?: string | null };
 export type DossierDirective = Directive & { createdById: string; sourceDocumentId?: string | null };
 export type DossierData = Omit<Dossier, 'reports' | 'directives'> & {
   reports: DossierReport[];

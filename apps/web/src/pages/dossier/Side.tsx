@@ -1,3 +1,4 @@
+import { activityColor } from '@/lib/activity';
 import { EditOutlined } from '@ant-design/icons';
 import { Avatar, Button, Card, Descriptions, Flex, Form, Input, InputNumber, Modal, Select, Space, Tag, Timeline, Typography } from 'antd';
 import { useEffect, useState } from 'react';
@@ -388,16 +389,18 @@ export function BasisCard() {
 
 export function TimelineTab() {
   const { d } = useDossier();
+  const [action, setAction] = useState<string>();
   if (!d.workEvents.length) return <NoData text="Chưa có hoạt động" />;
   return (
     <div className="tab-body">
+      <Select allowClear aria-label="Loại hoạt động" placeholder="Loại hoạt động" value={action} onChange={setAction} options={[...new Map(d.workEvents.map(item => [item.action, { value: item.action, label: item.label }])).values()]} style={{ width: 280, maxWidth: '100%', marginBottom: 16 }} />
       <Timeline
-        items={d.workEvents.map(event => ({
+        items={d.workEvents.filter(item => !action || item.action === action).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(event => ({
           key: event.id,
           content: (
             <div className="timeline-item">
               <span>
-                <b>{event.actorName}</b> <span className="secondary">{event.label.toLocaleLowerCase('vi')}</span>
+                <Tag color={activityColor(event.action)}>{event.label}</Tag><b>{event.actorName}</b>
               </span>
               {event.note && <div className="secondary pre-line">{event.note}</div>}
               <div className="entry-meta">{dateTime(event.createdAt)}</div>

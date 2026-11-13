@@ -365,7 +365,7 @@ export class FrameworksController {
     const departmentId = await resolveReadDepartmentScope(this.prisma, actor, undefined, scope);
     const [frameworks, setting] = await Promise.all([
       this.prisma.framework.findMany({
-        where: includeInactive === 'true' ? {} : { isActive: true },
+        where: { kind: { not: FrameworkKind.TASK }, ...(includeInactive === 'true' ? {} : { isActive: true }) },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         include: { sourceDocument: { select: { id: true, code: true, title: true, docNumber: true } } },
       }),

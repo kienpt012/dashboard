@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
+import { DocRef } from '@/components/DocRef';
 import { TargetSource } from '@/components/TargetSource';
 import { LoadError, PageSkeleton } from '@/components/States';
 import { DeptTag, KindTag, StatusTag, STATUS } from '@/components/Tags';
@@ -21,11 +22,11 @@ import { RelatedTasks } from './RelatedTasks';
 import { BasisCard, ExplanationRequestModal, ExplanationsCard, PeopleModal, ResponsibilityCard, SourceCard, TimelineTab, type PeopleAction } from './Side';
 import { ForecastCard } from '../forecast/ForecastViews';
 import { TargetLinksCard } from '../targets/TargetLinks';
+import { ResponsiveDetails } from '@/components/ResponsiveDetails';
 import './dossier.css';
 import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
 import { useDeskNoteAction } from '@/pages/workspace/DeskNotes';
 
-const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE: 'Tỉnh/Thành phố giao', LOCAL: 'Địa phương tự đặt' };
 const TABS = ['thuc-hien', 'chi-dao', 'danh-gia', 'lich-su'] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -131,8 +132,8 @@ function DossierView({ d }: { d: DossierData }) {
     { label: d.kind === 'TASK' ? 'Văn bản chỉ đạo' : 'Danh mục chỉ tiêu', to: d.kind === 'TASK' ? '/admin/van-ban-chi-dao' : '/admin/targets' },
     ...(d.framework ? [{ label: d.framework.name, to: d.kind === 'TASK' ? `/admin/van-ban-chi-dao/${d.framework.id}` : `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
     ...(d.groupName ? [{ label: d.groupName }] : []),
-    ...(d.parent ? [{ label: d.parent.code, to: `/admin/targets/${d.parent.id}` }] : []),
-    { label: d.kind === 'TASK' ? 'Hồ sơ nhiệm vụ' : d.code },
+    ...(d.parent ? [{ label: d.parent.title, to: `/admin/targets/${d.parent.id}` }] : []),
+    { label: d.kind === 'TASK' ? 'Hồ sơ nhiệm vụ' : 'Hồ sơ chỉ tiêu' },
   ];
 
   const done = (value: boolean) => <Badge status={value ? 'success' : 'default'} />;
@@ -148,9 +149,8 @@ function DossierView({ d }: { d: DossierData }) {
           </Typography.Text>}
           {d.kind === 'TASK' && d.dispatchedByName && <span>Phân việc: {d.dispatchedByName}{d.dispatchedAt ? ` · ${dateTime(d.dispatchedAt)}` : ''}</span>}
           {d.standardCode && <span>Mã {d.standardCode}</span>}
-          {d.ordinal && <span>STT {d.ordinal}</span>}
+          <DocRef value={d} />
           <DeptTag name={d.department.name} color={d.department.color} />
-          <span>{ISSUING[d.issuingLevel] ?? d.issuingLevel}</span>
           <TargetSource variant="chip" targetId={d.id} targetTitle={d.title} canEdit={d.permissions.canEditSourceCard && !d.isArchived} />
           <Space size={6}>
             {p.readOnly && <Tag>Chỉ xem</Tag>}
@@ -203,7 +203,7 @@ function DossierView({ d }: { d: DossierData }) {
       )}
       <Figures />
       <RelatedTasks />
-      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <TargetLinksCard targetId={d.id} />}{d.kind !== 'STAT' && d.kind !== 'TASK' && <ForecastCard targetId={d.id} />}</Flex>
+      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <ResponsiveDetails title="Mức giao theo văn bản"><TargetLinksCard targetId={d.id} /></ResponsiveDetails>}{d.kind !== 'STAT' && d.kind !== 'TASK' && <ResponsiveDetails title="Dự báo"><ForecastCard targetId={d.id} /></ResponsiveDetails>}</Flex>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
           <Card className="card-tabs dossier-tabs">

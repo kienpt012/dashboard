@@ -1,3 +1,4 @@
+import { DocRef } from '@/components/DocRef';
 import { PrinterOutlined } from '@ant-design/icons';
 import { Button, Card, DatePicker, Flex, Select, Table } from 'antd';
 import { Fragment, useState } from 'react';
@@ -6,6 +7,7 @@ import dayjs from 'dayjs';
 import { Page } from '@/components/Page';
 import { PrintDocument } from '@/components/PrintDocument';
 import { NoData, Query } from '@/components/States';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
 import { useApi } from '@/hooks/useApi';
 import { query } from '@/lib/api';
 import { date, num, vn } from '@/lib/format';
@@ -14,11 +16,12 @@ import type { DirectiveOptions, MonthlyWork as MonthlyData } from './types';
 import './directives.css';
 
 export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
+  const readScope = useReadScope();
   const [params, setParams] = useSearchParams();
   const rawMonth = params.get('month');
   const month = rawMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(rawMonth) ? rawMonth : vn().format('YYYY-MM');
-  const departmentId = params.has('monthDepartmentId') ? params.get('monthDepartmentId') || '' : options.defaultDepartmentId || '';
-  const suffix = query({ month, departmentId });
+  const departmentId = readScope.scope === 'mine' ? options.defaultDepartmentId || '' : params.get('monthDepartmentId') || '';
+  const suffix = query({ month, departmentId, scope: readScope.scope });
   const data = useApi<MonthlyData>(`/directives/monthly${suffix}`, { keepPrevious: true });
   const [printedAt, setPrintedAt] = useState(() => new Date());
   function update(key: string, value: string) {
@@ -31,9 +34,10 @@ export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
   return <div className="directive-page">
     <Flex wrap justify="space-between" gap={12} className="directive-month-tools">
       <Flex wrap gap={8}>
+        <ReadScopeSwitch value={readScope} />
         <DatePicker picker="month" allowClear={false} format="MM/YYYY" value={dayjs(`${month}-01`)} aria-label="Tháng công tác" onChange={value => value && update('month', value.format('YYYY-MM'))} />
         <Select value={departmentId} aria-label="Phòng ban" showSearch={{ optionFilterProp: 'label' }} onChange={value => update('monthDepartmentId', value)} options={[
-          ...(options.permissions.canDispatch || !options.defaultDepartmentId ? [{ value: '', label: 'Toàn địa phương' }] : []),
+          ...(readScope.scope === 'all' || options.permissions.canDispatch ? [{ value: '', label: 'Toàn địa phương' }] : []),
           ...options.departments.map(item => ({ value: item.id, label: item.name })),
         ]} />
       </Flex>
@@ -45,8 +49,8 @@ export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
     <Query query={data}>{result => <>
       {result.groups.length ? <Flex vertical gap={16}>{result.groups.map(group => <Card key={group.id} title={group.name} extra={<span className="muted">{num(group.items.length)} việc</span>} className="card-flush">
         <Table rowKey={item => `${item.id}-${item.periodLabel ?? ''}`} dataSource={group.items} pagination={false} scroll={{ x: 850 }} sticky columns={[
-          { title: 'STT', key: 'index', width: 60, render: (_, __, index) => index + 1 },
-          { title: 'Nội dung', key: 'title', render: (_, item) => <div className="directive-name"><Link to={`/admin/targets/${item.targetId || item.id}`}>{item.title}</Link>{item.periodLabel && <span className="directive-cell-meta">{item.periodLabel}</span>}</div> },
+          { title: <span style={{ whiteSpace: 'nowrap' }}>STT</span>, key: 'index', width: 76, render: (_, __, index) => index + 1 },
+          { title: 'Nội dung', key: 'title', render: (_, item) => <div className="directive-name"><Link to={`/admin/targets/${item.targetId || item.id}`}>{item.title}</Link><DocRef value={item} />{item.periodLabel && <span className="directive-cell-meta">{item.periodLabel}</span>}</div> },
           { title: 'Phòng chủ trì', key: 'department', width: 200, render: (_, item) => item.department.name },
           { title: 'Người phụ trách', key: 'assignee', width: 160, render: (_, item) => item.assignee?.fullName || <span className="muted">Chưa giao người</span> },
           { title: 'Hạn', dataIndex: 'dueDate', width: 115, render: value => date(value) },
@@ -70,7 +74,8 @@ export function MonthlyWorkPanel({ options }: { options: DirectiveOptions }) {
 }
 
 export default function MonthlyWork() {
-  const options = useApi<DirectiveOptions>('/directives/options');
+  const readScope = useReadScope();
+  const options = useApi<DirectiveOptions>(`/directives/options?scope=${readScope.scope}`);
   return <Page title="Việc theo tháng" breadcrumb={[{ label: 'Văn bản chỉ đạo', to: '/admin/van-ban-chi-dao' }, { label: 'Việc theo tháng' }]} wide>
     <Query query={options}>{data => <MonthlyWorkPanel options={data} />}</Query>
   </Page>;

@@ -186,7 +186,7 @@ function BindingsEditor({ bindings, onChange, editor, html }: { bindings: Custom
               placeholder="Chọn chỉ tiêu"
               status={binding.targetKey ? undefined : 'error'}
               value={binding.targetKey}
-              options={editor.catalog.targets.map(target => ({ value: target.key, label: `${target.code} · ${target.title}` }))}
+              options={editor.catalog.targets.map(target => ({ value: target.key, label: target.title }))}
               onChange={targetKey => update(index, { targetKey })}
             />
           )}
@@ -276,7 +276,7 @@ function WidgetSettings({
                 showSearch={{ optionFilterProp: 'label' }}
                 value={s.targetKeys}
                 onChange={targetKeys => set({ targetKeys })}
-                options={editor.catalog.targets.map(target => ({ value: target.key, label: `${target.code} · ${target.title}` }))}
+                options={editor.catalog.targets.map(target => ({ value: target.key, label: target.title }))}
                 notFoundContent="Chưa có chỉ tiêu công khai"
                 maxTagCount="responsive"
               />

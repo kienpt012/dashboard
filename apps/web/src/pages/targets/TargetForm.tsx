@@ -134,7 +134,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
       });
     },
     {
-      success: result => (target ? `Đã cập nhật ${result.code ?? target.code}` : `Đã tạo chỉ tiêu ${result.code}`),
+      success: () => (target ? `Đã cập nhật ${target.title}` : 'Đã tạo chỉ tiêu'),
       refresh: ['/targets', '/ioc', '/frameworks', '/my-work'],
       onDone: result => {
         onSaved?.(result);
@@ -147,7 +147,7 @@ export function TargetForm({ open, target, defaults, onClose, onSaved }: { open:
 
   return (
     <Modal
-      title={editing ? `Sửa chỉ tiêu ${target?.code}` : 'Thêm chỉ tiêu'}
+      title={editing ? `Sửa chỉ tiêu ${target?.title}` : 'Thêm chỉ tiêu'}
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}

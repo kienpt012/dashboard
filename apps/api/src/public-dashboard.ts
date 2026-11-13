@@ -887,6 +887,9 @@ const dashboardTargetSelect = Prisma.validator<Prisma.TargetSelect>()({
   publishedDirection: true,
   publishedStatus: true,
   publishedCode: true,
+  publishedDocRef: true,
+  publishedOrdinal: true,
+  publishedIssuingLevel: true,
   publishedTitle: true,
   publishedDescription: true,
   publishedUnit: true,
@@ -905,6 +908,7 @@ type DashboardTargetRow = Prisma.TargetGetPayload<{ select: typeof dashboardTarg
 
 function dashboardTargetWhere(year?: number): Prisma.TargetWhereInput {
   return {
+    kind: { not: 'TASK' },
     isPublic: true,
     isArchived: false,
     publishedValue: { not: null },
@@ -925,6 +929,9 @@ function toPublicTarget(target: DashboardTargetRow) {
   return {
     key: publicDashboardTargetKey(target.id),
     code: hasSnapshot ? target.publishedCode! : target.code,
+    docRef: target.publishedDocRef ?? null,
+    ordinal: target.publishedOrdinal ?? null,
+    issuingLevel: target.publishedIssuingLevel ?? null,
     title: hasSnapshot ? target.publishedTitle! : target.title,
     description: hasSnapshot ? target.publishedDescription : target.description,
     unit: hasSnapshot ? target.publishedUnit! : target.unit,

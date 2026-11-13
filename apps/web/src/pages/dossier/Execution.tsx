@@ -92,7 +92,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
       mask={{ closable: false }}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        {d.kind === 'TASK' ? d.title : `${d.code} · ${d.title}`}
+        {d.title}
       </Typography.Paragraph>
       <Form form={form} layout="vertical" onFinish={values => void submit(values)} className="form-grid">
         {d.kind !== 'TASK' && <Form.Item name="periodKey" label="Kỳ báo cáo" rules={[{ required: true, message: 'Chọn kỳ' }]}>

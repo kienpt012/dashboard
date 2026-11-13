@@ -29,7 +29,7 @@ test('mọi endpoint thay đổi nhiệm vụ kiểm tra người phân việc t
 test('phạm vi xem gồm phòng chủ trì và phối hợp; không nhận bộ lọc phòng khác khi không có quyền', async () => {
   let where: any;
   let mode = 'LEADER';
-  const prisma = { systemSetting: { findUnique: async () => ({ dispatchMode: mode }) }, department: { count: async () => 1 }, framework: { findMany: async () => [framework] }, target: { findMany: async (args: any) => { where = args.where; return []; } } };
+  const prisma = { systemSetting: { findUnique: async () => ({ dispatchMode: mode, crossDepartmentView: false }) }, department: { count: async () => 1 }, framework: { findMany: async () => [framework] }, target: { findMany: async (args: any) => { where = args.where; return []; } } };
   const controller = new DirectivesController(prisma as any, limiter as any);
   await controller.list({ user: economy }, {});
   assert.deepEqual(where.OR, [{ departmentId: 'kt' }, { coordinators: { some: { departmentId: 'kt' } } }]);

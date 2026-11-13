@@ -1,3 +1,4 @@
+import { DocRef, docRefText } from '@/components/DocRef';
 import { CaretRightOutlined, CloseOutlined, FullscreenExitOutlined, FullscreenOutlined, LeftOutlined, PauseOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons';
 import { Button, Spin } from 'antd';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
@@ -269,7 +270,7 @@ function Rows({ rows, showDepartment }: { rows: WallTarget[]; showDepartment: bo
           <div className={`wb-row${target.status === 'OVERDUE' ? ' hot' : ''}`} key={target.id} style={{ '--i': index } as CSSProperties}>
             <i className="wb-row-bar" style={{ background: color }} />
             <div className="wb-row-main">
-              <span className="wb-row-title">{target.title}</span>
+              <span className="wb-row-title">{target.title}<small className="doc-ref"><DocRef value={target} /></small></span>
               <span className="wb-row-sub">
                 {who}
                 {target.missingPeriods?.length ? <em> · thiếu {target.missingPeriods.slice(-2).join(', ')}</em> : null}
@@ -471,7 +472,7 @@ function StalledView({ frame }: { frame: Extract<Frame, { kind: 'stalled' }> }) 
               <div className="wb-row-main">
                 <span className="wb-row-title">{item.title}</span>
                 <span className="wb-row-sub">
-                  {item.code} · {item.departmentName}
+                  {[docRefText(item), item.departmentName].filter(Boolean).join(' · ')}
                 </span>
               </div>
               <div className="wb-row-reason">{item.reason ?? (item.explanationRequested ? 'Quá hạn trả lời giải trình' : 'Chưa giao người phụ trách')}</div>
