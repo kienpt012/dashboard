@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma, type FrameworkKind, type PrismaClient } from '@prisma/client';
 import { type Actor, audit, isLeadership, resolveReadDepartmentScope } from '../access';
 import { PrismaService } from '../prisma.service';
 import { currentVietnamYear } from '../planning-date';
@@ -50,9 +50,11 @@ function modelInfo(row: StoredModel) {
     importance: FEATURES.map(([feature, label], index) => ({ feature, label, weight: model.coefficients[index], importance: Math.abs(model.coefficients[index]) / total })).sort((a, b) => b.importance - a.importance),
   };
 }
+const FORECAST_KINDS: FrameworkKind[] = ['PLAN', 'SCORE'];
 export async function loadTrainingInputs(prisma: PrismaClient, now = new Date()): Promise<ForecastInput[]> {
   const [targets, history] = await Promise.all([
-    prisma.target.findMany({ where: { kind: { in: ['PLAN', 'SCORE', 'TASK'] }, dueDate: { lt: now } }, include: targetInclude }),
+    // Nhiệm vụ của văn bản chỉ đạo chỉ có xong/chưa xong và một hạn: không đủ tín hiệu để dự báo, đã có theo dõi hạn riêng.
+    prisma.target.findMany({ where: { kind: { in: FORECAST_KINDS }, dueDate: { lt: now } }, include: targetInclude }),
     prisma.forecastHistory.findMany({ where: { dueDate: { lt: now } }, orderBy: [{ seriesKey: 'asc' }, { year: 'asc' }, { reportedAt: 'asc' }] }),
   ]);
   const groups = new Map<string, typeof history>();
@@ -98,7 +100,7 @@ export class ForecastService {
     const departmentId = await resolveReadDepartmentScope(this.prisma, actor, query.departmentId, query.scope), year = forecastYear(query.year);
     if (query.risk && !['LOW', 'MEDIUM', 'HIGH'].includes(query.risk)) throw new BadRequestException('Mức nguy cơ không hợp lệ');
     const [targets, model] = await Promise.all([
-      this.prisma.target.findMany({ where: { year, isArchived: false, kind: { in: ['PLAN', 'SCORE', 'TASK'] }, dueDate: { gt: now }, ...(departmentId ? { departmentId } : {}), ...(query.frameworkId ? { frameworkId: query.frameworkId } : {}) }, include: targetInclude }),
+      this.prisma.target.findMany({ where: { year, isArchived: false, kind: { in: FORECAST_KINDS }, dueDate: { gt: now }, ...(departmentId ? { departmentId } : {}), ...(query.frameworkId ? { frameworkId: query.frameworkId } : {}) }, include: targetInclude }),
       this.prisma.forecastModel.findFirst({ orderBy: { trainedAt: 'desc' } }),
     ]);
     const items = targets.map(target => this.forecast(target, model, now)).filter(row => !query.risk || row.risk === query.risk).sort((a, b) => b.probability - a.probability || a.title.localeCompare(b.title, 'vi'));
@@ -108,6 +110,7 @@ export class ForecastService {
     const target = await this.prisma.target.findUnique({ where: { id }, include: targetInclude });
     if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
     await resolveReadDepartmentScope(this.prisma, actor, target.departmentId, 'all');
+    if (target.kind === 'TASK') return { applicable: false, targetId: id, reason: 'Nhiệm vụ được theo dõi theo hạn hoàn thành, không dự báo' };
     if (target.kind === 'STAT' || target.dueDate <= now || target.isArchived) return { applicable: false, targetId: id, reason: target.kind === 'STAT' ? 'Chỉ tiêu thống kê không có mức giao để dự báo' : 'Chỉ tiêu đã hết hạn hoặc được lưu trữ' };
     return this.forecast(target, await this.prisma.forecastModel.findFirst({ orderBy: { trainedAt: 'desc' } }), now);
   }

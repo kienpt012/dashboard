@@ -203,7 +203,7 @@ function DossierView({ d }: { d: DossierData }) {
       )}
       <Figures />
       <RelatedTasks />
-      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <TargetLinksCard targetId={d.id} />}{d.kind !== 'STAT' && <ForecastCard targetId={d.id} />}</Flex>
+      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <TargetLinksCard targetId={d.id} />}{d.kind !== 'STAT' && d.kind !== 'TASK' && <ForecastCard targetId={d.id} />}</Flex>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
           <Card className="card-tabs dossier-tabs">
