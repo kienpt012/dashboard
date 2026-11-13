@@ -38,7 +38,9 @@ Dán danh sách nhận ngày ở cuối dòng, ví dụ `Hoàn thiện hồ sơ 
 
 Trạng thái nhiệm vụ: Chưa bắt đầu, Đang thực hiện, Hoàn thành, Quá hạn. Chỉ số thống kê gồm số giao, hoàn thành đúng hạn/trễ, đang làm, quá hạn, tỷ lệ hoàn thành và số ngày trễ trung bình. Tổng hợp theo văn bản, phòng, loại và tháng; Excel gồm nhiều trang tính. Ngày nộp báo cáo hoàn thành đã được duyệt dùng để xác định đúng hạn/trễ, tránh tính thời gian chờ duyệt thành lỗi của người thực hiện.
 
-Worker nhắc khi còn tối đa 3 ngày cho người phụ trách (chưa giao thì trưởng phòng), quá hạn báo trưởng phòng, quá hạn 3 ngày báo người phân việc và lãnh đạo. Khóa chống trùng theo nhiệm vụ/hạn/mốc/ người nhận giúp chạy lại không gửi lặp. Thông báo đặt tên nhiệm vụ trước; không dùng mã CT trên giao diện mới.
+Tháng thống kê là tháng đến hạn. Ngày trễ bình quân tính trên các nhiệm vụ hoàn thành trễ; việc chưa hoàn thành được đếm riêng ở cột quá hạn. Biểu đồ theo phòng dùng thanh ngang xếp chồng để đọc đủ tên phòng trên điện thoại; bảng nhiều cột cuộn ngang trong khung, không làm tràn trang.
+
+Worker nhắc khi còn tối đa 3 ngày cho người phụ trách (chưa giao thì trưởng phòng), quá hạn báo trưởng phòng, quá hạn 3 ngày báo người phân việc và lãnh đạo. Khóa chống trùng theo nhiệm vụ/hạn/mốc/người nhận giúp chạy lại không gửi lặp. Thông báo đặt tên nhiệm vụ trước; không dùng mã CT trên giao diện mới. Mốc 3 ngày được dùng riêng cho TASK vì các cấu hình nhắc kỳ và việc treo hiện có mang ý nghĩa khác.
 
 ## API
 
@@ -76,3 +78,5 @@ node scripts/qa-directives.mjs
 ```
 
 Script QA từ chối CSDL khác `ioc_wp_b`; kiểm tra HTTP thật, đối chiếu dữ liệu và Excel, chạy worker lại để kiểm tra chống trùng; cuối cùng khôi phục chế độ phân việc và dọn dữ liệu nghiệp vụ do bộ QA tạo.
+
+Đợt kiểm tra trên CSDL dev: build thành công, 303 kiểm thử API/logic và 27 kiểm thử workspace đạt; bộ QA HTTP thật đạt 28 kiểm tra. Dữ liệu mẫu gồm 5 văn bản và 30 nhiệm vụ; chạy lại script không tạo thêm nhiệm vụ. Đã kiểm tra giao diện sáng/tối ở 1440 và 390 px, sáng ở 1024 px; kiểm tra bản in 2 trang, Enter/Escape và tự điền từ Kho văn bản. Bằng chứng chi tiết lưu trong báo cáo bàn giao gói B.
