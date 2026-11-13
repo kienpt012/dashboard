@@ -14,10 +14,13 @@ import type { MyWork, Overview } from '@/types/domain';
 import type { WorkspaceWidget } from './model';
 import { apiRows, calculateExpression, readJsonPath } from './widget-utils';
 import './widgets.css';
+import { MyTargetsWidget, TargetChartWidget, OverviewWidget, ApprovalWidget, ProposalsWidget, FeedbackWidget, DocumentsWidget, PinsWidget } from './IocWidgets';
+import { SentNotesWidget } from './DeskNotes';
+import { DeskCalendarWidget } from './DeskBriefing';
 
 type Props = { widget: WorkspaceWidget; onChange: (settings: Record<string, unknown>) => void };
 type RemoteResult = { data: unknown; fetchedAt: string; source: string };
-type Task = { id: string; text: string; done: boolean };
+type Task = { id: string; text: string; done: boolean; dueAt?: string };
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
 const number = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 const bounded = (value: unknown, fallback: number, min: number, max: number) => Math.max(min, Math.min(max, number(value, fallback)));
@@ -83,7 +86,7 @@ function ClockWidget({ widget }: Props) {
   let zone = text(widget.settings.timezone, 'Asia/Ho_Chi_Minh');
   try { new Intl.DateTimeFormat('vi-VN', { timeZone: zone }).format(now); } catch { zone = 'Asia/Ho_Chi_Minh'; }
   const date = new Date(now);
-  return <div className="ws-widget-clock"><span className="ws-widget-eyebrow">MỖI NGÀY, MỘT BƯỚC TIẾN</span><div className="ws-widget-time">{date.toLocaleTimeString('vi-VN', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: Boolean(widget.settings.hour12) })}<span>{date.toLocaleTimeString('vi-VN', { timeZone: zone, second: '2-digit' })}</span></div><p>{date.toLocaleDateString('vi-VN', { ...DATE_OPTIONS, timeZone: zone })}</p><span className="ws-widget-pill">{zone.replaceAll('_', ' ')}</span></div>;
+  return <div className="ws-widget-clock"><div className="ws-widget-time">{date.toLocaleTimeString('vi-VN', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: Boolean(widget.settings.hour12) })}<span>{date.toLocaleTimeString('vi-VN', { timeZone: zone, second: '2-digit' })}</span></div><p>{date.toLocaleDateString('vi-VN', { ...DATE_OPTIONS, timeZone: zone })}</p><span className="ws-widget-pill">{zone.replaceAll('_', ' ')}</span></div>;
 }
 
 function WeatherWidget({ widget }: Props) {
@@ -113,7 +116,7 @@ function NotesWidget({ widget, onChange }: Props) {
       </div>
       {preview ? (
         <div className="ws-note-preview">
-          {value.trim() ? <Markdown text={value} onToggle={index => onChange({ ...widget.settings, text: toggleCheck(value, index) })} /> : <State>Ghi chú đang trống. Chọn Viết để lưu một ý tưởng.</State>}
+          {value.trim() ? <Markdown text={value} onToggle={index => onChange({ ...widget.settings, text: toggleCheck(value, index) })} /> : <State>Chưa có ghi chú</State>}
         </div>
       ) : (
         <textarea aria-label="Nội dung ghi chú" placeholder="Một ý tưởng, một điều cần nhớ…\nDùng **chữ đậm**, # tiêu đề hoặc - [ ] việc cần làm." value={value} maxLength={20_000} onChange={event => onChange({ ...widget.settings, text: event.target.value })} />
@@ -125,10 +128,11 @@ function NotesWidget({ widget, onChange }: Props) {
 
 function TasksWidget({ widget, onChange }: Props) {
   const [draft, setDraft] = useState('');
+  const [dueAt, setDueAt] = useState('');
   const items: Task[] = Array.isArray(widget.settings.items) ? widget.settings.items.filter((item): item is Task => Boolean(item && typeof item === 'object' && typeof item.id === 'string' && typeof item.text === 'string')).slice(0, 100) : [];
   const done = items.filter(item => item.done).length;
   const save = (next: Task[]) => onChange({ ...widget.settings, items: next });
-  return <div className="ws-widget-tasks"><div className="ws-widget-line"><span>{done}/{items.length} hoàn thành</span><span className="ws-widget-pill">{items.length ? Math.round(done / items.length * 100) : 0}%</span></div><div className="ws-widget-progress"><i style={{ width: `${items.length ? done / items.length * 100 : 0}%` }} /></div><form className="ws-widget-task-add" onSubmit={event => { event.preventDefault(); if (draft.trim() && items.length < 100) { save([...items, { id: crypto.randomUUID(), text: draft.trim(), done: false }]); setDraft(''); } }}><input aria-label="Việc cần làm mới" placeholder="Thêm một việc cần làm…" maxLength={300} value={draft} onChange={event => setDraft(event.target.value)} /><button aria-label="Thêm việc" type="submit" disabled={!draft.trim() || items.length >= 100}><PlusOutlined /></button></form><div className="ws-widget-task-list">{!items.length && <State>Ngày mới, một danh sách mới.<br />Bắt đầu từ việc quan trọng nhất.</State>}{items.map(item => <div key={item.id} className={`ws-widget-task${item.done ? ' done' : ''}`}><label><input type="checkbox" checked={Boolean(item.done)} onChange={event => save(items.map(value => value.id === item.id ? { ...value, done: event.target.checked } : value))} /><span>{item.text}</span></label><button className="ws-widget-icon-btn" type="button" aria-label={`Xóa việc ${item.text}`} onClick={() => save(items.filter(value => value.id !== item.id))}><DeleteOutlined /></button></div>)}</div>{done > 0 && <button className="ws-widget-text-btn" type="button" onClick={() => save(items.filter(item => !item.done))}>Dọn {done} việc đã xong</button>}</div>;
+  return <div className="ws-widget-tasks"><div className="ws-widget-line"><span>{done}/{items.length} hoàn thành</span><span className="ws-widget-pill">{items.length ? Math.round(done / items.length * 100) : 0}%</span></div><div className="ws-widget-progress"><i style={{ width: `${items.length ? done / items.length * 100 : 0}%` }} /></div><form className="ws-widget-task-add" onSubmit={event => { event.preventDefault(); if (draft.trim() && items.length < 100) { save([...items, { id: crypto.randomUUID(), text: draft.trim(), done: false, ...(dueAt ? { dueAt } : {}) }]); setDraft(''); setDueAt(''); } }}><input aria-label="Việc cần làm mới" placeholder="Thêm một việc cần làm…" maxLength={300} value={draft} onChange={event => setDraft(event.target.value)} /><input type="date" aria-label="Ngày của việc riêng" value={dueAt} onChange={event => setDueAt(event.target.value)} /><button aria-label="Thêm việc" type="submit" disabled={!draft.trim() || items.length >= 100}><PlusOutlined /></button></form><div className="ws-widget-task-list">{!items.length && <State>Chưa có việc</State>}{items.map(item => <div key={item.id} className={`ws-widget-task${item.done ? ' done' : ''}`}><label><input type="checkbox" checked={Boolean(item.done)} onChange={event => save(items.map(value => value.id === item.id ? { ...value, done: event.target.checked } : value))} /><span>{item.text}{item.dueAt && <small style={{ display: 'block' }}>{new Date(`${item.dueAt}T12:00:00+07:00`).toLocaleDateString('vi-VN')}</small>}</span></label><button className="ws-widget-icon-btn" type="button" aria-label={`Xóa việc ${item.text}`} onClick={() => save(items.filter(value => value.id !== item.id))}><DeleteOutlined /></button></div>)}</div>{done > 0 && <button className="ws-widget-text-btn" type="button" onClick={() => save(items.filter(item => !item.done))}>Dọn {done} việc đã xong</button>}</div>;
 }
 
 function FocusWidget({ widget }: Props) {
@@ -147,7 +151,7 @@ function FocusWidget({ widget }: Props) {
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
   }, [deadline]);
-  return <div className="ws-widget-focus"><div className="ws-widget-segment"><button type="button" className={mode === 'focus' ? 'active' : ''} onClick={() => setMode('focus')}>Tập trung</button><button type="button" className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>Nghỉ ngắn</button></div><div className="ws-widget-focus-ring" style={{ '--ws-ring-progress': `${(1 - remaining / duration) * 360}deg` } as CSSProperties}><div><strong>{String(Math.floor(remaining / 60)).padStart(2, '0')}<span>:</span>{String(remaining % 60).padStart(2, '0')}</strong><span>{completed ? 'Bạn đã hoàn thành!' : mode === 'focus' ? 'Dành trọn tâm trí' : 'Hít thở, thư giãn'}</span></div></div><div className="ws-widget-focus-actions"><button className="ws-widget-primary" type="button" onClick={() => { if (deadline) { setRemaining(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))); setDeadline(null); } else { setCompleted(false); setDeadline(Date.now() + (remaining > 0 ? remaining : duration) * 1000); } }}>{deadline ? <PauseOutlined /> : <PlayCircleOutlined />}{deadline ? 'Tạm dừng' : 'Bắt đầu'}</button><button className="ws-widget-icon-btn" type="button" title="Bắt đầu lại" aria-label="Bắt đầu lại bộ đếm" onClick={() => { setDeadline(null); setRemaining(duration); setCompleted(false); }}><ReloadOutlined /></button></div><span className="ws-widget-live" role="status">{completed ? 'Hết giờ. Hãy dành một chút thời gian nghỉ ngơi.' : 'Bộ đếm hoạt động khi bạn ở không gian này.'}</span></div>;
+  return <div className="ws-widget-focus"><div className="ws-widget-segment"><button type="button" className={mode === 'focus' ? 'active' : ''} onClick={() => setMode('focus')}>Tập trung</button><button type="button" className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>Nghỉ ngắn</button></div><div className="ws-widget-focus-ring" style={{ '--ws-ring-progress': `${(1 - remaining / duration) * 360}deg` } as CSSProperties}><div><strong>{String(Math.floor(remaining / 60)).padStart(2, '0')}<span>:</span>{String(remaining % 60).padStart(2, '0')}</strong><span>{completed ? 'Bạn đã hoàn thành!' : mode === 'focus' ? 'Đang tập trung' : 'Nghỉ ngắn'}</span></div></div><div className="ws-widget-focus-actions"><button className="ws-widget-primary" type="button" onClick={() => { if (deadline) { setRemaining(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))); setDeadline(null); } else { setCompleted(false); setDeadline(Date.now() + (remaining > 0 ? remaining : duration) * 1000); } }}>{deadline ? <PauseOutlined /> : <PlayCircleOutlined />}{deadline ? 'Tạm dừng' : 'Bắt đầu'}</button><button className="ws-widget-icon-btn" type="button" title="Bắt đầu lại" aria-label="Bắt đầu lại bộ đếm" onClick={() => { setDeadline(null); setRemaining(duration); setCompleted(false); }}><ReloadOutlined /></button></div><span className="ws-widget-live" role="status">{completed ? 'Hết giờ. Hãy dành một chút thời gian nghỉ ngơi.' : 'Bộ đếm hoạt động khi bạn ở không gian này.'}</span></div>;
 }
 
 function CalendarWidget({ widget }: Props) {
@@ -212,7 +216,7 @@ function WorkWidget({ widget }: Props) {
   const query = useQuery({ queryKey: ['workspace-work', user.id, year], queryFn: ({ signal }) => http.get<MyWork>(`/my-work?year=${year}`, signal), refetchInterval: 120_000 });
   const data = query.data;
   if (!data) return <State error={Boolean(query.error)}>{query.error ? <>{errorText(query.error)}<button type="button" className="ws-widget-text-btn" onClick={() => void query.refetch()}>Thử lại</button></> : 'Đang tải việc của bạn…'}</State>;
-  return <div className="ws-widget-work"><div className="ws-widget-work-counts"><Link to="/admin/viec-cua-toi"><b>{data.counts.needReport}</b><span>Cần báo cáo</span></Link><Link to="/admin/viec-cua-toi"><b>{data.counts.toReview}</b><span>Chờ duyệt</span></Link><Link to="/admin/viec-cua-toi"><b>{data.counts.explanations}</b><span>Giải trình</span></Link></div><div className="ws-widget-work-list">{data.needReport.slice(0, 3).map(item => <Link key={item.id} to={`/admin/targets/${item.id}`}><span className="ws-widget-work-marker"><ThunderboltOutlined /></span><div><strong>{item.title}</strong><small>{item.code} · {item.currentPeriod}</small></div><RightOutlined /></Link>)}{!data.needReport.length && <State><CheckOutlined /> Bạn không có chỉ tiêu cần báo cáo.</State>}</div><Link className="ws-widget-more" to="/admin/viec-cua-toi">Xem tất cả công việc <ArrowRightOutlined /></Link>{query.error && <small className="ws-widget-error">Làm mới thất bại: {errorText(query.error)}</small>}</div>;
+  return <div className="ws-widget-work"><div className="ws-widget-work-counts"><Link to="/admin/viec-cua-toi"><b>{data.counts.needReport}</b><span>Cần báo cáo</span></Link><Link to="/admin/viec-cua-toi"><b>{data.counts.toReview}</b><span>Chờ duyệt</span></Link><Link to="/admin/viec-cua-toi"><b>{data.counts.explanations}</b><span>Giải trình</span></Link></div><div className="ws-widget-work-list">{data.needReport.slice(0, 3).map(item => <Link key={item.id} to={`/admin/targets/${item.id}`}><span className="ws-widget-work-marker"><ThunderboltOutlined /></span><div><strong>{item.title}</strong><small>{item.currentPeriod}</small></div><RightOutlined /></Link>)}{!data.needReport.length && <State><CheckOutlined /> Bạn không có chỉ tiêu cần báo cáo.</State>}</div><Link className="ws-widget-more" to="/admin/viec-cua-toi">Xem tất cả công việc <ArrowRightOutlined /></Link>{query.error && <small className="ws-widget-error">Làm mới thất bại: {errorText(query.error)}</small>}</div>;
 }
 
 function ApiWidget({ widget }: Props) {
@@ -234,8 +238,8 @@ function ApiWidget({ widget }: Props) {
 
 function EmbedWidget({ widget }: Props) {
   const url = validHttps(text(widget.settings.url));
-  if (!url) return <State><span className="ws-widget-empty-icon">▧</span><strong>Một cửa sổ ra bên ngoài</strong><span>Nhập URL HTTPS trong cài đặt để ghim một trang web tại đây.</span></State>;
-  return <div className="ws-widget-embed"><iframe src={url} title={widget.title} loading="lazy" sandbox="allow-scripts allow-forms allow-presentation" referrerPolicy="no-referrer" /><div><span>Một số trang không cho phép nhúng hoặc yêu cầu đăng nhập.</span><a href={url} target="_blank" rel="noopener noreferrer">Mở trang ↗</a></div></div>;
+  if (!url) return <State><strong>Chưa cấu hình</strong><span>Nhập địa chỉ HTTPS trong cài đặt.</span></State>;
+  return <div className="ws-widget-embed"><iframe src={url} title={widget.title} loading="lazy" sandbox="allow-scripts" referrerPolicy="no-referrer" /><div><span>Một số trang không cho phép nhúng hoặc yêu cầu đăng nhập.</span><a href={url} target="_blank" rel="noopener noreferrer">Mở trang ↗</a></div></div>;
 }
 
 function CalculatorWidget() {
@@ -250,14 +254,24 @@ function CalculatorWidget() {
 function CountdownWidget({ widget }: Props) {
   const now = useNow();
   const target = new Date(text(widget.settings.date)).getTime();
-  if (!Number.isFinite(target)) return <State><span className="ws-widget-empty-icon">◷</span><strong>Đếm ngược tới điều quan trọng</strong><span>Chọn ngày và giờ trong cài đặt tiện ích.</span></State>;
+  if (!Number.isFinite(target)) return <State><span className="ws-widget-empty-icon">◷</span><strong>Chưa cấu hình</strong><span>Chọn ngày và giờ trong cài đặt tiện ích.</span></State>;
   const remaining = Math.max(0, Math.floor((target - now) / 1000));
   const values = [Math.floor(remaining / 86400), Math.floor(remaining / 3600) % 24, Math.floor(remaining / 60) % 60, remaining % 60];
-  return <div className="ws-widget-countdown"><span className="ws-widget-eyebrow">{remaining ? 'CHỜ ĐÓN CỘT MỐC' : 'ĐÃ ĐẾN THỜI ĐIỂM'}</span><strong>{text(widget.settings.label, 'Sự kiện của bạn')}</strong><div>{values.map((value, index) => <span key={index}><b>{String(value).padStart(2, '0')}</b><small>{['ngày', 'giờ', 'phút', 'giây'][index]}</small></span>)}</div><p>{new Date(target).toLocaleString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>;
+  return <div className="ws-widget-countdown"><span className="ws-widget-eyebrow">{remaining ? 'THỜI GIAN CÒN LẠI' : 'ĐÃ ĐẾN THỜI ĐIỂM'}</span><strong>{text(widget.settings.label, 'Sự kiện của bạn')}</strong><div>{values.map((value, index) => <span key={index}><b>{String(value).padStart(2, '0')}</b><small>{['ngày', 'giờ', 'phút', 'giây'][index]}</small></span>)}</div><p>{new Date(target).toLocaleString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>;
 }
 
 export function WorkspaceWidgetBody(props: Props) {
   switch (props.widget.type) {
+    case 'my-targets': return <MyTargetsWidget />;
+    case 'target-chart': return <TargetChartWidget {...props} />;
+    case 'alerts': case 'departments': case 'activity': return <OverviewWidget kind={props.widget.type} />;
+    case 'approvals': return <ApprovalWidget />;
+    case 'proposals': return <ProposalsWidget />;
+    case 'feedback': return <FeedbackWidget />;
+    case 'documents': return <DocumentsWidget />;
+    case 'pins': return <PinsWidget {...props} />;
+    case 'sent-notes': return <SentNotesWidget />;
+    case 'agenda': return <DeskCalendarWidget />;
     case 'clock': return <ClockWidget {...props} />;
     case 'weather': return <WeatherWidget {...props} />;
     case 'notes': return <NotesWidget {...props} />;
@@ -305,6 +319,7 @@ export function WidgetSettings({ widget, onChange }: Props) {
     case 'notes': fields = <p className="ws-settings-hint">Viết trực tiếp rồi chọn Xem trước để đọc ghi chú đã định dạng. Dùng # cho tiêu đề, **chữ đậm**, _chữ nghiêng_, - [ ] cho việc cần làm và [tên](https://...) cho liên kết. Có thể đánh dấu việc ngay trong bản xem trước. Nội dung được lưu riêng theo tài khoản.</p>; break;
     case 'tasks': fields = <p className="ws-settings-hint">Thêm, đánh dấu hoàn tất và dọn việc ngay trên tiện ích. Đây là danh sách riêng của bạn, tối đa 100 việc.</p>; break;
     case 'calendar': fields = <><label className="ws-settings-check"><input type="checkbox" checked={settings.showLunar !== false} onChange={event => patch({ showLunar: event.target.checked })} />Hiện âm lịch Việt Nam</label><label className="ws-settings-check"><input type="checkbox" checked={settings.showHolidays !== false} onChange={event => patch({ showHolidays: event.target.checked })} />Đánh dấu ngày lễ, ngày kỷ niệm</label><p className="ws-settings-hint">Chọn một ngày để xem âm lịch và ngày lễ. Lịch dùng múi giờ Việt Nam (UTC+7); dấu ⁺ chỉ tháng âm lịch nhuận. Các mốc kỷ niệm không thay thế lịch nghỉ và nghỉ bù được công bố hằng năm.</p></>; break;
+    case 'my-targets': case 'target-chart': case 'alerts': case 'approvals': case 'departments': case 'feedback': case 'documents': case 'activity': case 'sent-notes': case 'agenda': case 'pins': case 'proposals': fields = <p className="ws-settings-hint">Dữ liệu theo quyền tài khoản, tự làm mới mỗi phút.</p>; break;
     case 'calculator': fields = <p className="ws-settings-hint">Hỗ trợ cộng, trừ, nhân, chia, ngoặc và phần trăm. Có thể nhập bằng bàn phím và nhấn Enter để tính.</p>; break;
   }
   return <div className="ws-widget-settings">{fields}</div>;

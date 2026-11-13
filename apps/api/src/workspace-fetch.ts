@@ -28,7 +28,7 @@ export function isPublicAddress(address: string): boolean {
     const a = parseInt(first, 16);
     const b = parseInt(second || '0', 16);
     // Only global unicast 2000::/3; exclude 6to4, protocol assignments and documentation.
-    return a >= 0x2000 && a <= 0x3fff && a !== 0x2002
+    return a >= 0x2000 && a <= 0x3fff && a !== 0x2002 && a !== 0x3ffe
       && !(a === 0x2001 && (b < 0x0200 || b === 0x0db8))
       && !(a === 0x3fff && b <= 0x0fff);
   }
@@ -44,7 +44,10 @@ export function parsePublicApiUrl(input: string): URL {
   if (url.protocol !== 'https:' || url.username || url.password || url.port && url.port !== '443' || url.hash) {
     throw new BadRequestException('API phải dùng HTTPS cổng 443, không kèm tài khoản hoặc phần #');
   }
-  const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  // A DNS name with a final dot denotes the same host. Use the same canonical name for
+  // validation, lookup, Host and certificate verification, rather than checking one and dialing another.
+  if (url.hostname.endsWith('.')) url.hostname = url.hostname.slice(0, -1);
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (!hostname || /(^|\.)(localhost|local|internal|invalid|test|onion)$/.test(hostname)
     || (!isIP(hostname) && !hostname.includes('.'))
     || isIP(hostname) && !isPublicAddress(hostname)) {
@@ -72,7 +75,7 @@ export async function resolvePublicApi(url: URL, resolver: Resolver = hostname =
     throw new BadGatewayException('Không phân giải được tên miền API');
   } finally { if (timer) clearTimeout(timer); }
   // Reject mixed public/private answers; the selected IP is pinned into the TLS socket below.
-  if (!addresses.length || addresses.some(entry => !isPublicAddress(entry.address))) {
+  if (!addresses.length || addresses.some(entry => !isPublicAddress(entry.address) || isIP(entry.address) !== entry.family)) {
     throw new BadRequestException('API trỏ tới địa chỉ mạng không được phép');
   }
   return addresses[0];
@@ -130,6 +133,7 @@ export async function fetchPublicJson(input: string, dependencies: Dependencies 
       let size = 0;
       const chunks: Buffer[] = [];
       response.on('data', (chunk: Buffer) => {
+        if (finished) return;
         size += chunk.length;
         if (size > MAX_RESPONSE_BYTES) {
           done(new BadGatewayException('Dữ liệu API vượt quá 1 MB'));
@@ -139,6 +143,7 @@ export async function fetchPublicJson(input: string, dependencies: Dependencies 
       response.on('error', () => done(new BadGatewayException('Kết nối API bị gián đoạn')));
       response.on('aborted', () => done(new BadGatewayException('Kết nối API bị gián đoạn')));
       response.on('end', () => {
+        if (finished) return;
         try { done(undefined, JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
         catch { done(new BadGatewayException('API trả về JSON không hợp lệ')); }
       });

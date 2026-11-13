@@ -1,7 +1,7 @@
 import { CheckSquareOutlined, BorderOutlined } from '@ant-design/icons';
 import { Fragment, useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { parseMarkdown, type Inline } from '@/lib/markdown';
+import { parseMarkdown, type Inline } from '../lib/markdown';
 
 // Vẽ Markdown gọn (lib/markdown.ts) thành phần tử React — không dùng innerHTML.
 
