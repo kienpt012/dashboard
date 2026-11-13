@@ -21,8 +21,8 @@ export function DirectiveStatistics({ filters }: { filters: DirectiveFilters }) 
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0, type: 'scroll', textStyle: { color: colors.text } },
       grid: { left: 8, right: 16, top: 12, bottom: 50, containLabel: true },
-      xAxis: { type: 'category', data: rows.map(item => item.name), axisLabel: { color: colors.sub, width: 90, overflow: 'break', interval: 0 }, axisLine: { lineStyle: { color: colors.line } } },
-      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.sub }, splitLine: { lineStyle: { color: colors.line } } },
+      xAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.sub }, splitLine: { lineStyle: { color: colors.line } } },
+      yAxis: { type: 'category', inverse: true, data: rows.map(item => item.name), axisLabel: { color: colors.sub, width: 112, overflow: 'break', interval: 0 }, axisLine: { lineStyle: { color: colors.line } } },
       series: [
         { key: 'completedOnTime', name: 'Đúng hạn', color: '#389e0d' }, { key: 'completedLate', name: 'Hoàn thành trễ', color: '#d4b106' },
         { key: 'inProgress', name: 'Đang thực hiện', color: '#1677ff' }, { key: 'overdue', name: 'Quá hạn', color: '#cf1322' }, { key: 'notStarted', name: 'Chưa bắt đầu', color: '#8c96a4' },
@@ -61,7 +61,7 @@ export function DirectiveStatistics({ filters }: { filters: DirectiveFilters }) 
       { title: 'Ngày trễ bình quân', dataIndex: 'averageLateDays', align: 'right', width: 125, render: value => num(value) },
     ]} /></Card>
     <div className="directive-chart-grid">
-      <Card title="Kết quả theo phòng"><Chart option={departmentChart} height={360} /></Card>
+      <Card title="Kết quả theo phòng"><Chart option={departmentChart} height={Math.max(360, result.byDepartment.length * 58 + 60)} /></Card>
       <Card title="Kết quả theo tháng đến hạn"><Chart option={monthChart} height={360} /></Card>
     </div>
   </Flex>}</Query>;

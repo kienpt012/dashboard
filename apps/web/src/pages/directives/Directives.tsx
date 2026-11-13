@@ -1,5 +1,5 @@
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { Button, Card, Checkbox, Input, Select, Table, Tabs, Tag, Tooltip } from 'antd';
+import { Button, Card, Checkbox, Grid, Input, Select, Table, Tabs, Tag, Tooltip } from 'antd';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { YearSelect } from '@/components/Data';
@@ -16,6 +16,7 @@ import type { DirectiveFilters, DirectiveList, DirectiveOptions } from './types'
 import './directives.css';
 
 export default function Directives() {
+  const screens = Grid.useBreakpoint();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
@@ -48,7 +49,7 @@ export default function Directives() {
       { key: 'list', label: 'Danh sách văn bản', children: <Query query={list}>{data => <Card className="card-flush">
         <TaskLegend />
         <Table rowKey="id" dataSource={data.items} sticky scroll={{ x: 1080 }} pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: total => `${num(total)} văn bản` }} columns={[
-          { title: 'Số ký hiệu · Trích yếu', key: 'name', width: 400, sorter: (a, b) => a.name.localeCompare(b.name, 'vi'), render: (_, item) => <div className="directive-name"><Link to={`/admin/van-ban-chi-dao/${item.id}`}>{item.docNumber || 'Chưa có số ký hiệu'}</Link><Link to={`/admin/van-ban-chi-dao/${item.id}`}>{item.name}</Link>{!item.isActive && <span><Tag>Đã lưu trữ</Tag></span>}</div> },
+          { title: 'Số ký hiệu · Trích yếu', key: 'name', width: screens.md ? 400 : 280, sorter: (a, b) => a.name.localeCompare(b.name, 'vi'), render: (_, item) => <div className="directive-name"><Link to={`/admin/van-ban-chi-dao/${item.id}`}>{item.docNumber || 'Chưa có số ký hiệu'}</Link><Link to={`/admin/van-ban-chi-dao/${item.id}`}>{item.name}</Link>{!item.isActive && <span><Tag>Đã lưu trữ</Tag></span>}</div> },
           { title: 'Loại', dataIndex: 'directiveKind', width: 170, render: value => kinds.find(item => item.value === value)?.label || 'Nhiệm vụ' },
           { title: 'Ngày ban hành', dataIndex: 'issuedDate', width: 130, sorter: (a, b) => (a.issuedDate || '').localeCompare(b.issuedDate || ''), render: value => date(value) },
           { title: 'Nhiệm vụ', key: 'total', width: 100, align: 'center', sorter: (a, b) => a.summary.total - b.summary.total, render: (_, item) => num(item.summary.total) },

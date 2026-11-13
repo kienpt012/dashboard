@@ -13,7 +13,7 @@ export const TASK_STATUS: Record<DirectiveStatus, { label: string; color: string
   OVERDUE: { label: 'Quá hạn', color: 'error', hex: '#cf1322' },
 };
 export const STATUS_OPTIONS = [...Object.entries(TASK_STATUS).map(([value, item]) => ({ value, label: item.label })), { value: 'DUE_SOON', label: 'Đến hạn trong 7 ngày' }];
-export const DIRECTIVE_REFRESH = ['/directives', '/targets', '/frameworks', '/ioc', '/work'];
+export const DIRECTIVE_REFRESH = ['/directives', '/targets', '/frameworks', '/ioc', '/my-work', '/notifications'];
 
 export function TaskStatus({ status }: { status: string }) {
   const item = TASK_STATUS[status as DirectiveStatus];

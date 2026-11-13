@@ -1,5 +1,5 @@
 import { EditOutlined, FileTextOutlined, InboxOutlined, PlusOutlined, SnippetsOutlined } from '@ant-design/icons';
-import { App, Button, Card, DatePicker, Descriptions, Flex, Select, Table, Tag, Tooltip } from 'antd';
+import { App, Button, Card, DatePicker, Descriptions, Flex, Grid, Select, Table, Tag, Tooltip } from 'antd';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DocumentViewer } from '@/components/DocumentViewer';
@@ -14,6 +14,7 @@ import type { DirectiveDetail as Detail, DirectiveOptions, DirectiveTask } from 
 import './directives.css';
 
 function DetailBody({ directive, options }: { directive: Detail; options: DirectiveOptions }) {
+  const screens = Grid.useBreakpoint();
   const { modal } = App.useApp();
   const [selected, setSelected] = useState<React.Key[]>([]);
   const [editor, setEditor] = useState<'document' | 'task' | 'paste' | 'bulk' | null>(null);
@@ -48,9 +49,9 @@ function DetailBody({ directive, options }: { directive: Detail; options: Direct
       </Flex>}
       <Table rowKey="id" dataSource={tasks} scroll={{ x: dispatch ? 1560 : 1360 }} sticky pagination={{ defaultPageSize: 20, showSizeChanger: true }} rowSelection={dispatch ? { selectedRowKeys: selected, onChange: keys => setSelected(keys) } : undefined} columns={[
         { title: 'STT', key: 'index', width: 60, render: (_, task, index) => task.ordinal || index + 1 },
-        { title: 'Nội dung nhiệm vụ', key: 'title', width: 300, render: (_, task) => <div className="directive-name"><Link to={`/admin/targets/${task.id}`}>{task.title}</Link><span className="directive-cell-meta">{task.dispatchedByName ? `Phân việc: ${task.dispatchedByName} · ${dateTime(task.dispatchedAt)}` : 'Chưa ghi nhận người phân việc'}</span></div> },
-        { title: 'Phòng chủ trì', key: 'department', width: 210, render: (_, task) => dispatch ? <Select className="directive-inline" aria-label={`Phòng chủ trì: ${task.title}`} value={task.departmentId} options={departments} showSearch={{ optionFilterProp: 'label' }} disabled={saveTask.isPending} onChange={value => saveTask.mutate({ task, changes: { departmentId: value } })} /> : task.department.name },
-        { title: 'Phòng phối hợp', key: 'coordinators', width: 210, render: (_, task) => dispatch ? <Select className="directive-inline" mode="multiple" aria-label={`Phòng phối hợp: ${task.title}`} value={task.coordinators.map(item => item.departmentId)} options={departments.filter(item => item.value !== task.departmentId)} showSearch={{ optionFilterProp: 'label' }} disabled={saveTask.isPending} onChange={values => saveTask.mutate({ task, changes: { coordinatorDepartmentIds: values } })} /> : task.coordinators.map(item => item.department.name).join('; ') || '—' },
+        { title: 'Nội dung nhiệm vụ', key: 'title', width: screens.md ? 300 : 240, render: (_, task) => <div className="directive-name"><Link to={`/admin/targets/${task.id}`}>{task.title}</Link><span className="directive-cell-meta">{task.dispatchedByName ? `Phân việc: ${task.dispatchedByName} · ${dateTime(task.dispatchedAt)}` : 'Chưa ghi nhận người phân việc'}</span></div> },
+        { title: 'Phòng chủ trì', key: 'department', width: 210, render: (_, task) => dispatch ? <div className="directive-name"><span>{task.department.name}</span><Select className="directive-inline" aria-label={`Phòng chủ trì: ${task.title}`} value={task.departmentId} labelRender={() => 'Đổi phòng chủ trì'} options={departments} showSearch={{ optionFilterProp: 'label' }} disabled={saveTask.isPending} onChange={value => saveTask.mutate({ task, changes: { departmentId: value } })} /></div> : task.department.name },
+        { title: 'Phòng phối hợp', key: 'coordinators', width: 210, render: (_, task) => dispatch ? <div className="directive-name"><span>{task.coordinators.map(item => item.department.name).join('; ') || '—'}</span><Select className="directive-inline" mode="multiple" maxTagCount={0} maxTagPlaceholder={() => 'Chọn phòng phối hợp'} placeholder="Chọn phòng phối hợp" aria-label={`Phòng phối hợp: ${task.title}`} value={task.coordinators.map(item => item.departmentId)} options={departments.filter(item => item.value !== task.departmentId)} showSearch={{ optionFilterProp: 'label' }} disabled={saveTask.isPending} onChange={values => saveTask.mutate({ task, changes: { coordinatorDepartmentIds: values } })} /></div> : task.coordinators.map(item => item.department.name).join('; ') || '—' },
         { title: 'Hạn hoàn thành', key: 'due', width: 170, render: (_, task) => <div className="directive-name">{dispatch ? <DatePicker value={vn(task.dueDate)} allowClear={false} format="DD/MM/YYYY" aria-label={`Hạn hoàn thành: ${task.title}`} style={{ width: '100%' }} disabled={saveTask.isPending} onChange={value => value && saveTask.mutate({ task, changes: { dueDate: value.format('YYYY-MM-DD') } })} /> : date(task.dueDate)}{task.status !== 'COMPLETED' && <span className={task.status === 'OVERDUE' ? 'directive-cell-meta tone-bad' : 'directive-cell-meta'}>{until(task.dueDate)}</span>}</div> },
         { title: 'Người phụ trách', key: 'assignee', width: 155, render: (_, task) => task.assignee?.fullName || <span className="muted">Chưa giao người</span> },
         { title: 'Tiến độ', dataIndex: 'progress', width: 135, render: value => <TaskProgress value={value} /> },
