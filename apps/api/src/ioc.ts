@@ -10,7 +10,7 @@ import {
   TargetStatus,
   ValueSource,
 } from '@prisma/client';
-import { type Actor, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, resolveDepartmentScope } from './access';
+import { type Actor, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, resolveDepartmentScope, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { FRAMEWORK_KIND_LABELS, ISSUING_LEVEL_LABELS, summarizeFramework } from './frameworks';
 import { loadLocality, publicLocality } from './locality';
@@ -56,8 +56,8 @@ function daysSince(date: Date | null | undefined, now: Date) {
  * tình trạng, kỳ thiếu báo cáo, báo cáo chờ duyệt, giải trình đang mở. Mọi nơi hiển thị số liệu tổng hợp đều đi qua đây
  * để con số khớp nhau.
  */
-export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: number, requestedDepartmentId?: string) {
-  const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: number, requestedDepartmentId?: string, scope?: string) {
+  const departmentId = await resolveReadDepartmentScope(prisma, actor, requestedDepartmentId, scope);
   const now = new Date();
   const setting = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
   const threshold = setting?.riskThreshold ?? 70;
@@ -125,8 +125,8 @@ export class IocController {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Tập dữ liệu chung cho tổng quan, trình chiếu và trách nhiệm. */
-  private snapshot(actor: Actor, year: number, requestedDepartmentId?: string) {
-    return iocSnapshot(this.prisma, actor, year, requestedDepartmentId);
+  private snapshot(actor: Actor, year: number, requestedDepartmentId?: string, scope?: string) {
+    return iocSnapshot(this.prisma, actor, year, requestedDepartmentId, scope);
   }
 
   private targetBrief(item: { target: any; metric: { status: TargetStatus; progress: number } }) {
@@ -143,11 +143,14 @@ export class IocController {
   }
 
   @Get('ioc/overview')
-  async overview(@Req() req: any, @Query('year') yearRaw?: string, @Query('departmentId') departmentIdRaw?: string) {
+  async overview(@Req() req: any, @Query('year') yearRaw?: string, @Query('departmentId') departmentIdRaw?: string, @Query('scope') scope?: string) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const snap = await this.snapshot(actor, year, departmentIdRaw);
+    const snap = await this.snapshot(actor, year, departmentIdRaw, scope);
     const { now, evaluated } = snap;
+    const workDepartmentId = resolveDepartmentScope(actor);
+    const workSnap = workDepartmentId && snap.departmentId !== workDepartmentId ? await this.snapshot(actor, year) : snap;
+    const workItems = workSnap.evaluated;
     const leaves = evaluated.filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT);
     const statLeaves = evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.STAT);
     const frameworks = await this.prisma.framework.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
@@ -254,7 +257,7 @@ export class IocController {
       });
     }
     const pendingProposals = await this.prisma.indicatorCandidate.findMany({
-      where: { status: CandidateStatus.SUBMITTED, ...(snap.departmentId ? { responsibleDepartmentId: snap.departmentId } : {}) },
+      where: { status: CandidateStatus.SUBMITTED, ...(workDepartmentId ? { responsibleDepartmentId: workDepartmentId } : {}) },
       select: { id: true, name: true, autoApproveAt: true, submittedAt: true, responsibleDepartment: { select: { name: true } } },
       orderBy: { submittedAt: 'asc' },
       take: 50,
@@ -279,7 +282,7 @@ export class IocController {
       const value = item.target.lastReportedAt;
       return value && (!latest || value > latest) ? value : latest;
     }, null);
-    const feedbackWhere = snap.departmentId ? { departmentId: snap.departmentId } : {};
+    const feedbackWhere = workDepartmentId ? { departmentId: workDepartmentId } : {};
     const openStatuses = [FeedbackStatus.RECEIVED, FeedbackStatus.ASSIGNED, FeedbackStatus.IN_PROGRESS, FeedbackStatus.PENDING_REVIEW, FeedbackStatus.REOPENED, FeedbackStatus.WAITING_CITIZEN];
     const [feedbackOpen, feedbackOverdue] = await Promise.all([
       this.prisma.feedback.count({ where: { ...feedbackWhere, status: { in: openStatuses } } }),
@@ -304,12 +307,12 @@ export class IocController {
         progress: totalWeight ? Math.round(leaves.reduce((sum, item) => sum + item.metric.progress * item.target.weight, 0) / totalWeight) : 0,
         statTotal: statLeaves.length,
         statReported: statLeaves.filter(item => item.target.lastReportedAt).length,
-        missingReports: evaluated.filter(item => item.isLeaf && item.missingPeriods.length).length,
-        unassigned: evaluated.filter(item => item.unassigned).length,
-        pendingReports: snap.pendingReports.length,
+        missingReports: workItems.filter(item => item.isLeaf && item.missingPeriods.length).length,
+        unassigned: workItems.filter(item => item.unassigned).length,
+        pendingReports: workSnap.pendingReports.length,
         pendingProposals: pendingProposals.length,
-        openExplanations: snap.openExplanations.length,
-        stalled: stalled.length,
+        openExplanations: workSnap.openExplanations.length,
+        stalled: workItems.filter(item => item.isLeaf && (item.target.bounceCount >= STALL_BOUNCES || item.stalledUnassigned)).length,
         withDirective: leaves.filter(item => item.target._count.directives > 0).length,
         withEvaluation: leaves.filter(item => item.target._count.evaluations > 0).length,
         feedbackOpen,
@@ -329,10 +332,10 @@ export class IocController {
 
   /** Dữ liệu màn hình trình chiếu: các trang tự xoay vòng qua từng bộ chỉ tiêu và từng phòng. */
   @Get('ioc/wallboard')
-  async wallboard(@Req() req: any, @Query('year') yearRaw?: string) {
+  async wallboard(@Req() req: any, @Query('year') yearRaw?: string, @Query('scope') scope?: string) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const snap = await this.snapshot(actor, year);
+    const snap = await this.snapshot(actor, year, undefined, scope);
     const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, showOnWallboard: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     const departments = await this.prisma.department.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
     const brief = (item: (typeof snap.evaluated)[number]) => ({
@@ -487,6 +490,14 @@ export class IocController {
       take: 10,
       include: { target: { select: { id: true, code: true, title: true } } },
     });
+    const revisionRequests = await this.prisma.progressUpdate.findMany({
+      where: {
+        revisionRequestedAt: { not: null }, revisionResolvedAt: null,
+        target: { year, isArchived: false, ...(actor.role === Role.MANAGER ? { departmentId: actor.departmentId ?? '__none__' } : { assigneeId: actor.id }) },
+      },
+      include: { target: { select: { id: true, title: true, code: true } } },
+      orderBy: { revisionRequestedAt: 'desc' },
+    });
     const toReview = canReview(actor)
       ? snap.pendingReports.filter(report => report.userId !== actor.id).map(report => {
           const item = snap.evaluated.find(entry => entry.target.id === report.targetId)!;
@@ -522,9 +533,11 @@ export class IocController {
       generatedAt: snap.now,
       counts: {
         needReport: needReport.length, rejectedReports: rejectedReports.length, toReview: toReview.length,
+        revisionRequests: revisionRequests.length,
         proposals: proposals.length, explanations: explanations.length, unassigned: unassigned.length, unread,
       },
       needReport,
+      revisionRequests: revisionRequests.map(report => ({ id: report.id, periodKey: report.periodKey, periodLabel: report.periodKey ? periodLabel(report.periodKey) : '', reason: report.revisionReason, requestedAt: report.revisionRequestedAt, target: report.target })),
       rejectedReports: rejectedReports.map(report => ({ id: report.id, value: report.value, reviewNote: report.reviewNote, reviewedAt: report.reviewedAt, target: report.target })),
       toReview,
       proposals,

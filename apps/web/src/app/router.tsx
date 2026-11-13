@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useParams } from 'react-router-dom';
 import { Loading, PageSkeleton } from '@/components/States';
-import { ADMINS, ALL, APPROVERS, IMPORTERS, SUPERVISORS } from '@/lib/roles';
+import { ADMINS, ALL, APPROVERS, IMPORTERS, LEADERSHIP, SUPERVISORS } from '@/lib/roles';
 import type { Role } from '@/types/auth';
 import { RequireAuth, RequireRole } from './guards';
 
@@ -10,6 +10,7 @@ const Login = lazy(() => import('@/pages/auth/Login'));
 const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'));
 
 const pages = {
+  ForecastModel: lazy(() => import('@/pages/forecast/ForecastModel')),
   Workspace: lazy(() => import('@/pages/workspace/Workspace')),
   OpsCenter: lazy(() => import('@/pages/dashboard/OpsCenter')),
   MyWork: lazy(() => import('@/pages/work/MyWork')),
@@ -127,6 +128,7 @@ const router = createBrowserRouter([
       { path: 'thiet-lap', element: guarded(pages.Setup, ADMINS) },
       { path: 'departments', element: guarded(pages.Departments) },
       { path: 'users', element: guarded(pages.Users, ADMINS) },
+      { path: 'du-bao', element: guarded(pages.ForecastModel, LEADERSHIP) },
       { path: 'settings', element: guarded(pages.Settings, ADMINS) },
       { path: 'audit-logs', element: guarded(pages.AuditLogs, ADMINS) },
       { path: 'bao-loi', element: guarded(pages.BugReports, ADMINS) },

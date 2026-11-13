@@ -7,6 +7,12 @@ import type { Actor } from './access';
 // theo từng người nhận nên bộ giám sát thời hạn chạy lại nhiều lần cũng không nhắc trùng.
 
 export const WORK_ACTIONS = {
+  REPORT_REVISION_REQUESTED: 'Yêu cầu cập nhật lại số liệu',
+  REPORT_REVISION_RESOLVED: 'Đã cập nhật lại số liệu',
+  TARGET_LINKED: 'Liên kết chỉ tiêu',
+  TARGET_LINK_IGNORED: 'Bỏ qua gợi ý liên kết',
+  TARGET_UNLINKED: 'Bỏ liên kết chỉ tiêu',
+  REPORT_MIRRORED: 'Đồng bộ báo cáo',
   TARGET_CREATED: 'Tạo chỉ tiêu',
   TARGET_UPDATED: 'Cập nhật định nghĩa chỉ tiêu',
   ASSIGNED: 'Giao chuyên viên phụ trách',

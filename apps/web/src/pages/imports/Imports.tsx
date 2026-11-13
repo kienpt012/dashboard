@@ -11,7 +11,7 @@ import { useAction, useApi } from '@/hooks/useApi';
 import { departmentOptions, useDepartments } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
 import { currentYear, dateTime, fromNow, num } from '@/lib/format';
-import { can, isGlobal, LEADERSHIP } from '@/lib/roles';
+import { isGlobal } from '@/lib/roles';
 import { byDate, byNumber, byRank, byText, NUMBER_FIRST } from '@/lib/sort';
 
 type RowError = { row: number; code: string; field?: string; message: string };
@@ -76,7 +76,7 @@ export default function Imports() {
   const user = useMe();
   const { message } = App.useApp();
   const global = isGlobal(user);
-  const leader = can(user, LEADERSHIP);
+  const leader = user.role === 'ADMIN';
   const departments = useDepartments();
   const [year, setYear] = useState(currentYear());
   const [departmentId, setDepartmentId] = useState<string | undefined>(global ? undefined : user.departmentId ?? undefined);
@@ -195,11 +195,11 @@ export default function Imports() {
                   ),
                 },
                 {
-                  title: leader ? 'Ghi nhận' : 'Gửi duyệt',
+                  title: leader ? 'Quản trị ghi nhận' : 'Gửi duyệt',
                   content: (
                     <Flex vertical gap={10} style={{ marginTop: 10 }}>
                       <Button type="primary" icon={<CheckOutlined />} disabled={!preview?.canApply || Boolean(applied)} loading={apply.isPending} onClick={() => apply.mutate()}>
-                        {leader ? 'Ghi nhận số liệu' : 'Gửi số liệu'}
+                        {leader ? 'Quản trị ghi nhận' : 'Gửi số liệu'}
                       </Button>
                       {applied && (
                         <Alert type="success" showIcon title={applied.reviewStatus === 'PENDING' ? `Đã gửi ${num(applied.successRows)} dòng, chờ duyệt` : `Đã ghi nhận ${num(applied.successRows)} dòng`} />

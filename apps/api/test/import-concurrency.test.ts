@@ -125,7 +125,10 @@ test('áp dụng draft đọc lại ownership và claim PREVIEWED nguyên tử t
     },
     progressUpdate: {
       create: async (args: any) => ({ id: 'update-1', ...args.data }),
+      updateMany: async () => ({ count: 0 }),
+      findUnique: async () => ({ id: 'update-1', reviewStatus: ProgressReviewStatus.APPROVED, target: { ...target, linkGroupId: null } }),
     },
+    workEvent: { create: async () => ({}) },
     systemSetting: {
       findUnique: async () => ({ riskThreshold: 70 }),
     },

@@ -114,8 +114,9 @@ export async function createTargetInTransaction(
     throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
   }
   if (input.parentId) {
-    const parent = await tx.target.findUnique({ where: { id: input.parentId }, select: { year: true, isArchived: true } });
+    const parent = await tx.target.findUnique({ where: { id: input.parentId }, select: { year: true, isArchived: true, linkGroupId: true } });
     if (!parent || parent.isArchived) throw new BadRequestException('Chỉ tiêu cha không tồn tại hoặc đã lưu trữ');
+    if (parent.linkGroupId) throw new ConflictException('Cần bỏ liên kết trước khi thêm chỉ tiêu con');
     if (parent.year !== input.year) throw new BadRequestException('Chỉ tiêu con phải cùng năm kế hoạch với chỉ tiêu cha');
   }
   if (input.assigneeId) {

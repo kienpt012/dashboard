@@ -4,11 +4,14 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PrismaService } from './prisma.service';
 import { JwtAuthGuard } from './common';
-import { getActor, resolveDepartmentScope } from './access';
+import { getActor, resolveReadDepartmentScope } from './access';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
 
 class DashboardQueryDto {
+  @IsOptional()
+  @IsString()
+  scope?: string;
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Năm báo cáo phải là số nguyên' })
@@ -28,7 +31,7 @@ export class DashboardController {
 
   private async context(query: DashboardQueryDto, req: any) {
     const actor = getActor(req);
-    const departmentId = resolveDepartmentScope(actor, query.departmentId);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, query.departmentId, query.scope);
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     return {
       actor,

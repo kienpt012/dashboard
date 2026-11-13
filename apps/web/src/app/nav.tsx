@@ -24,7 +24,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
-import { ADMINS, ALL, APPROVERS, IMPORTERS, SUPERVISORS } from '@/lib/roles';
+import { ADMINS, ALL, APPROVERS, IMPORTERS, LEADERSHIP, SUPERVISORS } from '@/lib/roles';
 import type { Role } from '@/types/auth';
 
 export type NavItem = {
@@ -89,6 +89,7 @@ export const navGroups: NavGroup[] = [
       { path: '/admin/thiet-lap', label: 'Thiết lập địa phương', icon: <ToolOutlined />, roles: ADMINS, screen: 'HT-01', keywords: 'thiet lap dia phuong khoi tao' },
       { path: '/admin/departments', label: 'Phòng ban', scopedLabel: 'Thông tin phòng', icon: <ApartmentOutlined />, roles: ALL, screen: 'HT-02', keywords: 'phong ban don vi' },
       { path: '/admin/users', label: 'Tài khoản', icon: <TeamOutlined />, roles: ADMINS, screen: 'HT-03', keywords: 'tai khoan nguoi dung phan quyen' },
+      { path: '/admin/du-bao', label: 'Mô hình dự báo', icon: <FundProjectionScreenOutlined />, roles: LEADERSHIP, screen: 'HT-09', keywords: 'mo hinh du bao nguy co huan luyen lich su' },
       { path: '/admin/settings', label: 'Cấu hình', icon: <ControlOutlined />, roles: ADMINS, screen: 'HT-04', keywords: 'cau hinh thoi han nguong' },
       { path: '/admin/audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, roles: ADMINS, screen: 'HT-05', keywords: 'nhat ky lich su thao tac' },
       { path: '/admin/bao-loi', label: 'Góp ý, báo lỗi', icon: <BugOutlined />, roles: ADMINS, screen: 'HT-06', keywords: 'bao loi gop y' },

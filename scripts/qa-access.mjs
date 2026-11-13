@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { cleanupQaActors, createQaActors, qaActorIds } from './qa-actors.mjs';
+import { qaCrossDepartment } from './qa-cross-department.mjs';
 
 try {
   process.loadEnvFile?.();
@@ -166,8 +167,8 @@ async function runSuite() {
   await request('/exports/targets.xlsx?year=2101', { token: admin.accessToken, expected: [400] });
   checks.push('Biểu mẫu nhập và báo cáo xuất dùng cùng giới hạn năm kế hoạch 2000–2100');
 
-  await request(`/targets?departmentId=${encodeURIComponent(vhxh.id)}`, { token: staff.accessToken, expected: [403] });
-  checks.push('STAFF không thể đổi bộ lọc sang phòng khác');
+  await request(`/targets?departmentId=${encodeURIComponent(vhxh.id)}`, { token: staff.accessToken, expected: [settings.data.crossDepartmentView === false ? 403 : 200] });
+  checks.push('STAFF xem liên phòng theo cấu hình máy chủ');
   await request('/users', { token: manager.accessToken, expected: [403] });
   checks.push('MANAGER không đọc danh sách tài khoản');
   await request('/settings', { token: manager.accessToken, expected: [403] });
@@ -303,6 +304,7 @@ async function runSuite() {
 
   const otherScopeTargets = await request('/targets', { token: otherManager.accessToken });
   check('MANAGER chỉ nhận chỉ tiêu phòng mình', otherScopeTargets.data.every(item => item.departmentId === otherManager.user.departmentId));
+  await qaCrossDepartment({ prisma, actors: qaActors, login, request, check });
 
 }
 

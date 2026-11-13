@@ -15,6 +15,10 @@ export class UpdateSystemSettingDto {
   @IsIn(['LEADER', 'OFFICE'], { message: 'Người phân việc phải là Lãnh đạo UBND hoặc Chánh Văn phòng' })
   dispatchMode?: 'LEADER' | 'OFFICE';
 
+  @ValidateIfDefined()
+  @IsBoolean()
+  crossDepartmentView?: boolean;
+
   @IsInt()
   @Min(1)
   expectedVersion!: number;
@@ -118,8 +122,12 @@ export class SettingsController {
   @Get('client')
   @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF, Role.VIEWER)
   async client(@Req() req: any) {
-    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true, dispatchMode: true } });
-    return { jarvisIntro: setting?.jarvisIntro ?? true, permissions: { canDispatch: isDispatcher(getActor(req), setting) } };
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true, dispatchMode: true, crossDepartmentView: true } });
+    return {
+      jarvisIntro: setting?.jarvisIntro ?? true,
+      crossDepartmentView: setting?.crossDepartmentView ?? true,
+      permissions: { canDispatch: isDispatcher(getActor(req), setting) },
+    };
   }
 
   @Get()
@@ -150,6 +158,7 @@ export class SettingsController {
       maxTransfers: 1,
       wallboardRotateSeconds: 20,
       jarvisIntro: true,
+      crossDepartmentView: true,
       version: 1,
       updatedBy: null,
       updatedAt: null,
@@ -196,6 +205,7 @@ export class SettingsController {
           maxTransfers: dto.maxTransfers ?? 1,
           wallboardRotateSeconds: dto.wallboardRotateSeconds ?? 20,
           jarvisIntro: dto.jarvisIntro ?? true,
+          crossDepartmentView: dto.crossDepartmentView ?? true,
           updatedBy: actor.username,
         } });
         changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
@@ -204,6 +214,8 @@ export class SettingsController {
           ...(dto.dispatchMode !== undefined && dto.dispatchMode !== (current.dispatchMode ?? 'LEADER')
             ? { dispatchMode: dto.dispatchMode }
             : {}),
+          ...(dto.crossDepartmentView !== undefined && dto.crossDepartmentView !== current.crossDepartmentView
+            ? { crossDepartmentView: dto.crossDepartmentView } : {}),
           ...(dto.defaultYear !== undefined && dto.defaultYear !== current.defaultYear
             ? { defaultYear: dto.defaultYear }
             : {}),

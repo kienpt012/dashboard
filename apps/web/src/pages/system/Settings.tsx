@@ -23,6 +23,7 @@ type Settings = {
   maxTransfers: number;
   wallboardRotateSeconds: number;
   jarvisIntro: boolean;
+  crossDepartmentView: boolean;
   updatedAt?: string;
   updatedBy?: string;
 };
@@ -30,6 +31,7 @@ type Settings = {
 type Field = { name: keyof Settings; label: string; min: number; max: number; unit: string } | { name: keyof Settings; label: string; kind: 'switch'; extra: string };
 
 const GROUPS: { title: string; fields: Field[] }[] = [
+  { title: 'Phạm vi xem', fields: [{ name: 'crossDepartmentView', label: 'Cho xem chỉ tiêu của phòng khác', kind: 'switch', extra: 'Quyền sửa vẫn theo phòng chủ trì và người được giao.' }] },
   {
     title: 'Kế hoạch và cảnh báo',
     fields: [

@@ -2,7 +2,7 @@ import { BadRequestException, Controller, Get, NotFoundException, Query, Req, Re
 import { FrameworkKind, ProgressReviewStatus, Role, TargetStatus } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import { audit, getActor, resolveDepartmentScope } from './access';
+import { audit, getActor, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
@@ -74,10 +74,11 @@ export class ExportsController {
     @Query('year') yearRaw?: string,
     @Query('departmentId') requestedDepartmentId?: string,
     @Query('frameworkId') frameworkRaw?: string,
+    @Query('scope') readScope?: string,
   ) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, requestedDepartmentId, readScope);
     const scopeDepartment = departmentId
       ? actor.departmentId === departmentId && actor.department
         ? actor.department

@@ -13,6 +13,7 @@ import { periodLabel } from '@/lib/periods';
 import { byDate, byDateNullsLast, byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
 import { APPROVERS, can, FRAMEWORK_EDITORS, isGlobal, SUPERVISORS } from '@/lib/roles';
 import type { MyWork as MyWorkData, TargetBrief } from '@/types/domain';
+import { RevisionWork } from './RevisionWork';
 import { PendingReviews, type PendingUpdate } from '../approvals/PendingReviews';
 
 type Submission = {
@@ -78,6 +79,7 @@ function Content({ data }: { data: MyWorkData }) {
   });
 
   const tabs = [
+    { key: 'cap-nhat-lai', label: 'Cần cập nhật lại', count: data.revisionRequests?.length ?? 0, hot: Boolean(data.revisionRequests?.length), show: reporter || Boolean(data.revisionRequests?.length), work: true, children: <RevisionWork items={data.revisionRequests ?? []} /> },
     {
       key: 'bao-cao',
       label: 'Cần báo cáo',
