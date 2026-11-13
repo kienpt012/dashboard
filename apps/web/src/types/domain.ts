@@ -353,7 +353,7 @@ export type MyWork={
   needReport:(TargetBrief&{currentPeriod:string;currentPeriodKey?:string;missingPeriods:string[];missingPeriodKeys?:string[];pendingReport:boolean})[];
   rejectedReports:{id:string;value:number;reviewNote?:string|null;reviewedAt?:string|null;target:{id:string;code:string;title:string}}[];
   toReview:{id:string;createdAt:string;days:number;target:TargetBrief}[];
-  proposals:{id:string;name:string;status:string;origin:'AI'|'HUMAN';autoApproveAt?:string|null;submittedAt?:string|null;createdAt:string;responsibleDepartment?:{name:string}|null;document?:{code:string;title:string}|null}[];
+  proposals:{id:string;name:string;status:string;origin:'AI'|'HUMAN';autoApproveAt?:string|null;submittedAt?:string|null;createdAt:string;responsibleDepartment?:{name:string}|null;document?:{code:string;title:string;docNumber?:string|null}|null}[];
   explanations:(TargetBrief&{request:{id:string;dueAt:string;message:string}})[];
   unassigned:TargetBrief[];
   myTargets:TargetBrief[];

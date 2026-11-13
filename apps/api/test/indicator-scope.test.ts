@@ -14,6 +14,22 @@ test('thêm hoặc bỏ nhiệm vụ không thay đổi tổng số chỉ tiêu 
   }
 });
 
+test('mở chi tiết văn bản liên phòng giữ quyền đọc nhưng không mở quyền phân việc', async () => {
+  const actor = { id: 'staff', username: 'staff', fullName: 'Chuyên viên', role: Role.STAFF, isActive: true, departmentId: 'own', department: { id: 'own', name: 'Phòng tôi', code: 'OWN', isActive: true } };
+  for (const enabled of [false, true]) {
+    let where: any;
+    const prisma = {
+      systemSetting: { findUnique: async () => ({ crossDepartmentView: enabled, dispatchMode: 'LEADER' }) }, department: { count: async () => 1 },
+      framework: { findFirst: async () => ({ id: 'fw', kind: 'TASK', isActive: true }) },
+      target: { findMany: async (args: any) => { where = args.where; return []; } },
+    };
+    const controller = new DirectivesController(prisma as any, { consume() {} } as any);
+    if (enabled) assert.equal((await controller.detail({ user: actor }, 'fw')).permissions.canDispatch, false);
+    else await assert.rejects(controller.detail({ user: actor }, 'fw'));
+    assert.equal(Boolean(where.OR), !enabled);
+  }
+});
+
 for (const role of Object.values(Role)) for (const enabled of [true, false]) {
   test(`${role}: văn bản và việc tháng dùng quyền đọc liên phòng=${enabled}, không mở quyền ghi`, async () => {
     const actor = { id: 'u', username: 'u', fullName: 'Người thử', role, isActive: true, departmentId: 'own', department: { id: 'own', name: 'Phòng tôi', code: 'OWN', isActive: true, kind: 'SPECIALIZED' } };

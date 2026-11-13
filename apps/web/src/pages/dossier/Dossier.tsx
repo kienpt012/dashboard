@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
+import { DocRef } from '@/components/DocRef';
 import { TargetSource } from '@/components/TargetSource';
 import { LoadError, PageSkeleton } from '@/components/States';
 import { DeptTag, KindTag, StatusTag, STATUS } from '@/components/Tags';
@@ -26,7 +27,6 @@ import './dossier.css';
 import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
 import { useDeskNoteAction } from '@/pages/workspace/DeskNotes';
 
-const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE: 'Tỉnh/Thành phố giao', LOCAL: 'Địa phương tự đặt' };
 const TABS = ['thuc-hien', 'chi-dao', 'danh-gia', 'lich-su'] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -149,9 +149,8 @@ function DossierView({ d }: { d: DossierData }) {
           </Typography.Text>}
           {d.kind === 'TASK' && d.dispatchedByName && <span>Phân việc: {d.dispatchedByName}{d.dispatchedAt ? ` · ${dateTime(d.dispatchedAt)}` : ''}</span>}
           {d.standardCode && <span>Mã {d.standardCode}</span>}
-          {d.ordinal && <span>STT {d.ordinal}</span>}
+          <DocRef value={d} />
           <DeptTag name={d.department.name} color={d.department.color} />
-          <span>{ISSUING[d.issuingLevel] ?? d.issuingLevel}</span>
           <TargetSource variant="chip" targetId={d.id} targetTitle={d.title} canEdit={d.permissions.canEditSourceCard && !d.isArchived} />
           <Space size={6}>
             {p.readOnly && <Tag>Chỉ xem</Tag>}

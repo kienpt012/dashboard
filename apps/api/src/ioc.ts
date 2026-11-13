@@ -259,7 +259,7 @@ export class IocController {
           : `Chưa giao người phụ trách sau ${daysSince(item.target.createdAt, now)} ngày`,
       }));
     for (const item of stalled.filter(entry => entry.bounceCount >= STALL_BOUNCES)) {
-      alerts.push({ severity: 'critical', kind: 'STALLED', title: alertTitle(item.title, 'STALLED', { count: item.bounceCount }), detail: item.title, targetId: item.id, departmentName: item.departmentName });
+      alerts.push({ severity: 'critical', kind: 'STALLED', title: alertTitle(item.title, 'STALLED', { count: item.bounceCount }), detail: item.title, targetId: item.id, targetKind: item.kind, departmentName: item.departmentName });
     }
     for (const item of evaluated.filter(entry => entry.overdueAssignment)) {
       alerts.push({ severity: 'warning', kind: 'UNASSIGNED', targetKind: item.target.kind, targetId: item.target.id,
@@ -526,7 +526,7 @@ export class IocController {
           ...(actor.role === Role.CLERK || isDispatcher(actor, snap.setting) ? [{ status: CandidateStatus.PROPOSED, origin: CandidateOrigin.AI }] : []),
         ],
       },
-      select: { id: true, name: true, status: true, origin: true, autoApproveAt: true, submittedAt: true, createdAt: true, responsibleDepartment: { select: { name: true } }, document: { select: { code: true, title: true } } },
+      select: { id: true, name: true, status: true, origin: true, autoApproveAt: true, submittedAt: true, createdAt: true, responsibleDepartment: { select: { name: true } }, document: { select: { code: true, title: true, docNumber: true } } },
       orderBy: { createdAt: 'asc' },
       take: 50,
     });

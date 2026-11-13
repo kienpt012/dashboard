@@ -2,12 +2,14 @@ import { Card, Flex } from 'antd';
 import { Link } from 'react-router-dom';
 import { Metric } from '@/components/Data';
 import { Query } from '@/components/States';
+import { useReadScope } from '@/components/ReadScope';
 import { useApi } from '@/hooks/useApi';
 import { num } from '@/lib/format';
 import type { DirectiveList } from './types';
 
 export function DirectiveOpsCard({ year }: { year: number }) {
-  const data = useApi<DirectiveList>(`/directives?year=${year}`, { refetchInterval: 120_000 });
+  const readScope = useReadScope();
+  const data = useApi<DirectiveList>(`/directives?year=${year}&scope=${readScope.scope}`, { refetchInterval: 120_000 });
   return <Card title="Văn bản chỉ đạo" className="card-flush" extra={<Link to={`/admin/van-ban-chi-dao?year=${year}`}>Xem tất cả</Link>}>
     <Query query={data}>{result => <Flex wrap>
       <Metric label="Tổng nhiệm vụ" value={num(result.summary.total)} to={`/admin/van-ban-chi-dao?year=${year}`} />

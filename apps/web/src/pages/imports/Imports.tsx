@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Metric, YearSelect } from '@/components/Data';
 import { Page } from '@/components/Page';
+import { DocRef } from '@/components/DocRef';
 import { LoadError, NoData } from '@/components/States';
 import { ReviewTag } from '@/components/Tags';
 import { useAction, useApi } from '@/hooks/useApi';
@@ -62,7 +63,7 @@ function BatchUpdates({ id }: { id: string }) {
       dataSource={detail.data?.updates ?? []}
       locale={{ emptyText: 'Không có dòng cập nhật' }}
       columns={[
-        { title: 'Chỉ tiêu', key: 'target', sorter: byText(row => row.target.code), render: (_, row) => <Link to={`/admin/targets/${row.target.id}`}>{row.target.title}</Link> },
+        { title: 'Chỉ tiêu', key: 'target', sorter: byText(row => row.target.title), render: (_, row) => <div><Link to={`/admin/targets/${row.target.id}`}>{row.target.title}</Link><DocRef value={row.target} /></div> },
         { title: 'Giá trị', key: 'value', width: 140, align: 'right', sorter: byNumber(row => row.value), sortDirections: NUMBER_FIRST, render: (_, row) => `${num(row.value)} ${row.target.unit}` },
         { title: 'Kết quả', key: 'status', width: 120, sorter: byRank(['REJECTED', 'PENDING', 'APPROVED'], row => row.reviewStatus), render: (_, row) => <ReviewTag status={row.reviewStatus} /> },
         { title: 'Người duyệt', key: 'reviewer', width: 200, sorter: byText(row => row.reviewer?.fullName), render: (_, row) => (row.reviewer ? `${row.reviewer.fullName}${row.reviewedAt ? ` · ${fromNow(row.reviewedAt)}` : ''}` : '—') },
@@ -234,7 +235,7 @@ export default function Imports() {
                       title: 'Chỉ tiêu',
                       key: 'code',
                       sorter: byText(item => (item.kind === 'change' ? item.change.code : item.error.code)),
-                      render: (_, item) => (item.kind === 'change' ? <Link to={`/admin/targets/${item.change.targetId}`}>{item.change.title || 'Xem chỉ tiêu'}</Link> : item.error.code || '—'),
+                      render: (_, item) => (item.kind === 'change' ? <div><Link to={`/admin/targets/${item.change.targetId}`}>{item.change.title || 'Xem chỉ tiêu'}</Link><DocRef value={item.change} /></div> : `Dòng ${item.error.row}`),
                     },
                     {
                       title: 'Thay đổi',

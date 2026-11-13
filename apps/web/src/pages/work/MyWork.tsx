@@ -205,7 +205,7 @@ function Content({ data }: { data: MyWorkData }) {
               render: (_, item) => (
                 <TitleCell
                   title={item.name}
-                  sub={[item.origin === 'AI' ? 'AI trích xuất' : 'Cán bộ đề xuất', item.document?.code, item.responsibleDepartment?.name].filter(Boolean).join(' · ')}
+                  sub={[item.origin === 'AI' ? 'AI trích xuất' : 'Cán bộ đề xuất', item.document?.docNumber, item.responsibleDepartment?.name].filter(Boolean).join(' · ')}
                   to={`/admin/proposals?id=${item.id}`}
                 />
               ),

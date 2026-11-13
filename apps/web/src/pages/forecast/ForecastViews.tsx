@@ -60,7 +60,7 @@ export function ForecastTop({ year, scope }: { year: number; scope: ReadScope })
   const forecast = useApi<ForecastList>(`/forecast${query({ year, scope })}`, { staleTime: 60_000 });
   const rows = [...(forecast.data?.items ?? [])].sort((a, b) => b.probability - a.probability).slice(0, 5);
   return <Card title="Dự báo nguy cơ" className="forecast-card">
-    {forecast.error ? <LoadError error={forecast.error} retry={() => void forecast.refetch()} /> : forecast.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : !rows.length ? <NoData text="Không có chỉ tiêu còn hạn trong phạm vi này" /> : <div className="forecast-top">{rows.map(item => <div key={item.targetId} className="forecast-top-row"><div><Link to={`/admin/targets/${item.targetId}`}>{item.title}</Link><span className="muted">{item.departmentName}</span><span>{item.factors[0]}</span></div><ForecastRiskTag item={item} /></div>)}</div>}
+    {forecast.error ? <LoadError error={forecast.error} retry={() => void forecast.refetch()} /> : forecast.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : !rows.length ? <NoData text="Không có chỉ tiêu còn hạn trong phạm vi này" /> : <div className="forecast-top">{rows.map(item => <div key={item.targetId} className="forecast-top-row"><div><Link to={`/admin/targets/${item.targetId}`}>{item.title}</Link><DocRef value={item} /><span className="muted">{item.departmentName}</span><span>{item.factors[0]}</span></div><ForecastRiskTag item={item} /></div>)}</div>}
     {forecast.data && <Typography.Paragraph type="secondary" className="forecast-source">{forecast.data.model.sourceLabel}</Typography.Paragraph>}
   </Card>;
 }
@@ -77,5 +77,5 @@ export function forecastColumns(): TableColumnsType<Forecast> {
 
 export function ForecastWall({ items, sourceLabel }: { items: Forecast[]; sourceLabel?: string }) {
   const rows = [...items].sort((a, b) => b.probability - a.probability).slice(0, 5);
-  return <section className="wb-forecast"><h2>Dự báo nguy cơ</h2><p>Xác suất không đạt mức giao đúng hạn</p>{!rows.length ? <p>Không có chỉ tiêu còn hạn trong phạm vi này</p> : rows.map(item => <div className="wb-forecast-row" key={item.targetId}><div><strong>{item.title}</strong><span>{item.departmentName} · {item.factors[0]}</span></div><div><b>{num(item.probability * 100)}%</b><span>{RISK[item.risk].label}</span></div><div><b>{num(item.projectedValue)} {item.unit}</b><span>Dự báo / Mức giao {num(item.targetValue)}</span></div></div>)}<p className="wb-forecast-source">{sourceLabel}</p></section>;
+  return <section className="wb-forecast"><h2>Dự báo nguy cơ</h2><p>Xác suất không đạt mức giao đúng hạn</p>{!rows.length ? <p>Không có chỉ tiêu còn hạn trong phạm vi này</p> : rows.map(item => <div className="wb-forecast-row" key={item.targetId}><div><strong>{item.title}</strong><DocRef value={item} /><span>{item.departmentName} · {item.factors[0]}</span></div><div><b>{num(item.probability * 100)}%</b><span>{RISK[item.risk].label}</span></div><div><b>{num(item.projectedValue)} {item.unit}</b><span>Dự báo / Mức giao {num(item.targetValue)}</span></div></div>)}<p className="wb-forecast-source">{sourceLabel}</p></section>;
 }

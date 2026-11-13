@@ -264,7 +264,7 @@ export class DirectivesController {
 
   @Get('related/:targetId')
   async relatedTasks(@Req() req: any, @Param('targetId') targetId: string) {
-    const ctx = await this.context(getActor(req));
+    const ctx = await this.context(getActor(req), undefined, 'all');
     if (!await this.prisma.target.count({ where: { id: targetId, ...scopeWhere(ctx.departmentId) } })) throw new NotFoundException('Không tìm thấy chỉ tiêu');
     const items = await this.prisma.target.findMany({ where: { relatedTargetId: targetId, isArchived: false, kind: FrameworkKind.TASK, framework: { isActive: true }, ...scopeWhere(ctx.departmentId) }, include: taskInclude, orderBy: { dueDate: 'asc' } });
     return { items: items.map(task => presentTask(task)) };
@@ -272,7 +272,7 @@ export class DirectivesController {
 
   @Get(':id')
   async detail(@Req() req: any, @Param('id') id: string) {
-    const ctx = await this.context(getActor(req));
+    const ctx = await this.context(getActor(req), undefined, 'all');
     const framework = await this.framework(this.prisma, id);
     const tasks = await this.prisma.target.findMany({ where: { frameworkId: id, kind: FrameworkKind.TASK, ...(framework.isActive ? { isArchived: false } : {}), ...scopeWhere(ctx.departmentId) }, include: taskInclude, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     if (ctx.departmentId && !tasks.length) throw new NotFoundException('Không tìm thấy văn bản chỉ đạo trong phạm vi của bạn');
