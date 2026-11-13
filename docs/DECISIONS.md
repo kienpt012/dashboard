@@ -177,3 +177,67 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   giờ cho một tài khoản. Số di động thuộc hồ sơ tài khoản và chỉ quản trị viên sửa được, như email công vụ.
 - **Căn cứ**: hệ thống không ràng buộc nhà mạng; người dùng không tự đổi được nơi nhận mã nên chiếm phiên đăng nhập không
   dẫn tới chiếm tài khoản.
+
+## D-035 · 2026-11-14 · Nhiệm vụ của văn bản chỉ đạo là chỉ tiêu loại Nhiệm vụ; mỗi văn bản chỉ đạo là một bộ loại TASK
+
+- **Bối cảnh**: G-10…G-16 — quản lý chương trình công tác, thông báo kết luận, kế hoạch; phân rã thành việc giao cho phòng;
+  xem "tháng này phòng phải làm gì"; thống kê việc thực hiện.
+- **Chọn**: không dựng hệ thống nhiệm vụ riêng. Mỗi văn bản chỉ đạo là một `Framework(kind=TASK)` có loại văn bản, số ký
+  hiệu, ngày ban hành và tệp trong Kho văn bản; mỗi việc là một `Target` loại TASK (mức giao 100 %, một hạn hoàn thành, không
+  có kỳ báo cáo định kỳ). Nhờ vậy nhiệm vụ dùng lại nguyên hồ sơ, báo cáo kết quả, minh chứng, duyệt, chỉ đạo, giải trình,
+  dòng thời gian và nhắc hạn của chỉ tiêu. Nhiệm vụ gắn được với một chỉ tiêu (`relatedTargetId`) để hồ sơ chỉ tiêu thấy
+  lãnh đạo đã chỉ đạo, thúc đẩy bằng những văn bản nào.
+- **Quy ước thống kê**: tháng thống kê là tháng đến hạn; "đúng hạn" tính theo ngày nộp báo cáo 100 % đã được duyệt (không
+  tính thời gian chờ duyệt vào lỗi của người làm); ngày trễ bình quân tính trên việc hoàn thành trễ, việc còn quá hạn đếm riêng.
+- **Căn cứ**: một cơ chế trách nhiệm cho cả chỉ tiêu và nhiệm vụ; ít mã, ít chỗ lệch quyền.
+
+## D-036 · 2026-11-14 · "Người phân việc" là thiết lập của địa phương: Lãnh đạo UBND hoặc Chánh Văn phòng
+
+- **Bối cảnh**: G-12 — ở Lái Thiêu Chánh Văn phòng phân việc cho các phòng; nơi khác do lãnh đạo UBND phân.
+- **Chọn**: `SystemSetting.dispatchMode` = `LEADER` (mặc định) hoặc `OFFICE`. Ở chế độ `OFFICE`, trưởng phòng của phòng loại
+  Văn phòng được tạo văn bản chỉ đạo, giao việc cho mọi phòng và duyệt đề xuất chỉ tiêu liên phòng (không tự duyệt đề xuất
+  của mình). Quyền phân việc **không** kèm quyền báo cáo thay chuyên viên hay giao chuyên viên thay trưởng phòng. Người phân
+  việc và thời điểm được ghi trên từng nhiệm vụ, từng đề xuất. Mọi nơi cần biết ai là người phân việc đều gọi `dispatch.ts`.
+- **Căn cứ**: D-009 — khác biệt giữa các địa phương là cấu hình, không phải mã riêng.
+
+## D-037 · 2026-11-14 · Quyền xem tách khỏi quyền ghi; lãnh đạo không ghi số liệu
+
+- **Bối cảnh**: G-23 (cán bộ xem được chỉ tiêu phòng khác, không sửa) và G-24 (lãnh đạo chỉ xem và duyệt; số chưa đúng thì
+  trả cho chuyên viên cập nhật lại).
+- **Chọn**: hai hàm phạm vi riêng — `resolveReadDepartmentScope` cho mọi truy vấn đọc, `resolveDepartmentScope` cho thao tác
+  ghi. Thiết lập `crossDepartmentView` (bật mặc định) cho chuyên viên, trưởng phòng, người xem đọc toàn địa phương; công tắc
+  "Phòng tôi / Toàn địa phương" mặc định là phòng mình. Việc của tôi, hàng chờ duyệt, số việc cần xử lý vẫn theo phạm vi công
+  việc. Vai trò `LEADER` bị chặn gửi báo cáo, nhập Excel và sửa kho dữ liệu; `ADMIN` vẫn ghi nhận số liệu ban đầu và được
+  ghi rõ "Quản trị ghi nhận".
+- **Chọn**: "Yêu cầu cập nhật lại" trên báo cáo đã duyệt — bản cũ giữ hiệu lực và số chính thức không đổi cho tới khi bản
+  thay thế của cùng kỳ được duyệt; toàn bộ lịch sử được giữ.
+- **Căn cứ**: người duyệt không đồng thời là người nhập; số chính thức không bao giờ rơi vào trạng thái "đang sửa".
+
+## D-038 · 2026-11-14 · Chỉ tiêu được nhiều văn bản giao: liên kết theo nhóm, không gộp bản ghi
+
+- **Bối cảnh**: G-21 — Thành phố giao một mức, Đảng uỷ phường giao cao hơn một nấc; AI chỉ phát hiện và báo, người có thẩm
+  quyền quyết định; sau khi xử lý phải thấy cả hai văn bản.
+- **Chọn**: các chỉ tiêu cùng nội dung ở những bộ khác nhau được đặt chung `linkGroupId`. Mỗi chỉ tiêu giữ nguyên mức giao,
+  văn bản giao và tiến độ riêng; báo cáo đã duyệt của một chỉ tiêu được **đồng bộ** sang các chỉ tiêu cùng nhóm (bản đồng bộ
+  trỏ về báo cáo gốc, minh chứng không sao chép). Hệ thống chỉ **gợi ý** cặp trùng (cùng mã chuẩn hoặc tên tương đồng, cùng
+  năm, đơn vị); liên kết, bỏ qua, bỏ liên kết đều do người có quyền bấm và có nhật ký. Chỉ liên kết chỉ tiêu nhập tay, không
+  có chỉ tiêu con, cùng tần suất và chiều đánh giá; nhiệm vụ của văn bản chỉ đạo không tham gia.
+- **Không chọn**: gộp thành một bản ghi nhiều mức giao — mất khả năng báo cáo riêng theo từng văn bản và khó tương thích với
+  báo cáo hai cấp giao của nhánh xử lý văn bản.
+- **Căn cứ**: nhập một lần, hai văn bản đều có số; đánh giá đạt/không đạt theo đúng mức của từng cấp giao.
+
+## D-039 · 2026-11-14 · Dự báo khả năng không đạt: hồi quy logistic thuần TypeScript, nói rõ khi chưa đủ dữ liệu
+
+- **Bối cảnh**: G-26 — đề tài cần AI dự đoán khả năng trễ của chỉ tiêu; dữ liệu các kỳ cũ sẽ được cung cấp sau.
+- **Chọn**: mô hình hồi quy logistic có chuẩn hoá và điều chuẩn L2, viết bằng TypeScript chạy ngay trong API (không thêm
+  dịch vụ Python). 17 đặc trưng lấy từ dữ liệu trách nhiệm sẵn có: mức đạt so với thời gian đã qua, xu hướng các kỳ gần,
+  tỷ lệ báo cáo trễ/thiếu, số lần trả lại, chuyển việc, giải trình đang mở, số ngày chưa giao người… Mẫu huấn luyện dựng tại
+  các mốc 25/50/65/80 % thời gian của những chỉ tiêu đã kết thúc và **không đọc dữ liệu sau mốc**; tách tập kiểm tra theo
+  nhóm chỉ tiêu. Giá trị cuối kỳ ngoại suy theo nhịp thực hiện, kèm khoảng dự báo từ phần dư.
+- **Trung thực về dữ liệu**: dưới 40 mẫu, 12 nhóm hoặc thiếu một lớp thì dùng hệ số tiên nghiệm và ghi rõ "chưa đủ dữ liệu";
+  lịch sử nhập để huấn luyện nằm ở bảng riêng (`ForecastHistory`), không đụng số vận hành; dữ liệu mô phỏng mang cờ
+  `simulated` và mọi màn hình, tệp xuất đều ghi nguồn. Bộ mẫu hiện là mô phỏng — chỉ số đánh giá chưa nói lên độ chính xác
+  trên số liệu thật.
+- **Phạm vi**: chỉ dự báo chỉ tiêu kế hoạch và chấm điểm; chỉ tiêu thống kê không có mức giao, nhiệm vụ chỉ có xong/chưa
+  xong nên theo dõi bằng hạn.
+- **Câu hỏi mở**: cần lịch sử thật của địa phương để hiệu chuẩn và đánh giá lại trước khi dùng xác suất cho quyết định.
