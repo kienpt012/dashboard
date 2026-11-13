@@ -1,11 +1,12 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { DepartmentKind, Prisma, Role } from '@prisma/client';
 
 export interface ActorDepartment {
   id: string;
   code: string;
   name: string;
   isActive: boolean;
+  kind?: DepartmentKind;
 }
 
 export interface Actor {

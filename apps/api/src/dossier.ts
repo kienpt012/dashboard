@@ -70,6 +70,7 @@ import {
   WORK_ACTIONS,
 } from './work';
 import { uploadFileName } from './upload-name';
+import { isDispatcher } from './dispatch';
 
 // Hồ sơ chỉ tiêu ba phần (chỉ đạo điều hành – thực hiện – đánh giá) và các thao tác trách nhiệm.
 // Mọi thao tác ghi WorkEvent + audit trong cùng transaction và báo cho đúng người.
@@ -175,12 +176,13 @@ export class DossierController {
   constructor(private readonly prisma: PrismaService) {}
 
   private async loadTarget(actor: Actor, id: string): Promise<DossierTarget> {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const departmentId = resolveDepartmentScope(actor);
     const target = await this.prisma.target.findFirst({
       where: {
         id,
         ...(departmentId
-          ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }] }
+          ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }, ...(isDispatcher(actor, setting) ? [{ kind: 'TASK' as const }] : [])] }
           : {}),
       },
       include: { department: true },
@@ -274,7 +276,7 @@ export class DossierController {
       riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind,
     });
     const reportedPeriods = new Set(target.updates.filter(update => update.reviewStatus !== ProgressReviewStatus.REJECTED && update.periodKey).map(update => update.periodKey!));
-    const periods = target.valueSource === ValueSource.MANUAL
+    const periods = target.kind !== 'TASK' && target.valueSource === ValueSource.MANUAL
       ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, new Date(), target.createdAt).map(period => ({
           key: period.key, label: periodLabel(period.key), deadline: period.deadline, overdue: period.overdue, reported: reportedPeriods.has(period.key),
         }))
@@ -298,7 +300,7 @@ export class DossierController {
       currentPeriodKey: periodKeyFor(target.frequency),
       periods,
       completeness: {
-        directive: target.directives.length > 0,
+        directive: target.directives.length > 0 || (target.kind === 'TASK' && Boolean(target.frameworkId)),
         execution: Boolean(target.lastReportedAt),
         evaluation: target.evaluations.length > 0,
       },
@@ -314,7 +316,7 @@ export class DossierController {
       managers,
       staff,
       maxTransfers: setting?.maxTransfers ?? 1,
-      permissions: this.permissions(actor, base, setting?.maxTransfers ?? 1),
+      permissions: { ...this.permissions(actor, base, setting?.maxTransfers ?? 1), canDispatch: isDispatcher(actor, setting) },
     };
   }
 

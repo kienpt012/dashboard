@@ -19,6 +19,7 @@ import { dueReportPeriods, periodKeyFor, periodLabel } from './periods';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
 import { WORK_ACTIONS } from './work';
+import { isDispatcher } from './dispatch';
 
 // Trung tâm điều hành: một lượt truy vấn tổng hợp đủ để lãnh đạo nắm tình hình, thấy ai đang chậm và vì sao.
 // Mọi con số ở đây đều bấm vào được tới chỉ tiêu, hồ sơ và dòng thời gian trách nhiệm.
@@ -98,7 +99,7 @@ export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: num
       targetValue: target.targetValue, currentValue: target.currentValue, direction: target.direction, dueDate: target.dueDate,
       riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind, now,
     });
-    const periods = target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
+    const periods = target.kind !== FrameworkKind.TASK && target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
     const reported = reportedByTarget.get(target.id) ?? new Set<string>();
     const missingPeriods = periods.filter(period => period.overdue && !reported.has(period.key)).map(period => period.key);
     const pending = pendingReports.filter(report => report.targetId === target.id);
@@ -468,18 +469,18 @@ export class IocController {
     const needReport = mine
       .filter(item => item.target.valueSource === ValueSource.MANUAL)
       .map(item => {
-        const currentKey = periodKeyFor(item.target.frequency, snap.now);
+        const currentKey = item.target.kind === FrameworkKind.TASK ? undefined : periodKeyFor(item.target.frequency, snap.now);
         const reported = item.pending.length > 0;
         return {
           ...this.targetBrief(item),
-          currentPeriod: periodLabel(currentKey),
+          currentPeriod: currentKey ? periodLabel(currentKey) : 'Kết quả thực hiện',
           currentPeriodKey: currentKey,
           missingPeriods: item.missingPeriods.map(periodLabel),
           missingPeriodKeys: item.missingPeriods,
           pendingReport: reported,
         };
       })
-      .filter(item => item.missingPeriods.length || !item.hasReport);
+      .filter(item => item.kind === FrameworkKind.TASK ? item.status !== TargetStatus.COMPLETED : item.missingPeriods.length || !item.hasReport);
     const rejectedReports = await this.prisma.progressUpdate.findMany({
       where: { userId: actor.id, reviewStatus: ProgressReviewStatus.REJECTED, target: { year, isArchived: false } },
       orderBy: { reviewedAt: 'desc' },
@@ -495,8 +496,8 @@ export class IocController {
     const proposals = await this.prisma.indicatorCandidate.findMany({
       where: {
         OR: [
-          { status: CandidateStatus.SUBMITTED, ...(isLeadership(actor) ? {} : { responsibleDepartmentId: actor.role === Role.MANAGER ? actor.departmentId ?? '__none__' : '__none__' }) },
-          ...(actor.role === Role.CLERK || isLeadership(actor) ? [{ status: CandidateStatus.PROPOSED, origin: CandidateOrigin.AI }] : []),
+          { status: CandidateStatus.SUBMITTED, ...(isDispatcher(actor, snap.setting) ? {} : { responsibleDepartmentId: actor.role === Role.MANAGER ? actor.departmentId ?? '__none__' : '__none__' }) },
+          ...(actor.role === Role.CLERK || isDispatcher(actor, snap.setting) ? [{ status: CandidateStatus.PROPOSED, origin: CandidateOrigin.AI }] : []),
         ],
       },
       select: { id: true, name: true, status: true, origin: true, autoApproveAt: true, submittedAt: true, createdAt: true, responsibleDepartment: { select: { name: true } }, document: { select: { code: true, title: true } } },

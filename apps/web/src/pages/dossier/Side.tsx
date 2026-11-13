@@ -171,9 +171,9 @@ function SourceModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         <Form.Item name="evidenceRequirement" label="Yêu cầu minh chứng" className="span-2">
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={1000} />
         </Form.Item>
-        <Form.Item name="reportDueDay" label="Hạn báo cáo (ngày trong tháng cuối kỳ)">
+        {d.kind !== 'TASK' && <Form.Item name="reportDueDay" label="Hạn báo cáo (ngày trong tháng cuối kỳ)">
           <InputNumber min={1} max={31} style={{ width: '100%' }} />
-        </Form.Item>
+        </Form.Item>}
       </Form>
     </Modal>
   );
@@ -344,7 +344,7 @@ export function SourceCard() {
       ) : null,
     },
     { label: 'Yêu cầu minh chứng', value: d.evidenceRequirement },
-    { label: 'Hạn báo cáo', value: `Ngày ${d.reportDueDay ?? 20} tháng cuối kỳ` },
+    { label: d.kind === 'TASK' ? 'Báo cáo kết quả' : 'Hạn báo cáo', value: d.kind === 'TASK' ? 'Khi có tiến triển' : `Ngày ${d.reportDueDay ?? 20} tháng cuối kỳ` },
   ].filter(row => row.value);
   return (
     <Card

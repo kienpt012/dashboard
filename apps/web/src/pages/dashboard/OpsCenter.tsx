@@ -15,6 +15,7 @@ import { useApi } from '@/hooks/useApi';
 import { currentYear, date, dateTime, fromNow, num, pct } from '@/lib/format';
 import { APPROVERS, can, FRAMEWORK_EDITORS, SUPERVISORS } from '@/lib/roles';
 import type { AlertItem, Overview, OverviewDepartment, TargetStatusKey } from '@/types/domain';
+import { DirectiveOpsCard } from '@/pages/directives/DirectiveOpsCard';
 
 const ALERT_KINDS: Record<string, string> = {
   STALLED: 'Bị treo',
@@ -482,6 +483,7 @@ export default function OpsCenter() {
               </Col>
             </Row>
 
+            <DirectiveOpsCard year={year} />
             <Card title="Bộ chỉ tiêu" className="card-flush">
               <Frameworks data={data} />
             </Card>

@@ -54,6 +54,7 @@ import { currentVietnamYear, parsePlanningDueDate } from './planning-date';
 import { PrismaService } from './prisma.service';
 import { createTargetWithGeneratedCode } from './target-create';
 import { archiveTargetData, restoreTargetData } from './target-lifecycle';
+import { assertTargetDefinitionAccess } from './dispatch';
 
 const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
@@ -478,13 +479,14 @@ export class TargetsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(...LEADERSHIP_ROLES)
+  @Roles(...LEADERSHIP_ROLES, Role.MANAGER)
   async create(@Req() req: any, @Body() dto: CreateTargetDto) {
     const actor = getActor(req);
-    const departmentId = resolveDepartmentScope(actor, dto.departmentId);
+    await assertTargetDefinitionAccess(this.prisma, actor, dto);
+    const departmentId = dto.departmentId;
     if (!departmentId) throw new BadRequestException('Vui lòng chọn phòng ban phụ trách');
     const dueDate = parsePlanningDueDate(dto.dueDate);
-    if (dueDate.getUTCFullYear() !== dto.year) {
+    if (dto.kind !== FrameworkKind.TASK && dueDate.getUTCFullYear() !== dto.year) {
       throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
     }
     return createTargetWithGeneratedCode(this.prisma, actor, {
@@ -541,11 +543,12 @@ export class TargetsController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(...LEADERSHIP_ROLES)
+  @Roles(...LEADERSHIP_ROLES, Role.MANAGER)
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTargetDto) {
     const actor = getActor(req);
-    const target = await this.targetInScope(actor, id);
+    const target = await this.prisma.target.findFirst({ where: { id } });
     if (!target) throw new NotFoundException('Không tìm thấy chỉ tiêu');
+    await assertTargetDefinitionAccess(this.prisma, actor, target);
     if (target.isArchived) {
       throw new ConflictException('Chỉ tiêu đã được lưu trữ. Hãy khôi phục chỉ tiêu trước khi chỉnh sửa.');
     }
@@ -560,18 +563,25 @@ export class TargetsController {
         'Năm kế hoạch được khóa sau khi tạo để bảo đảm mã chỉ tiêu không thay đổi. Hãy tạo chỉ tiêu mới nếu cần chuyển năm.',
       );
     }
-    if (dto.departmentId !== undefined && dto.departmentId !== target.departmentId) {
+    const changesDepartment = dto.departmentId !== undefined && dto.departmentId !== target.departmentId;
+    if (changesDepartment && target.kind !== FrameworkKind.TASK) {
       throw new BadRequestException(
         'Phòng ban phụ trách được khóa sau khi tạo để bảo đảm mã chỉ tiêu không thay đổi. Hãy tạo chỉ tiêu mới nếu cần chuyển đơn vị.',
       );
     }
     if (
       !isLeadership(actor) &&
-      (dto.departmentId !== undefined || dto.isHighlighted !== undefined || dto.publicOrder !== undefined)
+      (dto.isHighlighted !== undefined || dto.publicOrder !== undefined)
     ) {
       throw new ForbiddenException('Chỉ quản trị viên được đổi phòng ban hoặc cấu hình công khai');
     }
-    const departmentId = target.departmentId;
+    const departmentId = dto.departmentId ?? target.departmentId;
+    if (changesDepartment && !(await this.prisma.department.count({ where: { id: departmentId, isActive: true } }))) {
+      throw new BadRequestException('Phòng chủ trì không tồn tại hoặc đã ngừng hoạt động');
+    }
+    if (target.kind === FrameworkKind.TASK && ((dto.targetValue !== undefined && dto.targetValue !== 100) || (dto.unit !== undefined && dto.unit !== '%') || (dto.direction !== undefined && dto.direction !== TargetDirection.HIGHER_IS_BETTER))) {
+      throw new BadRequestException('Nhiệm vụ dùng tỷ lệ hoàn thành từ 0 đến 100%');
+    }
 
     const targetValue = dto.targetValue ?? target.targetValue;
     const direction = dto.direction ?? target.direction;
@@ -583,8 +593,9 @@ export class TargetsController {
       || (dto.weight !== undefined && dto.weight !== target.weight)
       || (dto.frequency !== undefined && dto.frequency !== target.frequency)
       || (dto.direction !== undefined && dto.direction !== target.direction)
-      || dueDate.getTime() !== target.dueDate.getTime();
-    if (dueDate.getUTCFullYear() !== year) {
+      || dueDate.getTime() !== target.dueDate.getTime()
+      || changesDepartment;
+    if (target.kind !== FrameworkKind.TASK && dueDate.getUTCFullYear() !== year) {
       throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
     }
     const evaluation = evaluateTarget({
@@ -594,6 +605,7 @@ export class TargetsController {
       dueDate,
       riskThreshold: await this.riskThreshold(),
       hasReport: Boolean(target.lastReportedAt),
+      kind: target.kind,
     });
     const {
       expectedVersion: _expectedVersion,
@@ -604,7 +616,7 @@ export class TargetsController {
     } = dto;
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (changesDefinition) {
+        if (changesDefinition && target.kind !== FrameworkKind.TASK) {
           const historyCount = await tx.progressUpdate.count({ where: { targetId: id } });
           if (historyCount > 0) {
             throw new ConflictException(
@@ -626,6 +638,8 @@ export class TargetsController {
             unit: dto.unit?.trim(),
             dueDate,
             departmentId,
+            ...(changesDepartment ? { assigneeId: null, assignedAt: null, assignedById: null } : {}),
+            ...(target.kind === FrameworkKind.TASK ? { dispatchedById: actor.id, dispatchedByName: actor.fullName, dispatchedAt: new Date() } : {}),
             status: evaluation.status,
             version: changesDefinition ? { increment: 1 } : undefined,
             publicationVersion: { increment: 1 },
@@ -634,6 +648,7 @@ export class TargetsController {
         if (changed.count !== 1) {
           throw new ConflictException('Chỉ tiêu vừa được người khác cập nhật. Vui lòng tải lại dữ liệu.');
         }
+        if (changesDepartment) await tx.targetCoordinator.deleteMany({ where: { targetId: id, departmentId } });
         const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
         await audit(tx, actor, {
           action: 'TARGET_UPDATED',
@@ -819,8 +834,10 @@ export class TargetsController {
     if (actor.role === Role.CLERK) {
       throw new ForbiddenException('Văn thư không trực tiếp báo cáo số liệu; người phụ trách của phòng chủ trì sẽ cập nhật');
     }
-    const periodKey = dto.periodKey?.trim() || periodKeyFor(target.frequency);
-    if (!isValidPeriodKey(periodKey) || !periodKey.startsWith(String(target.year))) {
+    const isTask = target.kind === FrameworkKind.TASK;
+    if (isTask && (dto.value > 100 || !dto.note?.trim())) throw new BadRequestException('Vui lòng nhập tỷ lệ hoàn thành từ 0 đến 100% và nội dung kết quả');
+    const periodKey = isTask ? null : dto.periodKey?.trim() || periodKeyFor(target.frequency);
+    if (periodKey !== null && (!isValidPeriodKey(periodKey) || !periodKey.startsWith(String(target.year)))) {
       throw new BadRequestException('Kỳ báo cáo không hợp lệ hoặc không thuộc năm kế hoạch của chỉ tiêu');
     }
     const reportFields = {
@@ -831,6 +848,7 @@ export class TargetsController {
     };
     // Giá trị dạng chữ đã tự mang đơn vị ("72% (816 tỷ đồng)"); chỉ ghép đơn vị khi hiển thị số.
     const valueLabel = dto.valueText?.trim() || `${dto.value} ${target.unit}`.trim();
+    const reportLabel = periodKey ? periodLabel(periodKey) : 'Kết quả thực hiện';
     const baseVersion = dto.baseVersion;
     if (baseVersion !== target.version) {
       throw new ConflictException('Số liệu đã thay đổi. Vui lòng tải lại chỉ tiêu trước khi báo cáo.');
@@ -875,11 +893,11 @@ export class TargetsController {
           await recordWorkEvent(tx, {
             action: 'REPORT_SUBMITTED', actor, targetId: id, departmentId: currentTarget.departmentId,
             responsibleUserId: managers[0] ?? null,
-            note: periodLabel(periodKey) + ': ' + valueLabel + ' — chờ duyệt',
+            note: reportLabel + ': ' + valueLabel + ' — chờ duyệt',
           });
           await notifyUsers(tx, managers, {
-            kind: 'REPORT_SUBMITTED', title: actor.fullName + ' gửi số liệu ' + currentTarget.code + ' chờ duyệt',
-            body: periodLabel(periodKey) + ': ' + valueLabel,
+            kind: 'REPORT_SUBMITTED', title: currentTarget.title + ' · Báo cáo chờ duyệt',
+            body: reportLabel + ': ' + valueLabel,
             link: '/admin/approvals', entityType: 'ProgressUpdate', entityId: created.id, dedupeKey: 'report:' + created.id,
           }, actor.id);
           await audit(tx, actor, {
@@ -924,6 +942,7 @@ export class TargetsController {
           dueDate: currentTarget.dueDate,
           riskThreshold,
           hasReport: true,
+          kind: currentTarget.kind,
         });
         const changed = await tx.target.updateMany({
           where: {
@@ -957,7 +976,7 @@ export class TargetsController {
         });
         await recordWorkEvent(tx, {
           action: 'REPORT_APPROVED', actor, targetId: id, departmentId: currentTarget.departmentId,
-          note: periodLabel(periodKey) + ': ' + valueLabel + ' (lãnh đạo cập nhật trực tiếp)',
+          note: reportLabel + ': ' + valueLabel + ' (lãnh đạo cập nhật trực tiếp)',
           metadata: { progressUpdateId: createdUpdate.id },
         });
         const current = await tx.target.findUniqueOrThrow({ where: { id }, include: { department: true } });
@@ -1026,7 +1045,7 @@ export class TargetsController {
             responsibleUserId: update.userId, note: dto.reviewNote!.trim(),
           });
           await notifyUsers(tx, [update.userId], {
-            kind: 'REPORT_REJECTED', title: 'Báo cáo số liệu ' + update.target.code + ' bị trả lại',
+            kind: 'REPORT_REJECTED', title: update.target.title + ' · Báo cáo bị trả lại',
             body: dto.reviewNote!.trim(), link: targetLink(update.targetId), entityType: 'Target', entityId: update.targetId,
             dedupeKey: 'report-rejected:' + updateId,
           }, actor.id);
@@ -1051,6 +1070,7 @@ export class TargetsController {
       dueDate: update.target.dueDate,
       riskThreshold: await this.riskThreshold(),
       hasReport: true,
+      kind: update.target.kind,
     });
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -1092,7 +1112,7 @@ export class TargetsController {
           metadata: { progressUpdateId: updateId },
         });
         await notifyUsers(tx, [update.userId], {
-          kind: 'REPORT_APPROVED', title: 'Báo cáo số liệu ' + update.target.code + ' đã được duyệt',
+          kind: 'REPORT_APPROVED', title: update.target.title + ' · Báo cáo đã được duyệt',
           body: null, link: targetLink(update.targetId), entityType: 'Target', entityId: update.targetId,
           dedupeKey: 'report-approved:' + updateId,
         }, actor.id);

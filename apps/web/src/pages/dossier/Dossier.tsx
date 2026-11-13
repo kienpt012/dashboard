@@ -17,6 +17,7 @@ import { DossierContext, useDossier, useDossierRun, type DossierData } from './c
 import { DirectivesTab } from './Directives';
 import { EvaluationModal, EvaluationsTab } from './Evaluations';
 import { ExecutionTab, ReportModal, valueText } from './Execution';
+import { RelatedTasks } from './RelatedTasks';
 import { BasisCard, ExplanationRequestModal, ExplanationsCard, PeopleModal, ResponsibilityCard, SourceCard, TimelineTab, type PeopleAction } from './Side';
 import './dossier.css';
 
@@ -34,10 +35,10 @@ function Figures() {
     <Card className="figures">
       <div className="figure-row">
         <div className="figure">
-          <span className="figure-label">Chỉ tiêu giao</span>
+          <span className="figure-label">{d.kind === 'TASK' ? 'Mức hoàn thành' : 'Chỉ tiêu giao'}</span>
           <span className="figure-value">{stat ? 'Theo dõi số liệu' : d.targetText || valueText(d.targetValue, d.unit)}</span>
           <span className="figure-foot">
-            {stat ? 'Chỉ tiêu thống kê' : `${d.targetText ? `Quy đổi ${valueText(d.targetValue, d.unit)} · ` : ''}${d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}`}
+            {d.kind === 'TASK' ? 'Hoàn thành nhiệm vụ' : stat ? 'Chỉ tiêu thống kê' : `${d.targetText ? `Quy đổi ${valueText(d.targetValue, d.unit)} · ` : ''}${d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}`}
           </span>
         </div>
         <div className="figure">
@@ -67,11 +68,11 @@ function Figures() {
           <span className="figure-value">{date(d.dueDate)}</span>
           <span className="figure-foot">{d.status === 'COMPLETED' ? 'Đã hoàn thành' : until(d.dueDate)}</span>
         </div>
-        <div className="figure">
+        {d.kind !== 'TASK' && <div className="figure">
           <span className="figure-label">Kỳ báo cáo</span>
           <span className="figure-value">{frequencyLabel[d.frequency]}</span>
           <span className="figure-foot">{manual ? `Kỳ hiện tại: ${periodLabel(d.currentPeriodKey)}` : 'Hệ thống tự cập nhật'}</span>
-        </div>
+        </div>}
       </div>
     </Card>
   );
@@ -121,11 +122,11 @@ function DossierView({ d }: { d: DossierData }) {
   ];
 
   const crumbs = [
-    { label: 'Danh mục chỉ tiêu', to: '/admin/targets' },
-    ...(d.framework ? [{ label: d.framework.name, to: `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
+    { label: d.kind === 'TASK' ? 'Văn bản chỉ đạo' : 'Danh mục chỉ tiêu', to: d.kind === 'TASK' ? '/admin/van-ban-chi-dao' : '/admin/targets' },
+    ...(d.framework ? [{ label: d.framework.name, to: d.kind === 'TASK' ? `/admin/van-ban-chi-dao/${d.framework.id}` : `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
     ...(d.groupName ? [{ label: d.groupName }] : []),
     ...(d.parent ? [{ label: d.parent.code, to: `/admin/targets/${d.parent.id}` }] : []),
-    { label: d.code },
+    { label: d.kind === 'TASK' ? 'Hồ sơ nhiệm vụ' : d.code },
   ];
 
   const done = (value: boolean) => <Badge status={value ? 'success' : 'default'} />;
@@ -136,9 +137,10 @@ function DossierView({ d }: { d: DossierData }) {
       title={d.title}
       meta={
         <>
-          <Typography.Text copyable={{ text: d.code, icon: <CopyOutlined />, tooltips: ['Chép mã', 'Đã chép'] }} className="num">
+          {d.kind !== 'TASK' && <Typography.Text copyable={{ text: d.code, icon: <CopyOutlined />, tooltips: ['Chép mã', 'Đã chép'] }} className="num">
             {d.code}
-          </Typography.Text>
+          </Typography.Text>}
+          {d.kind === 'TASK' && d.dispatchedByName && <span>Phân việc: {d.dispatchedByName}{d.dispatchedAt ? ` · ${dateTime(d.dispatchedAt)}` : ''}</span>}
           {d.standardCode && <span>Mã {d.standardCode}</span>}
           {d.ordinal && <span>STT {d.ordinal}</span>}
           <DeptTag name={d.department.name} color={d.department.color} />
@@ -176,7 +178,7 @@ function DossierView({ d }: { d: DossierData }) {
               </Tooltip>
             ) : (
               <Button type="primary" icon={<SendOutlined />} onClick={() => setReporting({})}>
-                Báo cáo số liệu
+                {d.kind === 'TASK' ? 'Báo cáo kết quả' : 'Báo cáo số liệu'}
               </Button>
             ))}
         </>
@@ -191,6 +193,7 @@ function DossierView({ d }: { d: DossierData }) {
         />
       )}
       <Figures />
+      <RelatedTasks />
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
           <Card className="card-tabs dossier-tabs">

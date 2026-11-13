@@ -1,0 +1,38 @@
+.directive-page { min-width: 0; }
+.directive-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.directive-metrics .metric { min-width: 0; }
+.directive-dist { display: flex; height: 9px; gap: 2px; width: 100%; border-radius: 5px; overflow: hidden; }
+.directive-dist > span { min-width: 2px; }
+.directive-dist-empty { flex: 1; background: var(--ioc-color-border-secondary); }
+.directive-legend { font-size: 12px; padding: 12px 16px; }
+.directive-name { display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }
+.directive-name > a { font-weight: 600; }
+.directive-cell-meta { color: var(--ioc-color-text-secondary); font-size: 12px; white-space: normal; }
+.directive-meta { margin-bottom: 16px; }
+.directive-toolbar { padding: 12px 16px; border-bottom: 1px solid var(--ioc-color-border-secondary); }
+.directive-inline { width: 100%; min-width: 150px; }
+.directive-inline .ant-select-selection-item { white-space: normal; overflow-wrap: anywhere; }
+.directive-inline.ant-select-single { height: auto; min-height: 32px; }
+.directive-inline.ant-select-single .ant-select-selection-item { line-height: 1.55; padding: 5px 0; }
+.directive-chart-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.directive-month-tools { margin-bottom: 16px; }
+.directive-month-tools .ant-select { min-width: 240px; max-width: 100%; }
+.directive-paste-preview { max-height: 260px; overflow: auto; margin: 12px 0 0; padding-left: 24px; }
+.directive-paste-preview li { padding: 4px 0; overflow-wrap: anywhere; }
+.directive-stat-title { min-width: 180px; overflow-wrap: anywhere; }
+.directive-page .ant-table-cell { overflow-wrap: anywhere; }
+.directive-page .ant-card-head-title { white-space: normal; }
+.directive-page .ant-table-wrapper { max-width: 100%; }
+.directive-task-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 1199px) {
+  .directive-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .directive-chart-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 575px) {
+  .directive-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .directive-month-tools { align-items: stretch !important; }
+  .directive-month-tools > .ant-space, .directive-month-tools > .ant-flex { width: 100%; }
+  .directive-month-tools .ant-select, .directive-month-tools .ant-picker { width: 100%; min-width: 0; }
+  .directive-task-actions .ant-btn { flex: 1 1 auto; }
+  .directive-toolbar { padding: 12px; }
+}
