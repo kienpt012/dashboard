@@ -5,7 +5,7 @@ import { createQaActors, cleanupQaActors, qaActorIds } from './qa-actors.mjs';
 // Run against the isolated development database only. Temporary actors/data are removed in finally.
 try { process.loadEnvFile?.(); } catch { /* CI supplies its environment. */ }
 const base = process.env.QA_API_URL || 'http://localhost:3101/api';
-if (!process.env.DATABASE_URL || !/\/ioc_wp_a(?:\?|$)/.test(process.env.DATABASE_URL)) throw new Error('QA desk chỉ được chạy trên CSDL ioc_wp_a');
+if (!/\/ioc_(wp|qa|dev)_[a-z0-9_]+(?:\?|$)/.test(process.env.DATABASE_URL || '')) throw new Error('Kịch bản QA chỉ chạy trên CSDL thử (tên dạng ioc_wp_*, ioc_qa_*, ioc_dev_*), không chạy trên dữ liệu đang dùng');
 const prisma = new PrismaClient();
 let actors, failure;
 const additionalUserIds = [], targetIds = [], appIds = [], noteIds = [], checks = [];

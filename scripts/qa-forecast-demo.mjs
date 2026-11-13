@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
 
-if (new URL(process.env.DATABASE_URL || '').pathname !== '/ioc_wp_c') throw new Error('Chỉ kiểm tra seed trên ioc_wp_c');
+if (!/\/ioc_(wp|qa|dev)_[a-z0-9_]+(?:\?|$)/.test(process.env.DATABASE_URL || '')) throw new Error('Kịch bản QA chỉ chạy trên CSDL thử (tên dạng ioc_wp_*, ioc_qa_*, ioc_dev_*), không chạy trên dữ liệu đang dùng');
 const prisma = new PrismaClient();
 const snapshot = async () => ({
   targets: await prisma.target.count(), reports: await prisma.progressUpdate.count(),

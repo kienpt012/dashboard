@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { cleanupQaActors, createQaActors } from './qa-actors.mjs';
 
 const baseUrl = process.env.QA_API_URL || 'http://localhost:3103/api';
-if (!process.env.DATABASE_URL || new URL(process.env.DATABASE_URL).pathname !== '/ioc_wp_c') throw new Error('Chỉ chạy QA liên kết trên DATABASE_URL của ioc_wp_c');
+if (!/\/ioc_(wp|qa|dev)_[a-z0-9_]+(?:\?|$)/.test(process.env.DATABASE_URL || '')) throw new Error('Kịch bản QA chỉ chạy trên CSDL thử (tên dạng ioc_wp_*, ioc_qa_*, ioc_dev_*), không chạy trên dữ liệu đang dùng');
 const prisma = new PrismaClient();
 const checks = [], targetIds = [], frameworkIds = [];
 let actors;

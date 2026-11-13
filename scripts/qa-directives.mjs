@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 
 // Chỉ chạy trên CSDL riêng của gói B; không tự nạp .env chung hoặc đoán CSDL.
 const database = process.env.DATABASE_URL;
-if (!database || new URL(database).pathname !== '/ioc_wp_b') throw new Error('QA yêu cầu DATABASE_URL trỏ đúng ioc_wp_b');
+if (!/\/ioc_(wp|qa|dev)_[a-z0-9_]+(?:\?|$)/.test(process.env.DATABASE_URL || '')) throw new Error('Kịch bản QA chỉ chạy trên CSDL thử (tên dạng ioc_wp_*, ioc_qa_*, ioc_dev_*), không chạy trên dữ liệu đang dùng');
 const base = process.env.QA_API_URL || 'http://localhost:3102/api';
 if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('QA chỉ dùng API cục bộ');
 const prisma = new PrismaClient();
