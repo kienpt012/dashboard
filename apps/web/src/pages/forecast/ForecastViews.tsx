@@ -25,13 +25,13 @@ function ForecastChart({ data }: { data: Forecast }) {
       grid: { left: 12, right: 16, top: 45, bottom: 12, containLabel: true },
       legend: { data: ['Thực hiện', 'Dự báo', 'Khoảng tin cậy'], textStyle: { color: colors.sub }, top: 0 },
       tooltip: { trigger: 'axis', valueFormatter: (value: number | null) => value == null ? '—' : num(value) },
-      xAxis: { type: 'category', data: data.series.map(point => date(point.date)), boundaryGap: false, axisLabel: { color: colors.sub, hideOverlap: true }, axisLine: { lineStyle: { color: colors.line } } },
+      xAxis: { type: 'time', axisLabel: { color: colors.sub, hideOverlap: true, formatter: (value: number) => date(new Date(value).toISOString()) }, axisLine: { lineStyle: { color: colors.line } } },
       yAxis: { type: 'value', scale: true, axisLabel: { color: colors.sub }, splitLine: { lineStyle: { color: colors.line } } },
       series: [
-        { name: 'Cận dưới', type: 'line', stack: 'confidence', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 }, tooltip: { show: false }, data: data.series.map(point => point.lower) },
-        { name: 'Khoảng tin cậy', type: 'line', stack: 'confidence', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { color: '#5b8ff9', opacity: 0.16 }, tooltip: { show: false }, data: data.series.map(point => point.lower == null || point.upper == null ? null : point.upper - point.lower) },
-        { name: 'Thực hiện', type: 'line', symbolSize: 5, lineStyle: { width: 3 }, itemStyle: { color: '#1677ff' }, data: data.series.map(point => point.actual) },
-        { name: 'Dự báo', type: 'line', symbolSize: 5, lineStyle: { type: 'dashed', width: 2 }, itemStyle: { color: '#d89614' }, data: data.series.map(point => point.predicted), markLine: { symbol: 'none', label: { formatter: 'Mức giao', position: 'insideEndTop', color: colors.sub }, lineStyle: { color: '#8c8c8c', type: 'dotted' }, data: [{ yAxis: data.targetValue }] } },
+        { name: 'Cận dưới', type: 'line', stack: 'confidence', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 }, tooltip: { show: false }, data: data.series.map(point => [point.date, point.lower]) },
+        { name: 'Khoảng tin cậy', type: 'line', stack: 'confidence', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { color: '#5b8ff9', opacity: 0.16 }, tooltip: { show: false }, data: data.series.map(point => [point.date, point.lower == null || point.upper == null ? null : point.upper - point.lower]) },
+        { name: 'Thực hiện', type: 'line', symbolSize: 5, lineStyle: { width: 3 }, itemStyle: { color: '#1677ff' }, data: data.series.map(point => [point.date, point.actual]) },
+        { name: 'Dự báo', type: 'line', symbolSize: 5, lineStyle: { type: 'dashed', width: 2 }, itemStyle: { color: '#d89614' }, data: data.series.map(point => [point.date, point.predicted]), markLine: { symbol: 'none', label: { formatter: 'Mức giao', position: 'insideEndTop', color: colors.sub }, lineStyle: { color: '#8c8c8c', type: 'dotted' }, data: [{ yAxis: data.targetValue }] } },
       ],
     };
   }, [data, dark]);

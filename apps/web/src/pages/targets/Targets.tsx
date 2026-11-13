@@ -195,6 +195,7 @@ export default function Targets() {
     {
       title: 'Chỉ tiêu',
       key: 'title',
+      width: 340,
       sorter: (a, b) => a.title.localeCompare(b.title, 'vi'),
       render: (_, target) => (
         <TitleCell
@@ -418,7 +419,7 @@ export default function Targets() {
             columns={columns}
             dataSource={rows}
             loading={list.isLoading || (list.isFetching && !list.data)}
-            scroll={{ x: 1220 }}
+            scroll={{ x: 1620 }}
             onRow={target => ({ onDoubleClick: () => navigate(`/admin/targets/${target.id}`) })}
             pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: total => `${num(total)} chỉ tiêu`, hideOnSinglePage: false }}
             expandable={{

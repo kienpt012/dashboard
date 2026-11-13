@@ -5,7 +5,8 @@ export function projectValue(input: ForecastInput, at: Date) {
   const f = extractFeatures(input, at), start = startOfTarget(input), duration = Math.max(86_400_000, input.dueDate.getTime() - start.getTime());
   const points = f.observations.map(row => ({ x: clamp((row.at.getTime() - start.getTime()) / duration, 0, 1), y: row.value }));
   const ratio = isRatio(input), fit = linearFit(points);
-  const bound = (value: number) => Math.max(0, input.unit.includes('%') ? Math.min(100, value) : value);
+  // Tỷ lệ so với kế hoạch (ví dụ thu ngân sách) có thể vượt 100%; không cắt dự báo theo ký hiệu đơn vị.
+  const bound = (value: number) => Math.max(0, value);
   const rate = f.elapsed > 0 ? f.currentValue / f.elapsed : 0;
   const estimate = (x: number) => bound(ratio ? points.length >= 2 ? fit.intercept + fit.slope * x : f.currentValue : rate * x);
   const residualVariance = points.length > 2 ? ratio ? fit.variance : points.reduce((sum, row) => sum + (row.y - rate * row.x) ** 2, 0) / (points.length - 1) : null;

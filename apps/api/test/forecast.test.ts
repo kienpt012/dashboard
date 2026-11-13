@@ -73,6 +73,11 @@ test('ngoại suy cộng dồn theo nhịp và không tạo khoảng giả khi �
   assert.ok(result.projectedValue > 115 && result.projectedValue < 125); assert.ok(result.interval);
   assert.equal(projectValue(target({ observations: [] }), new Date('2025-09-30')).interval, null);
 });
+
+test('tỷ lệ so với kế hoạch có thể dự báo vượt 100 phần trăm', () => {
+  const input = target({ unit: '%', targetValue: 105 });
+  assert.ok(projectValue(input, new Date('2025-09-30')).projectedValue > 100);
+});
 test('quyền quản lý mô hình chỉ ADMIN/LEADER, kể cả gọi service trực tiếp', () => {
   for (const role of ['ADMIN', 'LEADER'] as const) assert.doesNotThrow(() => assertForecastAdmin({ role }));
   for (const role of ['MANAGER', 'STAFF', 'VIEWER', 'CLERK'] as const) assert.throws(() => assertForecastAdmin({ role }), ForbiddenException);
