@@ -52,6 +52,10 @@ function modelInfo(row: StoredModel) {
   };
 }
 const FORECAST_KINDS: FrameworkKind[] = ['PLAN', 'SCORE'];
+/** Xác suất nói tròn số; hai đầu là "trên 95%", "dưới 5%" vì mô hình không đủ chắc để nói tới phần trăm lẻ. */
+export function probabilityText(probability: number): string {
+  return probability >= 0.95 ? 'trên 95%' : probability <= 0.05 ? 'dưới 5%' : `${Math.round(probability * 100)}%`;
+}
 export async function loadTrainingInputs(prisma: PrismaClient, now = new Date()): Promise<ForecastInput[]> {
   const [targets, history] = await Promise.all([
     // Nhiệm vụ của văn bản chỉ đạo chỉ có xong/chưa xong và một hạn: không đủ tín hiệu để dự báo, đã có theo dõi hạn riêng.

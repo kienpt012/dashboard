@@ -13,9 +13,16 @@ import type { Forecast, ForecastList } from './types';
 import './forecast.css';
 
 export const RISK = { LOW: { label: 'Thấp', color: 'green' }, MEDIUM: { label: 'Trung bình', color: 'gold' }, HIGH: { label: 'Cao', color: 'red' } };
+/** Xác suất hiện tròn số; hai đầu ghi "trên 95%", "dưới 5%" vì mô hình không đủ chắc để nói tới phần trăm lẻ. */
+export function probabilityText(probability: number) {
+  if (probability >= 0.95) return 'trên 95%';
+  if (probability <= 0.05) return 'dưới 5%';
+  return `${Math.round(probability * 100)}%`;
+}
+
 export function ForecastRiskTag({ item }: { item?: Pick<Forecast, 'risk' | 'probability'> }) {
   if (!item) return <span className="muted">—</span>;
-  return <Tag color={RISK[item.risk].color}>{RISK[item.risk].label} · {num(item.probability * 100)}%</Tag>;
+  return <Tag color={RISK[item.risk].color}>{RISK[item.risk].label} · {probabilityText(item.probability)}</Tag>;
 }
 
 function ForecastChart({ data }: { data: Forecast }) {
@@ -45,7 +52,7 @@ export function ForecastCard({ targetId }: { targetId: string }) {
   return <Card title="Dự báo" className="forecast-card">
     {forecast.error ? <LoadError error={forecast.error} retry={() => void forecast.refetch()} /> : !data ? <Skeleton active paragraph={{ rows: 3 }} /> : data.applicable === false ? <NoData text={data.reason || 'Chỉ tiêu không thuộc kỳ dự báo'} /> : <>
       <div className="forecast-figures">
-        <div><span className="muted">Xác suất không đạt đúng hạn</span><strong>{num(data.probability * 100)}%</strong><ForecastRiskTag item={data} /></div>
+        <div><span className="muted">Xác suất không đạt đúng hạn</span><strong>{probabilityText(data.probability)}</strong><ForecastRiskTag item={data} /></div>
         <div><span className="muted">Giá trị dự báo cuối kỳ</span><strong>{num(data.projectedValue)} <small>{data.unit}</small></strong><span>Mức giao {num(data.targetValue)} {data.unit}</span></div>
         <div><span className="muted">Khoảng tin cậy</span><strong>{data.interval ? `${num(data.interval.lower)} – ${num(data.interval.upper)}` : 'Chưa đủ kỳ'}</strong><span>Hạn {date(data.dueDate)}</span></div>
       </div>
@@ -77,5 +84,5 @@ export function forecastColumns(): TableColumnsType<Forecast> {
 
 export function ForecastWall({ items, sourceLabel }: { items: Forecast[]; sourceLabel?: string }) {
   const rows = [...items].sort((a, b) => b.probability - a.probability).slice(0, 5);
-  return <section className="wb-forecast"><h2>Dự báo nguy cơ</h2><p>Xác suất không đạt mức giao đúng hạn</p>{!rows.length ? <p>Không có chỉ tiêu còn hạn trong phạm vi này</p> : rows.map(item => <div className="wb-forecast-row" key={item.targetId}><div><strong>{item.title}</strong><DocRef value={item} /><span>{item.departmentName} · {item.factors[0]}</span></div><div><b>{num(item.probability * 100)}%</b><span>{RISK[item.risk].label}</span></div><div><b>{num(item.projectedValue)} {item.unit}</b><span>Dự báo / Mức giao {num(item.targetValue)}</span></div></div>)}<p className="wb-forecast-source">{sourceLabel}</p></section>;
+  return <section className="wb-forecast"><h2>Dự báo nguy cơ</h2><p>Xác suất không đạt mức giao đúng hạn</p>{!rows.length ? <p>Không có chỉ tiêu còn hạn trong phạm vi này</p> : rows.map(item => <div className="wb-forecast-row" key={item.targetId}><div><strong>{item.title}</strong><DocRef value={item} /><span>{item.departmentName} · {item.factors[0]}</span></div><div><b>{probabilityText(item.probability)}</b><span>{RISK[item.risk].label}</span></div><div><b>{num(item.projectedValue)} {item.unit}</b><span>Dự báo / Mức giao {num(item.targetValue)}</span></div></div>)}<p className="wb-forecast-source">{sourceLabel}</p></section>;
 }

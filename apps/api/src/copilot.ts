@@ -23,7 +23,7 @@ import {
 import { Transform } from 'class-transformer';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { type Actor, audit, getActor, isLeadership, resolveReadDepartmentScope } from './access';
-import { ForecastService } from './forecast/service';
+import { ForecastService, probabilityText } from './forecast/service';
 import { approveCandidateById, missingApprovalFields } from './candidates';
 import { JwtAuthGuard } from './common';
 import { iocSnapshot } from './ioc';
@@ -583,10 +583,10 @@ export class CopilotController {
         const rows = result.items.slice(0, 10);
         return {
           reply: rows.length ? `Dự báo ${result.items.length} chỉ tiêu còn hạn năm ${year}${departmentNote}. ${result.model.sourceLabel}. `
-            + rows.slice(0, 3).map(row => `${row.title}: xác suất không đạt đúng hạn ${Math.round(row.probability * 100)}%, dự báo ${Math.round(row.projectedValue * 100) / 100} ${row.unit}; ${row.factors[0]}.`).join(' ')
+            + rows.slice(0, 3).map(row => `${row.title}: xác suất không đạt đúng hạn ${probabilityText(row.probability)}, dự báo ${Math.round(row.projectedValue * 100) / 100} ${row.unit}; ${row.factors[0]}.`).join(' ')
             : `Không có chỉ tiêu còn hạn để dự báo năm ${year}${departmentNote}.`,
           intent: plan.intent, planner, source: { tool: 'forecastRisk', parameters: { year, departmentId: departmentId ?? 'ALL', scope: plan.scope } }, rowType: 'targets',
-          rows: rows.map(row => ({ id: row.targetId, title: row.title, department: row.departmentName, status: `Nguy cơ ${row.riskLabel.toLowerCase()} (${Math.round(row.probability * 100)}%)`, currentValue: row.currentValue, targetValue: row.targetValue, unit: row.unit, dueDate: row.dueDate, probability: row.probability, projectedValue: row.projectedValue })),
+          rows: rows.map(row => ({ id: row.targetId, title: row.title, department: row.departmentName, status: `Nguy cơ ${row.riskLabel.toLowerCase()} (${probabilityText(row.probability)})`, currentValue: row.currentValue, targetValue: row.targetValue, unit: row.unit, dueDate: row.dueDate, probability: row.probability, projectedValue: row.projectedValue })),
         };
       }
       case 'DASHBOARD_SUMMARY': {
