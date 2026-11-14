@@ -46,7 +46,7 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
     prisma.target.findMany({ where: { isArchived: false, year, ...scope }, include: {
       assignee: { select: { fullName: true, username: true } },
       framework: { select: { kind: true } },
-      updates: { where: { reviewStatus: { not: 'REJECTED' } }, select: { id: true, periodKey: true, reviewStatus: true, createdAt: true, userId: true } },
+      updates: { where: { reviewStatus: { not: 'REJECTED' } }, select: { id: true, periodKey: true, reviewStatus: true, createdAt: true, userId: true, revisionRequestedAt: true, revisionResolvedAt: true, revisionReason: true } },
       explanationRequests: { where: { status: 'OPEN' }, select: { id: true, dueAt: true } },
       _count: { select: { children: true } },
     } }),
@@ -72,6 +72,17 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
         const item = { ...base, id: `report:${target.id}:${period.key}`, kind: 'report', status: `${overdue ? 'Quá hạn báo cáo' : 'Đến hạn báo cáo'} ${periodLabel(period.key)}`, dueAt: period.deadline.toISOString(), periodKey: period.key, href: `${base.href}?bao-cao=${period.key}` };
         calendar.push(item);
         if (overdue || period.deadline.getTime() - now.getTime() <= 3 * DAY) system.push(item);
+      }
+    }
+    // Lãnh đạo, trưởng phòng yêu cầu gửi lại số liệu đã duyệt: nhắc người phụ trách và trưởng phòng chủ trì, đặt lên đầu.
+    if (target.assigneeId === actor.id || actor.role === Role.MANAGER) {
+      for (const report of target.updates.filter(update => update.revisionRequestedAt && !update.revisionResolvedAt)) {
+        const reason = report.revisionReason?.trim();
+        system.push({
+          ...base, id: `revision:${report.id}`, kind: 'revision',
+          status: `Cần cập nhật lại${report.periodKey ? ` ${periodLabel(report.periodKey)}` : ''}${reason ? `: ${reason.length > 120 ? `${reason.slice(0, 117)}…` : reason}` : ''}`,
+          href: report.periodKey ? `${base.href}?bao-cao=${report.periodKey}` : base.href, periodKey: report.periodKey ?? undefined,
+        });
       }
     }
     if (metric.status === 'AT_RISK' || metric.status === 'OVERDUE') system.push({ ...base, id: `risk:${target.id}`, kind: 'risk', status: metric.status === 'AT_RISK' ? 'Có nguy cơ' : 'Quá hạn', dueAt: target.dueDate.toISOString() });
@@ -133,7 +144,7 @@ export async function buildDeskBriefing(prisma: PrismaService, actor: Actor, now
   return {
     generatedAt: now.toISOString(),
     counts: { reports: system.filter(item => item.kind === 'report').length, notes: notes.filter(row => !row.seenAt).length, approvals: system.filter(item => item.kind === 'approval').length, work: system.length, proposals: proposals.length, feedback, notifications },
-    systemNotes: showCards ? system.sort((a, b) => (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999')) : [],
+    systemNotes: showCards ? system.sort((a, b) => Number(b.kind === 'revision') - Number(a.kind === 'revision') || (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999')) : [],
     today: events.filter(item => onDay(item, todayKey)), tomorrow: events.filter(item => onDay(item, tomorrowKey)),
     week: events.filter(item => item.dueAt && vietnamDayKey(new Date(item.dueAt)) >= weekStartKey && vietnamDayKey(new Date(item.dueAt)) <= weekEnd),
   };

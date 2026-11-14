@@ -214,7 +214,7 @@ Khối `Dự báo` có với chỉ tiêu kế hoạch và chấm điểm còn h�
 #### Yêu cầu cập nhật lại số liệu đã duyệt
 Dùng khi báo cáo đã duyệt nhưng sau đó phát hiện số chưa đúng. Lãnh đạo và trưởng phòng không tự sửa con số mà yêu cầu người phụ trách gửi lại.
 1. Trong thẻ `Thực hiện`, tại báo cáo đã duyệt của kỳ cần sửa, bấm `Yêu cầu cập nhật lại`.
-2. Nhập lý do, bấm gửi. Người phụ trách nhận thông báo; việc này hiện ở nhóm `Cần cập nhật lại` trong **Việc của tôi** (DH-02).
+2. Nhập lý do, bấm gửi. Người phụ trách nhận thông báo; việc này hiện ở đầu khối `Nhắc việc` trên **Bàn làm việc** (DH-00) của người phụ trách và trưởng phòng chủ trì, và ở nhóm `Cần cập nhật lại` trong **Việc của tôi** (DH-02).
 3. Người phụ trách gửi báo cáo thay thế cho đúng kỳ đó; trưởng phòng duyệt như thường lệ.
 
 Trong lúc chờ, số liệu chính thức vẫn là số của báo cáo cũ. Chỉ khi báo cáo thay thế được duyệt thì số mới thay số cũ; báo cáo cũ vẫn nằm trong lịch sử.
