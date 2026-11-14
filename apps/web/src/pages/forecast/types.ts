@@ -14,4 +14,4 @@ export type Forecast = {
   interval: { lower: number; upper: number } | null; factors: string[]; sourceLabel: string; model: ModelInfo;
   series: { date: string; actual: number | null; predicted: number | null; lower: number | null; upper: number | null }[];
 };
-export type ForecastList = { items: Forecast[]; model: ModelInfo; generatedAt: string };
+export type ForecastList = { items: Forecast[]; withoutData?: number; model: ModelInfo; generatedAt: string };

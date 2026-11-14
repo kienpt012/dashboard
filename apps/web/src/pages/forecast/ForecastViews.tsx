@@ -61,7 +61,7 @@ export function ForecastTop({ year, scope }: { year: number; scope: ReadScope })
   const rows = [...(forecast.data?.items ?? [])].sort((a, b) => b.probability - a.probability).slice(0, 5);
   return <Card title="Dự báo nguy cơ" className="forecast-card">
     {forecast.error ? <LoadError error={forecast.error} retry={() => void forecast.refetch()} /> : forecast.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : !rows.length ? <NoData text="Không có chỉ tiêu còn hạn trong phạm vi này" /> : <div className="forecast-top">{rows.map(item => <div key={item.targetId} className="forecast-top-row"><div><Link to={`/admin/targets/${item.targetId}`}>{item.title}</Link><DocRef value={item} /><span className="muted">{item.departmentName}</span><span>{item.factors[0]}</span></div><ForecastRiskTag item={item} /></div>)}</div>}
-    {forecast.data && <Typography.Paragraph type="secondary" className="forecast-source">{forecast.data.model.sourceLabel}</Typography.Paragraph>}
+    {forecast.data && <Typography.Paragraph type="secondary" className="forecast-source">{forecast.data.model.sourceLabel}{forecast.data.withoutData ? ` · ${forecast.data.withoutData} chỉ tiêu chưa có số liệu được duyệt nên chưa dự báo` : ''}</Typography.Paragraph>}
   </Card>;
 }
 

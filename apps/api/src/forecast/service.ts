@@ -93,6 +93,7 @@ export class ForecastService {
     return { applicable: true, targetId: target.id, title: target.title, departmentId: target.departmentId, departmentName: target.department.name,
       ...docRef(target), documentNumber: docRef(target).docRef,
       unit: target.unit, targetValue: target.targetValue, currentValue: features.currentValue, direction: target.direction, dueDate: target.dueDate, probability, risk,
+      observationCount: features.observations.length,
       riskLabel: risk === 'HIGH' ? 'Cao' : risk === 'MEDIUM' ? 'Trung bình' : 'Thấp',
       ...projectValue(input, now), factors: explain(input, now, model), sourceLabel: sourceLabel(model, row?.trainedAt), model: modelInfo(row), generatedAt: now,
     };
@@ -104,8 +105,10 @@ export class ForecastService {
       this.prisma.target.findMany({ where: { year, isArchived: false, kind: { in: FORECAST_KINDS }, dueDate: { gt: now }, ...(departmentId ? { departmentId } : {}), ...(query.frameworkId ? { frameworkId: query.frameworkId } : {}) }, include: targetInclude }),
       this.prisma.forecastModel.findFirst({ orderBy: { trainedAt: 'desc' } }),
     ]);
-    const items = targets.map(target => this.forecast(target, model, now)).filter(row => !query.risk || row.risk === query.risk).sort((a, b) => b.probability - a.probability || a.title.localeCompare(b.title, 'vi'));
-    return { items, model: modelInfo(model), generatedAt: now };
+    // Chưa có kỳ số liệu nào được duyệt thì không có gì để ngoại suy: không xếp hạng nguy cơ, chỉ báo số lượng.
+    const all = targets.map(target => this.forecast(target, model, now));
+    const items = all.filter(row => row.observationCount > 0 && (!query.risk || row.risk === query.risk)).sort((a, b) => b.probability - a.probability || a.title.localeCompare(b.title, 'vi'));
+    return { items, withoutData: all.filter(row => row.observationCount === 0).length, model: modelInfo(model), generatedAt: now };
   }
   async target(actor: Actor, id: string, now = new Date()) {
     const target = await this.prisma.target.findUnique({ where: { id }, include: targetInclude });
@@ -113,7 +116,8 @@ export class ForecastService {
     await resolveReadDepartmentScope(this.prisma, actor, target.departmentId, 'all');
     if (target.kind === 'TASK') return { applicable: false, targetId: id, reason: 'Nhiệm vụ được theo dõi theo hạn hoàn thành, không dự báo' };
     if (target.kind === 'STAT' || target.dueDate <= now || target.isArchived) return { applicable: false, targetId: id, reason: target.kind === 'STAT' ? 'Chỉ tiêu thống kê không có mức giao để dự báo' : 'Chỉ tiêu đã hết hạn hoặc được lưu trữ' };
-    return this.forecast(target, await this.prisma.forecastModel.findFirst({ orderBy: { trainedAt: 'desc' } }), now);
+    const result = this.forecast(target, await this.prisma.forecastModel.findFirst({ orderBy: { trainedAt: 'desc' } }), now);
+    return result.observationCount ? result : { applicable: false, targetId: id, reason: 'Chưa có số liệu được duyệt nên chưa dự báo' };
   }
   async importHistory(actor: Actor, rows: HistoricalRow[], simulated: boolean, source: string) {
     assertForecastAdmin(actor);
