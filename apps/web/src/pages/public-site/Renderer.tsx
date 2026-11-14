@@ -238,7 +238,7 @@ function Documents({ widget, data }: { widget: PublicDashboardWidget; data: Publ
               <>
                 <FileTextOutlined className="pd-doc-icon" />
                 <span className="pd-doc-body">
-                  <span className="pd-list-meta">{[item.code, item.publishedAt ? `Công bố ${date(item.publishedAt)}` : null].filter(Boolean).join(' · ')}</span>
+                  {item.publishedAt && <span className="pd-list-meta">Công bố {date(item.publishedAt)}</span>}
                   <strong>{item.title}</strong>
                   {item.summary && <span className="pd-clamp">{item.summary}</span>}
                 </span>
