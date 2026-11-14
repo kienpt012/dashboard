@@ -186,7 +186,7 @@ function BindingsEditor({ bindings, onChange, editor, html }: { bindings: Custom
               placeholder="Chọn chỉ tiêu"
               status={binding.targetKey ? undefined : 'error'}
               value={binding.targetKey}
-              options={editor.catalog.targets.map(target => ({ value: target.key, label: `${target.code} · ${target.title}` }))}
+              options={editor.catalog.targets.map(target => ({ value: target.key, label: target.title }))}
               onChange={targetKey => update(index, { targetKey })}
             />
           )}
@@ -276,7 +276,7 @@ function WidgetSettings({
                 showSearch={{ optionFilterProp: 'label' }}
                 value={s.targetKeys}
                 onChange={targetKeys => set({ targetKeys })}
-                options={editor.catalog.targets.map(target => ({ value: target.key, label: `${target.code} · ${target.title}` }))}
+                options={editor.catalog.targets.map(target => ({ value: target.key, label: target.title }))}
                 notFoundContent="Chưa có chỉ tiêu công khai"
                 maxTagCount="responsive"
               />
@@ -307,7 +307,7 @@ function WidgetSettings({
         </Form.Item>
       )}
 
-      {['targetList', 'departmentProgress', 'feedbackList', 'documentList'].includes(widget.type) && (
+      {['targetList', 'departmentProgress', 'feedbackList', 'documentList', 'leaderSchedule'].includes(widget.type) && (
         <Form.Item label="Số mục tối đa">
           <InputNumber min={1} max={maxFor} precision={0} step={1} value={s.maxItems} onChange={value => value != null && set({ maxItems: Math.min(maxFor, Math.max(1, Math.round(value))) })} style={{ width: 120 }} />
         </Form.Item>

@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
 import { ApiError, errorText, http, session } from '@/lib/api';
-import { defaultConfig, validConfig, type WorkspaceConfig } from './model';
-import { readWorkspaceDraft, reconcileWorkspaceDraft, workspaceDraftKey } from './workspace-draft';
+import { defaultConfig, migrateConfig, validConfig, type WorkspaceConfig } from './model';
+import { allocateWorkspaceTab, readWorkspaceDraft, reconcileWorkspaceDraft, workspaceDraftKey } from './workspace-draft';
 
 type Response = { config: WorkspaceConfig | null; version: number };
+let documentTab: { id: string; recoveryId: string | null } | undefined;
+const recoveredUsers = new Set<string>();
 function tabId() {
+  if (documentTab) return documentTab;
   try {
-    const key = 'ioc_workspace_tab';
-    const existing = sessionStorage.getItem(key);
-    if (existing) return existing;
-    const next = crypto.randomUUID(); sessionStorage.setItem(key, next); return next;
-  } catch { return 'current'; }
+    documentTab = allocateWorkspaceTab(sessionStorage);
+  } catch { documentTab = { id: crypto.randomUUID(), recoveryId: null }; }
+  return documentTab;
 }
 
 export function useWorkspace(userId: string) {
-  const [config, setConfigState] = useState(defaultConfig);
+  const [config, setConfigState] = useState(() => defaultConfig(session.user?.role));
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState<'loading'|'saved'|'pending'|'saving'|'error'|'conflict'>('loading');
   const [error, setError] = useState('');
   const [draftTab] = useState(tabId);
-  const draftKey = workspaceDraftKey(userId, draftTab);
+  const draftKey = workspaceDraftKey(userId, draftTab.id);
   const current = useRef(config);
   const version = useRef(1);
   const draftVersion = useRef(1);
@@ -62,25 +63,32 @@ export function useWorkspace(userId: string) {
       const result = await http.get<Response>('/workspace');
       if (!alive.current || requestGeneration !== generation.current || !ownsSession() || token !== session.token) return;
       if (result.config && !validConfig(result.config)) throw new Error('Cấu hình bàn làm việc không hợp lệ. Hãy kiểm tra bản sao đã xuất.');
-      const server = result.config ?? defaultConfig();
+      const server = result.config ? migrateConfig(result.config) : defaultConfig(session.user?.role);
       let draft = null;
       if (recoverDraft) {
-        try { draft = readWorkspaceDraft(localStorage, draftKey, userId); } catch { /* Storage can be disabled. */ }
+        try {
+          draft = readWorkspaceDraft(localStorage, draftKey, userId)
+            ?? (!recoveredUsers.has(userId) && draftTab.recoveryId ? readWorkspaceDraft(localStorage, workspaceDraftKey(userId, draftTab.recoveryId), userId) : null);
+          if (draft) draft = { ...draft, config: migrateConfig(draft.config) };
+        } catch { /* Storage can be disabled. */ }
       }
       const restored = reconcileWorkspaceDraft(server, result.version, draft);
+      recoveredUsers.add(userId);
       version.current = result.version;
       draftVersion.current = restored.status === 'conflict' && draft ? draft.basedOnVersion : result.version;
       saved.current = JSON.stringify(server); current.current = restored.config;
       blocked.current = conflicted.current = restored.status === 'conflict';
       if (restored.status === 'saved') {
         try { localStorage.removeItem(draftKey); } catch { /* Nothing pending to recover. */ }
+      } else {
+        persistDraft(restored.config);
       }
       if (restored.status === 'conflict') setError('Bản nháp trên thiết bị được tạo từ phiên bản cũ. Bạn có thể xuất bản sao để giữ thay đổi, sau đó tải bản đã lưu trên máy chủ.');
       setConfigState(restored.config); isReady.current = true; setReady(true); setStatus(restored.status);
     } catch (err) {
       if (alive.current && requestGeneration === generation.current && ownsSession()) { setError(errorText(err)); setStatus('error'); }
     }
-  }, [draftKey, ownsSession, userId]);
+  }, [draftKey, draftTab.recoveryId, ownsSession, persistDraft, userId]);
 
   useEffect(() => {
     alive.current = true; void load(true);
@@ -127,6 +135,27 @@ export function useWorkspace(userId: string) {
     return () => window.removeEventListener('beforeunload', beforeUnload);
   }, []);
   const retry = () => { if (!conflicted.current) { blocked.current = false; void save(); } };
-  const reload = () => load(false);
-  return { config, setConfig, ready, status, error, reload, retry };
+  const keepLocal = async () => {
+    if (!conflicted.current || !ownsSession()) return;
+    const runGeneration = generation.current;
+    const token = session.token;
+    setStatus('saving');
+    try {
+      // Explicit conflict resolution still uses CAS: a third edit between GET and PUT returns 409.
+      const result = await http.get<Response>('/workspace');
+      if (!alive.current || generation.current !== runGeneration || !ownsSession() || token !== session.token) return;
+      version.current = result.version; draftVersion.current = result.version;
+      persistDraft(current.current);
+      blocked.current = false; conflicted.current = false;
+      await save();
+    } catch (err) {
+      if (alive.current && generation.current === runGeneration && ownsSession() && token === session.token) {
+        setStatus('conflict'); setError(errorText(err));
+      }
+    }
+  };
+  // Initial loading failures must still recover a pending draft on Retry. Once ready,
+  // the caller's confirmed "load server version" action explicitly discards that draft.
+  const reload = () => load(!isReady.current);
+  return { config, setConfig, ready, status, error, reload, retry, keepLocal };
 }

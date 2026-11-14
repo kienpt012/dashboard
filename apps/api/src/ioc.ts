@@ -1,3 +1,5 @@
+import { alertTitle } from './alert-text';
+import { docRefText, DOC_REF_INCLUDE } from './doc-ref';
 import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import {
   CandidateOrigin,
@@ -10,7 +12,7 @@ import {
   TargetStatus,
   ValueSource,
 } from '@prisma/client';
-import { type Actor, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, resolveDepartmentScope } from './access';
+import { type Actor, canSuperviseDepartment, getActor, isGlobalRole, isLeadership, resolveDepartmentScope, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { FRAMEWORK_KIND_LABELS, ISSUING_LEVEL_LABELS, summarizeFramework } from './frameworks';
 import { loadLocality, publicLocality } from './locality';
@@ -19,6 +21,9 @@ import { dueReportPeriods, periodKeyFor, periodLabel } from './periods';
 import { currentVietnamYear } from './planning-date';
 import { PrismaService } from './prisma.service';
 import { WORK_ACTIONS } from './work';
+import { isDispatcher } from './dispatch';
+import { isIndicator, isPerformanceIndicator } from './indicator-scope';
+import { summarizeTasks, taskMetric } from './directives-logic';
 
 // Trung tâm điều hành: một lượt truy vấn tổng hợp đủ để lãnh đạo nắm tình hình, thấy ai đang chậm và vì sao.
 // Mọi con số ở đây đều bấm vào được tới chỉ tiêu, hồ sơ và dòng thời gian trách nhiệm.
@@ -34,6 +39,7 @@ interface AlertItem {
   title: string;
   detail: string;
   targetId?: string;
+  targetKind?: FrameworkKind;
   candidateId?: string;
   departmentName?: string | null;
   at?: Date | null;
@@ -55,8 +61,8 @@ function daysSince(date: Date | null | undefined, now: Date) {
  * tình trạng, kỳ thiếu báo cáo, báo cáo chờ duyệt, giải trình đang mở. Mọi nơi hiển thị số liệu tổng hợp đều đi qua đây
  * để con số khớp nhau.
  */
-export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: number, requestedDepartmentId?: string) {
-  const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: number, requestedDepartmentId?: string, scope?: string) {
+  const departmentId = await resolveReadDepartmentScope(prisma, actor, requestedDepartmentId, scope);
   const now = new Date();
   const setting = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
   const threshold = setting?.riskThreshold ?? 70;
@@ -66,7 +72,7 @@ export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: num
     include: {
       department: { select: { id: true, name: true, color: true, sortOrder: true } },
       assignee: { select: { id: true, fullName: true } },
-      framework: { select: { id: true, name: true, kind: true } },
+      ...DOC_REF_INCLUDE,
       _count: { select: { directives: true, evaluations: true, children: true } },
     },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
@@ -98,7 +104,7 @@ export async function iocSnapshot(prisma: PrismaService, actor: Actor, year: num
       targetValue: target.targetValue, currentValue: target.currentValue, direction: target.direction, dueDate: target.dueDate,
       riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind, now,
     });
-    const periods = target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
+    const periods = target.kind !== FrameworkKind.TASK && target.valueSource === ValueSource.MANUAL ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, now, target.createdAt) : [];
     const reported = reportedByTarget.get(target.id) ?? new Set<string>();
     const missingPeriods = periods.filter(period => period.overdue && !reported.has(period.key)).map(period => period.key);
     const pending = pendingReports.filter(report => report.targetId === target.id);
@@ -124,8 +130,8 @@ export class IocController {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Tập dữ liệu chung cho tổng quan, trình chiếu và trách nhiệm. */
-  private snapshot(actor: Actor, year: number, requestedDepartmentId?: string) {
-    return iocSnapshot(this.prisma, actor, year, requestedDepartmentId);
+  private snapshot(actor: Actor, year: number, requestedDepartmentId?: string, scope?: string) {
+    return iocSnapshot(this.prisma, actor, year, requestedDepartmentId, scope);
   }
 
   private targetBrief(item: { target: any; metric: { status: TargetStatus; progress: number } }) {
@@ -142,17 +148,20 @@ export class IocController {
   }
 
   @Get('ioc/overview')
-  async overview(@Req() req: any, @Query('year') yearRaw?: string, @Query('departmentId') departmentIdRaw?: string) {
+  async overview(@Req() req: any, @Query('year') yearRaw?: string, @Query('departmentId') departmentIdRaw?: string, @Query('scope') scope?: string) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const snap = await this.snapshot(actor, year, departmentIdRaw);
+    const snap = await this.snapshot(actor, year, departmentIdRaw, scope);
     const { now, evaluated } = snap;
-    const leaves = evaluated.filter(item => item.isLeaf && item.target.kind !== FrameworkKind.STAT);
+    const workDepartmentId = resolveDepartmentScope(actor);
+    const workSnap = workDepartmentId && snap.departmentId !== workDepartmentId ? await this.snapshot(actor, year) : snap;
+    const workItems = workSnap.evaluated;
+    const leaves = evaluated.filter(item => item.isLeaf && isPerformanceIndicator(item.target.kind));
     const statLeaves = evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.STAT);
-    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, kind: { not: FrameworkKind.TASK } }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     const frameworkSummaries = frameworks
       .map(framework => {
-        const own = evaluated.filter(item => item.target.frameworkId === framework.id);
+        const own = evaluated.filter(item => isIndicator(item.target.kind) && item.target.frameworkId === framework.id);
         if (!own.length) return null;
         return {
           id: framework.id, code: framework.code, name: framework.name, kind: framework.kind, kindLabel: FRAMEWORK_KIND_LABELS[framework.kind],
@@ -175,10 +184,20 @@ export class IocController {
         total: 0, completed: 0, onTrack: 0, atRisk: 0, overdue: 0, notStarted: 0, missingReports: 0, unassigned: 0,
         pendingReports: 0, oldestPendingDays: 0, openExplanations: 0, weighted: 0, weight: 0,
         withDirective: 0, withEvaluation: 0, reported: 0, statTotal: 0, statReported: 0,
+        tasks: { total: 0, completed: 0, overdue: 0, dueSoon: 0 },
       };
     }
     for (const item of evaluated.filter(entry => entry.isLeaf)) {
       const department = departmentMap.get(item.target.departmentId) ?? emptyDepartment(item.target.department);
+      if (item.target.kind === FrameworkKind.TASK) {
+        const metric = taskMetric(item.target, now);
+        department.tasks.total += 1;
+        department.tasks.completed += metric.status === 'COMPLETED' ? 1 : 0;
+        department.tasks.overdue += metric.status === 'OVERDUE' ? 1 : 0;
+        department.tasks.dueSoon += metric.status !== 'COMPLETED' && item.target.dueDate >= now && item.target.dueDate.getTime() <= now.getTime() + 7 * DAY ? 1 : 0;
+        departmentMap.set(item.target.departmentId, department);
+        continue;
+      }
       if (item.target.kind === FrameworkKind.STAT) {
         department.statTotal += 1;
         if (item.target.lastReportedAt) department.statReported += 1;
@@ -216,18 +235,18 @@ export class IocController {
 
     const alerts: AlertItem[] = [];
     for (const item of evaluated.filter(entry => entry.isLeaf)) {
-      const base = { targetId: item.target.id, departmentName: item.target.department.name };
+      const base = { targetKind: item.target.kind, targetId: item.target.id, departmentName: item.target.department.name, detail: docRefText(item.target) };
       if (item.metric.status === TargetStatus.OVERDUE) {
-        alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: `${item.target.code} quá hạn`, detail: item.target.title, at: item.target.dueDate });
+        alerts.push({ ...base, severity: 'critical', kind: 'OVERDUE', title: alertTitle(item.target.title, 'OVERDUE', { days: daysSince(item.target.dueDate, now) }), detail: base.detail, at: item.target.dueDate });
       }
       if (item.explanation && item.explanation.dueAt < now) {
-        alerts.push({ ...base, severity: 'critical', kind: 'EXPLANATION_OVERDUE', title: `${item.target.code} chưa giải trình đúng hạn`, detail: item.explanation.message, at: item.explanation.dueAt });
+        alerts.push({ ...base, severity: 'critical', kind: 'EXPLANATION_OVERDUE', title: alertTitle(item.target.title, 'EXPLANATION_OVERDUE', { days: daysSince(item.explanation.dueAt, now) }), detail: base.detail, at: item.explanation.dueAt });
       }
       if (item.missingPeriods.length) {
-        alerts.push({ ...base, severity: 'warning', kind: 'MISSING_REPORT', title: `${item.target.code} thiếu báo cáo ${item.missingPeriods.map(periodLabel).slice(-2).join(', ')}`, detail: item.target.title, at: null });
+        alerts.push({ ...base, severity: 'warning', kind: 'MISSING_REPORT', title: alertTitle(item.target.title, 'MISSING_REPORT', { period: item.missingPeriods.map(periodLabel).slice(-2).join(', ') }), detail: base.detail, at: null });
       }
       if (item.metric.status === TargetStatus.AT_RISK) {
-        alerts.push({ ...base, severity: 'warning', kind: 'AT_RISK', title: `${item.target.code} có nguy cơ không đạt (${item.metric.progress}%)`, detail: item.target.title, at: item.target.lastReportedAt });
+        alerts.push({ ...base, severity: 'warning', kind: 'AT_RISK', title: alertTitle(item.target.title, 'AT_RISK'), detail: base.detail, at: item.target.lastReportedAt });
       }
     }
     const stalled = evaluated
@@ -240,27 +259,26 @@ export class IocController {
           : `Chưa giao người phụ trách sau ${daysSince(item.target.createdAt, now)} ngày`,
       }));
     for (const item of stalled.filter(entry => entry.bounceCount >= STALL_BOUNCES)) {
-      alerts.push({ severity: 'critical', kind: 'STALLED', title: `${item.code}: ${item.reason}`, detail: item.title, targetId: item.id, departmentName: item.departmentName });
+      alerts.push({ severity: 'critical', kind: 'STALLED', title: alertTitle(item.title, 'STALLED', { count: item.bounceCount }), detail: item.title, targetId: item.id, targetKind: item.kind, departmentName: item.departmentName });
     }
-    const unassignedByDepartment = new Map<string, number>();
     for (const item of evaluated.filter(entry => entry.overdueAssignment)) {
-      unassignedByDepartment.set(item.target.department.name, (unassignedByDepartment.get(item.target.department.name) ?? 0) + 1);
+      alerts.push({ severity: 'warning', kind: 'UNASSIGNED', targetKind: item.target.kind, targetId: item.target.id,
+        title: alertTitle(item.target.title, 'UNASSIGNED'), detail: docRefText(item.target), departmentName: item.target.department.name });
     }
-    for (const [departmentName, count] of unassignedByDepartment) {
-      alerts.push({
-        severity: 'warning', kind: 'UNASSIGNED', title: `${departmentName}: ${count} chỉ tiêu chưa giao người phụ trách`,
-        detail: 'Trưởng phòng cần giao từng chỉ tiêu cho chuyên viên để rõ người chịu trách nhiệm cập nhật số liệu.', departmentName,
-      });
+    for (const report of snap.pendingReports) {
+      const item = evaluated.find(entry => entry.target.id === report.targetId);
+      if (item) alerts.push({ severity: 'warning', kind: 'REPORT_PENDING', targetKind: item.target.kind, targetId: item.target.id,
+        title: alertTitle(item.target.title, 'REPORT_PENDING', { days: daysSince(report.createdAt, now) }), detail: docRefText(item.target), departmentName: item.target.department.name, at: report.createdAt });
     }
     const pendingProposals = await this.prisma.indicatorCandidate.findMany({
-      where: { status: CandidateStatus.SUBMITTED, ...(snap.departmentId ? { responsibleDepartmentId: snap.departmentId } : {}) },
+      where: { status: CandidateStatus.SUBMITTED, ...(workDepartmentId ? { responsibleDepartmentId: workDepartmentId } : {}) },
       select: { id: true, name: true, autoApproveAt: true, submittedAt: true, responsibleDepartment: { select: { name: true } } },
       orderBy: { submittedAt: 'asc' },
       take: 50,
     });
     for (const proposal of pendingProposals) {
       alerts.push({
-        severity: 'info', kind: 'PROPOSAL_PENDING', title: `Đề xuất chờ duyệt: ${proposal.name}`,
+        severity: 'info', kind: 'PROPOSAL_PENDING', title: alertTitle(proposal.name, 'PROPOSAL_PENDING', { days: daysSince(proposal.submittedAt, now) }),
         detail: proposal.autoApproveAt ? `Tự thông qua lúc ${proposal.autoApproveAt.toISOString()}` : 'Chưa có hạn tự thông qua',
         candidateId: proposal.id, departmentName: proposal.responsibleDepartment?.name ?? null, at: proposal.submittedAt,
       });
@@ -278,7 +296,7 @@ export class IocController {
       const value = item.target.lastReportedAt;
       return value && (!latest || value > latest) ? value : latest;
     }, null);
-    const feedbackWhere = snap.departmentId ? { departmentId: snap.departmentId } : {};
+    const feedbackWhere = workDepartmentId ? { departmentId: workDepartmentId } : {};
     const openStatuses = [FeedbackStatus.RECEIVED, FeedbackStatus.ASSIGNED, FeedbackStatus.IN_PROGRESS, FeedbackStatus.PENDING_REVIEW, FeedbackStatus.REOPENED, FeedbackStatus.WAITING_CITIZEN];
     const [feedbackOpen, feedbackOverdue] = await Promise.all([
       this.prisma.feedback.count({ where: { ...feedbackWhere, status: { in: openStatuses } } }),
@@ -303,17 +321,18 @@ export class IocController {
         progress: totalWeight ? Math.round(leaves.reduce((sum, item) => sum + item.metric.progress * item.target.weight, 0) / totalWeight) : 0,
         statTotal: statLeaves.length,
         statReported: statLeaves.filter(item => item.target.lastReportedAt).length,
-        missingReports: evaluated.filter(item => item.isLeaf && item.missingPeriods.length).length,
-        unassigned: evaluated.filter(item => item.unassigned).length,
-        pendingReports: snap.pendingReports.length,
+        missingReports: workItems.filter(item => item.isLeaf && item.missingPeriods.length).length,
+        unassigned: workItems.filter(item => item.unassigned).length,
+        pendingReports: workSnap.pendingReports.length,
         pendingProposals: pendingProposals.length,
-        openExplanations: snap.openExplanations.length,
-        stalled: stalled.length,
+        openExplanations: workSnap.openExplanations.length,
+        stalled: workItems.filter(item => item.isLeaf && (item.target.bounceCount >= STALL_BOUNCES || item.stalledUnassigned)).length,
         withDirective: leaves.filter(item => item.target._count.directives > 0).length,
         withEvaluation: leaves.filter(item => item.target._count.evaluations > 0).length,
         feedbackOpen,
         feedbackOverdue,
       },
+      tasks: summarizeTasks(evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.TASK).map(item => taskMetric(item.target, now)), 0, now, evaluated.filter(item => item.isLeaf && item.target.kind === FrameworkKind.TASK).map(item => item.target.dueDate)),
       frameworks: frameworkSummaries,
       departments,
       alerts: alerts.slice(0, 40),
@@ -328,11 +347,11 @@ export class IocController {
 
   /** Dữ liệu màn hình trình chiếu: các trang tự xoay vòng qua từng bộ chỉ tiêu và từng phòng. */
   @Get('ioc/wallboard')
-  async wallboard(@Req() req: any, @Query('year') yearRaw?: string) {
+  async wallboard(@Req() req: any, @Query('year') yearRaw?: string, @Query('scope') scope?: string) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const snap = await this.snapshot(actor, year);
-    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, showOnWallboard: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    const snap = await this.snapshot(actor, year, undefined, scope);
+    const frameworks = await this.prisma.framework.findMany({ where: { isActive: true, showOnWallboard: true, kind: { not: FrameworkKind.TASK } }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     const departments = await this.prisma.department.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
     const brief = (item: (typeof snap.evaluated)[number]) => ({
       ...this.targetBrief(item),
@@ -341,7 +360,7 @@ export class IocController {
     });
     const slides = [
       ...frameworks.map(framework => {
-        const own = snap.evaluated.filter(item => item.target.frameworkId === framework.id);
+        const own = snap.evaluated.filter(item => isIndicator(item.target.kind) && item.target.frameworkId === framework.id);
         return {
           type: 'framework' as const,
           id: framework.id,
@@ -358,7 +377,7 @@ export class IocController {
         };
       }).filter(slide => slide.targets.length),
       ...departments.map(department => {
-        const own = snap.evaluated.filter(item => item.target.departmentId === department.id && item.isLeaf && item.target.kind !== FrameworkKind.STAT);
+        const own = snap.evaluated.filter(item => item.target.departmentId === department.id && item.isLeaf && isPerformanceIndicator(item.target.kind));
         return {
           type: 'department' as const,
           id: department.id,
@@ -468,23 +487,31 @@ export class IocController {
     const needReport = mine
       .filter(item => item.target.valueSource === ValueSource.MANUAL)
       .map(item => {
-        const currentKey = periodKeyFor(item.target.frequency, snap.now);
+        const currentKey = item.target.kind === FrameworkKind.TASK ? undefined : periodKeyFor(item.target.frequency, snap.now);
         const reported = item.pending.length > 0;
         return {
           ...this.targetBrief(item),
-          currentPeriod: periodLabel(currentKey),
+          currentPeriod: currentKey ? periodLabel(currentKey) : 'Kết quả thực hiện',
           currentPeriodKey: currentKey,
           missingPeriods: item.missingPeriods.map(periodLabel),
           missingPeriodKeys: item.missingPeriods,
           pendingReport: reported,
         };
       })
-      .filter(item => item.missingPeriods.length || !item.hasReport);
+      .filter(item => item.kind === FrameworkKind.TASK ? item.status !== TargetStatus.COMPLETED : item.missingPeriods.length || !item.hasReport);
     const rejectedReports = await this.prisma.progressUpdate.findMany({
       where: { userId: actor.id, reviewStatus: ProgressReviewStatus.REJECTED, target: { year, isArchived: false } },
       orderBy: { reviewedAt: 'desc' },
       take: 10,
       include: { target: { select: { id: true, code: true, title: true } } },
+    });
+    const revisionRequests = await this.prisma.progressUpdate.findMany({
+      where: {
+        revisionRequestedAt: { not: null }, revisionResolvedAt: null,
+        target: { year, isArchived: false, ...(actor.role === Role.MANAGER ? { departmentId: actor.departmentId ?? '__none__' } : { assigneeId: actor.id }) },
+      },
+      include: { target: { select: { id: true, title: true, code: true } } },
+      orderBy: { revisionRequestedAt: 'desc' },
     });
     const toReview = canReview(actor)
       ? snap.pendingReports.filter(report => report.userId !== actor.id).map(report => {
@@ -495,11 +522,11 @@ export class IocController {
     const proposals = await this.prisma.indicatorCandidate.findMany({
       where: {
         OR: [
-          { status: CandidateStatus.SUBMITTED, ...(isLeadership(actor) ? {} : { responsibleDepartmentId: actor.role === Role.MANAGER ? actor.departmentId ?? '__none__' : '__none__' }) },
-          ...(actor.role === Role.CLERK || isLeadership(actor) ? [{ status: CandidateStatus.PROPOSED, origin: CandidateOrigin.AI }] : []),
+          { status: CandidateStatus.SUBMITTED, ...(isDispatcher(actor, snap.setting) ? {} : { responsibleDepartmentId: actor.role === Role.MANAGER ? actor.departmentId ?? '__none__' : '__none__' }) },
+          ...(actor.role === Role.CLERK || isDispatcher(actor, snap.setting) ? [{ status: CandidateStatus.PROPOSED, origin: CandidateOrigin.AI }] : []),
         ],
       },
-      select: { id: true, name: true, status: true, origin: true, autoApproveAt: true, submittedAt: true, createdAt: true, responsibleDepartment: { select: { name: true } }, document: { select: { code: true, title: true } } },
+      select: { id: true, name: true, status: true, origin: true, autoApproveAt: true, submittedAt: true, createdAt: true, responsibleDepartment: { select: { name: true } }, document: { select: { code: true, title: true, docNumber: true } } },
       orderBy: { createdAt: 'asc' },
       take: 50,
     });
@@ -521,9 +548,11 @@ export class IocController {
       generatedAt: snap.now,
       counts: {
         needReport: needReport.length, rejectedReports: rejectedReports.length, toReview: toReview.length,
+        revisionRequests: revisionRequests.length,
         proposals: proposals.length, explanations: explanations.length, unassigned: unassigned.length, unread,
       },
       needReport,
+      revisionRequests: revisionRequests.map(report => ({ id: report.id, periodKey: report.periodKey, periodLabel: report.periodKey ? periodLabel(report.periodKey) : '', reason: report.revisionReason, requestedAt: report.revisionRequestedAt, target: report.target })),
       rejectedReports: rejectedReports.map(report => ({ id: report.id, value: report.value, reviewNote: report.reviewNote, reviewedAt: report.reviewedAt, target: report.target })),
       toReview,
       proposals,

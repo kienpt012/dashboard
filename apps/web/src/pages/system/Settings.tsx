@@ -1,5 +1,5 @@
 import { SaveOutlined } from '@ant-design/icons';
-import { Button, Card, Col, Form, InputNumber, Row, Switch } from 'antd';
+import { Button, Card, Col, Form, InputNumber, Row, Select, Switch } from 'antd';
 import { useEffect } from 'react';
 import { Page } from '@/components/Page';
 import { PageSkeleton, Query } from '@/components/States';
@@ -8,6 +8,7 @@ import { http } from '@/lib/api';
 import { dateTime } from '@/lib/format';
 
 type Settings = {
+  dispatchMode: 'LEADER' | 'OFFICE';
   version: number;
   defaultYear: number;
   warningDays: number;
@@ -22,6 +23,7 @@ type Settings = {
   maxTransfers: number;
   wallboardRotateSeconds: number;
   jarvisIntro: boolean;
+  crossDepartmentView: boolean;
   updatedAt?: string;
   updatedBy?: string;
 };
@@ -29,6 +31,7 @@ type Settings = {
 type Field = { name: keyof Settings; label: string; min: number; max: number; unit: string } | { name: keyof Settings; label: string; kind: 'switch'; extra: string };
 
 const GROUPS: { title: string; fields: Field[] }[] = [
+  { title: 'Phạm vi xem', fields: [{ name: 'crossDepartmentView', label: 'Cho xem chỉ tiêu của phòng khác', kind: 'switch', extra: 'Quyền sửa vẫn theo phòng chủ trì và người được giao.' }] },
   {
     title: 'Kế hoạch và cảnh báo',
     fields: [
@@ -67,9 +70,14 @@ const GROUPS: { title: string; fields: Field[] }[] = [
 function SettingsForm({ data }: { data: Settings }) {
   const [form] = Form.useForm<Settings>();
   useEffect(() => form.setFieldsValue(data), [data, form]);
-  const save = useAction((values: Partial<Settings>) => http.patch('/settings', { ...values, expectedVersion: data.version }), { success: 'Đã lưu cấu hình', refresh: ['/settings', '/ioc'] });
+  const save = useAction((values: Partial<Settings>) => http.patch('/settings', { ...values, expectedVersion: data.version }), { success: 'Đã lưu cấu hình', refresh: ['/settings', '/ioc', '/candidates', '/directives'] });
   return (
     <Form form={form} layout="vertical" onFinish={values => save.mutate(values)}>
+      <Card title="Phân việc" style={{ marginBottom: 16 }}>
+        <Form.Item name="dispatchMode" label="Người phân việc cho phòng" rules={[{ required: true }]} style={{ maxWidth: 480, marginBottom: 0 }}>
+          <Select options={[{ value: 'LEADER', label: 'Lãnh đạo UBND' }, { value: 'OFFICE', label: 'Chánh Văn phòng' }]} />
+        </Form.Item>
+      </Card>
       <Row gutter={[16, 16]}>
         {GROUPS.map(group => (
           <Col key={group.title} xs={24} lg={12}>

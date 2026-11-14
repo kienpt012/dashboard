@@ -1,3 +1,4 @@
+import { activityColor } from '@/lib/activity';
 import { SearchOutlined } from '@ant-design/icons';
 import { Card, DatePicker, Descriptions, Input, Select, Table, Tag, Typography } from 'antd';
 import type { Dayjs } from 'dayjs';
@@ -60,6 +61,11 @@ const ACTION: Record<string, string> = {
   DOCUMENT_PUBLICATION_REVOKED: 'Gỡ công khai văn bản',
   DOCUMENT_PUBLICATION_UPDATED: 'Cập nhật văn bản công khai',
   DOCUMENT_UPDATED: 'Sửa thông tin văn bản',
+  SCHEDULE_SAVED: 'Lưu lịch làm việc tuần',
+  SCHEDULE_PUBLISHED: 'Công khai lịch làm việc',
+  SCHEDULE_UNPUBLISHED: 'Ngừng công khai lịch làm việc',
+  SCHEDULE_FILE_UPLOADED: 'Đính kèm tệp lịch làm việc',
+  SCHEDULE_FILE_REMOVED: 'Gỡ tệp lịch làm việc',
   DOCUMENT_UPLOADED: 'Tải văn bản lên',
   ESCALATED: 'Báo lên lãnh đạo',
   EVALUATED: 'Đánh giá chỉ tiêu',
@@ -157,7 +163,7 @@ const ENTITY: Record<string, string> = {
   TargetEvaluation: 'Đánh giá',
   TargetEvidence: 'Minh chứng',
   ExplanationRequest: 'Giải trình',
-  BugReport: 'Báo lỗi',
+  BugReport: 'Góp ý, báo lỗi',
   LocalityProfile: 'Địa phương',
   AgentAction: 'Thao tác của Jarvis',
   Copilot: 'Jarvis',
@@ -412,7 +418,7 @@ export default function AuditLogs() {
                   </div>
                 ),
               },
-              { title: 'Thao tác', key: 'action', dataIndex: 'action', width: 220, render: value => ACTION[value] ?? value },
+              { title: 'Thao tác', key: 'action', dataIndex: 'action', width: 220, render: value => <Tag color={activityColor(value)}>{ACTION[value] ?? value}</Tag> },
               {
                 title: 'Đối tượng',
                 key: 'entity',

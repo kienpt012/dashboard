@@ -32,6 +32,7 @@ function authController(prisma: Record<string, any>) {
       sendPasswordResetOtp: async () => undefined,
     } as any,
     new PasswordResetDeliveryRegistry(),
+    { isConfigured: () => false, sendPasswordResetOtp: async () => undefined } as any,
   );
 }
 

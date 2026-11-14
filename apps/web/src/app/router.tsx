@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useParams } from 'react-router-dom';
 import { Loading, PageSkeleton } from '@/components/States';
-import { ADMINS, ALL, APPROVERS, IMPORTERS, SUPERVISORS } from '@/lib/roles';
+import { ADMINS, ALL, APPROVERS, IMPORTERS, LEADERSHIP, SUPERVISORS } from '@/lib/roles';
 import type { Role } from '@/types/auth';
 import { RequireAuth, RequireRole } from './guards';
 
@@ -10,11 +10,15 @@ const Login = lazy(() => import('@/pages/auth/Login'));
 const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'));
 
 const pages = {
+  ForecastModel: lazy(() => import('@/pages/forecast/ForecastModel')),
   Workspace: lazy(() => import('@/pages/workspace/Workspace')),
   OpsCenter: lazy(() => import('@/pages/dashboard/OpsCenter')),
   MyWork: lazy(() => import('@/pages/work/MyWork')),
   Wallboard: lazy(() => import('@/pages/wallboard/Wallboard')),
   Accountability: lazy(() => import('@/pages/accountability/Accountability')),
+  Directives: lazy(() => import('@/pages/directives/Directives')),
+  DirectiveDetail: lazy(() => import('@/pages/directives/DirectiveDetail')),
+  MonthlyWork: lazy(() => import('@/pages/directives/MonthlyWork')),
   Frameworks: lazy(() => import('@/pages/frameworks/Frameworks')),
   Targets: lazy(() => import('@/pages/targets/Targets')),
   Dossier: lazy(() => import('@/pages/dossier/Dossier')),
@@ -35,9 +39,12 @@ const pages = {
   AuditLogs: lazy(() => import('@/pages/system/AuditLogs')),
   BugReports: lazy(() => import('@/pages/system/BugReports')),
   Profile: lazy(() => import('@/pages/system/Profile')),
+  WorkApps: lazy(() => import('@/pages/system/WorkApps')),
   PublicHome: lazy(() => import('@/pages/public/PublicHome')),
   FeedbackPublic: lazy(() => import('@/pages/public/FeedbackPublic')),
   PublishedFeedback: lazy(() => import('@/pages/public/PublishedFeedback')),
+  Schedule: lazy(() => import('@/pages/schedule/Schedule')),
+  SchedulePublic: lazy(() => import('@/pages/public/SchedulePublic')),
 };
 
 function guarded(Page: LazyExoticComponent<ComponentType>, roles: readonly Role[] = ALL) {
@@ -73,6 +80,7 @@ const router = createBrowserRouter([
       { path: '/', element: <pages.PublicHome /> },
       { path: '/phan-anh', element: <pages.FeedbackPublic /> },
       { path: '/phan-anh/cong-khai/:code', element: <pages.PublishedFeedback /> },
+      { path: '/lich-lam-viec', element: <pages.SchedulePublic /> },
       { path: '/admin/login', element: <Login /> },
       { path: '/admin/forgot-password', element: <ForgotPassword /> },
       { path: '/dang-nhap', element: <Navigate to="/admin/login" replace /> },
@@ -100,6 +108,10 @@ const router = createBrowserRouter([
       { path: 'dieu-hanh', element: guarded(pages.OpsCenter) },
       { path: 'viec-cua-toi', element: guarded(pages.MyWork) },
       { path: 'trach-nhiem', element: guarded(pages.Accountability, SUPERVISORS) },
+      { path: 'lich-lam-viec', element: guarded(pages.Schedule) },
+      { path: 'van-ban-chi-dao', element: guarded(pages.Directives) },
+      { path: 'van-ban-chi-dao/:id', element: guarded(pages.DirectiveDetail) },
+      { path: 'viec-theo-thang', element: guarded(pages.MonthlyWork) },
       { path: 'bo-chi-tieu', element: guarded(pages.Frameworks) },
       { path: 'targets', element: guarded(pages.Targets) },
       { path: 'targets/:id', element: <DossierRoute /> },
@@ -116,10 +128,12 @@ const router = createBrowserRouter([
       { path: 'thiet-lap', element: guarded(pages.Setup, ADMINS) },
       { path: 'departments', element: guarded(pages.Departments) },
       { path: 'users', element: guarded(pages.Users, ADMINS) },
+      { path: 'du-bao', element: guarded(pages.ForecastModel, LEADERSHIP) },
       { path: 'settings', element: guarded(pages.Settings, ADMINS) },
       { path: 'audit-logs', element: guarded(pages.AuditLogs, ADMINS) },
       { path: 'bao-loi', element: guarded(pages.BugReports, ADMINS) },
       { path: 'profile', element: guarded(pages.Profile) },
+      { path: 'ung-dung', element: guarded(pages.WorkApps, ADMINS) },
       { path: 'copilot', element: <Navigate to="/admin" replace state={{ copilot: true }} /> },
       { path: '*', element: <Navigate to="/admin" replace /> },
     ],

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '@/app/session';
 import { Page } from '@/components/Page';
+import { DocRef } from '@/components/DocRef';
 import { TargetSource } from '@/components/TargetSource';
 import { LoadError, PageSkeleton } from '@/components/States';
 import { DeptTag, KindTag, StatusTag, STATUS } from '@/components/Tags';
@@ -17,10 +18,15 @@ import { DossierContext, useDossier, useDossierRun, type DossierData } from './c
 import { DirectivesTab } from './Directives';
 import { EvaluationModal, EvaluationsTab } from './Evaluations';
 import { ExecutionTab, ReportModal, valueText } from './Execution';
+import { RelatedTasks } from './RelatedTasks';
 import { BasisCard, ExplanationRequestModal, ExplanationsCard, PeopleModal, ResponsibilityCard, SourceCard, TimelineTab, type PeopleAction } from './Side';
+import { ForecastCard } from '../forecast/ForecastViews';
+import { TargetLinksCard } from '../targets/TargetLinks';
+import { ResponsiveDetails } from '@/components/ResponsiveDetails';
 import './dossier.css';
+import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
+import { useDeskNoteAction } from '@/pages/workspace/DeskNotes';
 
-const ISSUING: Record<string, string> = { CENTRAL: 'Trung ương giao', PROVINCE: 'Tỉnh/Thành phố giao', LOCAL: 'Địa phương tự đặt' };
 const TABS = ['thuc-hien', 'chi-dao', 'danh-gia', 'lich-su'] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -34,10 +40,10 @@ function Figures() {
     <Card className="figures">
       <div className="figure-row">
         <div className="figure">
-          <span className="figure-label">Chỉ tiêu giao</span>
+          <span className="figure-label">{d.kind === 'TASK' ? 'Mức hoàn thành' : 'Chỉ tiêu giao'}</span>
           <span className="figure-value">{stat ? 'Theo dõi số liệu' : d.targetText || valueText(d.targetValue, d.unit)}</span>
           <span className="figure-foot">
-            {stat ? 'Chỉ tiêu thống kê' : `${d.targetText ? `Quy đổi ${valueText(d.targetValue, d.unit)} · ` : ''}${d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}`}
+            {d.kind === 'TASK' ? 'Hoàn thành nhiệm vụ' : stat ? 'Chỉ tiêu thống kê' : `${d.targetText ? `Quy đổi ${valueText(d.targetValue, d.unit)} · ` : ''}${d.direction === 'LOWER_IS_BETTER' ? 'Càng thấp càng tốt' : 'Càng cao càng tốt'}`}
           </span>
         </div>
         <div className="figure">
@@ -67,11 +73,11 @@ function Figures() {
           <span className="figure-value">{date(d.dueDate)}</span>
           <span className="figure-foot">{d.status === 'COMPLETED' ? 'Đã hoàn thành' : until(d.dueDate)}</span>
         </div>
-        <div className="figure">
+        {d.kind !== 'TASK' && <div className="figure">
           <span className="figure-label">Kỳ báo cáo</span>
           <span className="figure-value">{frequencyLabel[d.frequency]}</span>
           <span className="figure-foot">{manual ? `Kỳ hiện tại: ${periodLabel(d.currentPeriodKey)}` : 'Hệ thống tự cập nhật'}</span>
-        </div>
+        </div>}
       </div>
     </Card>
   );
@@ -89,6 +95,7 @@ function DossierView({ d }: { d: DossierData }) {
   const [people, setPeople] = useState<PeopleAction | null>(null);
   const [explaining, setExplaining] = useState(false);
   const p = d.permissions;
+  const deskNote = useDeskNoteAction(d.id, d.title);
   const { me } = useDossier();
   const myPending = !can(me, LEADERSHIP) && d.reports.some(report => report.user.id === me.id && report.reviewStatus === 'PENDING');
   const canReport = d.valueSource === 'MANUAL' && p.canReport && can(me, REPORTERS) && !d.isArchived;
@@ -113,6 +120,7 @@ function DossierView({ d }: { d: DossierData }) {
   }
 
   const more: MenuProps['items'] = [
+    deskNote.item,
     ...(p.canAssign ? [{ key: 'assign', icon: <UserAddOutlined />, label: d.assignee ? 'Giao lại' : 'Giao chuyên viên', onClick: () => setPeople('assign') }] : []),
     ...(p.canTransfer ? [{ key: 'transfer', icon: <SwapOutlined />, label: 'Chuyển đồng nghiệp', onClick: () => setPeople('transfer') }] : []),
     ...(p.canReturn ? [{ key: 'return', icon: <UndoOutlined />, label: 'Trả về trưởng phòng', onClick: () => setPeople('return') }] : []),
@@ -121,11 +129,11 @@ function DossierView({ d }: { d: DossierData }) {
   ];
 
   const crumbs = [
-    { label: 'Danh mục chỉ tiêu', to: '/admin/targets' },
-    ...(d.framework ? [{ label: d.framework.name, to: `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
+    { label: d.kind === 'TASK' ? 'Văn bản chỉ đạo' : 'Danh mục chỉ tiêu', to: d.kind === 'TASK' ? '/admin/van-ban-chi-dao' : '/admin/targets' },
+    ...(d.framework ? [{ label: d.framework.name, to: d.kind === 'TASK' ? `/admin/van-ban-chi-dao/${d.framework.id}` : `/admin/targets?frameworkId=${d.framework.id}&year=${d.year}` }] : []),
     ...(d.groupName ? [{ label: d.groupName }] : []),
-    ...(d.parent ? [{ label: d.parent.code, to: `/admin/targets/${d.parent.id}` }] : []),
-    { label: d.code },
+    ...(d.parent ? [{ label: d.parent.title, to: `/admin/targets/${d.parent.id}` }] : []),
+    { label: d.kind === 'TASK' ? 'Hồ sơ nhiệm vụ' : 'Hồ sơ chỉ tiêu' },
   ];
 
   const done = (value: boolean) => <Badge status={value ? 'success' : 'default'} />;
@@ -136,15 +144,16 @@ function DossierView({ d }: { d: DossierData }) {
       title={d.title}
       meta={
         <>
-          <Typography.Text copyable={{ text: d.code, icon: <CopyOutlined />, tooltips: ['Chép mã', 'Đã chép'] }} className="num">
+          {d.kind !== 'TASK' && <Typography.Text copyable={{ text: d.code, icon: <CopyOutlined />, tooltips: ['Chép mã', 'Đã chép'] }} className="num">
             {d.code}
-          </Typography.Text>
+          </Typography.Text>}
+          {d.kind === 'TASK' && d.dispatchedByName && <span>Phân việc: {d.dispatchedByName}{d.dispatchedAt ? ` · ${dateTime(d.dispatchedAt)}` : ''}</span>}
           {d.standardCode && <span>Mã {d.standardCode}</span>}
-          {d.ordinal && <span>STT {d.ordinal}</span>}
+          <DocRef value={d} />
           <DeptTag name={d.department.name} color={d.department.color} />
-          <span>{ISSUING[d.issuingLevel] ?? d.issuingLevel}</span>
           <TargetSource variant="chip" targetId={d.id} targetTitle={d.title} canEdit={d.permissions.canEditSourceCard && !d.isArchived} />
           <Space size={6}>
+            {p.readOnly && <Tag>Chỉ xem</Tag>}
             <KindTag kind={d.kind} />
             <StatusTag status={d.status} />
             {d.valueSource === 'COMPUTED' && <Tag color="cyan">Tự tính</Tag>}
@@ -155,6 +164,8 @@ function DossierView({ d }: { d: DossierData }) {
       }
       extra={
         <>
+          <PinToWorkspace targetId={d.id} title={d.title} />
+          {deskNote.modal}
           {more.length > 0 && !d.isArchived && (
             <Dropdown menu={{ items: more }} trigger={['click']} placement="bottomRight">
               <Button>
@@ -176,7 +187,7 @@ function DossierView({ d }: { d: DossierData }) {
               </Tooltip>
             ) : (
               <Button type="primary" icon={<SendOutlined />} onClick={() => setReporting({})}>
-                Báo cáo số liệu
+                {d.kind === 'TASK' ? 'Báo cáo kết quả' : me.role === 'ADMIN' ? 'Quản trị ghi nhận' : 'Báo cáo số liệu'}
               </Button>
             ))}
         </>
@@ -191,6 +202,8 @@ function DossierView({ d }: { d: DossierData }) {
         />
       )}
       <Figures />
+      <RelatedTasks />
+      <Flex vertical gap={16} style={{ marginTop: 16 }}>{d.kind !== 'TASK' && <ResponsiveDetails title="Mức giao theo văn bản"><TargetLinksCard targetId={d.id} /></ResponsiveDetails>}{d.kind !== 'STAT' && d.kind !== 'TASK' && <ResponsiveDetails title="Dự báo"><ForecastCard targetId={d.id} /></ResponsiveDetails>}</Flex>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
           <Card className="card-tabs dossier-tabs">

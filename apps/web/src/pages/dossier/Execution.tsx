@@ -7,9 +7,10 @@ import { NoData } from '@/components/States';
 import { DeptTag, ReviewTag } from '@/components/Tags';
 import { http } from '@/lib/api';
 import { date, dateTime, num } from '@/lib/format';
-import { APPROVERS, can, isGlobal, LEADERSHIP } from '@/lib/roles';
+import { APPROVERS, can, isGlobal } from '@/lib/roles';
 import { useDossier, useDossierRun, type DossierData, type DossierReport } from './context';
 import { EvidenceList, EvidencePicker, uploadEvidenceFiles } from './evidence';
+import { RevisionRequest } from './RevisionRequest';
 import { byNumber, byText, NUMBER_FIRST } from '@/lib/sort';
 
 export function valueText(value: number | null | undefined, unit: string) {
@@ -33,7 +34,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
   const [form] = Form.useForm<ReportValues>();
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
-  const leader = can(me, LEADERSHIP);
+  const leader = me.role === 'ADMIN';
   const periodKey = Form.useWatch('periodKey', form);
   const value = Form.useWatch('value', form);
 
@@ -56,7 +57,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
       const response = await http.post<{ reviewStatus: 'PENDING' | 'APPROVED'; message?: string; update?: { id: string } }>(`/targets/${d.id}/progress`, {
         value: values.value,
         valueText: values.valueText?.trim() || undefined,
-        periodKey: values.periodKey,
+        periodKey: d.kind === 'TASK' ? undefined : values.periodKey,
         dataSource: values.dataSource?.trim() || undefined,
         explanation: values.explanation?.trim() || undefined,
         note: values.note?.trim() || undefined,
@@ -66,7 +67,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
         let updateId = response?.update?.id;
         if (!updateId) {
           const fresh = await http.get<DossierData>(`/targets/${d.id}/dossier`);
-          updateId = fresh.reports.find(report => report.user.id === me.id && report.periodKey === values.periodKey)?.id;
+          updateId = fresh.reports.find(report => report.user.id === me.id && (d.kind === 'TASK' || report.periodKey === values.periodKey))?.id;
         }
         const failures = await uploadEvidenceFiles(d.id, files, updateId ? { progressUpdateId: updateId } : {});
         if (failures.length) message.warning(`Chưa tải được: ${failures.join('; ')}`);
@@ -79,11 +80,11 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
 
   return (
     <Modal
-      title="Báo cáo số liệu"
+      title={d.kind === 'TASK' ? 'Báo cáo kết quả' : 'Báo cáo số liệu'}
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
-      okText={leader ? 'Ghi nhận' : 'Gửi báo cáo'}
+      okText={leader ? 'Quản trị ghi nhận' : 'Gửi báo cáo'}
       okButtonProps={{ icon: <SendOutlined /> }}
       confirmLoading={saving}
       width={680}
@@ -91,28 +92,28 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
       mask={{ closable: false }}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        {d.code} · {d.title}
+        {d.title}
       </Typography.Paragraph>
       <Form form={form} layout="vertical" onFinish={values => void submit(values)} className="form-grid">
-        <Form.Item name="periodKey" label="Kỳ báo cáo" rules={[{ required: true, message: 'Chọn kỳ' }]}>
+        {d.kind !== 'TASK' && <Form.Item name="periodKey" label="Kỳ báo cáo" rules={[{ required: true, message: 'Chọn kỳ' }]}>
           <Select
             options={d.periods.map(item => ({
               value: item.key,
               label: `${item.label}${item.reported ? ' · đã báo cáo' : item.overdue ? ' · quá hạn' : ` · hạn ${date(item.deadline)}`}`,
             }))}
           />
-        </Form.Item>
+        </Form.Item>}
         <Form.Item
           name="value"
-          label={`Giá trị thực hiện${d.unit ? ` (${d.unit})` : ''}`}
-          extra={d.kind === 'STAT' ? undefined : `Chỉ tiêu giao: ${d.targetText || valueText(d.targetValue, d.unit)}`}
+          label={d.kind === 'TASK' ? 'Tỷ lệ hoàn thành (%)' : `Giá trị thực hiện${d.unit ? ` (${d.unit})` : ''}`}
+          extra={d.kind === 'STAT' || d.kind === 'TASK' ? undefined : `Chỉ tiêu giao: ${d.targetText || valueText(d.targetValue, d.unit)}`}
           rules={[{ required: true, message: 'Nhập giá trị' }]}
         >
-          <InputNumber min={0} style={{ width: '100%' }} decimalSeparator="," autoFocus />
+          <InputNumber min={0} max={d.kind === 'TASK' ? 100 : undefined} style={{ width: '100%' }} decimalSeparator="," autoFocus />
         </Form.Item>
-        <Form.Item name="valueText" label="Ghi bằng chữ" className="span-2">
+        {d.kind !== 'TASK' && <Form.Item name="valueText" label="Ghi bằng chữ" className="span-2">
           <Input maxLength={300} placeholder="Ví dụ: Đạt; 12/15 hồ sơ" />
-        </Form.Item>
+        </Form.Item>}
         <Form.Item
           name="dataSource"
           label="Nguồn số liệu"
@@ -138,7 +139,7 @@ export function ReportModal({ open, presetPeriod, onClose }: { open: boolean; pr
         >
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} maxLength={2000} />
         </Form.Item>
-        <Form.Item name="note" label="Ghi chú" className="span-2">
+        <Form.Item name="note" label={d.kind === 'TASK' ? 'Nội dung kết quả' : 'Ghi chú'} className="span-2" rules={d.kind === 'TASK' ? [{ required: true, whitespace: true, message: 'Nhập nội dung kết quả thực hiện' }] : undefined}>
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={2000} />
         </Form.Item>
         <Form.Item label="Minh chứng" className="span-2" extra={d.evidenceRequirement ? `Yêu cầu: ${d.evidenceRequirement}` : 'Ảnh hoặc PDF, tối đa 10MB mỗi tệp'}>
@@ -395,6 +396,7 @@ function ReportItem({ report }: { report: DossierReport }) {
         </div>
       )}
       <EvidenceList targetId={d.id} items={report.evidences} />
+      <RevisionRequest report={report} />
       <Flex justify="space-between" align="center" gap={12} wrap style={{ marginTop: 8 }}>
         <span className="entry-meta">
           {report.user.fullName} · {dateTime(report.createdAt)}
@@ -477,7 +479,7 @@ export function ExecutionTab({ onReport, canReport }: { onReport: (periodKey?: s
       {d.children.length > 0 && <Children />}
 
       <Flex justify="space-between" align="center" className="tab-section-head">
-        <Typography.Text strong>Báo cáo số liệu ({d.reports.length})</Typography.Text>
+        <Typography.Text strong>{d.kind === 'TASK' ? 'Báo cáo kết quả' : 'Báo cáo số liệu'} ({d.reports.length})</Typography.Text>
         {canReport && (
           <Button size="small" icon={<PlusOutlined />} onClick={() => onReport()}>
             Báo cáo

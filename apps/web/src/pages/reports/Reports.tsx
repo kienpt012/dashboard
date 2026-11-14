@@ -11,12 +11,13 @@ import { PrintDocument } from '@/components/PrintDocument';
 import { LoadError } from '@/components/States';
 import { StatusTag, STATUS, STATUS_ORDER } from '@/components/Tags';
 import { useThemeMode } from '@/app/theme';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
 import { useApi } from '@/hooks/useApi';
 import { departmentOptions, useDepartments, useFrameworks } from '@/hooks/useRefs';
 import { errorText, http, query, saveBlob } from '@/lib/api';
 import { fromNow, currentYear, dateTime, num, pct, vn } from '@/lib/format';
-import { isGlobal } from '@/lib/roles';
 import type { Target } from '@/types/core';
+import { DocRef } from '@/components/DocRef';
 import type { TargetStatusKey } from '@/types/domain';
 import { byDate, byNumber, byRank, byText, NUMBER_FIRST, TARGET_STATUS_RANK } from '@/lib/sort';
 
@@ -80,7 +81,7 @@ function ReportPrint({ rows, title, scope, at }: { rows: Target[]; title: string
                 return (
                   <tr key={row.id}>
                     <td className="c">{row.ordinal || (numbered ? '—' : index)}</td>
-                    <td>{row.title}</td>
+                    <td>{row.title}<div><DocRef value={row} /></div></td>
                     <td className="c">{row.unit}</td>
                     {!statOnly && <td className="c">{planText(row)}</td>}
                     <td className="c">{row.lastReportedAt ? num(row.currentValue) : '—'}</td>
@@ -109,12 +110,13 @@ export default function Reports() {
   const { message } = App.useApp();
   const locality = useLocality();
   const { dark } = useThemeMode();
-  const global = isGlobal(user);
+  const readScope = useReadScope();
+  const global = readScope.scope === 'all';
   const [params, setParams] = useSearchParams();
   const year = Number(params.get('year')) || currentYear();
   const departmentId = params.get('departmentId') ?? '';
   const frameworks = useFrameworks();
-  const yearFrameworks = useMemo(() => (frameworks.data ?? []).filter(item => (item.year ?? year) === year), [frameworks.data, year]);
+  const yearFrameworks = useMemo(() => (frameworks.data ?? []).filter(item => item.kind !== 'TASK' && (item.year ?? year) === year), [frameworks.data, year]);
   const frameworkId = params.get('frameworkId') ?? '';
   const departments = useDepartments();
   const [exporting, setExporting] = useState(false);
@@ -128,10 +130,10 @@ export default function Reports() {
     }
   }, [frameworkId, yearFrameworks, params, setParams]);
 
-  const list = useApi<Target[]>(frameworkId ? `/targets${query({ year, frameworkId, departmentId: global ? departmentId || undefined : undefined })}` : null, { keepPrevious: true });
+  const list = useApi<Target[]>(frameworkId ? `/targets${query({ year, frameworkId, scope: readScope.scope, departmentId: global ? departmentId || undefined : undefined })}` : null, { keepPrevious: true });
   // Báo cáo của một phòng chỉ gồm chỉ tiêu phòng chủ trì (máy chủ trả cả chỉ tiêu phòng phối hợp).
-  const scopeDepartment = global ? departmentId : user.departmentId;
-  const rows = useMemo(() => (list.data ?? []).filter(row => !scopeDepartment || row.department.id === scopeDepartment), [list.data, scopeDepartment]);
+  const scopeDepartment = readScope.scope === 'all' ? departmentId : user.departmentId;
+  const rows = useMemo(() => (list.data ?? []).filter(row => row.kind !== 'TASK' && (!scopeDepartment || row.department.id === scopeDepartment)), [list.data, scopeDepartment]);
   const framework = yearFrameworks.find(item => item.id === frameworkId);
   const department = (departments.data ?? []).find(item => item.id === (global ? departmentId : user.departmentId));
   const scope = department ? department.name : locality.configured ? localityTitle(locality) : 'Toàn địa phương';
@@ -192,7 +194,7 @@ export default function Reports() {
   async function exportExcel() {
     setExporting(true);
     try {
-      const blob = await http.blob(`/exports/targets.xlsx${query({ year, frameworkId, departmentId: global ? departmentId || undefined : undefined })}`);
+      const blob = await http.blob(`/exports/targets.xlsx${query({ year, frameworkId, scope: readScope.scope, departmentId: global ? departmentId || undefined : undefined })}`);
       const parts = ['bao-cao', framework?.code ?? 'ngoai-bo', department?.code, String(year)].filter(Boolean);
       saveBlob(blob, `${parts.join('-')}.xlsx`.toLowerCase());
     } catch (error) {
@@ -215,7 +217,7 @@ export default function Reports() {
         <div className="cell-title">
           <Link to={`/admin/targets/${row.id}`}>{row.title}</Link>
           <span>
-            {row.code}
+            <DocRef value={row} />
             {row.groupName ? ` · ${row.groupName}` : ''}
           </span>
         </div>
@@ -243,6 +245,7 @@ export default function Reports() {
       meta={last && <span>Số liệu cập nhật gần nhất {dateTime(last)}</span>}
       extra={
         <>
+          <ReadScopeSwitch value={readScope} />
           <Button icon={<FileExcelOutlined />} loading={exporting} onClick={() => void exportExcel()}>
             Xuất Excel
           </Button>

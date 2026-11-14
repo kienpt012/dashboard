@@ -96,7 +96,8 @@ export async function createTargetInTransaction(
   input: CreateTargetInput,
   auditMetadata?: Prisma.InputJsonValue,
 ) {
-  if (input.dueDate.getUTCFullYear() !== input.year) {
+  let kind = input.kind;
+  if (!input.frameworkId && kind !== FrameworkKind.TASK && input.dueDate.getUTCFullYear() !== input.year) {
     throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
   }
   const department = await tx.department.findUnique({ where: { id: input.departmentId } });
@@ -104,12 +105,18 @@ export async function createTargetInTransaction(
     throw new BadRequestException('Phòng ban phụ trách không tồn tại hoặc đã ngừng hoạt động');
   }
   if (input.frameworkId) {
-    const framework = await tx.framework.findUnique({ where: { id: input.frameworkId }, select: { isActive: true } });
+    const framework = await tx.framework.findUnique({ where: { id: input.frameworkId }, select: { isActive: true, kind: true } });
     if (!framework || !framework.isActive) throw new BadRequestException('Bộ chỉ tiêu không tồn tại hoặc đã ngừng sử dụng');
+    if (kind && kind !== framework.kind) throw new BadRequestException('Loại chỉ tiêu phải trùng với loại bộ chỉ tiêu');
+    kind = framework.kind;
+  }
+  if (kind !== FrameworkKind.TASK && input.dueDate.getUTCFullYear() !== input.year) {
+    throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
   }
   if (input.parentId) {
-    const parent = await tx.target.findUnique({ where: { id: input.parentId }, select: { year: true, isArchived: true } });
+    const parent = await tx.target.findUnique({ where: { id: input.parentId }, select: { year: true, isArchived: true, linkGroupId: true } });
     if (!parent || parent.isArchived) throw new BadRequestException('Chỉ tiêu cha không tồn tại hoặc đã lưu trữ');
+    if (parent.linkGroupId) throw new ConflictException('Cần bỏ liên kết trước khi thêm chỉ tiêu con');
     if (parent.year !== input.year) throw new BadRequestException('Chỉ tiêu con phải cùng năm kế hoạch với chỉ tiêu cha');
   }
   if (input.assigneeId) {
@@ -135,12 +142,12 @@ export async function createTargetInTransaction(
       code,
       title: input.title.trim(),
       description: input.description?.trim(),
-      unit: input.unit.trim(),
-      targetValue: input.targetValue,
+      unit: kind === FrameworkKind.TASK ? '%' : input.unit.trim(),
+      targetValue: kind === FrameworkKind.TASK ? 100 : input.targetValue,
       weight: input.weight,
       year: input.year,
-      frequency: input.frequency,
-      direction: input.direction,
+      frequency: kind === FrameworkKind.TASK ? TargetFrequency.YEARLY : input.frequency,
+      direction: kind === FrameworkKind.TASK ? TargetDirection.HIGHER_IS_BETTER : input.direction,
       dueDate: input.dueDate,
       departmentId: input.departmentId,
       isPublic: false,
@@ -149,7 +156,7 @@ export async function createTargetInTransaction(
       legalBasis: input.legalBasis?.trim() || undefined,
       sourceDocumentId: input.sourceDocumentId,
       frameworkId: input.frameworkId ?? undefined,
-      kind: input.kind,
+      kind,
       issuingLevel: input.issuingLevel,
       ordinal: optionalText(input.ordinal),
       standardCode: optionalText(input.standardCode),
@@ -170,6 +177,7 @@ export async function createTargetInTransaction(
       assigneeId: input.assigneeId ?? undefined,
       assignedAt: input.assigneeId ? now : undefined,
       assignedById: input.assigneeId ? actor.id : undefined,
+      ...(kind === FrameworkKind.TASK ? { dispatchedById: actor.id, dispatchedByName: actor.fullName, dispatchedAt: now } : {}),
       coordinators: coordinatorIds.length
         ? { create: coordinatorIds.map(departmentId => ({ departmentId })) }
         : undefined,
@@ -206,7 +214,7 @@ export async function createTargetWithGeneratedCode(
   input: CreateTargetInput,
   auditMetadata?: Prisma.InputJsonValue,
 ) {
-  if (input.dueDate.getUTCFullYear() !== input.year) {
+  if (!input.frameworkId && input.kind !== FrameworkKind.TASK && input.dueDate.getUTCFullYear() !== input.year) {
     throw new BadRequestException('Hạn hoàn thành phải thuộc cùng năm kế hoạch');
   }
   for (let attempt = 1; attempt <= 3; attempt += 1) {

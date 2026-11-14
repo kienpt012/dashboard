@@ -24,29 +24,43 @@ Hệ thống gồm hai khu vực:
 ## 1.2 Vai trò người dùng
 
 Mỗi tài khoản có một vai trò. Vai trò quyết định menu được thấy và thao tác được làm. Trưởng phòng, chuyên viên và
-người xem chỉ thấy số liệu của phòng mình; lãnh đạo, văn thư và quản trị thấy số liệu toàn địa phương.
+người xem làm việc trong phạm vi phòng mình; lãnh đạo, văn thư và quản trị làm việc trên toàn địa phương.
+
+Khi thiết lập `Cho xem chỉ tiêu của phòng khác` đang bật (HT-04; mặc định bật), trưởng phòng, chuyên viên và người xem
+còn **xem** được chỉ tiêu, nhiệm vụ của các phòng khác bằng công tắc `Phòng tôi` / `Toàn địa phương` ở đầu các màn hình
+danh mục, điều hành, báo cáo. Quyền báo cáo, giao việc, duyệt vẫn chỉ trong phòng mình; hồ sơ của phòng khác hiện nhãn
+`Chỉ xem`.
 
 | Vai trò | Phạm vi | Công việc chính |
 |---|---|---|
-| Quản trị hệ thống | Toàn địa phương | Thiết lập địa phương, quản lý tài khoản, cấu hình thời hạn, trang công khai, xem nhật ký và báo lỗi |
-| Lãnh đạo UBND | Toàn địa phương | Theo dõi điều hành, chỉ đạo, đánh giá chỉ tiêu, yêu cầu giải trình, duyệt đề xuất và báo cáo |
-| Văn thư | Toàn địa phương | Tiếp nhận văn bản, rà soát kết quả trích xuất, trình đề xuất chỉ tiêu, quản lý bộ chỉ tiêu và kho dữ liệu, phân loại và phân công phản ánh |
+| Quản trị hệ thống | Toàn địa phương | Thiết lập địa phương, quản lý tài khoản, cấu hình, ứng dụng công vụ, trang công khai, xem nhật ký và góp ý, báo lỗi; ghi nhận số liệu ban đầu khi cần |
+| Lãnh đạo UBND | Toàn địa phương | Theo dõi điều hành, chỉ đạo, phân việc từ văn bản chỉ đạo, đánh giá chỉ tiêu, yêu cầu giải trình, duyệt đề xuất và báo cáo; **không tự ghi số liệu** |
+| Văn thư | Toàn địa phương | Tiếp nhận văn bản, rà soát kết quả trích xuất, trình đề xuất chỉ tiêu, quản lý bộ chỉ tiêu và kho dữ liệu, đưa văn bản chỉ đạo vào hệ thống, lập lịch làm việc của lãnh đạo, phân loại và phân công phản ánh |
 | Trưởng phòng | Phòng mình | Giao chỉ tiêu cho chuyên viên, duyệt số liệu, trả lời giải trình, đánh giá chỉ tiêu của phòng |
-| Chuyên viên | Phòng mình | Báo cáo số liệu kèm minh chứng, nhập Excel, đề xuất chỉ tiêu, xử lý phản ánh được giao |
+| Chuyên viên | Phòng mình | Báo cáo số liệu kèm minh chứng, báo cáo kết quả nhiệm vụ, nhập Excel, đề xuất chỉ tiêu, xử lý phản ánh được giao |
 | Người xem | Phòng mình | Chỉ xem, không thay đổi dữ liệu |
+
+> **Lãnh đạo không ghi số liệu.** Lãnh đạo UBND xem, duyệt, chỉ đạo và đánh giá. Khi số liệu đã duyệt chưa đúng, lãnh đạo
+> bấm `Yêu cầu cập nhật lại` để người phụ trách gửi lại (CT-06); lãnh đạo không tự sửa con số.
+>
+> **Người phân việc.** Tuỳ thiết lập `Người phân việc cho phòng` (HT-04), người phân nhiệm vụ từ văn bản chỉ đạo cho các
+> phòng là Lãnh đạo UBND hoặc Chánh Văn phòng (trưởng phòng của Văn phòng). Người phân việc cũng duyệt được đề xuất chỉ
+> tiêu của mọi phòng.
 
 Bảng sau tóm tắt màn hình nào xuất hiện trong menu của từng vai trò (✓ có, — không có).
 
 | Màn hình | Quản trị | Lãnh đạo | Văn thư | Trưởng phòng | Chuyên viên | Người xem |
 |---|---|---|---|---|---|---|
-| Trung tâm điều hành, Việc của tôi, Trình chiếu | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Bàn làm việc, Trung tâm điều hành, Việc của tôi, Trình chiếu | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Văn bản chỉ đạo, Việc theo tháng, Lịch làm việc | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Trách nhiệm | ✓ | ✓ | — | ✓ | — | — |
 | Bộ chỉ tiêu, Danh mục chỉ tiêu, Đề xuất chỉ tiêu | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Duyệt báo cáo | ✓ | ✓ | — | ✓ | — | — |
 | Báo cáo tổng hợp, Kho dữ liệu, Kho văn bản | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Nhập số liệu Excel | ✓ | ✓ | — | ✓ | ✓ | — |
+| Nhập số liệu Excel | ✓ | — | — | ✓ | ✓ | — |
 | Phản ánh, Phòng ban, Hồ sơ cá nhân | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Trang công khai, Thiết lập địa phương, Tài khoản, Cấu hình, Nhật ký hệ thống, Báo lỗi | ✓ | — | — | — | — | — |
+| Mô hình dự báo | ✓ | ✓ | — | — | — | — |
+| Trang công khai, Thiết lập địa phương, Tài khoản, Cấu hình, Ứng dụng công vụ, Nhật ký hệ thống, Góp ý – báo lỗi | ✓ | — | — | — | — | — |
 
 > Giao diện chỉ ẩn những nút không có quyền; quyền cuối cùng luôn do máy chủ kiểm tra. Một số thao tác còn phụ thuộc
 > vai trò trong từng chỉ tiêu, ví dụ chỉ người đang phụ trách chỉ tiêu mới được chuyển việc hoặc trả việc.
@@ -58,20 +72,24 @@ Bảng sau tóm tắt màn hình nào xuất hiện trong menu của từng vai 
 #### Đăng nhập
 1. Mở địa chỉ khu vực quản trị, hoặc bấm `Cán bộ đăng nhập` ở góc phải cổng thông tin công khai.
 2. Nhập `Tên đăng nhập` và `Mật khẩu` do quản trị viên cấp.
-3. Bấm `Đăng nhập`. Hệ thống mở **Trung tâm điều hành**.
+3. Bấm `Đăng nhập`. Hệ thống mở **Bàn làm việc** (DH-00, mục 2.1).
 
 Lần đăng nhập đầu tiên, hãy đổi mật khẩu tại **Hồ sơ cá nhân** (HT-07, mục 2.5). Mật khẩu phải có tối thiểu 10 ký tự, gồm chữ
 hoa, chữ thường, chữ số và ký tự đặc biệt.
 
 #### Khôi phục mật khẩu khi quên
 1. Tại màn hình đăng nhập, bấm `Quên mật khẩu?`.
-2. Nhập `Tên đăng nhập hoặc email công vụ`, bấm `Gửi mã xác thực`. Hệ thống gửi mã 6 chữ số tới email công vụ của tài khoản.
+2. Nhập `Tên đăng nhập hoặc email công vụ`. Nếu màn hình có mục `Nhận mã xác thực qua`, chọn `Thư công vụ` hoặc
+   `Tin nhắn điện thoại`. Bấm `Gửi mã xác thực`. Hệ thống gửi mã 6 chữ số tới email công vụ hoặc số điện thoại đã khai
+   trong tài khoản.
 3. Nhập `Mã xác thực`, bấm `Xác thực`. Nếu chưa nhận được thư, bấm `Gửi lại mã` sau thời gian chờ.
 4. Nhập `Mật khẩu mới`, `Nhập lại mật khẩu`, rồi bấm `Đặt mật khẩu` để hoàn tất.
 
 ![Khôi phục mật khẩu qua mã xác thực gửi tới email công vụ|70](anh/tq-quen-mat-khau.png)
 
-> Tài khoản chưa khai email công vụ không tự khôi phục được; liên hệ quản trị viên để được đặt lại mật khẩu.
+> Lựa chọn `Tin nhắn điện thoại` chỉ hiện khi đơn vị đã kết nối cổng tin nhắn. Mỗi tài khoản nhận tối đa 5 mã qua tin nhắn
+> trong một giờ và mỗi phút một mã. Email công vụ và số điện thoại của tài khoản do quản trị viên khai tại **Tài khoản**
+> (HT-03). Tài khoản chưa khai cả hai thì không tự khôi phục được; liên hệ quản trị viên để được đặt lại mật khẩu.
 
 #### Đăng xuất
 Bấm vào tên của mình ở góc phải trên cùng, chọn `Đăng xuất`. Trên máy dùng chung, luôn đăng xuất khi rời máy.
@@ -86,7 +104,7 @@ Bấm vào tên của mình ở góc phải trên cùng, chọn `Đăng xuất`.
 3. **Tìm kiếm** — tìm nhanh màn hình hoặc chỉ tiêu theo mã, tên (phím tắt `Ctrl K`).
 4. **Jarvis** — trợ lý điều hành, trả lời câu hỏi về số liệu (phím tắt `Ctrl J`). Khi Jarvis đang nghe tên gọi, biểu
    tượng chuyển động nhẹ; nói "Hey Jarvis" để gọi mà không cần bấm (xem mục 1.6).
-5. **Báo lỗi** — gửi mô tả lỗi của màn hình đang xem cho quản trị viên.
+5. **Góp ý, báo lỗi** — gửi góp ý hoặc mô tả lỗi của màn hình đang xem cho quản trị viên.
 6. **Thông báo** — việc mới được giao, báo cáo được duyệt hoặc trả lại, yêu cầu giải trình, nhắc hạn.
 7. **Tài khoản** — tên và vai trò; mở hồ sơ cá nhân, đổi giao diện sáng/tối, đăng xuất.
 8. **Dải định danh** — mã màn hình (ví dụ `DH-01`), tên đơn vị và thời điểm hiện tại. Khi báo lỗi hoặc cần hỗ trợ,
@@ -109,11 +127,11 @@ Bấm biểu tượng chuông để xem thông báo mới nhất. Bấm vào m�
 
 ![Danh sách thông báo|60](anh/tq-thong-bao.png)
 
-#### Báo lỗi màn hình đang xem
-1. Bấm biểu tượng con bọ trên thanh đầu trang. Hộp `Báo lỗi` tự ghi sẵn mã màn hình, thời điểm và địa chỉ trang.
+#### Góp ý, báo lỗi về màn hình đang xem
+1. Bấm biểu tượng con bọ trên thanh đầu trang. Hộp `Góp ý, báo lỗi` tự ghi sẵn mã màn hình, thời điểm và địa chỉ trang.
 2. Nhập `Mô tả`: đang làm gì, thấy gì, mong đợi điều gì.
 3. Đính kèm ảnh chụp màn hình nếu có: bấm `Đính kèm ảnh`, hoặc dán trực tiếp vào ô mô tả bằng `Ctrl V`.
-4. Bấm `Gửi`. Quản trị viên xem báo lỗi tại màn hình **Báo lỗi** (HT-06, mục 2.5).
+4. Bấm `Gửi`. Quản trị viên xem tại màn hình **Góp ý, báo lỗi** (HT-06, mục 2.5).
 
 ![Gửi báo lỗi kèm ảnh chụp|70](anh/tq-bao-loi.png)
 

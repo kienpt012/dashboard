@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Controller, Get, Query } from '@nestjs/common';
-import { Prisma, TargetStatus } from '@prisma/client';
+import { FrameworkKind, Prisma, TargetStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { calculateProgress } from './metrics';
@@ -26,6 +26,9 @@ const publicTargetSelect = Prisma.validator<Prisma.TargetSelect>()({
   publishedDirection: true,
   publishedStatus: true,
   publishedCode: true,
+  publishedDocRef: true,
+  publishedOrdinal: true,
+  publishedIssuingLevel: true,
   publishedTitle: true,
   publishedDescription: true,
   publishedUnit: true,
@@ -58,6 +61,7 @@ const publicTargetOrderBy: Prisma.TargetOrderByWithRelationInput[] = [
 function publicTargetWhere(year: number): Prisma.TargetWhereInput {
   return {
     isPublic: true,
+    kind: { not: FrameworkKind.TASK },
     isArchived: false,
     publishedValue: { not: null },
     publishedTargetValue: { not: null },
@@ -96,6 +100,9 @@ function toPublishedTarget(target: PublicTargetRow) {
   return {
     key: publicTargetKey(target.id),
     code: hasSnapshot ? target.publishedCode! : target.code,
+    docRef: target.publishedDocRef ?? null,
+    ordinal: target.publishedOrdinal ?? null,
+    issuingLevel: target.publishedIssuingLevel ?? null,
     title: hasSnapshot ? target.publishedTitle! : target.title,
     description: hasSnapshot ? target.publishedDescription : target.description,
     unit: hasSnapshot ? target.publishedUnit! : target.unit,
@@ -163,6 +170,9 @@ export class PublicController {
     return {
       key: target.key,
       code: target.code,
+      docRef: target.docRef,
+      ordinal: target.ordinal,
+      issuingLevel: target.issuingLevel,
       title: target.title,
       description: target.description,
       unit: target.unit,

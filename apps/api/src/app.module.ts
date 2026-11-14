@@ -1,4 +1,10 @@
+import { TargetLinksController } from './target-links';
+import { ForecastController } from './forecast/controller';
+import { ForecastService } from './forecast/service';
+import { ReportRevisionsController } from './report-revisions';
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { DocRefInterceptor } from './doc-ref.interceptor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -19,6 +25,7 @@ import { AuditLogsController } from './audit-logs';
 import { RateLimitService } from './rate-limit';
 import { HealthController } from './health';
 import { FeedbackMailOutboxWorker, MailService } from './mail';
+import { SmsService } from './sms';
 import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
 import { DocumentsController } from './documents';
 import { CandidatesController } from './candidates';
@@ -35,7 +42,12 @@ import { NotificationsController } from './notifications';
 import { IocController } from './ioc';
 import { BugReportsController } from './bug-reports';
 import { AccountabilityWorker } from './accountability-worker';
+import { PublicScheduleController, ScheduleController } from './schedule';
 import { WorkspaceController } from './workspace';
+import { DeskNotesController } from './workspace-desk-notes';
+import { DeskBriefingController } from './workspace-desk-briefing';
+import { WorkAppsController } from './workspace-desk-apps';
+import { DirectivesController } from './directives';
 import {
   PublicDashboardAdminController,
   PublicDashboardPublicController,
@@ -85,14 +97,24 @@ import {
     IocController,
     BugReportsController,
     WorkspaceController,
+    ScheduleController,
+    PublicScheduleController,
+    DeskNotesController, DeskBriefingController, WorkAppsController,
+    DirectivesController,
+    TargetLinksController,
+    ReportRevisionsController,
+    ForecastController,
   ],
   providers: [
+    { provide: APP_INTERCEPTOR, useClass: DocRefInterceptor },
     PasswordResetDeliveryRegistry,
     PrismaService,
+    ForecastService,
     JwtStrategy,
     RolesGuard,
     RateLimitService,
     MailService,
+    SmsService,
     FeedbackMailOutboxWorker,
     OllamaService,
     ExtractionWorker,

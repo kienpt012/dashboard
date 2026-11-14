@@ -23,7 +23,11 @@ test('Jarvis phân biệt thiếu báo cáo kỳ với chỉ tiêu quá hạn ho
   for (const message of ['Chỉ tiêu nào thiếu báo cáo?', 'phòng nào chậm báo cáo', 'chỉ tiêu quá hạn báo cáo tháng này', 'chỉ tiêu nào chưa có số liệu', 'ai chưa nộp báo cáo']) {
     assert.equal(ruleBasedPlan(message).intent, 'TARGETS_MISSING_REPORT', message);
   }
-  for (const message of ['Chỉ tiêu nào quá hạn?', 'chỉ tiêu nào có nguy cơ không đạt', 'chỉ tiêu sắp trễ hạn']) {
+  for (const message of ['Chỉ tiêu nào quá hạn?', 'chỉ tiêu sắp trễ hạn']) {
     assert.equal(ruleBasedPlan(message).intent, 'TARGETS_AT_RISK', message);
   }
+});
+
+test('Jarvis lấy dự báo xác suất từ mô hình, không nhầm với trạng thái quá hạn', () => {
+  for (const message of ['Dự báo chỉ tiêu nào không đạt', 'Chỉ tiêu nào có nguy cơ trễ?', 'Chỉ tiêu nào có nguy cơ không đạt']) assert.equal(ruleBasedPlan(message).intent, 'FORECAST_RISK');
 });

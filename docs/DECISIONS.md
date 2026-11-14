@@ -123,3 +123,121 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
 - **Căn cứ**: bản 1 dồn mọi quyền nghiệp vụ vào tài khoản quản trị, không khớp bộ máy UBND cấp xã. Không thêm Redis
   hay cron ngoài vì một bản cài phục vụ một địa phương (D-009).
 - **Câu hỏi mở**: thời hạn hiện tính theo ngày lịch; nếu khách hàng yêu cầu ngày làm việc cần thêm lịch nghỉ lễ.
+
+## D-030 · 2026-11-13 · Bàn làm việc số là trang vào của cán bộ; cấu hình cá nhân một bản ghi JSON, nghiệp vụ lấy trực tiếp
+
+- **Bối cảnh**: góp ý sau buổi báo cáo 21/10/2026 (G-01…G-09): công chức dùng khoảng năm phần mềm, sáng đăng nhập cần
+  thấy ngay hôm nay làm gì; lãnh đạo muốn dán giấy nhắc lên bàn của cán bộ.
+- **Chọn**: `/admin` là Bàn làm việc; Trung tâm điều hành chuyển sang `/admin/dieu-hanh`. Bố cục, tiện ích, lối tắt, hình
+  nền của mỗi người nằm trong một bản ghi `UserWorkspace` (JSON có phiên bản, kiểm tra bằng một bộ quy tắc dùng chung cho
+  máy chủ và trình duyệt). Dữ liệu nghiệp vụ trên bàn (nhắc việc, lịch, số đếm, mục ghim) **không lưu trong cấu hình** mà
+  tính trực tiếp theo quyền mỗi lần mở (`GET /workspace/briefing`, `/workspace/pins`) — mất quyền là mất mục, không có bản
+  sao lệch.
+- **Không chọn**: kiến trúc connector/macro và kênh SSE riêng của bản thử trước (PR #26): thêm một tầng hạ tầng cho nhu cầu
+  mà hỏi lại định kỳ 30 giây đã đáp ứng.
+- **Căn cứ**: một nguồn sự thật cho quyền (các hàm phạm vi sẵn có), cấu hình cá nhân tách khỏi nghiệp vụ nên hỏng cấu hình
+  không ảnh hưởng số liệu.
+
+## D-031 · 2026-11-13 · Giấy note là thư riêng giữa người gửi và người nhận; nhắc việc của hệ thống không lưu bảng
+
+- **Chọn**: note người gửi (`DeskNote`, `DeskNoteRecipient`, `DeskNoteReply`) chỉ tác giả và người nhận đọc được — kể cả
+  quản trị viên cũng không đọc note của người khác; nhật ký chỉ ghi siêu dữ liệu, không ghi nội dung. Ai gửi được cho ai
+  theo bậc: chuyên viên → cùng phòng, lãnh đạo, Chánh Văn phòng; trưởng phòng → thêm cả phòng mình và trưởng phòng khác;
+  lãnh đạo, Chánh Văn phòng, quản trị → bất kỳ ai, một phòng, một vai trò hoặc toàn cơ quan. Giới hạn 30 note và 60 trả lời
+  mỗi giờ cho một người.
+- **Chọn**: "note hệ thống" (thiếu báo cáo, có nguy cơ, nhiệm vụ đến hạn, chờ giải trình, chờ duyệt…) là kết quả tính từ
+  dữ liệu chỉ tiêu tại thời điểm xem, không tạo bản ghi; "Ẩn đến mai" lưu trên thiết bị.
+- **Căn cứ**: note là kênh nhắc việc cá nhân chứ không phải văn bản giao việc — việc chính thức vẫn là chỉ tiêu, nhiệm vụ,
+  chỉ đạo có nhật ký. Nhắc việc tính trực tiếp thì việc xong là giấy tự biến mất, không phải dọn.
+
+## D-032 · 2026-11-13 · Ứng dụng công vụ là danh mục liên kết do quản trị viên khai báo; số trên biểu tượng lấy từ JSON công khai
+
+- **Chọn**: bảng `WorkApp` (tên, địa chỉ, biểu tượng, nhóm, công dụng, đối tượng theo vai trò HOẶC phòng, thứ tự, ẩn/hiện).
+  Hệ thống chỉ mở liên kết sang phần mềm khác, không đăng nhập hộ. Huy hiệu số: ứng dụng nội bộ lấy từ IOC theo quyền; ứng
+  dụng ngoài khai báo một địa chỉ JSON HTTPS công khai, máy chủ gọi hộ qua lớp chống SSRF (chặn địa chỉ nội bộ, chuyển
+  hướng, phản hồi nén/quá cỡ), lưu tạm 5 phút cả khi lỗi; lỗi thì chỉ ẩn con số.
+- **Không chọn**: lưu tài khoản/mật khẩu phần mềm khác hoặc RPA đăng nhập hộ — rủi ro bảo mật vượt quá lợi ích "thấy con số".
+- **Câu hỏi mở**: khi các phần mềm của tỉnh có API xác thực (SSO), huy hiệu cần thêm cơ chế uỷ quyền theo người dùng.
+
+## D-033 · 2026-11-13 · Lịch làm việc của lãnh đạo: dòng lịch có cấu trúc theo tuần, kèm tệp đã ký; công khai theo tuần và theo dòng
+
+- **Bối cảnh**: G-40 — người dân cần xem lịch làm việc của lãnh đạo UBND; đề xuất ban đầu là tải tệp lịch lên như văn bản.
+- **Chọn**: mỗi tuần một `WorkSchedule` (thứ Hai là khoá) gồm các `WorkScheduleEntry` (ngày, buổi/giờ, nội dung, lãnh đạo
+  chủ trì, địa điểm, thành phần, có công khai không) và tuỳ chọn một tệp PDF lịch đã ký. Văn phòng, văn thư, lãnh đạo, quản
+  trị lập lịch; mọi cán bộ xem. Trang công khai chỉ nhận tuần đã bấm công khai và chỉ các dòng được đánh dấu công khai —
+  máy chủ lọc, không trả mã bản ghi hay ghi chú nội bộ.
+- **Căn cứ**: dòng lịch có cấu trúc mới đưa được vào "Hôm nay · Ngày mai" của Bàn làm việc, đọc tốt trên điện thoại và
+  tách được cuộc họp nội bộ khỏi bản công khai; tệp PDF giữ giá trị pháp lý của bản đã ký.
+
+## D-034 · 2026-11-13 · Mã khôi phục mật khẩu qua tin nhắn: cổng SMS HTTP tuỳ chọn, số điện thoại do quản trị viên khai báo
+
+- **Chọn**: giữ luồng mã một lần sẵn có (HMAC, 10 phút, 5 lần thử, không lộ tài khoản có tồn tại hay không) và thêm kênh
+  tin nhắn gọi một cổng SMS HTTP bất kỳ qua biến môi trường (`SMS_GATEWAY_URL`, `SMS_GATEWAY_TOKEN`, `SMS_GATEWAY_BODY`,
+  `SMS_OTP_TEMPLATE`). Chưa khai báo thì màn Quên mật khẩu không hiện lựa chọn tin nhắn. Thêm trần 5 yêu cầu tin nhắn mỗi
+  giờ cho một tài khoản. Số di động thuộc hồ sơ tài khoản và chỉ quản trị viên sửa được, như email công vụ.
+- **Căn cứ**: hệ thống không ràng buộc nhà mạng; người dùng không tự đổi được nơi nhận mã nên chiếm phiên đăng nhập không
+  dẫn tới chiếm tài khoản.
+
+## D-035 · 2026-11-14 · Nhiệm vụ của văn bản chỉ đạo là chỉ tiêu loại Nhiệm vụ; mỗi văn bản chỉ đạo là một bộ loại TASK
+
+- **Bối cảnh**: G-10…G-16 — quản lý chương trình công tác, thông báo kết luận, kế hoạch; phân rã thành việc giao cho phòng;
+  xem "tháng này phòng phải làm gì"; thống kê việc thực hiện.
+- **Chọn**: không dựng hệ thống nhiệm vụ riêng. Mỗi văn bản chỉ đạo là một `Framework(kind=TASK)` có loại văn bản, số ký
+  hiệu, ngày ban hành và tệp trong Kho văn bản; mỗi việc là một `Target` loại TASK (mức giao 100 %, một hạn hoàn thành, không
+  có kỳ báo cáo định kỳ). Nhờ vậy nhiệm vụ dùng lại nguyên hồ sơ, báo cáo kết quả, minh chứng, duyệt, chỉ đạo, giải trình,
+  dòng thời gian và nhắc hạn của chỉ tiêu. Nhiệm vụ gắn được với một chỉ tiêu (`relatedTargetId`) để hồ sơ chỉ tiêu thấy
+  lãnh đạo đã chỉ đạo, thúc đẩy bằng những văn bản nào.
+- **Quy ước thống kê**: tháng thống kê là tháng đến hạn; "đúng hạn" tính theo ngày nộp báo cáo 100 % đã được duyệt (không
+  tính thời gian chờ duyệt vào lỗi của người làm); ngày trễ bình quân tính trên việc hoàn thành trễ, việc còn quá hạn đếm riêng.
+- **Căn cứ**: một cơ chế trách nhiệm cho cả chỉ tiêu và nhiệm vụ; ít mã, ít chỗ lệch quyền.
+
+## D-036 · 2026-11-14 · "Người phân việc" là thiết lập của địa phương: Lãnh đạo UBND hoặc Chánh Văn phòng
+
+- **Bối cảnh**: G-12 — ở Lái Thiêu Chánh Văn phòng phân việc cho các phòng; nơi khác do lãnh đạo UBND phân.
+- **Chọn**: `SystemSetting.dispatchMode` = `LEADER` (mặc định) hoặc `OFFICE`. Ở chế độ `OFFICE`, trưởng phòng của phòng loại
+  Văn phòng được tạo văn bản chỉ đạo, giao việc cho mọi phòng và duyệt đề xuất chỉ tiêu liên phòng (không tự duyệt đề xuất
+  của mình). Quyền phân việc **không** kèm quyền báo cáo thay chuyên viên hay giao chuyên viên thay trưởng phòng. Người phân
+  việc và thời điểm được ghi trên từng nhiệm vụ, từng đề xuất. Mọi nơi cần biết ai là người phân việc đều gọi `dispatch.ts`.
+- **Căn cứ**: D-009 — khác biệt giữa các địa phương là cấu hình, không phải mã riêng.
+
+## D-037 · 2026-11-14 · Quyền xem tách khỏi quyền ghi; lãnh đạo không ghi số liệu
+
+- **Bối cảnh**: G-23 (cán bộ xem được chỉ tiêu phòng khác, không sửa) và G-24 (lãnh đạo chỉ xem và duyệt; số chưa đúng thì
+  trả cho chuyên viên cập nhật lại).
+- **Chọn**: hai hàm phạm vi riêng — `resolveReadDepartmentScope` cho mọi truy vấn đọc, `resolveDepartmentScope` cho thao tác
+  ghi. Thiết lập `crossDepartmentView` (bật mặc định) cho chuyên viên, trưởng phòng, người xem đọc toàn địa phương; công tắc
+  "Phòng tôi / Toàn địa phương" mặc định là phòng mình. Việc của tôi, hàng chờ duyệt, số việc cần xử lý vẫn theo phạm vi công
+  việc. Vai trò `LEADER` bị chặn gửi báo cáo, nhập Excel và sửa kho dữ liệu; `ADMIN` vẫn ghi nhận số liệu ban đầu và được
+  ghi rõ "Quản trị ghi nhận".
+- **Chọn**: "Yêu cầu cập nhật lại" trên báo cáo đã duyệt — bản cũ giữ hiệu lực và số chính thức không đổi cho tới khi bản
+  thay thế của cùng kỳ được duyệt; toàn bộ lịch sử được giữ.
+- **Căn cứ**: người duyệt không đồng thời là người nhập; số chính thức không bao giờ rơi vào trạng thái "đang sửa".
+
+## D-038 · 2026-11-14 · Chỉ tiêu được nhiều văn bản giao: liên kết theo nhóm, không gộp bản ghi
+
+- **Bối cảnh**: G-21 — Thành phố giao một mức, Đảng uỷ phường giao cao hơn một nấc; AI chỉ phát hiện và báo, người có thẩm
+  quyền quyết định; sau khi xử lý phải thấy cả hai văn bản.
+- **Chọn**: các chỉ tiêu cùng nội dung ở những bộ khác nhau được đặt chung `linkGroupId`. Mỗi chỉ tiêu giữ nguyên mức giao,
+  văn bản giao và tiến độ riêng; báo cáo đã duyệt của một chỉ tiêu được **đồng bộ** sang các chỉ tiêu cùng nhóm (bản đồng bộ
+  trỏ về báo cáo gốc, minh chứng không sao chép). Hệ thống chỉ **gợi ý** cặp trùng (cùng mã chuẩn hoặc tên tương đồng, cùng
+  năm, đơn vị); liên kết, bỏ qua, bỏ liên kết đều do người có quyền bấm và có nhật ký. Chỉ liên kết chỉ tiêu nhập tay, không
+  có chỉ tiêu con, cùng tần suất và chiều đánh giá; nhiệm vụ của văn bản chỉ đạo không tham gia.
+- **Không chọn**: gộp thành một bản ghi nhiều mức giao — mất khả năng báo cáo riêng theo từng văn bản và khó tương thích với
+  báo cáo hai cấp giao của nhánh xử lý văn bản.
+- **Căn cứ**: nhập một lần, hai văn bản đều có số; đánh giá đạt/không đạt theo đúng mức của từng cấp giao.
+
+## D-039 · 2026-11-14 · Dự báo khả năng không đạt: hồi quy logistic thuần TypeScript, nói rõ khi chưa đủ dữ liệu
+
+- **Bối cảnh**: G-26 — đề tài cần AI dự đoán khả năng trễ của chỉ tiêu; dữ liệu các kỳ cũ sẽ được cung cấp sau.
+- **Chọn**: mô hình hồi quy logistic có chuẩn hoá và điều chuẩn L2, viết bằng TypeScript chạy ngay trong API (không thêm
+  dịch vụ Python). 17 đặc trưng lấy từ dữ liệu trách nhiệm sẵn có: mức đạt so với thời gian đã qua, xu hướng các kỳ gần,
+  tỷ lệ báo cáo trễ/thiếu, số lần trả lại, chuyển việc, giải trình đang mở, số ngày chưa giao người… Mẫu huấn luyện dựng tại
+  các mốc 25/50/65/80 % thời gian của những chỉ tiêu đã kết thúc và **không đọc dữ liệu sau mốc**; tách tập kiểm tra theo
+  nhóm chỉ tiêu. Giá trị cuối kỳ ngoại suy theo nhịp thực hiện, kèm khoảng dự báo từ phần dư.
+- **Trung thực về dữ liệu**: dưới 40 mẫu, 12 nhóm hoặc thiếu một lớp thì dùng hệ số tiên nghiệm và ghi rõ "chưa đủ dữ liệu";
+  lịch sử nhập để huấn luyện nằm ở bảng riêng (`ForecastHistory`), không đụng số vận hành; dữ liệu mô phỏng mang cờ
+  `simulated` và mọi màn hình, tệp xuất đều ghi nguồn. Bộ mẫu hiện là mô phỏng — chỉ số đánh giá chưa nói lên độ chính xác
+  trên số liệu thật.
+- **Phạm vi**: chỉ dự báo chỉ tiêu kế hoạch và chấm điểm; chỉ tiêu thống kê không có mức giao, nhiệm vụ chỉ có xong/chưa
+  xong nên theo dõi bằng hạn.
+- **Câu hỏi mở**: cần lịch sử thật của địa phương để hiệu chuẩn và đánh giá lại trước khi dùng xác suất cho quyết định.

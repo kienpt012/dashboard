@@ -40,3 +40,8 @@
 .ws-calendar-lunar .ws-widget-calendar-grid > span { aspect-ratio: auto; height: 100%; max-height: none; }
 .ws-calendar-lunar .ws-widget-calendar-grid > .ws-calendar-day { aspect-ratio: auto; min-height: 24px; height: 100%; max-height: 33px; }
 .ws-note-toolbar button:focus-visible, .ws-note-preview button:focus-visible, .ws-calendar-day:focus-visible { outline: 2px solid var(--ws-accent, #b1adff); outline-offset: 2px; }
+
+/* Dated personal tasks remain usable in narrow widgets and on phones. */
+.ws-widget-task-add { flex-wrap: wrap; }
+.ws-widget-task-add input:not([type=date]) { min-width: 110px; flex: 1 1 130px; }
+.ws-widget-task-add input[type=date] { flex: 0 1 132px; width: 132px; min-width: 0; }

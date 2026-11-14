@@ -78,7 +78,7 @@ Chỉ tiêu tự tính lấy số từ bảng trong **Kho dữ liệu** (DL-01) 
 3. **`Tử số`** — phép tính, cột dữ liệu và số bản ghi khớp điều kiện.
 4. **`Mẫu số`** — tương tự tử số (chỉ có ở công thức tỷ lệ).
 5. **Phép tính** — kết quả cuối cùng.
-6. **`Nguồn`, `Phạm vi`** — bảng dữ liệu nguồn (bấm để mở DL-05) và phạm vi thời gian của kỳ.
+6. **`Nguồn, Phạm vi`** — bảng dữ liệu nguồn (bấm để mở DL-05) và phạm vi thời gian của kỳ.
 7. **Báo cáo tự tính** — mỗi lần dữ liệu nguồn thay đổi, hệ thống ghi một báo cáo, nêu người đã cập nhật dữ liệu.
 
 > Muốn số liệu đúng, cập nhật bảng dữ liệu nguồn (DL-05). Thẻ cảnh báo vàng trong khung `Cách tính` cho biết dữ liệu thiếu hoặc công thức chưa đọc được.
@@ -87,9 +87,9 @@ Chỉ tiêu tự tính lấy số từ bảng trong **Kho dữ liệu** (DL-01) 
 
 ![Chỉ tiêu cha và bảng chỉ tiêu con](anh/ct-06-chi-tieu-con.png)
 
-1. **Nhãn `Tổng hợp từ chỉ tiêu con`.**
-2. **`Chỉ tiêu giao`, `Thực hiện`** — tiến độ của chỉ tiêu cha tính từ các chỉ tiêu con.
-3. **Thông báo `Số liệu tổng hợp từ các chỉ tiêu con`** — không báo cáo trực tiếp ở chỉ tiêu cha.
+1. **Nhãn** `Tổng hợp từ chỉ tiêu con`.
+2. **`Chỉ tiêu giao, Thực hiện`** — tiến độ của chỉ tiêu cha tính từ các chỉ tiêu con.
+3. **Thông báo** `Số liệu tổng hợp từ các chỉ tiêu con` — không báo cáo trực tiếp ở chỉ tiêu cha.
 4. **`Chỉ tiêu con`** — mỗi dòng ghi chỉ tiêu, phòng và người phụ trách, giao, thực hiện; bấm tiêu đề cột để sắp xếp.
 5. **Tên chỉ tiêu con** — bấm để mở hồ sơ chỉ tiêu con và báo cáo tại đó.
 
@@ -130,7 +130,7 @@ Thẻ `Chỉ đạo điều hành` lưu văn bản, kết luận của lãnh đ�
 1. **`Thêm văn bản`** — mở hộp `Thêm văn bản chỉ đạo`.
 2. **Văn bản chỉ đạo** — loại, số hiệu, ngày, cơ quan ban hành, trích yếu, nội dung chính và tệp đính kèm.
 3. **Gỡ văn bản** — biểu tượng thùng rác, có hỏi xác nhận.
-4. **Liên kết `Yêu cầu giải trình`** — mở nhanh việc yêu cầu giải trình.
+4. **Liên kết** `Yêu cầu giải trình` — mở nhanh việc yêu cầu giải trình.
 
 **Thêm văn bản chỉ đạo:**
 
@@ -161,10 +161,10 @@ Thẻ `Chỉ đạo điều hành` lưu văn bản, kết luận của lãnh đ�
 
 ![Thẻ Đánh giá](anh/ct-06-danh-gia.png)
 
-1. **Nút `Đánh giá`** — dành cho lãnh đạo, quản trị và trưởng phòng chủ trì.
+1. **Nút** `Đánh giá` — dành cho lãnh đạo, quản trị và trưởng phòng chủ trì.
 2. **Lần đánh giá** — kỳ, kết quả, nhận xét, biện pháp khắc phục, người đánh giá.
 3. **`Sửa`** — chỉnh lần đánh giá đã lưu.
-4. **Thẻ `Giải trình`** — đặt cạnh để đối chiếu khi đánh giá.
+4. **Thẻ** `Giải trình` — đặt cạnh để đối chiếu khi đánh giá.
 
 **Lập đánh giá:**
 
@@ -191,3 +191,38 @@ Thẻ `Dòng thời gian` ghi mọi việc đã làm với chỉ tiêu theo th�
 Trong thẻ `Nguồn số liệu` ở cột phải, trưởng phòng chủ trì, chuyên viên phụ trách, lãnh đạo, văn thư hoặc quản trị bấm `Sửa` để cập nhật `Hệ thống / nguồn số liệu`, `Cơ quan, bộ phận cung cấp`, `Cách lấy số liệu`, `Đường dẫn tra cứu`, `Yêu cầu minh chứng` và `Hạn báo cáo (ngày trong tháng cuối kỳ)`, rồi bấm `Lưu`. Các thông tin này hiện sẵn khi chuyên viên báo cáo.
 
 > Chỉ tiêu đã lưu trữ hiện thông báo vàng kèm ngày và lý do; mọi nút thao tác bị ẩn, số liệu cũ vẫn xem được.
+
+#### Bổ sung từ bản tháng 11/2026
+
+![Hồ sơ chỉ tiêu: mức giao theo văn bản và dự báo](anh/ct-06-muc-giao.png)
+
+- **Dòng định danh dưới tên chỉ tiêu** ghi số thứ tự, số ký hiệu văn bản giao và cấp giao. Mã hệ thống nằm ở đầu dòng, có nút chép.
+- **Nhãn** `Chỉ xem` hiện khi đang mở hồ sơ của phòng khác bằng quyền xem liên phòng (mục 1.2): xem được số liệu, minh chứng, dòng thời gian nhưng không có nút thao tác.
+- **Khối** `Mức giao theo văn bản` hiện khi chỉ tiêu đang liên kết với chỉ tiêu cùng nội dung ở văn bản khác (CT-02): mỗi dòng là một văn bản giao với mức giao, số thực hiện và kết quả theo mức đó; văn bản cấp cao hơn xếp trước. Bấm `Bỏ liên kết` để tách ra; các báo cáo đã đồng bộ vẫn được giữ.
+- **Khối** `Nhiệm vụ liên quan` liệt kê các nhiệm vụ của văn bản chỉ đạo đã gắn với chỉ tiêu này (DH-06), để thấy lãnh đạo đã chỉ đạo, thúc đẩy bằng những văn bản nào.
+
+#### Đọc khối Dự báo
+Khối `Dự báo` có với chỉ tiêu kế hoạch và chấm điểm còn hạn, đã có ít nhất một kỳ số liệu được duyệt.
+- **`Xác suất không đạt đúng hạn`** — khả năng chỉ tiêu không đạt mức giao khi hết hạn, kèm mức `Thấp` (dưới 40 %), `Trung bình` (40–70 %) hoặc `Cao` (từ 70 %). Hai đầu ghi `dưới 5%`, `trên 95%`.
+- **`Giá trị dự báo cuối kỳ`** — số ước tính đạt được khi hết hạn nếu giữ nhịp thực hiện như các kỳ gần đây, đặt cạnh mức giao.
+- **`Khoảng tin cậy`** — khoảng mà giá trị cuối kỳ có nhiều khả năng rơi vào; ghi `Chưa đủ kỳ` khi số kỳ đã báo cáo còn ít.
+- **Các yếu tố** — hai, ba lý do chính dẫn tới kết quả dự báo, ví dụ `Đạt 77% khi đã qua 87% thời gian`, `Nhịp thực hiện các kỳ gần đây tăng`.
+- **Biểu đồ** — đường thực hiện theo thời gian, đoạn dự báo đến hết hạn và đường mức giao.
+
+> Dự báo là công cụ cảnh báo sớm, không thay cho đánh giá chính thức. Dòng nguồn dưới khối ghi mô hình được huấn luyện ngày nào, bằng bao nhiêu mẫu và có dùng dữ liệu mô phỏng hay không; chỉ nên dựa vào xác suất khi mô hình đã được huấn luyện bằng số liệu thật của địa phương (HT-09). Chỉ tiêu thống kê và nhiệm vụ không có dự báo.
+
+#### Yêu cầu cập nhật lại số liệu đã duyệt
+Dùng khi báo cáo đã duyệt nhưng sau đó phát hiện số chưa đúng. Lãnh đạo và trưởng phòng không tự sửa con số mà yêu cầu người phụ trách gửi lại.
+1. Trong thẻ `Thực hiện`, tại báo cáo đã duyệt của kỳ cần sửa, bấm `Yêu cầu cập nhật lại`.
+2. Nhập lý do, bấm gửi. Người phụ trách nhận thông báo; việc này hiện ở nhóm `Cần cập nhật lại` trong **Việc của tôi** (DH-02).
+3. Người phụ trách gửi báo cáo thay thế cho đúng kỳ đó; trưởng phòng duyệt như thường lệ.
+
+Trong lúc chờ, số liệu chính thức vẫn là số của báo cáo cũ. Chỉ khi báo cáo thay thế được duyệt thì số mới thay số cũ; báo cáo cũ vẫn nằm trong lịch sử.
+
+#### Hồ sơ của nhiệm vụ
+Nhiệm vụ của văn bản chỉ đạo (DH-06) dùng chung màn hình hồ sơ với chỉ tiêu, có vài điểm khác:
+- Nút báo cáo ghi `Báo cáo kết quả`: nhập tỷ lệ hoàn thành (0–100 %), nội dung kết quả và minh chứng; không chọn kỳ.
+- Dòng định danh ghi người phân việc và thời điểm phân việc.
+- Không có khối `Dự báo` và `Mức giao theo văn bản`.
+
+> Với tài khoản quản trị, nút báo cáo ghi `Quản trị ghi nhận`: dùng để nhập số liệu ban đầu khi đưa hệ thống vào sử dụng; dòng thời gian ghi rõ là quản trị ghi nhận. Tài khoản lãnh đạo không có nút báo cáo và không nhập được Excel.

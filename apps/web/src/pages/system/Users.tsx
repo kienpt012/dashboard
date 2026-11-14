@@ -30,7 +30,7 @@ function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; 
     form.resetFields();
     form.setFieldsValue(
       item
-        ? { fullName: item.fullName, email: item.email ?? '', role: item.role, position: item.position ?? '', departmentId: item.departmentId ?? undefined, isActive: item.isActive }
+        ? { fullName: item.fullName, email: item.email ?? '', phone: item.phone ?? '', role: item.role, position: item.position ?? '', departmentId: item.departmentId ?? undefined, isActive: item.isActive }
         : { role: 'STAFF' },
     );
   }, [open, item, form]);
@@ -40,6 +40,7 @@ function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; 
       const body = {
         ...values,
         email: (values.email as string)?.trim() || (item ? null : undefined),
+        phone: (values.phone as string)?.trim() || (item ? null : undefined),
         position: (values.position as string)?.trim() || (item ? null : undefined),
         departmentId: values.role === 'ADMIN' ? null : values.departmentId ?? null,
         password: self ? undefined : (values.password as string) || undefined,
@@ -78,6 +79,14 @@ function UserForm({ open, item, onClose }: { open: boolean; item?: User | null; 
         </Form.Item>
         <Form.Item name="email" label="Email công vụ" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
           <Input />
+        </Form.Item>
+        <Form.Item
+          name="phone"
+          label="Số điện thoại di động"
+          extra="Dùng để nhận mã khôi phục mật khẩu qua tin nhắn"
+          rules={[{ pattern: /^(\+?84|0)[35789](\s?[.\-]?\d){8}$/, message: 'Số di động chưa đúng, ví dụ 0912 345 678' }]}
+        >
+          <Input inputMode="tel" autoComplete="off" maxLength={20} />
         </Form.Item>
         {!self && <Form.Item
           name="password"

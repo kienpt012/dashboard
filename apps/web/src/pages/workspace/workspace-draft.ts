@@ -3,6 +3,15 @@ import { validConfig, type WorkspaceConfig } from './model';
 export type WorkspaceDraft = { userId: string; basedOnVersion: number; config: WorkspaceConfig };
 type StorageReader = Pick<Storage, 'getItem'>;
 
+/** A duplicated browser tab copies sessionStorage. Give each document a new write key;
+ * the inherited key is read-only recovery, so the two tabs can never replace each other's edits. */
+export function allocateWorkspaceTab(storage: Pick<Storage, 'getItem' | 'setItem'>, createId = () => crypto.randomUUID()) {
+  const id = createId();
+  const recoveryId = storage.getItem('ioc_workspace_tab');
+  storage.setItem('ioc_workspace_tab', id);
+  return { id, recoveryId };
+}
+
 /** Separate accounts and tabs so an unfinished edit cannot replace another tab's draft. */
 export const workspaceDraftKey = (userId: string, tabId: string) => `ioc_workspace_draft:${encodeURIComponent(userId)}:${tabId}`;
 

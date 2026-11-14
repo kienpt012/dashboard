@@ -1,5 +1,7 @@
 import { Prisma, Role } from '@prisma/client';
 import type { Actor } from './access';
+import { docRefText, DOC_REF_INCLUDE } from './doc-ref';
+import { notificationTitle } from './notification-reference';
 
 // Dòng thời gian trách nhiệm và thông báo trong ứng dụng.
 // Mọi thao tác giao, chuyển, trả, duyệt, tự thông qua… đều ghi một WorkEvent trong CÙNG transaction với
@@ -7,6 +9,12 @@ import type { Actor } from './access';
 // theo từng người nhận nên bộ giám sát thời hạn chạy lại nhiều lần cũng không nhắc trùng.
 
 export const WORK_ACTIONS = {
+  REPORT_REVISION_REQUESTED: 'Yêu cầu cập nhật lại số liệu',
+  REPORT_REVISION_RESOLVED: 'Đã cập nhật lại số liệu',
+  TARGET_LINKED: 'Liên kết chỉ tiêu',
+  TARGET_LINK_IGNORED: 'Bỏ qua gợi ý liên kết',
+  TARGET_UNLINKED: 'Bỏ liên kết chỉ tiêu',
+  REPORT_MIRRORED: 'Đồng bộ báo cáo',
   TARGET_CREATED: 'Tạo chỉ tiêu',
   TARGET_UPDATED: 'Cập nhật định nghĩa chỉ tiêu',
   ASSIGNED: 'Giao chuyên viên phụ trách',
@@ -36,7 +44,7 @@ export const WORK_ACTIONS = {
 
 export type WorkAction = keyof typeof WORK_ACTIONS;
 
-type WorkClient = Pick<Prisma.TransactionClient, 'workEvent' | 'notification' | 'user'>;
+type WorkClient = Pick<Prisma.TransactionClient, 'workEvent' | 'notification' | 'user'> & Partial<Pick<Prisma.TransactionClient, 'target'>>;
 
 export interface WorkEventInput {
   action: WorkAction;
@@ -85,6 +93,10 @@ export async function notifyUsers(
 ): Promise<number> {
   const recipients = [...new Set([...userIds].filter((id): id is string => Boolean(id) && id !== exceptUserId && id !== 'system'))];
   if (!recipients.length) return 0;
+  if (input.entityType === 'Target' && input.entityId && tx.target?.findUnique) {
+    const target = await tx.target.findUnique({ where: { id: input.entityId }, include: { department: { select: { name: true } }, ...DOC_REF_INCLUDE } });
+    if (target) input = { ...input, title: notificationTitle(input.title, input.kind, target.title), body: [target.department?.name, docRefText(target), input.body === target.title ? null : input.body].filter(Boolean).join(' · ') };
+  }
   const result = await tx.notification.createMany({
     data: recipients.map(userId => ({
       userId,
@@ -112,7 +124,7 @@ export async function departmentManagerIds(tx: WorkClient, departmentId: string 
 }
 
 /** Lãnh đạo UBND đang hoạt động; địa phương chưa tạo tài khoản lãnh đạo thì gửi cho quản trị hệ thống. */
-export async function leaderIds(tx: WorkClient): Promise<string[]> {
+export async function leaderIds(tx: Pick<WorkClient, 'user'>): Promise<string[]> {
   const leaders = await tx.user.findMany({ where: { role: Role.LEADER, isActive: true }, select: { id: true } });
   if (leaders.length) return leaders.map(user => user.id);
   const admins = await tx.user.findMany({ where: { role: Role.ADMIN, isActive: true }, select: { id: true } });

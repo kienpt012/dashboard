@@ -206,6 +206,11 @@ enum DirectiveKind {
   KHAC
 }
 
+enum DispatchMode {
+  LEADER
+  OFFICE
+}
+
 enum EvaluationResult {
   EXCEEDED
   ACHIEVED
@@ -273,6 +278,8 @@ model User {
   // Chức vụ hiển thị (Chủ tịch, Trưởng phòng, Chuyên viên…) — thẩm quyền vẫn do role quyết định.
   position                String?
   email                   String?                  @unique
+  // Số di động nhận mã khôi phục mật khẩu qua tin nhắn (dạng 0xxxxxxxxx); do quản trị viên khai báo.
+  phone                   String?
   role                    Role                     @default(STAFF)
   isActive                Boolean                  @default(true)
   departmentId            String?
@@ -293,6 +300,9 @@ model User {
   explanationRequests     ExplanationRequest[]     @relation("ExplanationRequester")
   bugReports              BugReport[]
   workspace               UserWorkspace?
+  authoredDeskNotes       DeskNote[] @relation("DeskNoteAuthor")
+  deskNoteRecipients     DeskNoteRecipient[]
+  deskNoteReplies        DeskNoteReply[]
 }
 
 // Bàn làm việc riêng; không chia sẻ cấu hình, ghi chú hay lối tắt giữa tài khoản.
@@ -303,6 +313,69 @@ model UserWorkspace {
   version   Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DeskNote {
+  id String @id @default(cuid())
+  authorId String
+  author User @relation("DeskNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  content String @db.VarChar(500)
+  color String @default("yellow")
+  dueAt DateTime?
+  targetId String?
+  target Target? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  documentId String?
+  document SourceDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  recalledAt DateTime?
+  createdAt DateTime @default(now())
+  recipients DeskNoteRecipient[]
+  replies DeskNoteReply[]
+  @@index([authorId, createdAt])
+  @@index([targetId])
+}
+
+model DeskNoteRecipient {
+  noteId String
+  note DeskNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seenAt DateTime?
+  doneAt DateTime?
+  hiddenAt DateTime?
+  x Float?
+  y Float?
+  @@id([noteId, userId])
+  @@index([userId, hiddenAt])
+}
+
+model DeskNoteReply {
+  id String @id @default(cuid())
+  noteId String
+  note DeskNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  authorId String
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content String @db.VarChar(300)
+  createdAt DateTime @default(now())
+  @@index([noteId, createdAt])
+}
+
+model WorkApp {
+  id String @id @default(cuid())
+  name String @db.VarChar(80)
+  url String @db.VarChar(2048)
+  icon String @default("AppstoreOutlined") @db.VarChar(40)
+  color String @default("#1677ff")
+  group String @default("Công vụ") @db.VarChar(80)
+  description String @default("") @db.VarChar(200)
+  roles Role[] @default([])
+  departmentIds String[] @default([])
+  sortOrder Int @default(0)
+  isActive Boolean @default(true)
+  badgeUrl String? @db.VarChar(2048)
+  badgePath String? @db.VarChar(200)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([isActive, sortOrder])
 }
 
 model PasswordResetChallenge {
@@ -336,12 +409,20 @@ model Target {
   issuingLevel             IssuingLevel         @default(LOCAL)
   ordinal                  String?
   standardCode             String?
+  // Cùng số liệu thực hiện, giữ riêng mức giao và văn bản của từng chỉ tiêu.
+  linkGroupId              String?
   // Nhóm trong bộ chỉ tiêu (vd "02. Kinh tế", "Nhận thức số") để hiển thị theo mục như văn bản giao.
   groupName                String?
   sortOrder                Int                  @default(0)
   parentId                 String?
   parent                   Target?              @relation("TargetTree", fields: [parentId], references: [id], onDelete: SetNull)
   children                 Target[]             @relation("TargetTree")
+  relatedTargetId          String?
+  relatedTarget            Target?              @relation("RelatedTask", fields: [relatedTargetId], references: [id], onDelete: SetNull)
+  relatedTasks             Target[]             @relation("RelatedTask")
+  dispatchedById           String?
+  dispatchedByName         String?
+  dispatchedAt             DateTime?
   // Mục tiêu nguyên văn trong văn bản giao ("≥95", "Phấn đấu 100%") bên cạnh giá trị số.
   targetText               String?
   maxScore                 Float?
@@ -386,6 +467,9 @@ model Target {
   publishedDirection       TargetDirection?
   publishedStatus          TargetStatus?
   publishedCode            String?
+  publishedDocRef          String?
+  publishedOrdinal         String?
+  publishedIssuingLevel    IssuingLevel?
   publishedTitle           String?
   publishedDescription     String?
   publishedUnit            String?
@@ -417,6 +501,7 @@ model Target {
   workEvents               WorkEvent[]
   explanationRequests      ExplanationRequest[]
   sourceAnchor             SourceAnchor?
+  deskNotes                DeskNote[]
 
   @@index([year, status])
   @@index([departmentId])
@@ -424,10 +509,19 @@ model Target {
   @@index([frameworkId, sortOrder])
   @@index([parentId])
   @@index([assigneeId])
+  @@index([relatedTargetId])
+  @@index([linkGroupId])
 }
 
 model ProgressUpdate {
+  revisionRequestedAt DateTime?
+  revisionRequestedBy String?
+  revisionReason String?
+  revisionResolvedAt DateTime?
   id            String               @id @default(cuid())
+  mirroredFromId String?
+  mirroredFrom   ProgressUpdate?      @relation("MirroredReport", fields: [mirroredFromId], references: [id], onDelete: SetNull)
+  mirrors        ProgressUpdate[]     @relation("MirroredReport")
   value         Float
   // Kỳ báo cáo: 2026, 2026-H1, 2026-Q3, 2026-M09.
   periodKey     String?
@@ -453,6 +547,16 @@ model ProgressUpdate {
   @@index([reviewStatus, targetId])
   @@index([targetId, periodKey])
   @@index([importBatchId, reviewStatus])
+  @@unique([targetId, mirroredFromId])
+}
+
+// Bỏ qua gợi ý theo cặp; mã cặp sắp xếp ổn định, không phụ thuộc chiều gợi ý.
+model TargetLinkDismissal {
+  pairKey     String   @id
+  targetId    String
+  otherTargetId String
+  actorId     String
+  createdAt   DateTime @default(now())
 }
 
 model ImportBatch {
@@ -476,7 +580,9 @@ model ImportBatch {
 }
 
 model SystemSetting {
+  crossDepartmentView         Boolean  @default(true)
   id                          String   @id @default("default")
+  dispatchMode                DispatchMode @default(LEADER)
   defaultYear                 Int      @default(2026)
   warningDays                 Int      @default(14)
   riskThreshold               Float    @default(70)
@@ -673,6 +779,7 @@ model SourceDocument {
   evidences       Evidence[]
   frameworks      Framework[]
   anchors         SourceAnchor[]
+  deskNotes       DeskNote[]
 
   @@index([status, createdAt])
   @@index([departmentId, createdAt])
@@ -967,6 +1074,11 @@ model Framework {
   maxScore         Float?
   templateKey      String?
   sourceDocumentId String?
+  directiveKind    DirectiveKind?
+  docNumber        String?
+  issuedDate       DateTime?
+  issuer           String?
+  signer           String?
   sourceDocument   SourceDocument?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   sortOrder        Int                  @default(0)
   showOnWallboard  Boolean              @default(true)
@@ -978,6 +1090,7 @@ model Framework {
   candidates       IndicatorCandidate[]
 
   @@index([isActive, sortOrder])
+  @@index([kind, issuedDate])
 }
 
 model TargetCoordinator {
@@ -1183,4 +1296,91 @@ model BugReport {
   createdAt      DateTime        @default(now())
 
   @@index([status, createdAt])
+}
+
+// Lịch làm việc theo tuần của lãnh đạo UBND (G-40). Mỗi tuần một bản ghi, khoá theo ngày thứ Hai. Tệp lịch đã ký (PDF)
+// là tuỳ chọn. Người dân chỉ thấy tuần đã công khai và những dòng được đánh dấu công khai.
+model WorkSchedule {
+  id            String              @id @default(cuid())
+  weekStart     DateTime            @unique @db.Date
+  title         String?
+  note          String?
+  isPublic      Boolean             @default(false)
+  publishedAt   DateTime?
+  publishedById String?
+  fileName      String?
+  fileMime      String?
+  fileSize      Int?
+  fileData      Bytes?
+  createdById   String?
+  updatedById   String?
+  version       Int                 @default(1)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  entries       WorkScheduleEntry[]
+}
+
+model WorkScheduleEntry {
+  id           String       @id @default(cuid())
+  scheduleId   String
+  schedule     WorkSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date         DateTime     @db.Date
+  // ALLDAY | AM | PM | EVENING
+  session      String
+  startTime    String?
+  content      String
+  // Lãnh đạo chủ trì, ghi như trên lịch đã ký.
+  leader       String
+  location     String?
+  participants String?
+  isPublic     Boolean      @default(true)
+  sortOrder    Int          @default(0)
+
+  @@index([scheduleId, date, sortOrder])
+}
+
+// Mô hình thống kê có phiên bản; chỉ số chỉ tính trên tập kiểm tra tách theo chỉ tiêu.
+model ForecastModel {
+  id               String   @id @default(cuid())
+  featureVersion   String
+  trained          Boolean
+  coefficients     Json
+  means            Json
+  scales           Json
+  intercept        Float
+  sampleCount      Int
+  targetCount      Int
+  trainSamples     Int
+  testSamples      Int
+  simulatedSamples Int      @default(0)
+  metrics          Json?
+  fallbackReason   String?
+  trainedById      String?
+  trainedAt        DateTime @default(now())
+
+  @@index([trainedAt(sort: Desc)])
+}
+
+// Dữ liệu nhập riêng để huấn luyện; không thay số liệu vận hành của Target/ProgressUpdate.
+model ForecastHistory {
+  id           String          @id @default(cuid())
+  seriesKey    String
+  year         Int
+  title        String
+  periodKey    String
+  value        Float
+  targetValue  Float
+  unit         String          @default("")
+  direction    TargetDirection @default(HIGHER_IS_BETTER)
+  kind         FrameworkKind   @default(PLAN)
+  frequency    TargetFrequency @default(MONTHLY)
+  reportedAt   DateTime
+  dueDate      DateTime
+  simulated    Boolean         @default(false)
+  source       String
+  importedById String?
+  createdAt    DateTime        @default(now())
+
+  @@unique([seriesKey, year, periodKey, simulated])
+  @@index([year, simulated])
 }

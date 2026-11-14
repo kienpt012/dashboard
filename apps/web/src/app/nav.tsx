@@ -5,6 +5,7 @@ import {
   AuditOutlined,
   BarChartOutlined,
   BugOutlined,
+  CalendarOutlined,
   ControlOutlined,
   DashboardOutlined,
   DatabaseOutlined,
@@ -23,7 +24,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
-import { ADMINS, ALL, APPROVERS, IMPORTERS, SUPERVISORS } from '@/lib/roles';
+import { ADMINS, ALL, APPROVERS, IMPORTERS, LEADERSHIP, SUPERVISORS } from '@/lib/roles';
 import type { Role } from '@/types/auth';
 
 export type NavItem = {
@@ -52,6 +53,9 @@ export const navGroups: NavGroup[] = [
       { path: '/admin/viec-cua-toi', label: 'Việc của tôi', icon: <InboxOutlined />, roles: ALL, screen: 'DH-02', keywords: 'viec cua toi can lam' },
       { path: '/trinh-chieu', label: 'Trình chiếu', icon: <FundProjectionScreenOutlined />, roles: ALL, screen: 'DH-03', keywords: 'trinh chieu man hinh lon phong hop', standalone: true },
       { path: '/admin/trach-nhiem', label: 'Trách nhiệm', icon: <AuditOutlined />, roles: SUPERVISORS, screen: 'DH-04', keywords: 'trach nhiem cham duyet nguoi dung dau' },
+      { path: '/admin/van-ban-chi-dao', label: 'Văn bản chỉ đạo', icon: <FileTextOutlined />, roles: ALL, screen: 'DH-05', keywords: 'van ban chi dao nhiem vu phan viec thong ke' },
+      { path: '/admin/viec-theo-thang', label: 'Việc theo tháng', icon: <InboxOutlined />, roles: ALL, screen: 'DH-07', keywords: 'viec theo thang ke hoach cong tac in danh sach' },
+      { path: '/admin/lich-lam-viec', label: 'Lịch làm việc', icon: <CalendarOutlined />, roles: ALL, screen: 'DH-08', keywords: 'lich lam viec lich cong tac lanh dao tuan' },
     ],
   },
   {
@@ -85,10 +89,12 @@ export const navGroups: NavGroup[] = [
       { path: '/admin/thiet-lap', label: 'Thiết lập địa phương', icon: <ToolOutlined />, roles: ADMINS, screen: 'HT-01', keywords: 'thiet lap dia phuong khoi tao' },
       { path: '/admin/departments', label: 'Phòng ban', scopedLabel: 'Thông tin phòng', icon: <ApartmentOutlined />, roles: ALL, screen: 'HT-02', keywords: 'phong ban don vi' },
       { path: '/admin/users', label: 'Tài khoản', icon: <TeamOutlined />, roles: ADMINS, screen: 'HT-03', keywords: 'tai khoan nguoi dung phan quyen' },
+      { path: '/admin/du-bao', label: 'Mô hình dự báo', icon: <FundProjectionScreenOutlined />, roles: LEADERSHIP, screen: 'HT-09', keywords: 'mo hinh du bao nguy co huan luyen lich su' },
       { path: '/admin/settings', label: 'Cấu hình', icon: <ControlOutlined />, roles: ADMINS, screen: 'HT-04', keywords: 'cau hinh thoi han nguong' },
       { path: '/admin/audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, roles: ADMINS, screen: 'HT-05', keywords: 'nhat ky lich su thao tac' },
-      { path: '/admin/bao-loi', label: 'Báo lỗi', icon: <BugOutlined />, roles: ADMINS, screen: 'HT-06', keywords: 'bao loi gop y' },
+      { path: '/admin/bao-loi', label: 'Góp ý, báo lỗi', icon: <BugOutlined />, roles: ADMINS, screen: 'HT-06', keywords: 'bao loi gop y' },
       { path: '/admin/profile', label: 'Hồ sơ cá nhân', icon: <UserOutlined />, roles: ALL, screen: 'HT-07', keywords: 'ho so mat khau bao mat' },
+      { path: '/admin/ung-dung', label: 'Ứng dụng công vụ', icon: <AppstoreOutlined />, roles: ADMINS, screen: 'HT-08', keywords: 'ung dung cong vu phan mem dock loi tat' },
     ],
   },
 ];
@@ -96,6 +102,7 @@ export const navGroups: NavGroup[] = [
 export const navItems = navGroups.flatMap(group => group.items);
 
 const EXTRA: { prefix: string; label: string; screen: string; group: string }[] = [
+  { prefix: '/admin/van-ban-chi-dao/', label: 'Chi tiết văn bản chỉ đạo', screen: 'DH-06', group: 'Điều hành' },
   { prefix: '/admin/targets/', label: 'Hồ sơ chỉ tiêu', screen: 'CT-06', group: 'Chỉ tiêu' },
   { prefix: '/admin/documents/', label: 'Xác minh trích xuất', screen: 'DL-04', group: 'Dữ liệu' },
   { prefix: '/admin/kho-du-lieu/', label: 'Bảng dữ liệu', screen: 'DL-05', group: 'Dữ liệu' },

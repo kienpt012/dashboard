@@ -59,10 +59,10 @@ export function BugReport() {
 
   return (
     <>
-      <Tooltip title="Báo lỗi màn hình này">
-        <Button type="text" icon={<BugOutlined />} onClick={start} aria-label="Báo lỗi" className="head-btn" />
+      <Tooltip title="Góp ý, báo lỗi về màn hình này">
+        <Button type="text" icon={<BugOutlined />} onClick={start} aria-label="Góp ý, báo lỗi" className="head-btn" />
       </Tooltip>
-      <Modal title="Báo lỗi" open={open} onCancel={() => setOpen(false)} onOk={() => void submit()} okText="Gửi" confirmLoading={sending} width={560} destroyOnHidden>
+      <Modal title="Góp ý, báo lỗi" open={open} onCancel={() => setOpen(false)} onOk={() => void submit()} okText="Gửi" confirmLoading={sending} width={560} destroyOnHidden>
         <Descriptions
           size="small"
           column={1}

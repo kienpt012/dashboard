@@ -1,15 +1,24 @@
 import { BadRequestException, Body, ConflictException, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, Max, Min, ValidateIf } from 'class-validator';
 import { audit, getActor } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { PrismaService } from './prisma.service';
 import { currentVietnamYear } from './planning-date';
+import { isDispatcher } from './dispatch';
 
 const ValidateIfDefined = () => ValidateIf((_object, value) => value !== undefined);
 
 export class UpdateSystemSettingDto {
+  @ValidateIfDefined()
+  @IsIn(['LEADER', 'OFFICE'], { message: 'Người phân việc phải là Lãnh đạo UBND hoặc Chánh Văn phòng' })
+  dispatchMode?: 'LEADER' | 'OFFICE';
+
+  @ValidateIfDefined()
+  @IsBoolean()
+  crossDepartmentView?: boolean;
+
   @IsInt()
   @Min(1)
   expectedVersion!: number;
@@ -112,9 +121,13 @@ export class SettingsController {
   /** Phần cấu hình mà giao diện của mọi người dùng cần đọc. */
   @Get('client')
   @Roles(Role.ADMIN, Role.LEADER, Role.CLERK, Role.MANAGER, Role.STAFF, Role.VIEWER)
-  async client() {
-    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true } });
-    return { jarvisIntro: setting?.jarvisIntro ?? true };
+  async client(@Req() req: any) {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { jarvisIntro: true, dispatchMode: true, crossDepartmentView: true } });
+    return {
+      jarvisIntro: setting?.jarvisIntro ?? true,
+      crossDepartmentView: setting?.crossDepartmentView ?? true,
+      permissions: { canDispatch: isDispatcher(getActor(req), setting) },
+    };
   }
 
   @Get()
@@ -131,6 +144,7 @@ export class SettingsController {
     }
     return {
       id: 'default',
+      dispatchMode: 'LEADER',
       defaultYear: currentVietnamYear(),
       warningDays: 14,
       riskThreshold: 70,
@@ -144,6 +158,7 @@ export class SettingsController {
       maxTransfers: 1,
       wallboardRotateSeconds: 20,
       jarvisIntro: true,
+      crossDepartmentView: true,
       version: 1,
       updatedBy: null,
       updatedAt: null,
@@ -176,6 +191,7 @@ export class SettingsController {
         if (dto.expectedVersion !== 1) throw new ConflictException('Thiết lập vừa được khởi tạo. Vui lòng tải lại.');
         setting = await tx.systemSetting.create({ data: {
           id: 'default',
+          dispatchMode: dto.dispatchMode ?? 'LEADER',
           defaultYear: dto.defaultYear ?? currentVietnamYear(),
           warningDays: dto.warningDays ?? 14,
           riskThreshold: dto.riskThreshold ?? 70,
@@ -189,11 +205,17 @@ export class SettingsController {
           maxTransfers: dto.maxTransfers ?? 1,
           wallboardRotateSeconds: dto.wallboardRotateSeconds ?? 20,
           jarvisIntro: dto.jarvisIntro ?? true,
+          crossDepartmentView: dto.crossDepartmentView ?? true,
           updatedBy: actor.username,
         } });
         changedFields = Object.keys(dto).filter(field => field !== 'expectedVersion');
       } else {
         const updates = {
+          ...(dto.dispatchMode !== undefined && dto.dispatchMode !== (current.dispatchMode ?? 'LEADER')
+            ? { dispatchMode: dto.dispatchMode }
+            : {}),
+          ...(dto.crossDepartmentView !== undefined && dto.crossDepartmentView !== current.crossDepartmentView
+            ? { crossDepartmentView: dto.crossDepartmentView } : {}),
           ...(dto.defaultYear !== undefined && dto.defaultYear !== current.defaultYear
             ? { defaultYear: dto.defaultYear }
             : {}),

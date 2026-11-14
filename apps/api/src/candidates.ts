@@ -47,13 +47,14 @@ import {
   getActor,
   isGlobalRole,
   isLeadership,
-  resolveDepartmentScope,
   WORKING_ROLES,
 } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { PrismaService } from './prisma.service';
+import { type DispatchSetting, dispatcherIds, dispatchSetting, dispatchScope, isDispatcher } from './dispatch';
+import { taskCandidateFields } from './task-candidates';
 import { createTargetInTransaction, isTargetCodeAllocationError } from './target-create';
-import { departmentManagerIds, leaderIds, notifyUsers, recordWorkEvent, targetLink } from './work';
+import { departmentManagerIds, notifyUsers, recordWorkEvent, targetLink } from './work';
 
 // Đề xuất chỉ tiêu — "không để việc bị treo".
 // Nguồn đề xuất: AI trích xuất từ văn bản (origin AI) hoặc bất kỳ cán bộ nào phát hiện (origin HUMAN).
@@ -243,8 +244,8 @@ function deadlineDate(value: string) {
 }
 
 /** Phạm vi đề xuất một người được xem: toàn bộ (vai trò toàn địa phương) hoặc của phòng mình và do mình đề xuất. */
-function candidateScope(actor: Actor): Prisma.IndicatorCandidateWhereInput {
-  if (isGlobalRole(actor.role)) return {};
+function candidateScope(actor: Actor, setting?: DispatchSetting): Prisma.IndicatorCandidateWhereInput {
+  if (isGlobalRole(actor.role) || isDispatcher(actor, setting)) return {};
   return {
     OR: [
       { responsibleDepartmentId: actor.departmentId ?? '__none__' },
@@ -254,21 +255,22 @@ function candidateScope(actor: Actor): Prisma.IndicatorCandidateWhereInput {
 }
 
 /** Người được sửa đề xuất đang ở bản nháp/đã trình: văn thư, lãnh đạo; trưởng phòng của phòng phụ trách; người đề xuất. */
-function canEditCandidate(actor: Actor, candidate: { responsibleDepartmentId: string | null; proposedById: string | null }) {
-  if (isGlobalRole(actor.role)) return true;
+function canEditCandidate(actor: Actor, candidate: { responsibleDepartmentId: string | null; proposedById: string | null }, setting?: DispatchSetting) {
+  if (isGlobalRole(actor.role) || isDispatcher(actor, setting)) return true;
   if (candidate.proposedById === actor.id) return true;
   return Boolean(candidate.responsibleDepartmentId && canSuperviseDepartment(actor, candidate.responsibleDepartmentId));
 }
 
 /** Người được duyệt hoặc từ chối: lãnh đạo UBND, hoặc trưởng phòng của phòng phụ trách (không tự duyệt đề xuất của mình). */
-export function canDecideCandidate(actor: Actor, candidate: { responsibleDepartmentId: string | null; proposedById: string | null }) {
+export function canDecideCandidate(actor: Actor, candidate: { responsibleDepartmentId: string | null; proposedById: string | null }, setting?: DispatchSetting) {
+  if (!actor.isActive) return false;
   if (candidate.proposedById === actor.id && !isLeadership(actor)) return false;
-  if (isLeadership(actor)) return true;
+  if (isDispatcher(actor, setting)) return true;
   return Boolean(candidate.responsibleDepartmentId && canSuperviseDepartment(actor, candidate.responsibleDepartmentId));
 }
 
 async function approverIds(tx: Prisma.TransactionClient, departmentId: string | null) {
-  return [...await leaderIds(tx), ...await departmentManagerIds(tx, departmentId)];
+  return [...await dispatcherIds(tx), ...await departmentManagerIds(tx, departmentId)];
 }
 
 @Controller('candidates')
@@ -286,13 +288,14 @@ export class CandidatesController {
     @Query('frameworkId') frameworkId?: string,
   ) {
     const actor = getActor(req);
-    const scopedDepartment = resolveDepartmentScope(actor, departmentId);
-    const where: Prisma.IndicatorCandidateWhereInput = { AND: [candidateScope(actor)] };
+    const setting = await dispatchSetting(this.prisma);
+    const scopedDepartment = dispatchScope(actor, setting, departmentId);
+    const where: Prisma.IndicatorCandidateWhereInput = { AND: [candidateScope(actor, setting)] };
     if (status && status in CandidateStatus) where.status = status as CandidateStatus;
     if (origin && origin in CandidateOrigin) where.origin = origin as CandidateOrigin;
     if (documentId?.trim()) where.documentId = documentId.trim();
     if (frameworkId?.trim()) where.frameworkId = frameworkId.trim();
-    if (scopedDepartment && isGlobalRole(actor.role)) where.responsibleDepartmentId = scopedDepartment;
+    if (scopedDepartment && (isGlobalRole(actor.role) || isDispatcher(actor, setting))) where.responsibleDepartmentId = scopedDepartment;
     const rows = await this.prisma.indicatorCandidate.findMany({
       where,
       select: CANDIDATE_SELECT,
@@ -305,16 +308,18 @@ export class CandidatesController {
     return rows.map(row => ({
       ...row,
       proposedByName: row.proposedById ? names.get(row.proposedById) ?? null : null,
-      canEdit: (row.status === CandidateStatus.PROPOSED || row.status === CandidateStatus.SUBMITTED) && canEditCandidate(actor, row),
-      canDecide: (row.status === CandidateStatus.PROPOSED || row.status === CandidateStatus.SUBMITTED) && canDecideCandidate(actor, row),
+      canEdit: (row.status === CandidateStatus.PROPOSED || row.status === CandidateStatus.SUBMITTED) && canEditCandidate(actor, row, setting),
+      canDecide: (row.status === CandidateStatus.PROPOSED || row.status === CandidateStatus.SUBMITTED) && canDecideCandidate(actor, row, setting),
+      permissions: { canDispatch: isDispatcher(actor, setting) },
     }));
   }
 
   @Get(':id')
   async detail(@Req() req: any, @Param('id') id: string) {
     const actor = getActor(req);
+    const setting = await dispatchSetting(this.prisma);
     const candidate = await this.prisma.indicatorCandidate.findFirst({
-      where: { id, AND: [candidateScope(actor)] },
+      where: { id, AND: [candidateScope(actor, setting)] },
       select: {
         ...CANDIDATE_SELECT,
         chunk: { select: { id: true, chunkIndex: true, pageFrom: true, pageTo: true, text: true } },
@@ -324,8 +329,9 @@ export class CandidatesController {
     if (!candidate) throw new NotFoundException('Không tìm thấy đề xuất chỉ tiêu');
     return {
       ...candidate,
-      canEdit: (candidate.status === CandidateStatus.PROPOSED || candidate.status === CandidateStatus.SUBMITTED) && canEditCandidate(actor, candidate),
-      canDecide: (candidate.status === CandidateStatus.PROPOSED || candidate.status === CandidateStatus.SUBMITTED) && canDecideCandidate(actor, candidate),
+      canEdit: (candidate.status === CandidateStatus.PROPOSED || candidate.status === CandidateStatus.SUBMITTED) && canEditCandidate(actor, candidate, setting),
+      canDecide: (candidate.status === CandidateStatus.PROPOSED || candidate.status === CandidateStatus.SUBMITTED) && canDecideCandidate(actor, candidate, setting),
+      permissions: { canDispatch: isDispatcher(actor, setting) },
     };
   }
 
@@ -346,9 +352,7 @@ export class CandidatesController {
         if (dto.documentId && !(await tx.sourceDocument.count({ where: { id: dto.documentId } }))) {
           throw new BadRequestException('Văn bản căn cứ không tồn tại trong kho');
         }
-        if (dto.frameworkId && !(await tx.framework.count({ where: { id: dto.frameworkId, isActive: true } }))) {
-          throw new BadRequestException('Bộ chỉ tiêu không tồn tại');
-        }
+        const taskFields = await taskCandidateFields(tx, dto);
         const now = new Date();
         const submitting = dto.submit === true;
         const draft = {
@@ -359,6 +363,8 @@ export class CandidatesController {
           responsibleDepartmentId: departmentId ?? null,
           frequency: dto.frequency ?? null,
           deadline: dto.deadline ? deadlineDate(dto.deadline) : null,
+          targetKind: dto.targetKind ?? FrameworkKind.PLAN,
+          ...taskFields,
         };
         if (submitting) {
           const missing = missingApprovalFields(draft);
@@ -374,9 +380,8 @@ export class CandidatesController {
             model: null,
             description: dto.description ?? null,
             targetText: dto.targetText ?? null,
-            direction: dto.direction ?? TargetDirection.HIGHER_IS_BETTER,
+            direction: taskFields.direction ?? dto.direction ?? TargetDirection.HIGHER_IS_BETTER,
             frameworkId: dto.frameworkId ?? null,
-            targetKind: dto.targetKind ?? FrameworkKind.PLAN,
             issuingLevel: dto.issuingLevel ?? null,
             standardCode: dto.standardCode ?? null,
             legalBasis: dto.legalBasis ?? null,
@@ -427,13 +432,14 @@ export class CandidatesController {
       return await this.prisma.$transaction(async (tx) => {
         const candidate = await tx.indicatorCandidate.findUnique({
           where: { id },
-          select: { id: true, status: true, version: true, editedFields: true, responsibleDepartmentId: true, proposedById: true },
+          select: { id: true, status: true, version: true, editedFields: true, responsibleDepartmentId: true, proposedById: true, targetKind: true, frameworkId: true },
         });
         if (!candidate) throw new NotFoundException('Không tìm thấy đề xuất chỉ tiêu');
         if (candidate.status !== CandidateStatus.PROPOSED && candidate.status !== CandidateStatus.SUBMITTED) {
           throw new ConflictException('Đề xuất đã được xử lý nên không thể chỉnh sửa');
         }
-        if (!canEditCandidate(actor, candidate)) throw new ForbiddenException('Bạn không được sửa đề xuất của phòng khác');
+        const setting = await dispatchSetting(tx);
+        if (!canEditCandidate(actor, candidate, setting)) throw new ForbiddenException('Bạn không được sửa đề xuất của phòng khác');
         if (candidate.version !== expectedVersion) {
           throw new ConflictException('Đề xuất vừa được người khác thay đổi. Vui lòng tải lại.');
         }
@@ -442,13 +448,11 @@ export class CandidatesController {
           if (!department || !department.isActive) {
             throw new BadRequestException('Phòng ban phụ trách không tồn tại hoặc đã ngừng hoạt động');
           }
-          if (!isGlobalRole(actor.role) && dto.responsibleDepartmentId !== actor.departmentId && candidate.proposedById !== actor.id) {
+          if (!isGlobalRole(actor.role) && !isDispatcher(actor, setting) && dto.responsibleDepartmentId !== actor.departmentId && candidate.proposedById !== actor.id) {
             throw new ForbiddenException('Chỉ văn thư hoặc lãnh đạo được chuyển đề xuất sang phòng khác');
           }
         }
-        if (dto.frameworkId && !(await tx.framework.count({ where: { id: dto.frameworkId } }))) {
-          throw new BadRequestException('Bộ chỉ tiêu không tồn tại');
-        }
+        const taskFields = await taskCandidateFields(tx, { frameworkId: dto.frameworkId !== undefined ? dto.frameworkId : candidate.frameworkId, targetKind: dto.targetKind ?? candidate.targetKind });
         const previousEdited = Array.isArray(candidate.editedFields)
           ? (candidate.editedFields as string[])
           : [];
@@ -473,6 +477,7 @@ export class CandidatesController {
             ...(dto.targetKind !== undefined ? { targetKind: dto.targetKind } : {}),
             ...(dto.issuingLevel !== undefined ? { issuingLevel: dto.issuingLevel } : {}),
             ...(dto.standardCode !== undefined ? { standardCode: dto.standardCode } : {}),
+            ...taskFields,
             humanEdited: true,
             editedFields: mergedEdited,
             version: { increment: 1 },
@@ -515,7 +520,7 @@ export class CandidatesController {
         const candidate = await tx.indicatorCandidate.findUnique({ where: { id }, select: { ...CANDIDATE_SELECT } });
         if (!candidate) throw new NotFoundException('Không tìm thấy đề xuất chỉ tiêu');
         if (candidate.status !== CandidateStatus.PROPOSED) throw new ConflictException('Đề xuất đã được trình hoặc đã xử lý');
-        if (!canEditCandidate(actor, candidate)) throw new ForbiddenException('Bạn không được trình đề xuất này');
+        if (!canEditCandidate(actor, candidate, setting)) throw new ForbiddenException('Bạn không được trình đề xuất này');
         const missing = missingApprovalFields(candidate);
         if (missing.length) throw new BadRequestException(`Cần bổ sung trước khi trình: ${missing.join(', ')}.`);
         const now = new Date();
@@ -576,7 +581,7 @@ export class CandidatesController {
         }
         // Văn thư chỉ được loại kết quả AI chưa trình (rà soát); đề xuất đã trình do người duyệt quyết định.
         const clerkScreening = actor.role === Role.CLERK && candidate.origin === CandidateOrigin.AI && candidate.status === CandidateStatus.PROPOSED;
-        if (!clerkScreening && !canDecideCandidate(actor, candidate)) {
+        if (!clerkScreening && !canDecideCandidate(actor, candidate, await dispatchSetting(tx))) {
           throw new ForbiddenException('Bạn không có quyền từ chối đề xuất này');
         }
         const changed = await tx.indicatorCandidate.updateMany({
@@ -641,9 +646,11 @@ export async function approveCandidateById(
         if (candidate.status !== CandidateStatus.PROPOSED && candidate.status !== CandidateStatus.SUBMITTED) {
           throw new ConflictException('Đề xuất đã được xử lý trước đó');
         }
-        if (!options.auto && !canDecideCandidate(actor, candidate)) {
+        if (!options.auto && !canDecideCandidate(actor, candidate, await dispatchSetting(tx))) {
           throw new ForbiddenException('Chỉ lãnh đạo UBND hoặc trưởng phòng phụ trách được duyệt đề xuất này');
         }
+        const normalizedTask = await taskCandidateFields(tx, candidate);
+        Object.assign(candidate, normalizedTask);
         if (options.auto && candidate.status !== CandidateStatus.SUBMITTED) {
           throw new ConflictException('Chỉ đề xuất đã trình mới được tự thông qua');
         }
@@ -660,6 +667,7 @@ export async function approveCandidateById(
         const claimed = await tx.indicatorCandidate.updateMany({
           where: { id, version: expectedVersion, status: candidate.status },
           data: {
+            ...normalizedTask,
             status: CandidateStatus.APPROVED,
             reviewedById: options.auto ? null : actor.id,
             reviewedAt: new Date(),
@@ -731,7 +739,7 @@ export async function approveCandidateById(
         const recipients = [candidate.proposedById, candidate.submittedById, ...await departmentManagerIds(tx, created.departmentId)];
         await notifyUsers(tx, recipients, {
           kind: options.auto ? 'PROPOSAL_AUTO_APPROVED' : 'PROPOSAL_APPROVED',
-          title: options.auto ? `Đề xuất "${candidate.name}" tự thành chỉ tiêu ${created.code} do quá hạn xử lý` : `Đề xuất "${candidate.name}" đã thành chỉ tiêu ${created.code}`,
+          title: options.auto ? `${candidate.name} — đề xuất tự thông qua` : `${candidate.name} — đề xuất đã duyệt`,
           body: 'Trưởng phòng hãy giao chuyên viên phụ trách.',
           link: targetLink(created.id), entityType: 'Target', entityId: created.id, dedupeKey: `proposal-approved:${id}`,
         }, options.auto ? null : actor.id);
@@ -758,14 +766,15 @@ export function missingApprovalFields(candidate: {
   responsibleDepartmentId: string | null;
   frequency: unknown;
   deadline: Date | null;
+  targetKind?: FrameworkKind;
 }): string[] {
   const missing: string[] = [];
   if (!candidate.name || candidate.name.trim().length < 3) missing.push('tên chỉ tiêu');
-  if (!candidate.unit) missing.push('đơn vị đo');
-  if (candidate.targetValue === null || candidate.targetValue < 0) missing.push('giá trị mục tiêu');
+  if (candidate.targetKind !== FrameworkKind.TASK && !candidate.unit) missing.push('đơn vị đo');
+  if (candidate.targetKind !== FrameworkKind.TASK && (candidate.targetValue === null || candidate.targetValue < 0)) missing.push('giá trị mục tiêu');
   if (!candidate.targetYear) missing.push('năm kế hoạch');
   if (!candidate.responsibleDepartmentId) missing.push('phòng ban phụ trách');
-  if (!candidate.frequency) missing.push('tần suất báo cáo');
+  if (candidate.targetKind !== FrameworkKind.TASK && !candidate.frequency) missing.push('tần suất báo cáo');
   if (!candidate.deadline) missing.push('hạn hoàn thành');
   return missing;
 }

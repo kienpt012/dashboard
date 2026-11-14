@@ -4,6 +4,8 @@ export type ScopeKind='GLOBAL'|'DEPARTMENT';
 
 export type Department={id:string;code:string;name:string;color:string;description?:string;shortName?:string|null;kind?:string;responsibilities?:string|null;sortOrder?:number;isActive:boolean;version:number;_count?:{users:number;targets:number;feedbacks?:number}};
 export type Target={
+  docRef?:string|null;
+  linkGroupId?:string|null;
   id:string;
   code:string;
   title:string;
@@ -74,6 +76,7 @@ export type User={
   username:string;
   fullName:string;
   email?:string;
+  phone?:string|null;
   role:Role;
   isActive:boolean;
   departmentId?:string|null;
