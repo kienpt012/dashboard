@@ -73,10 +73,8 @@ Các lệnh kiểm tra từ gốc worktree:
 npm run build
 npm test
 npm run test:workspace
-# Chỉ sau khi nạp môi trường ioc_wp_b và chạy API ở cổng 3102:
+# Với API đang chạy trên một CSDL thử và QA_API_URL trỏ tới API đó:
 node scripts/qa-directives.mjs
 ```
 
-Script QA từ chối CSDL khác `ioc_wp_b`; kiểm tra HTTP thật, đối chiếu dữ liệu và Excel, chạy worker lại để kiểm tra chống trùng; cuối cùng khôi phục chế độ phân việc và dọn dữ liệu nghiệp vụ do bộ QA tạo.
-
-Đợt kiểm tra trên CSDL dev: build thành công, 303 kiểm thử API/logic và 27 kiểm thử workspace đạt; bộ QA HTTP thật đạt 28 kiểm tra. Dữ liệu mẫu gồm 5 văn bản và 30 nhiệm vụ; chạy lại script không tạo thêm nhiệm vụ. Đã kiểm tra giao diện sáng/tối ở 1440 và 390 px, sáng ở 1024 px; kiểm tra bản in 2 trang, Enter/Escape và tự điền từ Kho văn bản. Bằng chứng chi tiết lưu trong báo cáo bàn giao gói B.
+Script QA chỉ chạy trên CSDL thử (tên dạng `ioc_wp_*`, `ioc_qa_*`, `ioc_dev_*`); kiểm tra HTTP thật, đối chiếu dữ liệu và Excel, chạy worker lại để kiểm tra chống trùng; cuối cùng khôi phục chế độ phân việc và dọn dữ liệu nghiệp vụ do bộ QA tạo.

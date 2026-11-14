@@ -1,6 +1,6 @@
 # Quyền xem liên phòng, báo cáo và dự báo
 
-Gói C triển khai G-21, G-22, G-23, G-24 và G-26. G-25 thuộc luồng duyệt đề xuất của gói B. Không gộp bản ghi chỉ tiêu và không đổi mã chuẩn phục vụ báo cáo nhiều mức giao.
+Tài liệu này mô tả phần triển khai các góp ý G-21, G-22, G-23, G-24 và G-26 (xem `docs/requirements/05-gop-y-sau-bao-cao-2026-10.md`); G-25 nằm ở luồng duyệt đề xuất (`docs/van-ban-chi-dao.md`). Không gộp bản ghi chỉ tiêu và không đổi mã chuẩn phục vụ báo cáo nhiều mức giao.
 
 ## Phạm vi đọc và ghi
 
@@ -41,7 +41,7 @@ Chỉ liên kết chỉ tiêu nhập tay đang hoạt động và không có con
 | `POST /target-links/ignore` | Bỏ qua gợi ý cùng cấu trúc dữ liệu |
 | `DELETE /target-links/targets/:id` | Bỏ chỉ tiêu khỏi nhóm; giữ lịch sử |
 
-Quản trị/lãnh đạo được quản lý; trưởng phòng phải quản lý tất cả phòng chủ trì của nhóm. Người phân việc là trưởng phòng OFFICE được nhận diện khi cấu hình `dispatchMode=OFFICE` của gói B có mặt; nếu chưa có cấu hình thì không tự mở rộng quyền.
+Quản trị/lãnh đạo được quản lý; trưởng phòng phải quản lý tất cả phòng chủ trì của nhóm. Người phân việc là trưởng phòng OFFICE được nhận diện qua `dispatch.ts` khi thiết lập `dispatchMode=OFFICE`; ở chế độ `LEADER` thì không mở rộng quyền.
 
 Khi báo cáo nguồn được duyệt, tự thông qua hoặc quản trị ghi nhận, `mirrorApprovedReport` chạy trong cùng transaction, tạo báo cáo đã duyệt cho các chỉ tiêu còn lại với `mirroredFromId`, cùng kỳ và giá trị. Khóa duy nhất `(targetId, mirroredFromId)` chống tạo trùng. Mỗi chỉ tiêu đánh giá theo mức giao riêng. Minh chứng đọc từ báo cáo gốc, kể cả tệp bổ sung sau duyệt; không sao chép tệp hoặc tạo bản minh chứng thứ hai. Kỳ có báo cáo đồng bộ không bị tính thiếu.
 
@@ -89,6 +89,6 @@ Jarvis có công cụ chỉ đọc `forecastRisk`: hỏi “Dự báo chỉ tiê
 npx tsx apps/api/prisma/demo/extras-forecast.ts
 ```
 
-Script chỉ chạy ở `ioc_wp_c`: thêm 768 dòng mô phỏng 2024–2025, 32 chuỗi; bộ Nghị quyết Đảng uỷ 2026 có 7 chỉ tiêu, 4 cặp liên kết, 3 gợi ý. Chạy lại không nhân đôi. Mọi lịch sử có `simulated=true` và nguồn ghi rõ MÔ PHỎNG. Chỉ số rất cao trên tập này không chứng minh khả năng dự báo trên thực tế; chủ đầu tư cần cung cấp lịch sử thật trước khi dùng để ra quyết định.
+Script `apps/api/prisma/demo/extras-forecast.ts` chỉ chạy trên bộ dữ liệu mẫu (từ chối dữ liệu thật của địa phương): thêm 768 dòng mô phỏng 2024–2025, 32 chuỗi; bộ Nghị quyết Đảng uỷ 2026 có 7 chỉ tiêu, 4 cặp liên kết, 3 gợi ý. Chạy lại không nhân đôi. Mọi lịch sử có `simulated=true` và nguồn ghi rõ MÔ PHỎNG. Lịch sử mô phỏng có nhiễu và nhiều kiểu tiến độ nên mô hình đạt AUC khoảng 0,87 trên tập kiểm tra; con số này không chứng minh khả năng dự báo trên thực tế; chủ đầu tư cần cung cấp lịch sử thật trước khi dùng để ra quyết định.
 
-Kiểm tra: `npm run build`, `npm test`, `npm run test:workspace`. Sau khi nạp môi trường dev và đặt `QA_API_URL=http://localhost:3103/api`, chạy tuần tự `node scripts/qa-access.mjs`, `node scripts/qa-target-links.mjs`, `node scripts/qa-forecast.mjs`. Các bộ API tạo dữ liệu thử riêng và dọn sau khi chạy; cấu hình xem liên phòng được phục hồi.
+Kiểm tra: `npm run build`, `npm test`, `npm run test:workspace`. Với API đang chạy trên một CSDL thử (tên dạng `ioc_wp_*`, `ioc_qa_*`, `ioc_dev_*`) và `QA_API_URL` trỏ tới API đó, chạy tuần tự `node scripts/qa-access.mjs`, `node scripts/qa-target-links.mjs`, `node scripts/qa-forecast.mjs`. Các bộ API tạo dữ liệu thử riêng và dọn sau khi chạy; cấu hình xem liên phòng được phục hồi.
