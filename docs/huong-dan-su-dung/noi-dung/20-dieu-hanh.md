@@ -17,7 +17,7 @@ Bàn làm việc là màn hình mở ra sau khi đăng nhập. Ở đây mỗi c
 - **Lời chào, ngày giờ** — ngày dương lịch, âm lịch và đồng hồ. Góc phải có `Dán note`, `Cá nhân hóa`, tìm kiếm và nút xem toàn màn hình.
 - **`Hôm nay · Ngày mai`** — lịch làm việc của lãnh đạo (DH-08), hạn báo cáo số liệu, nhiệm vụ đến hạn, note có hạn, việc riêng và ngày lễ. Mỗi loại có vạch màu riêng. Bấm một dòng để mở đúng nơi xử lý; bấm `Xem tất cả` để xem đủ danh sách của ngày.
 - **Các số đếm** — `báo cáo đến hạn`, `note mới`, `chờ duyệt`, `việc cần làm`. Bấm vào số để mở **Việc của tôi** (DH-02), **Duyệt báo cáo** (CT-04) hoặc danh sách note.
-- **`Nhắc việc`** — giấy nhắc do hệ thống tự tạo cho người được giao: thiếu hoặc sắp đến hạn báo cáo, chỉ tiêu có nguy cơ, nhiệm vụ đến hạn, yêu cầu giải trình, báo cáo chờ duyệt, chỉ tiêu chưa giao người. Trưởng phòng thấy nhắc việc của cả phòng kèm tên người phụ trách. Lãnh đạo và quản trị chỉ thấy các số đếm tổng. Việc xử lý xong thì giấy nhắc tự mất.
+- **`Nhắc việc`** — giấy nhắc do hệ thống tự tạo cho người được giao: thiếu hoặc sắp đến hạn báo cáo, chỉ tiêu có nguy cơ, nhiệm vụ đến hạn, yêu cầu giải trình, yêu cầu cập nhật lại số liệu đã duyệt (luôn xếp đầu), báo cáo chờ duyệt, chỉ tiêu chưa giao người. Trưởng phòng thấy nhắc việc của cả phòng kèm tên người phụ trách. Lãnh đạo và quản trị chỉ thấy các số đếm tổng. Việc xử lý xong thì giấy nhắc tự mất.
 - **`Giấy note`** — note người khác dán cho mình và note mình tự ghi.
 - **Khay ứng dụng** — ở cạnh dưới màn hình: các phần mềm công vụ và lối tắt.
 - **Tiện ích** — phía dưới là các tiện ích của bàn: lịch việc, chỉ tiêu của tôi, cảnh báo, chờ duyệt, tiến độ theo phòng, ghi chú riêng, việc hôm nay…
