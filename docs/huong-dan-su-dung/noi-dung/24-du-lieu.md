@@ -14,7 +14,7 @@ Kho dữ liệu lưu số liệu nghiệp vụ theo dòng — ví dụ số hồ
 2. **Ô tìm kiếm** — theo tên, mã bảng hoặc phòng quản lý.
 3. **Lọc loại bảng** — `Tất cả`, `Dữ liệu hệ thống` (hệ thống tự ghi, ví dụ phản ánh của người dân), `Tự khai báo` (cán bộ nhập).
 4. **Tên và mã bảng** — bấm để mở **Bảng dữ liệu** (DL-05).
-5. **`Số dòng`, `Dữ liệu mới nhất`, `Chu kỳ`** — kiểm tra bảng có được cập nhật đúng chu kỳ không.
+5. **`Số dòng, Dữ liệu mới nhất, Chu kỳ`** — kiểm tra bảng có được cập nhật đúng chu kỳ không.
 6. **`Chỉ tiêu dùng`** — số chỉ tiêu tự tính từ bảng; rê chuột để xem danh sách.
 7. **`Loại`** — `Hệ thống` hoặc `Tự khai báo`.
 
@@ -27,7 +27,7 @@ Kho dữ liệu lưu số liệu nghiệp vụ theo dòng — ví dụ số hồ
 1. **Tên bảng và loại** — `Tự khai báo` hoặc `Dữ liệu hệ thống`.
 2. **Mã bảng, phòng quản lý, số dòng, thời điểm có dữ liệu mới nhất.**
 3. **`Sửa cấu trúc`** — đổi thông tin bảng, thêm, sửa cột (quản trị, lãnh đạo, văn thư).
-4. **`Tải mẫu Excel`, `Nhập Excel`** — tải tệp mẫu đúng cột của bảng, điền nhiều dòng rồi nhập một lần.
+4. **`Tải mẫu Excel, Nhập Excel`** — tải tệp mẫu đúng cột của bảng, điền nhiều dòng rồi nhập một lần.
 5. **`Thêm dòng`** — nhập một dòng dữ liệu.
 6. **Các thẻ** — `Dữ liệu`, `Cấu trúc` (mã cột, nhãn, kiểu, bắt buộc, giá trị danh mục), `Chỉ tiêu dùng` (chỉ tiêu tự tính từ bảng, bấm để mở CT-06), `Thông tin` (hệ thống nguồn, chu kỳ cập nhật, cách thu thập, mô tả).
 7. **Sửa, xoá dòng** — biểu tượng bút và thùng rác ở cuối dòng; xoá có hỏi xác nhận.
@@ -89,8 +89,8 @@ Màn hình đặt bản gốc của văn bản cạnh các chỉ tiêu AI đề 
 
 ![Xác minh trích xuất](anh/dl-04.png)
 
-1. **`Tệp gốc`, `Trích xuất lại`** — tải tệp; yêu cầu AI đọc lại văn bản (có hỏi xác nhận). Khi AI đang chạy, nút `Dừng trích xuất` hiện thay; kết quả chưa hoàn tất sẽ không được áp dụng.
-2. **`Bản gốc` / `Chữ đã đọc`** — xem hình trang văn bản hoặc phần chữ hệ thống đọc được (dùng để kiểm tra bản quét có đọc đúng không).
+1. **`Tệp gốc, Trích xuất lại`** — tải tệp; yêu cầu AI đọc lại văn bản (có hỏi xác nhận). Khi AI đang chạy, nút `Dừng trích xuất` hiện thay; kết quả chưa hoàn tất sẽ không được áp dụng.
+2. **`Bản gốc / Chữ đã đọc`** — xem hình trang văn bản hoặc phần chữ hệ thống đọc được (dùng để kiểm tra bản quét có đọc đúng không).
 3. **`Về dòng tô sáng`** — đưa khung xem về đoạn của đề xuất đang chọn.
 4. **Đoạn tô sáng "Đề xuất lấy từ đây"** — bấm vào một thẻ đề xuất, bản gốc tự chuyển đúng trang và tô đoạn văn AI đã dựa vào.
 5. **Lọc đề xuất** — `Chờ xử lý`, `Đã duyệt`, `Từ chối`, `Tất cả`.
@@ -110,14 +110,14 @@ Màn hình đặt bản gốc của văn bản cạnh các chỉ tiêu AI đề 
 
 ### DL-03 · Nhập số liệu Excel
 
-**Đường dẫn:** menu `Dữ liệu` › `Nhập số liệu Excel` (`/admin/imports`); với trưởng phòng, chuyên viên menu ghi `Nộp báo cáo Excel` · **Vai trò:** quản trị, lãnh đạo, trưởng phòng, chuyên viên.
+**Đường dẫn:** menu `Dữ liệu` › `Nhập số liệu Excel` (`/admin/imports`); với trưởng phòng, chuyên viên menu ghi `Nộp báo cáo Excel` · **Vai trò:** quản trị, trưởng phòng, chuyên viên (lãnh đạo UBND không ghi số liệu nên không có màn hình này).
 
 Dùng khi cần cập nhật số liệu nhiều chỉ tiêu của một phòng cùng lúc bằng phiếu Excel do hệ thống phát hành. Các bước chi tiết, cách điền phiếu và xử lý lỗi xem mục 3.5.
 
 ![Nhập số liệu Excel](anh/dl-03.png)
 
-1. **Bước 1 `Tải phiếu hiện trạng`** — chọn năm (lãnh đạo, quản trị chọn thêm `Phòng ban`), bấm `Tải phiếu Excel`.
-2. **Bước 2 `Tải lên và đối soát`** — kéo phiếu đã điền vào khung, bấm `Đối soát`. Đối soát chỉ kiểm tra, chưa đổi số liệu.
-3. **Bước 3 `Ghi nhận`** (với trưởng phòng, chuyên viên là `Gửi duyệt`) — lãnh đạo, quản trị bấm `Ghi nhận số liệu` (số liệu chính thức ngay); trưởng phòng, chuyên viên bấm `Gửi số liệu` (mỗi dòng thành một báo cáo chờ duyệt ở CT-04).
+1. **Bước 1** `Tải phiếu hiện trạng` — chọn năm (quản trị chọn thêm `Phòng ban`), bấm `Tải phiếu Excel`.
+2. **Bước 2** `Tải lên và đối soát` — kéo phiếu đã điền vào khung, bấm `Đối soát`. Đối soát chỉ kiểm tra, chưa đổi số liệu.
+3. **Bước 3** `Ghi nhận` (với trưởng phòng, chuyên viên là `Gửi duyệt`) — quản trị bấm `Ghi nhận số liệu` (số liệu chính thức ngay); trưởng phòng, chuyên viên bấm `Gửi số liệu` (mỗi dòng thành một báo cáo chờ duyệt ở CT-04).
 4. **`Kết quả đối soát`** — `Tổng dòng`, `Có thay đổi`, `Không đổi`, `Lỗi` và bảng số cũ → số mới hoặc nội dung lỗi từng dòng.
 5. **`Lịch sử nhập`** — các lượt nhập với tệp, phòng, người nộp, số dòng, trạng thái, thời gian.
