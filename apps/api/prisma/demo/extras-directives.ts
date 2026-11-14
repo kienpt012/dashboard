@@ -56,6 +56,9 @@ async function main() {
   ]);
   const leader = users.find(user => user.username === 'chu.tich');
   if (!leader || !departments.length) throw new Error('Cần nạp bộ dữ liệu mẫu trước');
+  // Ở Lái Thiêu, Chánh Văn phòng là người phân việc cho các phòng (thiết lập Người phân việc = Văn phòng).
+  const dispatcher = users.find(user => user.username === 'chanh.vp') ?? leader;
+  await prisma.systemSetting.updateMany({ where: { id: 'default' }, data: { dispatchMode: 'OFFICE' } });
   let created = 0;
   for (const definition of definitions) {
     const issuedDate = definition.source && source?.issuedDate ? source.issuedDate : parsePlanningDueDate(definition.issued);
@@ -69,7 +72,8 @@ async function main() {
       const code = `${definition.code}-${index + 1}`;
       if (await prisma.target.count({ where: { code } })) continue;
       const department = departments.find(item => item.code === departmentCode)!;
-      const assignee = users.find(user => user.departmentId === department.id && user.role === 'STAFF') ?? users.find(user => user.departmentId === department.id && user.role === 'MANAGER');
+      const manager = users.find(user => user.departmentId === department.id && user.role === 'MANAGER');
+      const assignee = users.find(user => user.departmentId === department.id && user.role === 'STAFF') ?? manager;
       const due = ['2026-10-25', '2026-10-31', '2026-11-20', '2026-11-10', '2026-11-15', '2026-12-15'][index];
       const value = [100, 100, 55, 35, 0, 0][index];
       const reported = ['2026-10-23', '2026-11-03', '2026-11-08', '2026-11-06'][index];
@@ -81,18 +85,18 @@ async function main() {
         const task = await tx.target.create({ data: {
           code, title, unit: '%', kind: 'TASK', frameworkId: framework.id, year: framework.year!, targetValue: 100, currentValue: value,
           dueDate, departmentId: department.id, assigneeId: index === 5 ? null : assignee?.id, assignedAt: index === 5 ? null : createdAt,
-          assignedById: index === 5 ? null : leader.id, ordinal: String(index + 1), sortOrder: (index + 1) * 10,
-          dispatchedById: leader.id, dispatchedByName: leader.fullName, dispatchedAt: createdAt, lastReportedAt, status: metric.status,
+          assignedById: index === 5 ? null : (manager ?? dispatcher).id, ordinal: String(index + 1), sortOrder: (index + 1) * 10,
+          dispatchedById: dispatcher.id, dispatchedByName: dispatcher.fullName, dispatchedAt: createdAt, lastReportedAt, status: metric.status,
           legalBasis: definition.number, sourceDocumentId: framework.sourceDocumentId, createdAt,
           relatedTargetId: definition.code === 'VBCD-2026-TB128' && index === 0 ? relatedTarget?.id : null,
           coordinators: index === 0 ? { create: departments.filter(item => item.code === 'VP' && item.id !== department.id).map(item => ({ departmentId: item.id })) } : undefined,
         } });
         if (lastReportedAt && assignee) await tx.progressUpdate.create({ data: {
           id: `${code}-REPORT`, targetId: task.id, userId: assignee.id, value, periodKey: null, reviewStatus: 'APPROVED',
-          reviewedBy: leader.id, reviewedAt: new Date(lastReportedAt.getTime() + 86_400_000), createdAt: lastReportedAt,
+          reviewedBy: (manager ?? leader).id, reviewedAt: new Date(lastReportedAt.getTime() + 86_400_000), createdAt: lastReportedAt,
           note: value === 100 ? 'Đã hoàn thành nội dung được giao; kết quả đã được tổng hợp vào báo cáo của phòng.' : 'Đã hoàn thành rà soát bước đầu, đang tổng hợp hồ sơ và phối hợp các đơn vị để xử lý phần việc còn lại.',
         } });
-        await tx.workEvent.create({ data: { targetId: task.id, action: 'TARGET_CREATED', actorId: leader.id, actorName: leader.fullName, departmentId: department.id, createdAt, note: 'Giao nhiệm vụ theo văn bản chỉ đạo' } });
+        await tx.workEvent.create({ data: { targetId: task.id, action: 'TARGET_CREATED', actorId: dispatcher.id, actorName: dispatcher.fullName, departmentId: department.id, createdAt, note: 'Giao nhiệm vụ theo văn bản chỉ đạo' } });
       });
       created++;
     }
