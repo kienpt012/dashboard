@@ -114,6 +114,28 @@ test('briefing reuses reporting periods, suppresses submitted periods, shows lea
   assert.equal(submitted.counts.reports, 0);
 });
 
+test('yêu cầu cập nhật lại hiện đầu Nhắc việc của người phụ trách và trưởng phòng, không hiện với lãnh đạo hay khi đã xử lý', async () => {
+  const now = new Date('2026-11-13T03:00:00Z');
+  const report = { id: 'r1', periodKey: '2026-M10', reviewStatus: 'APPROVED', createdAt: new Date('2026-10-18T03:00:00Z'), userId: 'STAFF', revisionRequestedAt: new Date('2026-11-12T03:00:00Z'), revisionResolvedAt: null as Date | null, revisionReason: 'Số liệu chưa khớp biên bản đối chiếu' };
+  const target = { id: 't', title: 'Tỷ lệ giải ngân', year: 2026, frequency: 'MONTHLY', reportDueDay: 20, createdAt: new Date('2026-01-01'), kind: 'PLAN', framework: null, currentValue: 60, targetValue: 100, direction: 'HIGHER_IS_BETTER', dueDate: new Date('2026-12-31'), lastReportedAt: now, valueSource: 'MANUAL', assigneeId: 'STAFF', assignee: { fullName: 'Thảo', username: 'thao.ktht' }, updates: [report, { ...report, id: 'r2', periodKey: '2026-M11', revisionRequestedAt: null, revisionReason: null }], explanationRequests: [], _count: { children: 0 } };
+  const db = { target: { findMany: async () => [target] }, systemSetting: { findUnique: async () => null }, indicatorCandidate: { findMany: async () => [] }, deskNoteRecipient: { findMany: async () => [] }, userWorkspace: { findUnique: async () => null }, notification: { count: async () => 0 }, feedback: { count: async () => 0 }, workScheduleEntry: { findMany: async () => [] } };
+  for (const role of [Role.STAFF, Role.MANAGER]) {
+    const briefing = await buildDeskBriefing(db as never, actor(role), now);
+    assert.equal(briefing.systemNotes[0].kind, 'revision');
+    assert.equal(briefing.systemNotes[0].status, 'Cần cập nhật lại Tháng 10/2026: Số liệu chưa khớp biên bản đối chiếu');
+    assert.equal(briefing.systemNotes[0].href, '/admin/targets/t?bao-cao=2026-M10');
+    assert.equal(briefing.systemNotes.filter(item => item.kind === 'revision').length, 1);
+  }
+  const staff = await buildDeskBriefing(db as never, actor(Role.STAFF), now);
+  const leader = await buildDeskBriefing(db as never, actor(Role.LEADER), now);
+  // Lãnh đạo là người yêu cầu, không phải người phải cập nhật: không tính vào số việc của lãnh đạo.
+  assert.equal(staff.counts.work - leader.counts.work, 1);
+  assert.deepEqual(leader.systemNotes, []);
+  report.revisionResolvedAt = now;
+  const resolved = await buildDeskBriefing(db as never, actor(Role.STAFF), now);
+  assert.ok(!resolved.systemNotes.some(item => item.kind === 'revision'));
+});
+
 test('work apps apply role OR department audiences and inactive apps stay hidden', () => {
   for (const role of Object.values(Role)) assert.equal(workAppVisible({ isActive: true, roles: [], departmentIds: [] }, actor(role)), true);
   const app = { isActive: true, roles: [Role.LEADER], departmentIds: ['econ'] };
