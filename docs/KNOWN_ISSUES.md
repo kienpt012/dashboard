@@ -16,7 +16,8 @@
    `OLLAMA_TIMEOUT_MS` mặc định 480s (đừng hạ dưới 300s trên máy GPU 4GB kẻo job nhiều
    chỉ tiêu timeout hàng loạt; đã gặp thực tế ở benchmark 26/07).
 7. OCR Tesseract đọc tốt bản in rõ nét; scan mờ/nghiêng nhiều hoặc chữ viết tay sẽ kém —
-   đường nâng cấp ghi ở [quyết định D-003](DECISIONS.md). `maxOcrPages` mặc định 20 trang/tài liệu để giữ thời gian xử lý.
+   đường nâng cấp là ocr-service (Docling + VietOCR, [D-015](DECISIONS.md)). Bộ đọc dự phòng không còn trần 20 trang
+   (`EXTRACTION_MAX_OCR_PAGES=0`); nếu đặt trần, số trang chưa OCR được ghi trên lượt xử lý thay vì để trống im lặng.
 8. Tần suất báo cáo "6 tháng" không nằm trong enum TargetFrequency (MONTHLY/QUARTERLY/YEARLY) —
    ứng viên để trống tần suất kèm cảnh báo, người duyệt chọn tay. Cân nhắc thêm SEMIANNUAL khi mở rộng enum.
 9. Bảng bị ngắt qua nhiều trang PDF: text layer đọc theo trang nên dòng bảng có thể đứt giữa chunk;

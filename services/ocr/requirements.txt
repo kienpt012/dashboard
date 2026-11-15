@@ -1,0 +1,20 @@
+# torch, torchvision cài riêng từ kho bản CPU (xem Dockerfile). Mọi phiên bản đều ghim để build lặp lại được.
+docling==2.139.0
+docling-core==2.101.1
+docling-ibm-models==4.0.3
+docling-parse==7.22.3
+rapidocr==3.10.0
+onnxruntime==1.31.0
+opencv-python-headless==4.14.0.94
+pypdfium2==5.14.0
+openpyxl==3.1.5
+pillow==12.3.0
+numpy==2.5.3
+fastapi==0.143.2
+uvicorn==0.54.0
+python-multipart==0.0.32
+# VietOCR cài không kèm phụ thuộc (gói ghim pillow, imgaug cũ chỉ dùng khi huấn luyện); đây là phần cần khi đọc.
+einops==0.8.2
+gdown==6.4.1
+pyyaml==6.0.3
+requests==2.34.2

@@ -23,3 +23,8 @@ qa-artifacts/
 
 # Bản chép lời ghi âm khách hàng (có tên cán bộ thật)
 /docs/requirements/raw/
+
+# Python (services/ocr)
+__pycache__/
+*.pyc
+.pytest_cache/

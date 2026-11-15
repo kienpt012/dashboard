@@ -59,3 +59,9 @@ export function fileSize(bytes?: number | null) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
+
+/** Kế hoạch ghi bằng ký hiệu (">= 125,5", "70 - 75", "khoảng 12.000") chưa có đơn vị thì ghép đơn vị vào. */
+export function planWithUnit(text: string, unit: string | null | undefined) {
+  const bare = !/\p{L}/u.test(text.replace(/^khoảng\s+/u, ''));
+  return bare && unit ? `${text} ${unit}` : text;
+}

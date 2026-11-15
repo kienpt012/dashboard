@@ -1,4 +1,4 @@
-import { CloudUploadOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, InboxOutlined, MoreOutlined, SearchOutlined } from '@ant-design/icons';
+import { CloudUploadOutlined, DashboardOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, InboxOutlined, MoreOutlined, SearchOutlined } from '@ant-design/icons';
 import { App, Badge, Button, Card, DatePicker, Dropdown, Form, Input, InputNumber, Modal, Select, Switch, Table, Tag, Tooltip, Upload, type UploadFile } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ import { errorText, http, query, saveBlob } from '@/lib/api';
 import { currentYear, date, dateTime, fileSize, fromNow, num } from '@/lib/format';
 import { ADMINS, can, WORKING } from '@/lib/roles';
 import { documentTypeLabels, type DocumentStatus, type DocumentType, type SourceDocument } from '@/types/core';
+import { QualityPanel } from './QualityPanel';
 
 export const DOC_STATUS: Record<DocumentStatus, { label: string; badge: 'default' | 'processing' | 'success' | 'error' }> = {
   UPLOADED: { label: 'Chờ xử lý', badge: 'default' },
@@ -21,7 +22,8 @@ export const DOC_STATUS: Record<DocumentStatus, { label: string; badge: 'default
   FAILED: { label: 'Lỗi xử lý', badge: 'error' },
 };
 
-const ACCEPT = '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp';
+// .doc/.xls (Office 97–2003), .odt/.ods/.rtf và TIFF đọc qua ocr-service; máy chủ chưa bật ocr-service thì từ chối kèm hướng dẫn.
+const ACCEPT = '.pdf,.docx,.doc,.odt,.rtf,.xlsx,.xls,.ods,.png,.jpg,.jpeg,.webp,.tif,.tiff';
 const MAX = 25 * 1024 * 1024;
 
 /** Các trường thông tin văn bản dùng chung cho tải lên và sửa thông tin. */
@@ -196,7 +198,7 @@ function UploadModal({ open, onClose, docNumber }: { open: boolean; onClose: () 
           <InboxOutlined />
         </p>
         <p className="ant-upload-text">Kéo tệp vào đây hoặc bấm để chọn</p>
-        <p className="ant-upload-hint">PDF, Word, Excel hoặc ảnh chụp; tối đa 25MB</p>
+        <p className="ant-upload-hint">PDF, Word, Excel hoặc ảnh chụp (JPG, PNG, TIFF); tối đa 25MB</p>
       </Upload.Dragger>
       <Form form={form} layout="vertical" onFinish={values => upload.mutate(values)} className="form-grid">
         <DocumentFields />
@@ -224,6 +226,7 @@ export default function Documents() {
   const [status, setStatus] = useState<string>();
   const [departmentId, setDepartmentId] = useState<string>();
   const [uploading, setUploading] = useState(params.get('tai-len') === '1');
+  const [qualityOpen, setQualityOpen] = useState(false);
   const [editing, setEditing] = useState<SourceDocument | null>(null);
   const presetNumber = params.get('so') ?? undefined;
   const departments = useDepartments();
@@ -253,14 +256,20 @@ export default function Documents() {
       title="Kho văn bản"
       meta={list.data && <span>{num(list.data.length)} văn bản</span>}
       extra={
-        can(user, WORKING) && (
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setUploading(true)}>
-            Tải văn bản lên
+        <>
+          <Button icon={<DashboardOutlined />} onClick={() => setQualityOpen(true)}>
+            Chất lượng xử lý
           </Button>
-        )
+          {can(user, WORKING) && (
+            <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setUploading(true)}>
+              Tải văn bản lên
+            </Button>
+          )}
+        </>
       }
       wide
     >
+      <QualityPanel open={qualityOpen} onClose={() => setQualityOpen(false)} />
       <Card className="card-flush">
         <div className="table-filters">
           <FilterBar
