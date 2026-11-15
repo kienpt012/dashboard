@@ -396,7 +396,6 @@ export type Proposal={
   status:'PROPOSED'|'SUBMITTED'|'APPROVED'|'REJECTED';
   origin:'AI'|'HUMAN';
   description?:string|null;
-  category?:string|null;
   unit?:string|null;
   targetValue?:number|null;
   targetText?:string|null;

@@ -1,2 +1,0 @@
-pytest==8.4.2
-python-docx==1.2.0
