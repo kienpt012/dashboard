@@ -30,6 +30,14 @@ export class OllamaModelMissingError extends ServiceUnavailableException {
   }
 }
 
+/** Máy không đủ RAM để Ollama nạp model: đoạn nào cũng sẽ lỗi như nhau, nên là lỗi của cả lượt. */
+export class OllamaOutOfMemoryError extends ServiceUnavailableException {
+  constructor(readonly model: string) {
+    super(`Máy không đủ RAM để nạp model "${model}". Đóng bớt ứng dụng cho trống khoảng 5 GB RAM rồi bấm "Trích xuất lại".`);
+    this.name = 'OllamaOutOfMemoryError';
+  }
+}
+
 // Client gọi Ollama local. Mọi lời gọi model đều đi qua service này để thống nhất
 // cấu hình, timeout và không bao giờ log nội dung tài liệu.
 @Injectable()
@@ -138,6 +146,7 @@ export class OllamaService {
       const detail = await safeErrorText(response);
       this.logger.error(`Ollama trả lỗi ${response.status} cho model ${model}: ${detail}`);
       if (response.status === 404 && /not found/i.test(detail)) throw new OllamaModelMissingError(model);
+      if (/out[- ]of[- ]memory|failed to allocate|requires more system memory/i.test(detail)) throw new OllamaOutOfMemoryError(model);
       throw new ServiceUnavailableException('Dịch vụ AI cục bộ trả về lỗi. Vui lòng thử lại sau.');
     }
     let raw: string;

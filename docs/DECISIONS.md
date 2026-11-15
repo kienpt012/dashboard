@@ -343,3 +343,13 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   là phần đầu tên kia thì bỏ bản ở phần khác. Bản ghi Qwen có cờ "tên không khớp câu trích" và giá trị trống hoặc không có
   nguyên văn trong câu trích thì bỏ hẳn, đếm vào `stats.droppedUnsupported` và ghi chú của lượt trích xuất.
 - **Báo cáo tổng kết**: tên cơ quan trong hồ sơ địa phương đã chứa tên phường thì không ghép thêm tên phường.
+
+## D-028 · 2026-11-15 · Máy hết RAM thì lượt trích xuất báo lỗi, không trả bản thiếu từ bộ luật
+
+- **Bối cảnh**: VB-2026-0009 (16 trang) trên máy 16 GB còn dưới 2 GB trống: Ollama trả 500 "out-of-memory during startup"
+  cho cả 23/23 đoạn, worker chuyển hết sang bộ luật dự phòng và hoàn tất sau 86 giây với 43 dòng (17/37 chỉ tiêu Điều 3).
+  Ghi chú của lượt có nói "Qwen lỗi ở 23/23 đoạn" nhưng kết quả trông như một lượt đã xong.
+- **Chọn**: `OllamaOutOfMemoryError` (nhận theo nội dung lỗi của Ollama) là lỗi của cả lượt như `OllamaModelMissingError`:
+  dừng, không ghi đè đề xuất cũ, báo "Máy không đủ RAM để nạp model…". Đoạn đã đọc xong vẫn nằm trong bộ nhớ theo đoạn
+  nên lượt chạy lại không mất công.
+- **Chưa làm**: lỗi khác của Qwen ở mọi đoạn (hết giờ, 500 khác) vẫn dùng bộ luật như cũ và chỉ ghi chú.

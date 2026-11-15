@@ -715,6 +715,23 @@ test('Ollama mất model (404 not found): báo lỗi riêng, job dừng thay vì
     /Chưa có model "qwen3-chitieu:v2-fix"/,
   );
   assert.equal(written, false, 'không ghi đè đề xuất cũ bằng kết quả của luật');
+
+  // Máy hết RAM (Ollama 500 "out-of-memory during startup"): cũng là lỗi của cả lượt, không ra bản thiếu từ luật.
+  const { OllamaOutOfMemoryError } = await import('../src/ollama');
+  globalThis.fetch = (async () => new Response('{"error":"out-of-memory during startup: failed to allocate buffer of size 1765048320"}', { status: 500 })) as typeof fetch;
+  try {
+    const real = new OllamaService(new ConfigService({ OLLAMA_EXTRACT_MODEL: 'qwen3-chitieu:v2-fix' }));
+    await assert.rejects(real.chatStructured([{ role: 'user', content: 'x' }], {}), (error: unknown) => error instanceof OllamaOutOfMemoryError);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const starved = workerWith(prisma, { ...ollama, chatStructured: async () => { throw new OllamaOutOfMemoryError('qwen3-chitieu:v2-fix'); } });
+  workerRef.id = starved.workerId;
+  await assert.rejects(
+    starved.processExtractJob({ id: 'job-10', documentId: 'doc-9', kind: ExtractionJobKind.INDICATOR_EXTRACT, attempts: 1, createdById: 'u1' }, new AbortController().signal),
+    /không đủ RAM/,
+  );
+  assert.equal(written, false);
 });
 
 test('@Injectable() gắn ngay vào class service (chèn class khác vào giữa làm API sập khi khởi động)', async () => {

@@ -59,7 +59,7 @@ import {
   type StructuredElement,
   type StructuredPage,
 } from './ocr-service';
-import { OllamaModelMissingError, OllamaService } from './ollama';
+import { OllamaModelMissingError, OllamaOutOfMemoryError, OllamaService } from './ollama';
 import { parsePlanningDueDate } from './planning-date';
 import { loadLocality } from './locality';
 import { PrismaService } from './prisma.service';
@@ -1008,8 +1008,9 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
             }
           } catch (error) {
             throwIfAborted(signal);
-            // Model không còn trong Ollama: dừng cả lượt và báo rõ, không âm thầm dùng luật cho mọi đoạn còn lại.
-            if (error instanceof OllamaModelMissingError) throw error;
+            // Model không còn trong Ollama, hoặc máy không đủ RAM để nạp model: dừng cả lượt và báo rõ, không âm thầm
+            // dùng luật cho mọi đoạn còn lại (bản kết quả sẽ thiếu phần lớn chỉ tiêu mà trông như đã xong).
+            if (error instanceof OllamaModelMissingError || error instanceof OllamaOutOfMemoryError) throw error;
             const timedOut = error instanceof Error && (error.name === 'TimeoutError' || /hết giờ|timeout/i.test(error.message));
             stats.llmFailed += 1;
             if (timedOut) stats.llmTimedOut += 1;
@@ -1046,7 +1047,7 @@ export class ExtractionWorker implements OnApplicationBootstrap, OnModuleDestroy
               }
             } catch (error) {
               throwIfAborted(signal);
-              if (error instanceof OllamaModelMissingError) throw error;
+              if (error instanceof OllamaModelMissingError || error instanceof OllamaOutOfMemoryError) throw error;
               this.logger.warn(`Hỏi lại mục thiếu lỗi ở đoạn ${chunk.chunkIndex} của tài liệu ${document.id}: ${error instanceof Error ? error.name : 'unknown'}`);
             }
           }
