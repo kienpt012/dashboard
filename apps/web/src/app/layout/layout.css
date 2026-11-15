@@ -4,6 +4,17 @@
   min-height: 100vh;
 }
 
+.shell-workspace .shell-content-workspace {
+  padding: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.shell-workspace-focus .shell-header,
+.shell-workspace-focus .screen-strip {
+  display: none;
+}
+
 .shell-sider {
   border-inline-end: 1px solid var(--ioc-color-border-secondary);
   z-index: 20;

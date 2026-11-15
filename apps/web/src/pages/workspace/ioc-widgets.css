@@ -1,0 +1,13 @@
+.ws-ioc-list { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ws-ioc-row { display: flex; flex-direction: column; gap: 7px; width: 100%; min-width: 0; padding: 11px 4px; border: 0; border-bottom: 1px solid var(--ws-border, #8883); background: transparent; color: inherit; text-align: left; font: inherit; overflow-wrap: anywhere; }
+button.ws-ioc-row { cursor: pointer; }
+.ws-ioc-row strong { font-weight: 600; line-height: 1.5; }
+.ws-ioc-row small, .ws-ioc-row time, .ws-ioc-row > span { font-size: 12px; line-height: 1.5; opacity: .85; }
+.ws-ioc-row a { color: inherit; }
+.ws-ioc-row:focus-visible { outline: 2px solid var(--ws-accent, #1677ff); outline-offset: 2px; }
+.ws-ioc-row .ant-progress { margin: 0; }
+.ws-target-chart { min-width: 0; }
+.ws-target-chart > .ant-select { width: 100%; margin-bottom: 10px; }
+.ws-ioc-pin { display: flex; gap: 8px; align-items: flex-start; }
+.ws-ioc-pin > .ant-btn { flex-shrink: 0; margin-top: 10px; }
+.ws-ioc-list .ant-empty-description { color: inherit; }

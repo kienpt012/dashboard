@@ -2,6 +2,7 @@ import { Controller, Get, NotFoundException, Param, Post, Query, Req, UseGuards 
 import { getActor } from './access';
 import { JwtAuthGuard } from './common';
 import { PrismaService } from './prisma.service';
+import { presentNotifications } from './notification-reference';
 
 // Hộp thông báo trong ứng dụng: giao việc, nhắc việc, tự thông qua, yêu cầu giải trình… Mỗi người chỉ thấy thông báo của mình.
 
@@ -23,7 +24,7 @@ export class NotificationsController {
       }),
       this.prisma.notification.count({ where: { userId: actor.id, readAt: null } }),
     ]);
-    return { items, unreadCount };
+    return { items: await presentNotifications(this.prisma, actor, items), unreadCount };
   }
 
   @Get('count')

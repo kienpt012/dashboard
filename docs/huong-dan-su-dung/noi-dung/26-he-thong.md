@@ -99,6 +99,8 @@ Khi sửa chính tài khoản đang đăng nhập, ô `Vai trò` và công tắc
 
 > Nếu tài khoản còn phản ánh đang xử lý, phải phân công lại trước khi khóa, chuyển phòng hoặc đổi sang vai trò khác Trưởng phòng, Chuyên viên. Khi đó các chỉ tiêu người này đang phụ trách được trả về trưởng phòng để phân công lại; dòng thời gian của chỉ tiêu ghi rõ lý do. Hệ thống luôn phải còn ít nhất một quản trị viên đang hoạt động.
 
+> **Số điện thoại di động.** Ô `Số điện thoại di động` trong hộp thêm, sửa tài khoản dùng để nhận mã khôi phục mật khẩu qua tin nhắn (mục 1.3). Email công vụ và số điện thoại của tài khoản chỉ quản trị viên sửa được; khi đổi, các mã khôi phục đang chờ của tài khoản đó mất hiệu lực.
+
 ### HT-04 · Cấu hình
 
 **Đường dẫn:** menu `Hệ thống` › `Cấu hình` (`/admin/settings`) · **Vai trò:** quản trị hệ thống.
@@ -154,6 +156,13 @@ Hệ thống rà soát các thời hạn trên theo chu kỳ ngắn (mặc đị
 
 > Thay đổi `Tự thông qua báo cáo sau` và `Nhắc chưa giao người sau` áp dụng ngay cho cả việc đang chờ. Thay đổi số ngày của `Tự thông qua đề xuất sau` và `Hạn trả lời giải trình` chỉ áp dụng cho đề xuất trình và yêu cầu giải trình gửi sau khi lưu. Kết quả xử lý tự động được tổng hợp tại Trách nhiệm (DH-04).
 
+#### Thiết lập bổ sung từ bản tháng 11/2026
+
+| Thiết lập | Lựa chọn | Tác dụng |
+|---|---|---|
+| `Người phân việc cho phòng` | `Lãnh đạo UBND` (mặc định) hoặc `Chánh Văn phòng` | Ai được tạo văn bản chỉ đạo, giao nhiệm vụ cho mọi phòng và duyệt đề xuất chỉ tiêu liên phòng (DH-05, DH-06, CT-03). Lãnh đạo UBND luôn có quyền này; chọn `Chánh Văn phòng` thì trưởng phòng của Văn phòng có thêm quyền. Quyền phân việc không kèm quyền báo cáo thay chuyên viên hay giao chuyên viên thay trưởng phòng |
+| `Cho xem chỉ tiêu của phòng khác` | Bật (mặc định) hoặc tắt | Bật: trưởng phòng, chuyên viên, người xem xem được chỉ tiêu toàn địa phương bằng công tắc `Phòng tôi` / `Toàn địa phương`; quyền sửa vẫn theo phòng chủ trì và người được giao. Tắt: mỗi phòng chỉ thấy chỉ tiêu của mình như trước |
+
 ### HT-05 · Nhật ký hệ thống
 
 **Đường dẫn:** menu `Hệ thống` › `Nhật ký hệ thống` (`/admin/audit-logs`) · **Vai trò:** quản trị hệ thống.
@@ -189,9 +198,9 @@ Các thao tác ở nhóm Hệ thống được ghi với nhãn sau trong cột `
 Nhật ký hiển thị thông tin được phép tra cứu, không phải bản sao toàn bộ nội dung hồ sơ. Hệ thống không cho sửa hoặc xóa
 bản ghi tại màn hình này.
 
-### HT-06 · Báo lỗi
+### HT-06 · Góp ý, báo lỗi
 
-**Đường dẫn:** menu `Hệ thống` › `Báo lỗi` (`/admin/bao-loi`) · **Vai trò:** quản trị hệ thống.
+**Đường dẫn:** menu `Hệ thống` › `Góp ý, báo lỗi` (`/admin/bao-loi`) · **Vai trò:** quản trị hệ thống.
 
 Tiếp nhận và theo dõi báo lỗi do người dùng gửi, kèm địa chỉ, mã màn hình và ảnh chụp nếu có. Cách gửi báo lỗi từ thanh đầu
 trang đã trình bày ở mục 1.4.
@@ -236,3 +245,46 @@ Mỗi tài khoản được thử đổi mật khẩu tối đa 5 lần trong 15
 Nếu quên mật khẩu hiện tại, dùng quy trình khôi phục ở mục 1.3 hoặc nhờ quản trị viên đặt lại tại HT-03; không thể đổi tại
 đây khi chưa nhập đúng mật khẩu hiện tại.
 
+### HT-08 · Ứng dụng công vụ
+
+**Đường dẫn:** menu `Hệ thống` › `Ứng dụng công vụ` (`/admin/ung-dung`) · **Vai trò:** quản trị hệ thống.
+
+Khai báo danh mục phần mềm công vụ hiện trên khay ứng dụng của **Bàn làm việc** (DH-00): thư công vụ, dịch vụ công, quản lý văn bản và các trang tra cứu thường dùng.
+
+![Danh mục ứng dụng công vụ](anh/ht-08.png)
+
+Mỗi dòng là một ứng dụng: tên và công dụng, nhóm, đối tượng được thấy, trạng thái đang dùng, nguồn số việc mới và các nút đổi thứ tự, xem trước, sửa.
+
+#### Thêm hoặc sửa ứng dụng
+1. Bấm `Thêm ứng dụng`, hoặc bấm biểu tượng bút ở dòng cần sửa.
+2. Nhập `Tên ứng dụng`, `Địa chỉ` (bắt đầu bằng `https://`), `Công dụng` (hiện khi rê chuột vào biểu tượng), chọn `Nhóm`.
+3. Chọn `Biểu tượng hoặc chữ viết tắt` và `Màu biểu tượng`; xem trước ngay trong hộp.
+4. Giới hạn đối tượng nếu cần: chọn `Vai trò` và/hoặc `Phòng ban` được thấy ứng dụng. Để trống cả hai là mọi cán bộ đều thấy.
+5. Đặt `Thứ tự` và bật `Đang dùng`. Bấm lưu.
+
+#### Hiện số việc mới trên biểu tượng
+Nếu phần mềm kia có một địa chỉ trả về số việc mới dưới dạng JSON công khai (HTTPS), nhập địa chỉ đó vào `Nguồn huy hiệu JSON` và tên trường chứa con số vào `Đường dẫn trường số`. Hệ thống đọc lại mỗi 5 phút. Không lấy được số thì biểu tượng vẫn dùng bình thường, chỉ không hiện con số.
+
+> Hệ thống chỉ mở liên kết sang phần mềm khác, không lưu tài khoản và không đăng nhập thay. Ứng dụng tắt `Đang dùng` sẽ ẩn khỏi bàn làm việc của mọi người.
+
+### HT-09 · Mô hình dự báo
+
+**Đường dẫn:** menu `Hệ thống` › `Mô hình dự báo` (`/admin/du-bao`) · **Vai trò:** quản trị hệ thống, lãnh đạo UBND.
+
+Màn hình quản lý mô hình dự báo khả năng không đạt của chỉ tiêu (khối `Dự báo` ở CT-06, `Dự báo nguy cơ` ở DH-01).
+
+![Mô hình dự báo](anh/ht-09.png)
+
+- **`Thông tin mô hình`** — thời điểm huấn luyện, số mẫu, số chỉ tiêu lịch sử, số dòng lịch sử thực tế và mô phỏng. Dòng cảnh báo màu vàng cho biết mô hình đang dùng bao nhiêu mẫu mô phỏng.
+- **`Đánh giá trên tập kiểm tra`** — chỉ số AUC, độ chính xác, Brier và bảng so dự báo với thực tế trên phần dữ liệu để riêng không dùng khi huấn luyện.
+- **`Tầm quan trọng đặc trưng`** — các yếu tố mô hình dựa vào nhiều nhất (chênh lệch giữa mức đạt và thời gian đã qua, xu hướng các kỳ gần, tỷ lệ báo cáo trễ…).
+- **Danh sách dự báo** — dự báo của các chỉ tiêu còn hạn trong năm, lọc theo mức nguy cơ, xuất được Excel.
+
+#### Nhập số liệu lịch sử thật và huấn luyện lại
+Mô hình càng có nhiều năm số liệu thật càng đáng tin. Bộ mẫu ban đầu chỉ có số liệu mô phỏng để minh hoạ.
+1. Bấm `Tải mẫu lịch sử` để lấy tệp Excel mẫu.
+2. Điền số liệu các năm trước theo mẫu: mỗi dòng là giá trị một kỳ của một chỉ tiêu, kèm mức giao, đơn vị, chiều đánh giá, ngày báo cáo và hạn.
+3. Bấm `Nhập lịch sử Excel/CSV`, chọn tệp (tối đa 5 MB, 5.000 dòng). Số liệu lịch sử lưu riêng, không ảnh hưởng số liệu đang vận hành; nhập lại cùng tệp không tạo dòng trùng.
+4. Bấm `Huấn luyện lại`. Xem lại `Thông tin mô hình` và `Đánh giá trên tập kiểm tra`.
+
+> Khi dữ liệu chưa đủ để huấn luyện (dưới 40 mẫu hoặc 12 chỉ tiêu, hoặc chỉ có toàn chỉ tiêu đạt/toàn chỉ tiêu không đạt), hệ thống dùng hệ số mặc định và ghi rõ `chưa đủ dữ liệu` trên mọi màn hình có dự báo. Các chỉ số đánh giá tính trên dữ liệu mô phỏng không nói lên độ chính xác với số liệu thật.

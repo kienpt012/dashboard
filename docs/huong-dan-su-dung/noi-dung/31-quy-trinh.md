@@ -4,17 +4,17 @@ Quy trình này dùng khi cần cập nhật số liệu của nhiều chỉ ti�
 
 | Bước | Người thực hiện | Màn hình | Việc làm | Kết quả, trạng thái |
 |---|---|---|---|---|
-| 1 | Người nhập | DL-03 | Chọn năm (lãnh đạo, quản trị chọn thêm phòng ban), bấm `Tải phiếu Excel` | Tệp phiếu hiện trạng của phòng |
+| 1 | Người nhập | DL-03 | Chọn năm (quản trị chọn thêm phòng ban), bấm `Tải phiếu Excel` | Tệp phiếu hiện trạng của phòng |
 | 2 | Người nhập | Tệp Excel trên máy | Điền `Giá trị mới`, `Ghi chú` cho chỉ tiêu có số mới | Phiếu đã điền |
 | 3 | Người nhập | DL-03 | Tải phiếu lên, bấm `Đối soát`, sửa lỗi nếu có | Lượt nhập `Đã đối soát, chưa ghi`; số liệu chưa thay đổi |
-| 4a | Lãnh đạo UBND, Quản trị hệ thống | DL-03 | Bấm `Ghi nhận số liệu` | Số liệu chính thức cập nhật ngay; lượt nhập `Đã ghi nhận` |
+| 4a | Quản trị hệ thống | DL-03 | Bấm `Ghi nhận số liệu` | Số liệu chính thức cập nhật ngay; lượt nhập `Đã ghi nhận` |
 | 4b | Trưởng phòng, Chuyên viên | DL-03 | Bấm `Gửi số liệu` | Mỗi dòng thành một báo cáo `Chờ duyệt`; lượt nhập `Chờ duyệt` |
 | 5 | Người duyệt | CT-04 hoặc DH-02 | `Duyệt` hoặc `Trả lại` từng dòng | Dòng `Đã duyệt` hoặc `Trả lại`; trạng thái lượt nhập đổi theo kết quả |
 | 6 | Người nhập | DL-03, DH-02 | Theo dõi `Lịch sử nhập`, gửi lại dòng bị trả lại | Số liệu được ghi nhận đầy đủ |
 
 #### Bước 1. Tải phiếu hiện trạng
-1. Mở màn hình nhập Excel (DL-03) trong nhóm **Dữ liệu** của menu. Trưởng phòng, Chuyên viên thấy màn hình này với tên `Nộp báo cáo Excel`; Lãnh đạo UBND, quản trị viên thấy tên `Nhập số liệu Excel`. Cũng có thể bấm `Nhập Excel` trên màn hình Danh mục chỉ tiêu (CT-02).
-2. Tại bước `Tải phiếu hiện trạng`, chọn năm. Lãnh đạo UBND, quản trị viên phải chọn thêm `Phòng ban`; nếu bỏ trống, hệ thống nhắc `Chọn phòng ban để tải phiếu`. Trưởng phòng, Chuyên viên chỉ tải được phiếu của phòng mình.
+1. Mở màn hình nhập Excel (DL-03) trong nhóm **Dữ liệu** của menu. Trưởng phòng, Chuyên viên thấy màn hình này với tên `Nộp báo cáo Excel`; quản trị viên thấy tên `Nhập số liệu Excel`. Lãnh đạo UBND không có màn hình này vì không ghi số liệu. Cũng có thể bấm `Nhập Excel` trên màn hình Danh mục chỉ tiêu (CT-02).
+2. Tại bước `Tải phiếu hiện trạng`, chọn năm. Quản trị viên phải chọn thêm `Phòng ban`; nếu bỏ trống, hệ thống nhắc `Chọn phòng ban để tải phiếu`. Trưởng phòng, Chuyên viên chỉ tải được phiếu của phòng mình.
 3. Bấm `Tải phiếu Excel`. Phiếu tải về gồm mọi chỉ tiêu chưa lưu trữ của phòng trong năm đã chọn, kèm mục tiêu và giá trị hiện tại.
 
 #### Bước 2. Điền phiếu
@@ -43,7 +43,7 @@ Quy trình này dùng khi cần cập nhật số liệu của nhiều chỉ ti�
 | `Chỉ tiêu đã được lưu trữ và không còn nhận báo cáo mới` | Để trống dòng đó |
 | `Biểu mẫu đã cũ hoặc không đúng phiên bản; vui lòng tải biểu mẫu mới` hoặc `Cấu trúc cột đã bị thay đổi; vui lòng dùng biểu mẫu mới tải từ hệ thống` | Lỗi này áp dụng cho cả tệp: tải phiếu mới và điền lại |
 
-#### Bước 4a. Lãnh đạo UBND, quản trị viên ghi nhận trực tiếp
+#### Bước 4a. Quản trị viên ghi nhận trực tiếp
 1. Tại bước `Ghi nhận`, bấm `Ghi nhận số liệu`. Hệ thống báo `Đã ghi nhận số liệu chính thức`.
 2. Giá trị hiện tại của từng chỉ tiêu được thay bằng giá trị mới, và tình trạng chỉ tiêu được tính lại. Lượt nhập chuyển sang `Đã ghi nhận`, không qua bước duyệt.
 3. Báo cáo của người khác đang chờ duyệt cho cùng chỉ tiêu sẽ hiện nhãn `Dữ liệu đã đổi` ở CT-04. Người duyệt chỉ còn cách trả lại các báo cáo đó.
@@ -81,7 +81,7 @@ Người gửi nhận thông báo cho từng dòng được duyệt hoặc bị 
 | `Đã duyệt` | Mọi dòng được duyệt, kể cả dòng hệ thống tự thông qua |
 | `Duyệt một phần` | Đã xử lý hết; có dòng được duyệt, có dòng bị trả lại |
 | `Bị trả lại` | Mọi dòng bị trả lại |
-| `Đã ghi nhận` | Lãnh đạo UBND hoặc quản trị viên đã ghi nhận trực tiếp |
+| `Đã ghi nhận` | Quản trị viên đã ghi nhận trực tiếp |
 
 > **Thời hạn tự động.** Mỗi dòng chờ duyệt được tự thông qua sau một số ngày kể từ lúc gửi, mặc định 7 ngày. Quản trị viên chỉnh số ngày tại Cấu hình (HT-04), mục `Tự thông qua báo cáo sau`; đặt 0 để tắt cơ chế này. Cột `Tự thông qua` ở CT-04 đếm ngược thời hạn này.
 > **Khi quá hạn.** Hệ thống tự thông qua dòng đó và cập nhật số liệu chính thức. Hệ thống đồng thời ghi trách nhiệm cho người duyệt để chậm: Trưởng phòng với dòng của chuyên viên, Lãnh đạo UBND với dòng của Trưởng phòng. Người gửi, người duyệt và Lãnh đạo UBND nhận thông báo. Nếu chỉ tiêu đã có số liệu mới sau lúc gửi, hệ thống không tự thông qua mà báo người duyệt và Lãnh đạo UBND để trả lại.
@@ -453,3 +453,41 @@ Kết luận của chủ trì được ghi vào hồ sơ từng chỉ tiêu liê
 
 > **Giới hạn quyền.** Mọi vai trò đều mở được trình chiếu, nhưng Trưởng phòng, Chuyên viên và Người xem chỉ thấy số liệu của phòng mình. Chỉ Lãnh đạo UBND, Văn thư và Quản trị hệ thống được bật, tắt trình chiếu của bộ chỉ tiêu. Chỉ Quản trị hệ thống sửa Cấu hình và thứ tự phòng. Chỉ Lãnh đạo UBND và Quản trị hệ thống gửi được `Yêu cầu giải trình`. `Đánh giá` và `Nhắc việc` dành cho Lãnh đạo UBND, Quản trị hệ thống và trưởng phòng chủ trì.
 
+## 3.10 Từ văn bản chỉ đạo đến nhiệm vụ hoàn thành
+
+Áp dụng cho chương trình công tác, thông báo kết luận, kế hoạch, công văn có giao việc cho các phòng.
+
+| Bước | Ai làm | Làm gì | Ở đâu |
+|---|---|---|---|
+| 1 | Văn thư | Tải văn bản lên kho | **Kho văn bản** (DL-02) |
+| 2 | Văn thư hoặc người phân việc | Thêm văn bản chỉ đạo, chọn tệp trong kho để điền sẵn số ký hiệu, ngày ban hành | **Văn bản chỉ đạo** (DH-05) |
+| 3 | Người phân việc | Thêm hoặc dán danh sách nhiệm vụ; giao phòng chủ trì, phòng phối hợp, hạn hoàn thành | **Chi tiết văn bản chỉ đạo** (DH-06) |
+| 4 | Trưởng phòng chủ trì | Giao nhiệm vụ cho chuyên viên | Hồ sơ nhiệm vụ (CT-06), như mục 3.2 |
+| 5 | Chuyên viên | Bấm `Báo cáo kết quả`: tỷ lệ hoàn thành, nội dung, minh chứng | Hồ sơ nhiệm vụ |
+| 6 | Trưởng phòng | Duyệt hoặc trả lại báo cáo | **Duyệt báo cáo** (CT-04) |
+| 7 | Lãnh đạo, người phân việc | Theo dõi tiến độ, quá hạn; xem thống kê theo văn bản, phòng, tháng | DH-05 thẻ `Thống kê`; **Trung tâm điều hành** (DH-01) |
+
+Người phân việc là Lãnh đạo UBND hoặc Chánh Văn phòng, theo thiết lập `Người phân việc cho phòng` tại **Cấu hình** (HT-04). Mỗi nhiệm vụ ghi lại ai phân việc và lúc nào.
+
+Trong quá trình thực hiện:
+- Người được giao thấy nhiệm vụ ở **Bàn làm việc** (`Hôm nay`, `Ngày mai`, `Nhắc việc`), **Việc của tôi** (DH-02) và **Việc theo tháng** (DH-07).
+- Còn 3 ngày đến hạn, hệ thống nhắc người phụ trách; quá hạn thì báo trưởng phòng; quá hạn trên 3 ngày thì báo người phân việc và lãnh đạo.
+- Nhiệm vụ gắn với một chỉ tiêu sẽ hiện trong khối `Nhiệm vụ liên quan` của hồ sơ chỉ tiêu đó.
+
+## 3.11 Dán note nhắc việc và theo dõi
+
+1. Lãnh đạo hoặc trưởng phòng mở **Hồ sơ chỉ tiêu** (CT-06) của việc cần nhắc, chọn `Thao tác` › `Dán note nhắc việc`; hoặc bấm `Dán note` ngay trên **Bàn làm việc** (DH-00).
+2. Kiểm tra người nhận (hệ thống điền sẵn người phụ trách và trưởng phòng chủ trì khi dán từ hồ sơ), nhập nội dung, đặt hạn, bấm `Dán note`.
+3. Người nhận thấy tờ note trên bàn làm việc của mình cùng thông báo; đọc, `Trả lời` nếu cần trao đổi, làm xong bấm `Đã xong`.
+4. Người gửi mở tiện ích `Note đã dán` để xem ai đã xem, ai đã xong; cần rút lại thì bấm `Thu hồi`.
+
+> Note dùng để nhắc và trao đổi nhanh. Việc giao chính thức vẫn là chỉ tiêu, nhiệm vụ và chỉ đạo điều hành có ghi dòng thời gian trách nhiệm (mục 3.6, 3.10).
+
+## 3.12 Lập và công khai lịch làm việc của lãnh đạo
+
+1. Chiều thứ Sáu hoặc đầu tuần, cán bộ Văn phòng (hoặc văn thư) mở **Lịch làm việc** (DH-08), chuyển sang tuần cần lập.
+2. Bấm `Chép từ tuần gần nhất` để lấy các việc lặp lại hằng tuần (chào cờ, giao ban, tiếp công dân), rồi sửa, thêm, xoá cho đúng tuần mới.
+3. Tắt `Hiện trên trang công khai` ở những dòng chỉ dùng nội bộ. Bấm `Lưu lịch`.
+4. Sau khi lãnh đạo ký lịch tuần, bấm `Đính kèm lịch đã ký (PDF)`.
+5. Bật `Công khai tuần này`. Người dân xem tại **Lịch làm việc của lãnh đạo** (CC-06); cán bộ thấy lịch từng ngày ở `Hôm nay`, `Ngày mai` trên **Bàn làm việc**.
+6. Khi lịch thay đổi trong tuần, sửa dòng lịch và bấm `Lưu lịch`; trang công khai cập nhật ngay.

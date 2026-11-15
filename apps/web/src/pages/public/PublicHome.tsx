@@ -1,4 +1,4 @@
-import { FileSearchOutlined, FormOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, CheckCircleOutlined, FileSearchOutlined, FormOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Result, Skeleton } from 'antd';
 import { Link } from 'react-router-dom';
 import { localityTitle, useLocality } from '@/app/locality';
@@ -44,21 +44,22 @@ export default function PublicHome() {
                 <h1>{overview ? `Công khai kết quả điều hành năm ${overview.year}` : 'Thông tin công khai'}</h1>
                 {overview?.updatedAt && <span className="pd-hero-meta">Số liệu cập nhật ngày {date(overview.updatedAt)}</span>}
               </div>
-              <div className="pd-hero-actions">
-                <Link to="/phan-anh">
-                  <Button size="large" icon={<FormOutlined />} className="pd-hero-primary">
-                    Gửi phản ánh
-                  </Button>
-                </Link>
-                <Link to="/phan-anh?tab=tra-cuu">
-                  <Button size="large" ghost icon={<FileSearchOutlined />}>
-                    Tra cứu hồ sơ
-                  </Button>
-                </Link>
-              </div>
             </div>
           </section>
         )}
+        <nav className="pub-container pub-services" aria-label="Dịch vụ dành cho người dân">
+          {[
+            { to: '/phan-anh', icon: <FormOutlined />, title: 'Gửi phản ánh', description: 'Góp ý, phản ánh vấn đề tại địa phương' },
+            { to: '/phan-anh?tab=tra-cuu', icon: <FileSearchOutlined />, title: 'Tra cứu phản ánh', description: 'Theo dõi tiến độ và kết quả xử lý' },
+            { to: '/phan-anh?tab=cong-khai', icon: <CheckCircleOutlined />, title: 'Kết quả đã công khai', description: 'Xem những phản ánh đã được giải quyết' },
+          ].map(service => (
+            <Link key={service.to} to={service.to} className="pub-service">
+              <span className="pub-service-icon">{service.icon}</span>
+              <span><strong>{service.title}</strong><span>{service.description}</span></span>
+              <ArrowRightOutlined aria-hidden />
+            </Link>
+          ))}
+        </nav>
         {page.error && !page.data ? (
           <div className="pub-container pd-page-body">
             <Result

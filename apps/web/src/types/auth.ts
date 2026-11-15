@@ -7,6 +7,7 @@ export type CurrentUser = {
   fullName: string;
   position?: string | null;
   email?: string | null;
+  phone?: string | null;
   role: Role;
   isActive: boolean;
   departmentId: string | null;

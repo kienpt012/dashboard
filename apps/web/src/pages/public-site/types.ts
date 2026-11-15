@@ -8,6 +8,7 @@ export type PublicDashboardWidgetType =
   | 'departmentProgress'
   | 'feedbackList'
   | 'documentList'
+  | 'leaderSchedule'
   | 'richText'
   | 'customHtml'
   | 'cta';

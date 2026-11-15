@@ -2,11 +2,12 @@ import { BadRequestException, Controller, Get, NotFoundException, Query, Req, Re
 import { FrameworkKind, ProgressReviewStatus, Role, TargetStatus } from '@prisma/client';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import { audit, getActor, resolveDepartmentScope } from './access';
+import { audit, getActor, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard } from './common';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
 import { isValidPeriodKey, parsePeriodKey, periodLabel } from './periods';
+import { docRefText, DOC_REF_INCLUDE } from './doc-ref';
 import { PrismaService } from './prisma.service';
 import { brandName, loadLocality } from './locality';
 import { buildSummaryWorkbook, summaryRows } from './summary-report';
@@ -76,10 +77,11 @@ export class ExportsController {
     @Query('year') yearRaw?: string,
     @Query('departmentId') requestedDepartmentId?: string,
     @Query('frameworkId') frameworkRaw?: string,
+    @Query('scope') readScope?: string,
   ) {
     const actor = getActor(req);
     const year = parseYear(yearRaw);
-    const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, requestedDepartmentId, readScope);
     const scopeDepartment = departmentId
       ? actor.departmentId === departmentId && actor.department
         ? actor.department
@@ -98,10 +100,11 @@ export class ExportsController {
       where: {
         year,
         isArchived: false,
+        kind: { not: FrameworkKind.TASK },
         ...(departmentId ? { departmentId } : {}),
         ...(frameworkId ? { frameworkId: frameworkId === 'none' ? null : frameworkId } : {}),
       },
-      include: { department: true },
+      include: { department: true, ...DOC_REF_INCLUDE },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });
     const evaluations = new Map(targets.map(target => [target.id, evaluateTarget({
@@ -221,8 +224,10 @@ export class ExportsController {
       { header: 'Hạn hoàn thành', width: 18 },
       { header: 'Cập nhật gần nhất', width: 20 },
       { header: 'Phiên bản', width: 12 },
+      { header: 'Văn bản giao', width: 48 },
     ];
     header(details.getRow(1));
+    details.getColumn(2).hidden = true; // Mã chỉ giữ để đối soát khi cần.
     targets.forEach((target, index) => {
       const evaluation = evaluations.get(target.id)!;
       const row = details.addRow([
@@ -240,6 +245,7 @@ export class ExportsController {
         target.dueDate,
         target.lastReportedAt,
         target.version,
+        docRefText(target),
       ]);
       row.getCell(5).numFmt = '#,##0.########';
       row.getCell(6).numFmt = '#,##0.########';
@@ -317,7 +323,7 @@ export class ExportsController {
     const periodKey = periodRaw?.trim() || String(currentVietnamYear());
     if (!isValidPeriodKey(periodKey)) throw new BadRequestException('Kỳ báo cáo không hợp lệ');
     const year = parseYear(String(parsePeriodKey(periodKey)?.year));
-    const departmentId = resolveDepartmentScope(actor, requestedDepartmentId);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, requestedDepartmentId);
     // Chỉ lấy chỉ tiêu kế hoạch: mẫu là bảng "chỉ tiêu chủ yếu", không gồm nhiệm vụ, điểm chấm hay số thống kê.
     const targets = await this.prisma.target.findMany({
       where: { year, isArchived: false, kind: FrameworkKind.PLAN, ...(departmentId ? { departmentId } : {}) },

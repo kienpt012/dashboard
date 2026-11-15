@@ -26,6 +26,7 @@ import { BugReport } from './BugReport';
 import { CommandPalette } from './CommandPalette';
 import { Jarvis, JarvisMark, type JarvisHandle, type JarvisVoiceState } from './Jarvis';
 import { Notifications } from './Notifications';
+import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
 import './layout.css';
 
 const COLLAPSE_KEY = 'ioc_nav_collapsed';
@@ -133,6 +134,8 @@ export default function AdminLayout() {
   const theme = useThemeMode();
   const locality = useLocality();
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const isWorkspace = location.pathname.replace(/\/$/, '') === '/admin';
+  const [workspaceFocus, setWorkspaceFocus] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
   const [copilot, setCopilot] = useState(false);
@@ -156,6 +159,33 @@ export default function AdminLayout() {
     setLoadedAt(new Date());
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isWorkspace) setWorkspaceFocus(false);
+    const onFocus = (event: Event) => {
+      if (isWorkspace) setWorkspaceFocus((event as CustomEvent<boolean>).detail === true);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setWorkspaceFocus(false);
+    };
+    window.addEventListener('ioc:workspace-focus', onFocus);
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('ioc:workspace-focus', onFocus);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [isWorkspace]);
+
+  useEffect(() => {
+    const onCommand = () => setPalette(true);
+    const onJarvis = () => jarvisRef.current?.summon(false);
+    window.addEventListener('ioc:open-command', onCommand);
+    window.addEventListener('ioc:open-jarvis', onJarvis);
+    return () => {
+      window.removeEventListener('ioc:open-command', onCommand);
+      window.removeEventListener('ioc:open-jarvis', onJarvis);
+    };
+  }, []);
 
   // Liên kết cũ /admin/copilot: mở sẵn Jarvis.
   useEffect(() => {
@@ -236,8 +266,8 @@ export default function AdminLayout() {
   const siderWidth = collapsed ? 64 : 240;
 
   return (
-    <Layout className="shell" hasSider>
-      {!mobile && (
+    <Layout className={`shell${isWorkspace ? ' shell-workspace' : ''}${isWorkspace && workspaceFocus ? ' shell-workspace-focus' : ''}`} hasSider>
+      {!mobile && !(isWorkspace && workspaceFocus) && (
         <Layout.Sider width={240} collapsedWidth={64} collapsed={collapsed} trigger={null} className="shell-sider" style={{ position: 'fixed', insetBlock: 0, insetInlineStart: 0 }}>
           <Brand collapsed={collapsed} />
           <div className="sider-scroll">
@@ -251,7 +281,7 @@ export default function AdminLayout() {
           <NavMenu onNavigate={() => setDrawer(false)} />
         </Drawer>
       )}
-      <Layout style={{ marginInlineStart: mobile ? 0 : siderWidth, transition: 'margin-inline-start 0.2s' }}>
+      <Layout style={{ marginInlineStart: mobile || (isWorkspace && workspaceFocus) ? 0 : siderWidth, transition: 'margin-inline-start 0.2s' }}>
         <Layout.Header className="shell-header">
           <Button
             type="text"
@@ -266,6 +296,7 @@ export default function AdminLayout() {
             <kbd>Ctrl K</kbd>
           </button>
           <div className="head-actions">
+            {!isWorkspace && <PinToWorkspace key={user.id} title={info.label} />}
             <Tooltip title={voice === 'idle' ? 'Jarvis đang nghe — nói “Jarvis” để gọi (Ctrl J)' : 'Jarvis (Ctrl J)'}>
               <Button
                 type="text"
@@ -292,7 +323,7 @@ export default function AdminLayout() {
             </Dropdown>
           </div>
         </Layout.Header>
-        <Layout.Content className="shell-content">
+        <Layout.Content className={`shell-content${isWorkspace ? ' shell-content-workspace' : ''}`}>
           <ErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<PageSkeleton />}>
               <Outlet />

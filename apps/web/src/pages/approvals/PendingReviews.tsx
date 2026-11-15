@@ -1,3 +1,4 @@
+import { docRefText } from '@/components/DocRef';
 import { CheckOutlined, CloseOutlined, WarningOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { App, Button, Descriptions, Form, Input, Modal, Space, Table, Tag, Tooltip, Typography } from 'antd';
@@ -83,7 +84,7 @@ function ApproveModal({ row, onClose, onDone }: { row: PendingUpdate | null; onC
             column={1}
             style={{ marginBottom: 16 }}
             items={[
-              { label: 'Chỉ tiêu', children: `${row.target.code} · ${row.target.title}` },
+              { label: 'Chỉ tiêu', children: row.target.title },
               { label: 'Kỳ', children: row.periodLabel ?? '—' },
               { label: 'Số hiện tại', children: row.target.lastReportedAt ? `${num(row.target.currentValue)} ${row.target.unit}` : 'Chưa có' },
               { label: 'Số đề xuất', children: <b>{proposed(row)}</b> },
@@ -156,7 +157,7 @@ export function PendingReviews({ rows, loading, compact }: { rows: PendingUpdate
             title: 'Chỉ tiêu',
             key: 'target',
             sorter: (a, b) => a.target.code.localeCompare(b.target.code, 'vi'),
-            render: (_, row) => <TitleCell title={row.target.title} sub={`${row.target.code}${row.periodLabel ? ` · ${row.periodLabel}` : ''}`} to={`/admin/targets/${row.target.id}`} />,
+            render: (_, row) => <TitleCell title={row.target.title} sub={[docRefText(row.target), row.periodLabel].filter(Boolean).join(' · ')} to={`/admin/targets/${row.target.id}`} />,
           },
           {
             title: 'Phòng',
@@ -252,7 +253,7 @@ export function PendingReviews({ rows, loading, compact }: { rows: PendingUpdate
         extra={
           rejecting && (
             <Typography.Paragraph type="secondary">
-              {rejecting.target.code} · {rejecting.periodLabel} · {rejecting.user.fullName}
+              {rejecting.target.title} · {rejecting.periodLabel} · {rejecting.user.fullName}
             </Typography.Paragraph>
           )
         }

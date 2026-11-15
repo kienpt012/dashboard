@@ -1,14 +1,17 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
-import { ProgressReviewStatus, TargetStatus } from '@prisma/client';
+import { FrameworkKind, ProgressReviewStatus, TargetStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PrismaService } from './prisma.service';
 import { JwtAuthGuard } from './common';
-import { getActor, resolveDepartmentScope } from './access';
+import { getActor, resolveReadDepartmentScope } from './access';
 import { evaluateTarget } from './metrics';
 import { currentVietnamYear } from './planning-date';
 
 class DashboardQueryDto {
+  @IsOptional()
+  @IsString()
+  scope?: string;
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Năm báo cáo phải là số nguyên' })
@@ -28,7 +31,7 @@ export class DashboardController {
 
   private async context(query: DashboardQueryDto, req: any) {
     const actor = getActor(req);
-    const departmentId = resolveDepartmentScope(actor, query.departmentId);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, query.departmentId, query.scope);
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     return {
       actor,
@@ -42,7 +45,7 @@ export class DashboardController {
   @Get()
   async overview(@Query() query: DashboardQueryDto, @Req() req: any) {
     const { departmentId, year, riskThreshold, warningDays } = await this.context(query, req);
-    const where = { year, isArchived: false, ...(departmentId ? { departmentId } : {}) };
+    const where = { year, isArchived: false, kind: { not: FrameworkKind.TASK }, ...(departmentId ? { departmentId } : {}) };
     const rawTargets = await this.prisma.target.findMany({
       where,
       include: { department: true },
@@ -139,7 +142,7 @@ export class DashboardController {
   async report(@Query() query: DashboardQueryDto, @Req() req: any) {
     const { departmentId, year, riskThreshold } = await this.context(query, req);
     const rows = await this.prisma.target.findMany({
-      where: { year, isArchived: false, ...(departmentId ? { departmentId } : {}) },
+      where: { year, isArchived: false, kind: { not: FrameworkKind.TASK }, ...(departmentId ? { departmentId } : {}) },
       include: { department: true },
       orderBy: [{ department: { name: 'asc' } }, { code: 'asc' }],
     });

@@ -132,7 +132,7 @@ export default function BugReports() {
   const count = (value: Status) => (list.data ?? []).filter(item => item.status === value).length;
 
   return (
-    <Page title="Báo lỗi" meta={list.data && <span>{num(count('NEW'))} mới · {num(list.data.length)} báo lỗi</span>} wide>
+    <Page title="Góp ý, báo lỗi" meta={list.data && <span>{num(count('NEW'))} mới · {num(list.data.length)} góp ý, báo lỗi</span>} wide>
       <Card className="card-flush">
         <div className="table-filters">
           <FilterBar

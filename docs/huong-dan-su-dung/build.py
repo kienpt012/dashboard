@@ -228,11 +228,18 @@ def add_inline(paragraph, text: str, base_bold=False, color: RGBColor | None = N
     for part in INLINE.split(text):
         if not part:
             continue
+        label = False
         if part.startswith("**") and part.endswith("**"):
-            run = paragraph.add_run(part[2:-2])
+            inner = part[2:-2]
+            # "**`Nhãn`**": cả cụm đậm là một nhãn trên màn hình -> trình bày như nhãn, không in dấu `
+            label = inner.startswith("`") and inner.endswith("`") and inner.count("`") == 2
+            run = paragraph.add_run(inner.replace("`", ""))
             run.bold = True
+            if label:
+                run.font.color.rgb = BRAND
         elif part.startswith("`") and part.endswith("`"):
             # Nhãn, nút trên màn hình: đậm, màu thương hiệu
+            label = True
             run = paragraph.add_run(part[1:-1])
             run.bold = True
             run.font.color.rgb = BRAND
@@ -243,7 +250,7 @@ def add_inline(paragraph, text: str, base_bold=False, color: RGBColor | None = N
             run = paragraph.add_run(part)
             if base_bold:
                 run.bold = True
-        if color is not None and not (part.startswith("`") and part.endswith("`")):
+        if color is not None and not label:
             run.font.color.rgb = color
 
 

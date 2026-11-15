@@ -5,6 +5,8 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci
 COPY apps/web apps/web
+# Bộ kiểm tra cấu hình bàn làm việc dùng chung với máy chủ (apps/web/src/pages/workspace/model.ts nhập trực tiếp tệp này).
+COPY apps/api/src/workspace-schema.ts apps/api/src/workspace-schema.ts
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build -w @ioc/web

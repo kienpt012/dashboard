@@ -16,8 +16,8 @@ Phụ lục này liệt kê các phím tắt có trong giao diện, xếp theo n
 | `Ctrl K` | Mọi màn hình khu vực quản trị | Mở hộp tìm kiếm nhanh; nhấn lần nữa để đóng (mục 1.4) |
 | `Ctrl J` | Mọi màn hình khu vực quản trị | Mở khung Jarvis; nhấn lần nữa để đóng (mục 1.6) |
 | Phím bất kỳ | Trong lúc hiệu ứng gọi Jarvis đang chạy | Bỏ qua hiệu ứng, vào thẳng khung Jarvis |
-| `Esc` | Hộp thoại đang mở, ví dụ hộp `Báo lỗi`, hộp xác nhận | Đóng hộp thoại, không thực hiện thao tác |
-| `Ctrl V` | Ô `Mô tả` của hộp `Báo lỗi` | Dán ảnh chụp màn hình có sẵn trong bộ nhớ tạm thành ảnh đính kèm |
+| `Esc` | Hộp thoại đang mở, ví dụ hộp `Góp ý, báo lỗi`, hộp xác nhận | Đóng hộp thoại, không thực hiện thao tác |
+| `Ctrl V` | Ô `Mô tả` của hộp `Góp ý, báo lỗi` | Dán ảnh chụp màn hình có sẵn trong bộ nhớ tạm thành ảnh đính kèm |
 
 > `Ctrl K` và `Ctrl J` dùng được cả khi con trỏ đang ở trong ô nhập liệu. Trong khu vực quản trị, hai tổ hợp này thay cho chức năng sẵn có của trình duyệt. Màn hình **Trình chiếu** và cổng thông tin công khai không có hai phím tắt này.
 

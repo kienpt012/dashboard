@@ -1,11 +1,12 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { DepartmentKind, Prisma, Role } from '@prisma/client';
 
 export interface ActorDepartment {
   id: string;
   code: string;
   name: string;
   isActive: boolean;
+  kind?: DepartmentKind;
 }
 
 export interface Actor {
@@ -111,6 +112,29 @@ export function assertDepartmentAccess(actor: Actor, departmentId: string): void
   const scopedDepartmentId = resolveDepartmentScope(actor, departmentId);
   if (!isGlobalRole(actor.role) && scopedDepartmentId !== departmentId) {
     throw new ForbiddenException('Bạn không có quyền thao tác dữ liệu của phòng ban này');
+  }
+}
+
+/** Phạm vi đọc độc lập với quyền ghi. Không dùng hàm này cho thao tác đổi dữ liệu. */
+export async function resolveReadDepartmentScope(
+  prisma: { systemSetting: { findUnique: (args: any) => Promise<any> } },
+  actor: Actor,
+  requestedDepartmentId?: string | null,
+  scope?: string,
+): Promise<string | undefined> {
+  if (isGlobalRole(actor.role)) return requestedDepartmentId?.trim() || (scope === 'mine' && actor.department?.isActive ? actor.departmentId ?? undefined : undefined);
+  const own = resolveDepartmentScope(actor);
+  const setting = await prisma.systemSetting.findUnique({ where: { id: 'default' }, select: { crossDepartmentView: true } });
+  if (setting?.crossDepartmentView !== false && ([Role.MANAGER, Role.STAFF, Role.VIEWER] as Role[]).includes(actor.role)) {
+    return requestedDepartmentId?.trim() || (scope === 'all' ? undefined : own);
+  }
+  return resolveDepartmentScope(actor, requestedDepartmentId);
+}
+
+/** Lãnh đạo chỉ duyệt; quản trị được ghi nhận số liệu ban đầu. */
+export function assertCanEnterProgress(actor: Pick<Actor, 'role'>): void {
+  if (!([Role.ADMIN, Role.MANAGER, Role.STAFF] as Role[]).includes(actor.role)) {
+    throw new ForbiddenException('Chỉ quản trị, trưởng phòng và chuyên viên được gửi hoặc ghi nhận số liệu');
   }
 }
 

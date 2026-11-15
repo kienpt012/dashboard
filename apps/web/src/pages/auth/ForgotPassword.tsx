@@ -1,4 +1,4 @@
-import { Alert, Button, Form, Input, Result, Steps } from 'antd';
+import { Alert, Button, Form, Input, Radio, Result, Steps } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { errorText, http, session } from '@/lib/api';
@@ -8,6 +8,7 @@ export const STRONG_PASSWORD = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]
 export const STRONG_PASSWORD_RULE = 'Tối thiểu 10 ký tự, có chữ hoa, chữ thường, chữ số và ký tự đặc biệt';
 
 type Stage = 0 | 1 | 2 | 3;
+type Channel = 'EMAIL' | 'SMS';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -18,6 +19,19 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [channel, setChannel] = useState<Channel>('EMAIL');
+  const [channels, setChannels] = useState({ email: true, sms: false });
+
+  // Chỉ hiện lựa chọn tin nhắn khi máy chủ đã khai báo cổng SMS; không tải được thì giữ kênh thư như cũ.
+  useEffect(() => {
+    let active = true;
+    http.get<{ email: boolean; sms: boolean }>('/auth/password-reset/channels').then(result => {
+      if (!active) return;
+      setChannels(result);
+      if (!result.email && result.sms) setChannel('SMS');
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -39,7 +53,7 @@ export default function ForgotPassword() {
 
   const request = (value: string) =>
     run(async () => {
-      const result = await http.post<{ message: string; expiresInMinutes: number }>('/auth/password-reset/request', { identifier: value.trim() });
+      const result = await http.post<{ message: string; expiresInMinutes: number }>('/auth/password-reset/request', { identifier: value.trim(), channel });
       setIdentifier(value.trim());
       setNotice(result.message);
       setCooldown(60);
@@ -73,6 +87,15 @@ export default function ForgotPassword() {
           <Form.Item name="identifier" label="Tên đăng nhập hoặc email công vụ" rules={[{ required: true, message: 'Nhập tên đăng nhập hoặc email' }]}>
             <Input autoComplete="username" autoFocus />
           </Form.Item>
+          {channels.sms && channels.email && (
+            <Form.Item label="Nhận mã xác thực qua">
+              <Radio.Group
+                value={channel}
+                onChange={event => setChannel(event.target.value as Channel)}
+                options={[{ value: 'EMAIL', label: 'Thư công vụ' }, { value: 'SMS', label: 'Tin nhắn điện thoại' }]}
+              />
+            </Form.Item>
+          )}
           <Button type="primary" htmlType="submit" block loading={loading}>
             Gửi mã xác thực
           </Button>

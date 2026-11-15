@@ -17,7 +17,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Transform } from 'class-transformer';
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { Prisma, Role } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, randomInt, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
@@ -29,6 +29,7 @@ import { requireJwtSecret } from './environment';
 import { getClientIp, RateLimitService } from './rate-limit';
 import { MailService } from './mail';
 import { PasswordResetDeliveryRegistry } from './password-reset-delivery';
+import { SmsService } from './sms';
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1_000;
 const DUMMY_PASSWORD_HASH = '$2b$10$owu9dLW.Qm52mUy1dUf7.eRdu347pnT0jA3bDygsnfdaJwvupkoFi';
@@ -43,6 +44,12 @@ const PASSWORD_RESET_MIN_RESPONSE_MS = 750;
 const PASSWORD_RESET_RESPONSE_JITTER_MS = 150;
 export const PASSWORD_RESET_REQUEST_MESSAGE =
   'Nếu thông tin khớp với tài khoản đang hoạt động, mã xác thực sẽ được gửi đến email đã đăng ký.';
+export const PASSWORD_RESET_SMS_REQUEST_MESSAGE =
+  'Nếu thông tin khớp với tài khoản đang hoạt động, mã xác thực sẽ được gửi đến số điện thoại đã đăng ký.';
+const PASSWORD_RESET_SMS_WINDOW_MS = 60 * 60 * 1_000;
+const PASSWORD_RESET_SMS_LIMIT = 5;
+export const PASSWORD_RESET_CHANNELS = ['EMAIL', 'SMS'] as const;
+export type PasswordResetChannel = typeof PASSWORD_RESET_CHANNELS[number];
 const PASSWORD_RESET_INVALID_MESSAGE =
   'Mã xác thực không hợp lệ, đã hết hạn hoặc đã được sử dụng.';
 const PASSWORD_RESET_TOKEN_INVALID_MESSAGE =
@@ -111,6 +118,11 @@ export class PasswordResetRequestDto {
   @MinLength(3, { message: 'Tên đăng nhập hoặc email phải có ít nhất 3 ký tự' })
   @MaxLength(180, { message: 'Tên đăng nhập hoặc email không được vượt quá 180 ký tự' })
   identifier!: string;
+
+  /** Kênh nhận mã; bỏ trống là thư công vụ. */
+  @IsOptional()
+  @IsIn(PASSWORD_RESET_CHANNELS as unknown as string[], { message: 'Kênh nhận mã không hợp lệ' })
+  channel?: PasswordResetChannel;
 }
 
 export class PasswordResetVerifyDto extends PasswordResetRequestDto {
@@ -144,6 +156,7 @@ export class AuthController {
     private config: ConfigService,
     private mail: MailService,
     private passwordResetDeliveries: PasswordResetDeliveryRegistry,
+    private sms: SmsService,
   ) {}
 
   private passwordResetSecret(): string {
@@ -248,6 +261,12 @@ export class AuthController {
     return { accessToken: await this.jwt.signAsync(payload), user: safeUser };
   }
 
+  /** Kênh nhận mã đang dùng được, để màn Quên mật khẩu chỉ hiện lựa chọn đã cấu hình. */
+  @Get('password-reset/channels')
+  passwordResetChannels() {
+    return { email: this.mail.isConfigured(), sms: this.sms.isConfigured() };
+  }
+
   @Post('password-reset/request')
   @HttpCode(200)
   async requestPasswordReset(@Body() dto: PasswordResetRequestDto, @Req() req: any) {
@@ -255,6 +274,7 @@ export class AuthController {
     const clientIp = getClientIp(req);
     const identifier = normalizeIdentifier(dto.identifier);
     const identifierKey = opaqueRateLimitKey(identifier);
+    const viaSms = dto.channel === 'SMS';
     this.rateLimit.consume('auth-password-reset-request-ip', clientIp, {
       limit: 10,
       windowMs: PASSWORD_RESET_REQUEST_WINDOW_MS,
@@ -266,9 +286,23 @@ export class AuthController {
       message: 'Đã gửi yêu cầu khôi phục gần đây. Vui lòng kiểm tra email hoặc thử lại sau.',
     });
 
-    // Trạng thái cấu hình SMTP là trạng thái toàn hệ thống, do đó trả cùng một lỗi
+    if (viaSms) {
+      // Tin nhắn tốn phí và dễ bị lợi dụng để quấy rối: thêm trần riêng theo tài khoản.
+      this.rateLimit.consume('auth-password-reset-sms-account', identifierKey, {
+        limit: PASSWORD_RESET_SMS_LIMIT,
+        windowMs: PASSWORD_RESET_SMS_WINDOW_MS,
+        message: 'Đã yêu cầu quá số tin nhắn cho phép trong một giờ. Vui lòng thử lại sau hoặc nhận mã qua email.',
+      });
+    }
+
+    // Trạng thái cấu hình SMTP/cổng tin nhắn là trạng thái toàn hệ thống, do đó trả cùng một lỗi
     // cho mọi định danh và không làm lộ tài khoản có tồn tại hay không.
-    if (!this.mail.isConfigured()) {
+    if (viaSms && !this.sms.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Kênh tin nhắn khôi phục mật khẩu chưa được cấu hình. Vui lòng nhận mã qua email hoặc liên hệ quản trị hệ thống.',
+      );
+    }
+    if (!viaSms && !this.mail.isConfigured()) {
       throw new ServiceUnavailableException(
         'Dịch vụ email khôi phục mật khẩu chưa được cấu hình. Vui lòng liên hệ quản trị hệ thống.',
       );
@@ -279,10 +313,11 @@ export class AuthController {
     const resetSecret = this.passwordResetSecret();
     const user = await this.findPasswordResetUser(identifier);
     const genericResponse = {
-      message: PASSWORD_RESET_REQUEST_MESSAGE,
+      message: viaSms ? PASSWORD_RESET_SMS_REQUEST_MESSAGE : PASSWORD_RESET_REQUEST_MESSAGE,
       expiresInMinutes: PASSWORD_RESET_OTP_TTL_MS / 60_000,
     };
-    if (!user?.email) {
+    const destination = viaSms ? user?.phone : user?.email;
+    if (!user || !destination) {
       // Cân bằng một phần chi phí xử lý giữa tài khoản tồn tại và không tồn tại.
       await bcrypt.compare('invalid-password-reset-request', DUMMY_PASSWORD_HASH);
       await this.maskPasswordResetRequestTiming(requestStartedAt);
@@ -349,8 +384,8 @@ export class AuthController {
     }
 
     const delivery = this.passwordResetDeliveries.track(
-      this.mail.sendPasswordResetOtp({
-        to: user.email,
+      (viaSms ? this.sms : this.mail).sendPasswordResetOtp({
+        to: destination,
         otp,
         expiresInMinutes: PASSWORD_RESET_OTP_TTL_MS / 60_000,
       }),
@@ -568,7 +603,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(@Req() req: any): Actor {
+  me(@Req() req: any): Actor & { phone?: string | null } {
     return getActor(req);
   }
 
@@ -643,7 +678,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub?: string; ver?: number }): Promise<Actor> {
+  async validate(payload: { sub?: string; ver?: number }): Promise<Actor & { phone: string | null }> {
     if (!payload.sub) throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -664,6 +699,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       fullName: user.fullName,
       position: user.position,
       email: user.email,
+      phone: user.phone,
       role: user.role,
       isActive: user.isActive,
       departmentId: user.departmentId,

@@ -38,7 +38,10 @@ function pdfjsAssets(): Plugin {
 
 export default defineConfig({
   plugins: [react(), pdfjsAssets()],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: { alias: [
+    { find: /^antd$/, replacement: fileURLToPath(new URL('./src/components/antd-defaults.tsx', import.meta.url)) },
+    { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+  ] },
   build: {
     chunkSizeWarningLimit: 900,
     rollupOptions: {

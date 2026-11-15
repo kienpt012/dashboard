@@ -1,10 +1,9 @@
 import type { CurrentUser } from '@/types/auth';
+import { emptySession, isCurrentSessionToken, readSessionSnapshot, sessionIdentityChanged, TOKEN_KEY, USER_KEY } from './session-state';
 
 // Lớp gọi API: một chỗ gắn token, đổi lỗi máy chủ thành thông báo tiếng Việt, tự đăng xuất khi phiên hết hạn.
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000/api';
-const TOKEN_KEY = 'ioc_token';
-const USER_KEY = 'ioc_user';
 
 export class ApiError extends Error {
   status: number;
@@ -20,51 +19,61 @@ export class ApiError extends Error {
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
-function readUser(): CurrentUser | null {
-  try {
-    const raw = localStorage.getItem(USER_KEY);
-    return raw ? (JSON.parse(raw) as CurrentUser) : null;
-  } catch {
-    return null;
-  }
+function readSavedSession() {
+  try { return readSessionSnapshot(localStorage); } catch { return emptySession(); }
 }
 
-let cachedUser = readUser();
+let cachedSession = readSavedSession();
+
+function currentToken(token: string | null) {
+  try { return isCurrentSessionToken(cachedSession, localStorage, token); } catch { return false; }
+}
 
 /** Phiên đăng nhập; giao diện theo dõi qua useSession(). */
 export const session = {
   get token() {
-    try {
-      return localStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
-    }
+    return cachedSession.token;
   },
   get user() {
-    return cachedUser;
+    return cachedSession.user;
   },
   set(token: string, user: CurrentUser) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
-    cachedUser = user;
+    cachedSession = { token, user };
     listeners.forEach(listener => listener());
   },
   setUser(user: CurrentUser) {
+    if (cachedSession.user?.id !== user.id || !currentToken(cachedSession.token)) return;
     localStorage.setItem(USER_KEY, JSON.stringify(user));
-    cachedUser = user;
+    cachedSession = { ...cachedSession, user };
     listeners.forEach(listener => listener());
   },
-  clear() {
+  clear(expectedToken?: string | null) {
+    if (expectedToken !== undefined && !currentToken(expectedToken)) return false;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    cachedUser = null;
+    cachedSession = emptySession();
     listeners.forEach(listener => listener());
+    return true;
   },
   subscribe(listener: Listener) {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
 };
+
+// Bind both fields to one in-memory snapshot. Another tab's token is never paired with this tab's old user.
+window.addEventListener('storage', event => {
+  if (event.key !== null && event.key !== TOKEN_KEY && event.key !== USER_KEY) return;
+  const next = readSavedSession();
+  if (next.token === cachedSession.token && JSON.stringify(next.user) === JSON.stringify(cachedSession.user)) return;
+  const changedIdentity = sessionIdentityChanged(cachedSession, next);
+  cachedSession = next;
+  listeners.forEach(listener => listener());
+  // QueryClient clears on token changes; reload also discards route-local forms and editors from the old account.
+  if (changedIdentity) window.location.reload();
+});
 
 function messageOf(payload: unknown, status: number) {
   const raw = (payload as { message?: unknown } | null)?.message;
@@ -105,8 +114,7 @@ async function request(path: string, init: RequestInit = {}) {
   }
   if (!response.ok) {
     const payload = await readError(response);
-    if (response.status === 401 && path !== '/auth/login') {
-      session.clear();
+    if (response.status === 401 && path !== '/auth/login' && session.clear(token)) {
       if (!window.location.pathname.startsWith('/admin/login')) {
         const next = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.assign(`/admin/login?next=${next}`);

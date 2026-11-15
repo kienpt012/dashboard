@@ -404,6 +404,7 @@ function cellValue(cell: ExcelJS.Cell): unknown {
 }
 
 function canEditDataset(actor: Actor, ownerDepartmentId: string | null): boolean {
+  if (actor.role === Role.LEADER) return false;
   if (isGlobalRole(actor.role)) return true;
   if (actor.role !== Role.MANAGER && actor.role !== Role.STAFF) return false;
   return Boolean(ownerDepartmentId && actor.departmentId === ownerDepartmentId);
@@ -568,7 +569,7 @@ export class DatasetsController {
 
   @Post(':code/rows')
   @UseGuards(RolesGuard)
-  @Roles(...WORKING_ROLES)
+  @Roles(...WORKING_ROLES.filter(role => role !== Role.LEADER))
   async addRow(@Req() req: any, @Param('code') code: string, @Body() dto: RowDto) {
     const actor = getActor(req);
     const dataset = await this.findDataset(code);
@@ -589,7 +590,7 @@ export class DatasetsController {
 
   @Patch(':code/rows/:rowId')
   @UseGuards(RolesGuard)
-  @Roles(...WORKING_ROLES)
+  @Roles(...WORKING_ROLES.filter(role => role !== Role.LEADER))
   async updateRow(@Req() req: any, @Param('code') code: string, @Param('rowId') rowId: string, @Body() dto: UpdateRowDto) {
     const actor = getActor(req);
     const dataset = await this.findDataset(code);
@@ -611,7 +612,7 @@ export class DatasetsController {
 
   @Delete(':code/rows/:rowId')
   @UseGuards(RolesGuard)
-  @Roles(...WORKING_ROLES)
+  @Roles(...WORKING_ROLES.filter(role => role !== Role.LEADER))
   async deleteRow(@Req() req: any, @Param('code') code: string, @Param('rowId') rowId: string) {
     const actor = getActor(req);
     const dataset = await this.findDataset(code);
@@ -656,7 +657,7 @@ export class DatasetsController {
   /** Nhập dòng từ Excel: dòng 1 là tiêu đề (nhãn hoặc mã cột). `apply=true` ghi; ngược lại chỉ xem trước. Có lỗi thì không ghi dòng nào. */
   @Post(':code/import')
   @UseGuards(RolesGuard)
-  @Roles(...WORKING_ROLES)
+  @Roles(...WORKING_ROLES.filter(role => role !== Role.LEADER))
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMPORT_FILE_SIZE, files: 1 } }))
   async importRows(@Req() req: any, @Param('code') code: string, @UploadedFile() uploaded: Express.Multer.File, @Query('apply') applyRaw?: string) {
     const actor = getActor(req);

@@ -65,6 +65,7 @@ export const PUBLIC_DASHBOARD_WIDGET_TYPES = [
   'departmentProgress',
   'feedbackList',
   'documentList',
+  'leaderSchedule',
   'richText',
   'customHtml',
   'cta',
@@ -82,6 +83,7 @@ export const PUBLIC_DASHBOARD_WIDGET_MIN_HEIGHTS: Record<
   departmentProgress: { desktop: 5, tablet: 4, mobile: 5 },
   feedbackList: { desktop: 4, tablet: 4, mobile: 5 },
   documentList: { desktop: 4, tablet: 4, mobile: 5 },
+  leaderSchedule: { desktop: 5, tablet: 5, mobile: 6 },
   richText: { desktop: 2, tablet: 2, mobile: 2 },
   customHtml: { desktop: 2, tablet: 2, mobile: 2 },
   cta: { desktop: 2, tablet: 2, mobile: 3 },
@@ -599,6 +601,11 @@ function parseWidgetSettings(
         publicationIds: stringArray(raw.publicationIds, `${path}.publicationIds`, PUBLICATION_ID_PATTERN, 100),
       };
     }
+    case 'leaderSchedule': {
+      // Dữ liệu lịch do trình duyệt lấy từ /public/schedule; khối chỉ giữ số dòng tối đa.
+      assertKeys(raw, ['maxItems'], path);
+      return { maxItems: optionalInteger(raw.maxItems, `${path}.maxItems`, 1, 24) ?? 8 };
+    }
     case 'richText': {
       assertKeys(raw, ['body'], path);
       return { body: requiredString(raw.body, `${path}.body`, 1, 8_000) };
@@ -880,6 +887,9 @@ const dashboardTargetSelect = Prisma.validator<Prisma.TargetSelect>()({
   publishedDirection: true,
   publishedStatus: true,
   publishedCode: true,
+  publishedDocRef: true,
+  publishedOrdinal: true,
+  publishedIssuingLevel: true,
   publishedTitle: true,
   publishedDescription: true,
   publishedUnit: true,
@@ -898,6 +908,7 @@ type DashboardTargetRow = Prisma.TargetGetPayload<{ select: typeof dashboardTarg
 
 function dashboardTargetWhere(year?: number): Prisma.TargetWhereInput {
   return {
+    kind: { not: 'TASK' },
     isPublic: true,
     isArchived: false,
     publishedValue: { not: null },
@@ -918,6 +929,9 @@ function toPublicTarget(target: DashboardTargetRow) {
   return {
     key: publicDashboardTargetKey(target.id),
     code: hasSnapshot ? target.publishedCode! : target.code,
+    docRef: target.publishedDocRef ?? null,
+    ordinal: target.publishedOrdinal ?? null,
+    issuingLevel: target.publishedIssuingLevel ?? null,
     title: hasSnapshot ? target.publishedTitle! : target.title,
     description: hasSnapshot ? target.publishedDescription : target.description,
     unit: hasSnapshot ? target.publishedUnit! : target.unit,

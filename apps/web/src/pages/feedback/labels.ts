@@ -29,6 +29,17 @@ export const FEEDBACK_CATEGORY: Record<FeedbackCategory, string> = {
   OTHER: 'Nội dung khác',
 };
 
+/** Màu cố định theo lĩnh vực để nhìn dòng là biết phản ánh thuộc nhóm nào. */
+export const FEEDBACK_CATEGORY_COLOR: Record<FeedbackCategory, string> = {
+  INFRASTRUCTURE: 'geekblue',
+  ENVIRONMENT: 'green',
+  ADMINISTRATIVE_PROCEDURE: 'purple',
+  SECURITY_ORDER: 'volcano',
+  SOCIAL_WELFARE: 'magenta',
+  CULTURE_EDUCATION: 'cyan',
+  OTHER: 'default',
+};
+
 export const FEEDBACK_EVENT: Record<string, string> = {
   CREATED: 'Tiếp nhận phản ánh',
   FEEDBACK_ASSIGNED: 'Phân công xử lý',

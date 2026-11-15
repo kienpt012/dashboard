@@ -1,5 +1,7 @@
+import { docRefText } from '@/components/DocRef';
 import { FundProjectionScreenOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, Descriptions, Flex, Row, Table, Tabs, Tag, Tooltip } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Flex, Row, Select, Table, Tabs, Tag, Tooltip } from 'antd';
+import { activityColor } from '@/lib/activity';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocality } from '@/app/locality';
@@ -11,10 +13,13 @@ import { ScrollBox } from '@/components/Scroll';
 import { NoData, PageSkeleton, Query } from '@/components/States';
 import { LegalBasis } from '@/components/LegalBasis';
 import { KindTag, STATUS, STATUS_ORDER } from '@/components/Tags';
+import { ReadScopeSwitch, useReadScope } from '@/components/ReadScope';
+import { ForecastTop } from '../forecast/ForecastViews';
 import { useApi } from '@/hooks/useApi';
 import { currentYear, date, dateTime, fromNow, num, pct } from '@/lib/format';
 import { APPROVERS, can, FRAMEWORK_EDITORS, SUPERVISORS } from '@/lib/roles';
 import type { AlertItem, Overview, OverviewDepartment, TargetStatusKey } from '@/types/domain';
+import { DirectiveOpsCard } from '@/pages/directives/DirectiveOpsCard';
 
 const ALERT_KINDS: Record<string, string> = {
   STALLED: 'Bị treo',
@@ -27,8 +32,6 @@ const ALERT_KINDS: Record<string, string> = {
   EXPLANATION_OVERDUE: 'Giải trình quá hạn',
 };
 
-/** Chỉ các loại cảnh báo này có detail là tên chỉ tiêu/nội dung; loại khác detail là câu giải thích của máy chủ. */
-const DETAIL_KINDS = new Set(['OVERDUE', 'AT_RISK', 'MISSING_REPORT', 'EXPLANATION_OVERDUE', 'STALLED']);
 
 function alertLink(alert: AlertItem, departments: OverviewDepartment[]) {
   if (alert.targetId) return `/admin/targets/${alert.targetId}`;
@@ -237,6 +240,7 @@ function Departments({ data }: { data: Overview }) {
           },
         },
         { title: 'Chỉ tiêu', dataIndex: 'total', width: 96, align: 'center', sorter: (a, b) => a.total - b.total, render: value => <span className="num">{num(value)}</span> },
+        { title: 'Nhiệm vụ', key: 'tasks', width: 145, render: (_, department) => <Link to={`/admin/van-ban-chi-dao?departmentId=${department.id}&year=${data.year}`}><span>{num(department.tasks.completed)}/{num(department.tasks.total)} xong</span>{department.tasks.overdue > 0 && <div className="tone-bad">{num(department.tasks.overdue)} quá hạn</div>}</Link> },
         {
           title: 'Tình trạng',
           key: 'dist',
@@ -329,8 +333,8 @@ function Alerts({ data }: { data: Overview }) {
               <div className="feed-item" key={`${alert.kind}-${alert.targetId ?? alert.candidateId ?? index}`}>
                 <i className={`sev ${alert.severity}`} />
                 <div className="feed-body">
-                  {to ? <Link to={to}>{alert.title}</Link> : <span>{alert.title}</span>}
-                  <span className="feed-meta">{[DETAIL_KINDS.has(alert.kind) ? alert.detail : null, alert.departmentName, alertWhen(alert)].filter(Boolean).join(' · ')}</span>
+                  {alert.targetKind && <Tag color={alert.targetKind === 'TASK' ? 'purple' : 'blue'}>{alert.targetKind === 'TASK' ? 'Nhiệm vụ' : 'Chỉ tiêu'}</Tag>}{to ? <Link to={to}>{alert.title}</Link> : <span>{alert.title}</span>}
+                  <span className="feed-meta">{[alert.departmentName, docRefText(alert), alertWhen(alert)].filter(Boolean).join(' · ')}</span>
                 </div>
               </div>
             );
@@ -353,7 +357,7 @@ function Stalled({ data }: { data: Overview }) {
           <div className="feed-body">
             <Link to={`/admin/targets/${item.id}`}>{item.title}</Link>
             <span className="feed-meta">
-              {item.code} · {item.departmentName} · {item.reason}
+              {[docRefText(item), item.departmentName, item.reason].filter(Boolean).join(' · ')}
             </span>
           </div>
         </div>
@@ -364,19 +368,22 @@ function Stalled({ data }: { data: Overview }) {
 
 function Recent({ data }: { data: Overview }) {
   const [all, setAll] = useState(false);
+  const [action, setAction] = useState<string>();
   if (!data.recent.length) return <NoData text="Chưa có hoạt động" />;
-  const list = all ? data.recent : data.recent.slice(0, 8);
+  const filtered = data.recent.filter(item => !action || item.action === action).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const list = all ? filtered : filtered.slice(0, 8);
   return (
     <>
+      <Select allowClear aria-label="Loại hoạt động" placeholder="Loại hoạt động" value={action} onChange={setAction} options={[...new Map(data.recent.map(item => [item.action, { value: item.action, label: item.label }])).values()]} style={{ margin: 16, width: 250, maxWidth: 'calc(100% - 32px)' }} />
       <div className="feed free">
         {list.map(event => {
           const to = event.target ? `/admin/targets/${event.target.id}` : event.candidate ? `/admin/proposals?id=${event.candidate.id}` : undefined;
-          const subject = event.target ? `${event.target.code} · ${event.target.title}` : event.candidate?.name;
+          const subject = event.target ? event.target.title : event.candidate?.name;
           return (
             <div className="feed-item" key={event.id}>
               <div className="feed-body">
                 <span>
-                  <b>{event.actorName}</b> <span className="secondary">{event.label.toLocaleLowerCase('vi')}</span>
+                  <Tag color={activityColor(event.action)}>{event.label}</Tag><b>{event.actorName}</b>
                 </span>
                 {subject &&
                   (to ? (
@@ -390,7 +397,7 @@ function Recent({ data }: { data: Overview }) {
                   ))}
                 <Tooltip title={dateTime(event.createdAt)}>
                   <span className="feed-meta">
-                    {fromNow(event.createdAt)}
+                    {dateTime(event.createdAt)}
                     {event.note ? ` · ${event.note}` : ''}
                   </span>
                 </Tooltip>
@@ -399,10 +406,10 @@ function Recent({ data }: { data: Overview }) {
           );
         })}
       </div>
-      {data.recent.length > 8 && (
+      {filtered.length > 8 && (
         <div className="card-more">
           <Button type="link" size="small" onClick={() => setAll(value => !value)}>
-            {all ? 'Thu gọn' : `Xem thêm ${data.recent.length - 8}`}
+            {all ? 'Thu gọn' : `Xem thêm ${filtered.length - 8}`}
           </Button>
         </div>
       )}
@@ -415,13 +422,13 @@ function Workload({ data }: { data: Overview }) {
   const t = data.totals;
   return (
     <div className="metric-grid">
-      <Metric label="Thiếu báo cáo kỳ" value={num(t.missingReports)} tone={t.missingReports ? 'warn' : undefined} to="/admin/viec-cua-toi" />
-      <Metric label="Chưa giao người" value={num(t.unassigned)} tone={t.unassigned ? 'warn' : undefined} to={`/admin/targets?assignee=none&year=${data.year}`} />
-      <Metric label="Báo cáo chờ duyệt" value={num(t.pendingReports)} tone={t.pendingReports ? 'warn' : undefined} to={can(user, APPROVERS) ? '/admin/approvals' : undefined} />
-      <Metric label="Đề xuất chờ duyệt" value={num(t.pendingProposals)} tone={t.pendingProposals ? 'warn' : undefined} to="/admin/proposals?status=SUBMITTED" />
-      <Metric label="Giải trình đang mở" value={num(t.openExplanations)} tone={t.openExplanations ? 'warn' : undefined} to={can(user, SUPERVISORS) ? '/admin/trach-nhiem' : undefined} />
-      <Metric label="Việc bị treo" value={num(t.stalled)} tone={t.stalled ? 'bad' : undefined} />
+      <Metric label="Việc bị treo" value={num(t.stalled)} tone={t.stalled ? 'bad' : undefined} to="/admin/trach-nhiem" />
       <Metric label="Phản ánh quá hạn" value={num(t.feedbackOverdue)} foot={`${num(t.feedbackOpen)} đang xử lý`} tone={t.feedbackOverdue ? 'bad' : undefined} to="/admin/feedback" />
+      <Metric label={<Tag color="purple">Cần duyệt báo cáo</Tag>} value={num(t.pendingReports)} tone={t.pendingReports ? 'info' : undefined} to={can(user, APPROVERS) ? '/admin/approvals' : undefined} />
+      <Metric label={<Tag color="purple">Cần duyệt đề xuất</Tag>} value={num(t.pendingProposals)} tone={t.pendingProposals ? 'info' : undefined} to="/admin/proposals?status=SUBMITTED" />
+      <Metric label={<Tag color="orange">Cần gửi báo cáo</Tag>} value={num(t.missingReports)} tone={t.missingReports ? 'warn' : undefined} to="/admin/viec-cua-toi" />
+      <Metric label="Giải trình đang mở" value={num(t.openExplanations)} tone={t.openExplanations ? 'warn' : undefined} to={can(user, SUPERVISORS) ? '/admin/trach-nhiem' : undefined} />
+      <Metric label="Chưa giao người" value={num(t.unassigned)} tone={t.unassigned ? 'warn' : undefined} to={`/admin/viec-cua-toi?year=${data.year}`} />
       <Metric
         label="Thống kê có số liệu"
         value={
@@ -442,7 +449,8 @@ export default function OpsCenter() {
   const [params, setParams] = useSearchParams();
   const requested = Number(params.get('year'));
   const year = Number.isInteger(requested) && requested >= 2000 && requested <= 2100 ? requested : currentYear();
-  const overview = useApi<Overview>(`/ioc/overview?year=${year}`, { refetchInterval: 120_000, keepPrevious: true });
+  const readScope = useReadScope();
+  const overview = useApi<Overview>(`/ioc/overview?year=${year}&scope=${readScope.scope}`, { refetchInterval: 120_000, keepPrevious: true });
   const data = overview.data;
   const departmentScope = data?.scope === 'department';
   const title = departmentScope && data?.departments[0] ? data.departments[0].name : 'Trung tâm điều hành';
@@ -453,6 +461,7 @@ export default function OpsCenter() {
       meta={data && <span>Số liệu lúc {dateTime(data.dataAsOf ?? data.generatedAt)}</span>}
       extra={
         <>
+          <ReadScopeSwitch value={readScope} />
           <YearSelect value={year} onChange={value => setParams({ year: String(value) }, { replace: true })} />
           <Button icon={<FundProjectionScreenOutlined />} href="/trinh-chieu" target="_blank">
             Trình chiếu
@@ -482,6 +491,8 @@ export default function OpsCenter() {
               </Col>
             </Row>
 
+            <DirectiveOpsCard year={year} />
+            <ForecastTop year={year} scope={readScope.scope} />
             <Card title="Bộ chỉ tiêu" className="card-flush">
               <Frameworks data={data} />
             </Card>

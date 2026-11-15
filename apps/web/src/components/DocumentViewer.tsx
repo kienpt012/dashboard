@@ -9,6 +9,7 @@ import type { Box, LayoutSpan, PdfFocus, PickedLine } from './pdf/PdfViewer';
 import { errorText, http, saveBlob } from '@/lib/api';
 import { date, fileSize } from '@/lib/format';
 import { documentTypeLabels, type DocumentTextResponse, type SourceDocumentDetail } from '@/types/core';
+import { PinToWorkspace } from '@/pages/workspace/PinToWorkspace';
 
 const INLINE = /^(application\/pdf|image\/(png|jpeg|webp|gif))$/;
 
@@ -132,6 +133,7 @@ export function DocumentViewer({ id, onClose, focus, heading, toolbar, picking, 
       extra={
         d && (
           <Flex gap={8}>
+            <PinToWorkspace documentId={d.id} title={d.docNumber ? `${d.docNumber} · ${d.title}` : d.title} />
             <Button icon={<DownloadOutlined />} onClick={() => void download()}>
               Tệp gốc
             </Button>

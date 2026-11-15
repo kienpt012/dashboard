@@ -7,6 +7,9 @@ và bộ chỉ tiêu được chọn qua trình thiết lập, không viết c�
 
 ## Tính năng
 
+- **Bàn làm việc số**: trang vào của mỗi cán bộ — hôm nay và ngày mai làm gì (lịch lãnh đạo, hạn báo cáo, nhiệm vụ), nhắc
+  việc của hệ thống, **giấy note** lãnh đạo và cán bộ dán cho nhau, khay **ứng dụng công vụ** mở đúng phần mềm theo vai trò
+  (có số việc mới trên biểu tượng), ghim văn bản/chỉ tiêu, tiện ích và hình nền tuỳ chọn.
 - **Trung tâm điều hành**: theo từng bộ chỉ tiêu và từng phòng — đạt, nguy cơ, quá hạn, thiếu báo cáo kỳ, việc bị treo,
   luồng cảnh báo, độ mới dữ liệu; **trình chiếu phòng họp** toàn màn hình tự chuyển trang.
 - **Bộ chỉ tiêu** nhiều loại (kế hoạch, chấm điểm, nhiệm vụ, thống kê), nạp từ thư viện mẫu có căn cứ pháp lý:
@@ -14,16 +17,26 @@ và bộ chỉ tiêu được chọn qua trình thiết lập, không viết c�
 - **Hồ sơ chỉ tiêu ba phần**: chỉ đạo điều hành – thực hiện (số liệu theo kỳ, nguồn, minh chứng, giải trình) – đánh giá;
   chỉ tiêu cha–con; phiếu nguồn số liệu; dòng thời gian trách nhiệm.
 - **Kho dữ liệu** và **chỉ tiêu tự tính** bằng công thức khai báo, có dấu vết tới từng dòng dữ liệu; nhập Excel theo mẫu.
+- **Văn bản chỉ đạo**: chương trình công tác, thông báo kết luận, kế hoạch… được phân rã thành nhiệm vụ giao cho phòng
+  (người phân việc là lãnh đạo UBND hoặc Chánh Văn phòng tuỳ địa phương); bảng **việc theo tháng** của từng phòng, in được;
+  thống kê thực hiện theo văn bản, phòng, tháng và xuất Excel.
+- **Chỉ tiêu do nhiều văn bản giao**: liên kết các chỉ tiêu cùng nội dung, nhập số một lần, mỗi văn bản giữ mức giao riêng.
+- **Dự báo khả năng không đạt** từng chỉ tiêu (hồi quy logistic chạy ngay trong hệ thống, huấn luyện lại được khi có
+  lịch sử thật) kèm giá trị dự báo cuối kỳ và các yếu tố ảnh hưởng.
+- **Xem liên phòng** chỉ đọc; lãnh đạo chỉ xem, duyệt và yêu cầu cập nhật lại, không tự ghi số liệu.
 - **Cơ chế trách nhiệm**: giao việc tới chuyên viên, giới hạn số lần chuyển việc, tự thông qua báo cáo/đề xuất khi người
   duyệt để quá hạn (ghi trách nhiệm), nhắc việc, yêu cầu giải trình, thông báo, màn hình trách nhiệm người đứng đầu.
 - **Đề xuất chỉ tiêu** từ AI (trích xuất văn bản, OCR, chạy cục bộ) và từ cán bộ; kết quả AI phải có người rà soát và trình.
-- Phản ánh của người dân, cổng công khai, Public Dashboard Studio, xuất Excel, nhật ký hệ thống, nút **báo lỗi** kèm
-  địa chỉ trang trên mọi màn hình.
+- **Lịch làm việc của lãnh đạo** theo tuần, công khai cho người dân trên cổng thông tin (kèm bản PDF đã ký).
+- Phản ánh của người dân, cổng công khai, Public Dashboard Studio, xuất Excel, nhật ký hệ thống, nút **góp ý, báo lỗi**
+  kèm địa chỉ trang trên mọi màn hình; khôi phục mật khẩu qua thư công vụ hoặc tin nhắn (khi đơn vị có cổng SMS).
 
 **Công nghệ:** React, Vite, NestJS, Prisma, PostgreSQL, Ollama (Qwen3, bge-m3), Tesseract, Docker Compose, Nginx.
 
 Tài liệu nghiệp vụ bản 2: [phân tích yêu cầu](docs/requirements/01-phan-tich-yeu-cau-khach-hang.md) ·
-[thiết kế](docs/requirements/02-thiet-ke-ioc-v2.md) · [quyết định D-009…D-014](docs/DECISIONS.md).
+[thiết kế](docs/requirements/02-thiet-ke-ioc-v2.md) · [góp ý sau báo cáo 10/2026](docs/requirements/05-gop-y-sau-bao-cao-2026-10.md) ·
+[quyết định D-009…D-039](docs/DECISIONS.md). Tài liệu theo mảng: [bàn làm việc số](docs/digital-workspace.md) ·
+[văn bản chỉ đạo](docs/van-ban-chi-dao.md) · [dự báo và quyền xem](docs/du-bao-va-quyen-xem.md).
 
 ## Cài đặt
 
@@ -83,9 +96,9 @@ Người phát triển cập nhật bộ mẫu từ một cơ sở dữ liệu d
 
 | Tài khoản | Vai trò | Dùng để thử |
 |---|---|---|
-| `admin` | Quản trị hệ thống | Thiết lập địa phương, tài khoản, cấu hình, báo lỗi |
-| `chu.tich`, `pho.chu.tich` | Lãnh đạo UBND | Trung tâm điều hành, duyệt đề xuất, đánh giá, yêu cầu giải trình |
-| `van.thu` | Văn thư | Tiếp nhận văn bản, rà soát và trình đề xuất AI |
+| `admin` | Quản trị hệ thống | Thiết lập địa phương, tài khoản, cấu hình, ứng dụng công vụ, mô hình dự báo, góp ý – báo lỗi |
+| `chu.tich`, `pho.chu.tich` | Lãnh đạo UBND | Bàn làm việc, Trung tâm điều hành, phân việc từ văn bản chỉ đạo, duyệt, đánh giá, dán note |
+| `van.thu` | Văn thư | Tiếp nhận văn bản, rà soát và trình đề xuất AI, lập lịch làm việc của lãnh đạo |
 | `chanh.vp`, `lan.anh`, `manager.vhxh`, `manager.ttcc`, `truong.ca`, `chihuy.qs` | Trưởng phòng, đơn vị | Giao việc, duyệt số liệu, trả lời giải trình |
 | `staff.ktht`, `thao.ktht`, `staff.vhxh`, `staff.ttcc`, `staff.vp`, `canbo.ca` | Chuyên viên | Báo cáo số liệu kèm minh chứng, đề xuất chỉ tiêu |
 | `viewer.ktht` | Người xem | Chỉ xem số liệu của phòng |
@@ -110,6 +123,7 @@ Mật khẩu: `DEMO_ADMIN_PASSWORD` (tài khoản `admin`) và `DEMO_USER_PASSWO
 |---|---|
 | Cổng thông tin | <http://localhost:8080> |
 | Gửi, tra cứu phản ánh | <http://localhost:8080/phan-anh> |
+| Lịch làm việc của lãnh đạo | <http://localhost:8080/lich-lam-viec> |
 | Quản trị | <http://localhost:8080/admin/login> |
 | API health check | <http://localhost:3000/api/health> |
 

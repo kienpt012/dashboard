@@ -227,7 +227,7 @@ Quy trình dùng khi đến kỳ báo cáo (tháng, quý, 6 tháng hoặc năm) 
 2. Trưởng phòng chủ trì hoặc lãnh đạo UBND nhắc trực tiếp tại hồ sơ chỉ tiêu: bấm `Thao tác` › `Nhắc việc`. Thông báo gửi tới chuyên viên phụ trách; nếu chỉ tiêu chưa giao người thì gửi tới trưởng phòng. Mỗi chỉ tiêu chỉ nhắc được một lần trong ngày.
 
 #### Bước 2. Lập và gửi báo cáo
-Người được báo cáo: chuyên viên và trưởng phòng của phòng chủ trì (không chỉ người phụ trách), lãnh đạo UBND, quản trị. Văn thư, người xem và cán bộ phòng phối hợp không báo cáo số liệu.
+Người được báo cáo: chuyên viên và trưởng phòng của phòng chủ trì (không chỉ người phụ trách); quản trị hệ thống được ghi nhận số liệu ban đầu. Lãnh đạo UBND, văn thư, người xem và cán bộ phòng phối hợp không báo cáo số liệu.
 
 1. Mở hộp `Báo cáo số liệu` theo một trong ba cách:
    tại DH-02, tab `Cần báo cáo`, bấm `Báo cáo` ở dòng chỉ tiêu (hồ sơ mở sẵn hộp báo cáo với kỳ cần báo cáo);
@@ -278,8 +278,8 @@ Kết quả:
 
 Báo cáo cũ vẫn lưu trong hồ sơ với nhãn `Trả lại`. Theo dõi kết quả các báo cáo đã gửi tại DH-02, tab `Báo cáo đã gửi`, cột `Kết quả`.
 
-#### Lãnh đạo UBND ghi nhận số liệu trực tiếp
-Lãnh đạo UBND và quản trị lập báo cáo như Bước 2, có hai điểm khác: hộp `Báo cáo số liệu` có nút `Ghi nhận` thay cho `Gửi báo cáo`, và ô `Nguồn số liệu` không bắt buộc. Số liệu có hiệu lực ngay với nhãn `Đã duyệt`; `Dòng thời gian` của hồ sơ ghi rõ lãnh đạo cập nhật trực tiếp. Sau lần ghi nhận này, các báo cáo khác của chỉ tiêu còn đang chờ duyệt không duyệt được nữa (xem khung cảnh báo ở Bước 3).
+#### Quản trị ghi nhận số liệu trực tiếp
+Từ bản tháng 11/2026, lãnh đạo UBND không ghi số liệu: khi số đã duyệt chưa đúng, lãnh đạo bấm `Yêu cầu cập nhật lại` để người phụ trách gửi lại (CT-06). Riêng quản trị hệ thống được ghi nhận số liệu ban đầu khi đưa hệ thống vào sử dụng: lập báo cáo như Bước 2, có hai điểm khác: nút mở hộp ghi `Quản trị ghi nhận`, hộp có nút `Ghi nhận` thay cho `Gửi báo cáo`, và ô `Nguồn số liệu` không bắt buộc. Số liệu có hiệu lực ngay với nhãn `Đã duyệt`; `Dòng thời gian` của hồ sơ ghi rõ quản trị ghi nhận. Sau lần ghi nhận này, các báo cáo khác của chỉ tiêu còn đang chờ duyệt không duyệt được nữa (xem khung cảnh báo ở Bước 3).
 
 #### Bước 5. Hệ thống tự thông qua khi quá hạn duyệt
 Báo cáo chờ duyệt quá thời hạn `Tự thông qua báo cáo sau` sẽ được hệ thống tự thông qua. Thời hạn tính từ lúc gửi, mặc định 7 ngày, quản trị viên chỉnh tại Cấu hình (HT-04); đặt 0 để tắt cơ chế này.

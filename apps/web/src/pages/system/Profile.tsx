@@ -63,6 +63,7 @@ export default function Profile() {
                 { label: 'Chức vụ', children: user.position || '—' },
                 { label: 'Phạm vi', children: scope },
                 { label: 'Email công vụ', children: user.email || '—' },
+                { label: 'Số điện thoại', children: user.phone ? user.phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3') : '—' },
                 { label: 'Đăng nhập gần nhất', children: dateTime(user.lastLoginAt) },
               ]}
             />

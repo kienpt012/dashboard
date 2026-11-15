@@ -22,5 +22,5 @@
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   },
-  "include": ["src"]
+  "include": ["src", "../api/src/workspace-schema.ts"]
 }

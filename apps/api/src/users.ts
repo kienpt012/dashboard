@@ -28,6 +28,7 @@ import {
 } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from './prisma.service';
+import { normalizeVietnamPhone } from './sms';
 import { recordWorkEvent } from './work';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { audit, getActor, isGlobalRole } from './access';
@@ -38,6 +39,12 @@ const Trim = () => Transform(({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value,
 );
 const ValidateIfDefined = () => ValidateIf((_object, value) => value !== undefined);
+// Số hợp lệ được đưa về dạng 0xxxxxxxxx; số sai giữ nguyên để bộ kiểm tra báo lỗi; để trống là xoá số.
+const normalizePhoneInput = ({ value }: { value: unknown }) =>
+  typeof value !== 'string' ? value : value.trim() ? normalizeVietnamPhone(value) ?? value.trim() : null;
+const PHONE_PATTERN = /^0[35789]\d{8}$/;
+const PHONE_MESSAGE = 'Số điện thoại di động không hợp lệ (ví dụ 0912 345 678)';
+
 const ValidateIfDefinedAndNotNull = () => ValidateIf(
   (_object, value) => value !== undefined && value !== null,
 );
@@ -70,6 +77,11 @@ class CreateUserDto {
   @MaxLength(180, { message: 'Email không được vượt quá 180 ký tự' })
   email?: string;
 
+  @Transform(normalizePhoneInput)
+  @ValidateIfDefinedAndNotNull()
+  @Matches(PHONE_PATTERN, { message: PHONE_MESSAGE })
+  phone?: string | null;
+
   @IsEnum(Role, { message: 'Vai trò người dùng không hợp lệ' })
   role!: Role;
 
@@ -101,6 +113,11 @@ export class UpdateUserDto {
   @IsEmail({}, { message: 'Email không hợp lệ' })
   @MaxLength(180, { message: 'Email không được vượt quá 180 ký tự' })
   email?: string | null;
+
+  @Transform(normalizePhoneInput)
+  @ValidateIfDefinedAndNotNull()
+  @Matches(PHONE_PATTERN, { message: PHONE_MESSAGE })
+  phone?: string | null;
 
   @ValidateIfDefined()
   @IsEnum(Role, { message: 'Vai trò người dùng không hợp lệ' })
@@ -135,6 +152,7 @@ const safeUserSelect = {
   fullName: true,
   position: true,
   email: true,
+  phone: true,
   role: true,
   isActive: true,
   departmentId: true,
@@ -195,6 +213,7 @@ export class UsersController {
             passwordHash,
             fullName: dto.fullName.trim(),
             email: dto.email?.trim().toLowerCase(),
+            phone: dto.phone ?? null,
             role: dto.role,
             position: dto.position?.trim() || null,
             departmentId,
@@ -249,6 +268,7 @@ export class UsersController {
     const invalidatesPasswordReset =
       passwordHash !== undefined
       || nextEmail !== existing.email
+      || (dto.phone !== undefined && (dto.phone ?? null) !== existing.phone)
       || (existing.isActive && dto.isActive === false);
 
     try {
@@ -288,6 +308,7 @@ export class UsersController {
             ...(dto.fullName === undefined ? {} : { fullName: dto.fullName.trim() }),
             ...(dto.position === undefined ? {} : { position: dto.position?.trim() || null }),
             ...(dto.email === undefined ? {} : { email: nextEmail }),
+            ...(dto.phone === undefined ? {} : { phone: dto.phone ?? null }),
             ...(dto.role === undefined ? {} : { role: dto.role }),
             ...(dto.role === undefined && dto.departmentId === undefined ? {} : { departmentId: nextDepartmentId }),
             ...(dto.isActive === undefined ? {} : { isActive: dto.isActive }),

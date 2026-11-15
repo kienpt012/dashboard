@@ -19,8 +19,9 @@ export const GLOBAL: readonly Role[] = ['ADMIN', 'LEADER', 'CLERK'];
 export const LEADERSHIP: readonly Role[] = ['ADMIN', 'LEADER'];
 export const APPROVERS: readonly Role[] = ['ADMIN', 'LEADER', 'MANAGER'];
 export const SUPERVISORS: readonly Role[] = ['ADMIN', 'LEADER', 'MANAGER'];
-export const REPORTERS: readonly Role[] = ['ADMIN', 'LEADER', 'MANAGER', 'STAFF'];
-export const IMPORTERS: readonly Role[] = ['ADMIN', 'LEADER', 'MANAGER', 'STAFF'];
+// Lãnh đạo xem và duyệt; quản trị được ghi nhận số liệu khởi tạo.
+export const REPORTERS: readonly Role[] = ['ADMIN', 'MANAGER', 'STAFF'];
+export const IMPORTERS: readonly Role[] = REPORTERS;
 export const FRAMEWORK_EDITORS: readonly Role[] = ['ADMIN', 'LEADER', 'CLERK'];
 export const DATASET_ADMINS: readonly Role[] = ['ADMIN', 'LEADER', 'CLERK'];
 export const ADMINS: readonly Role[] = ['ADMIN'];

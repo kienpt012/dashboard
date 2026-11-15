@@ -49,7 +49,7 @@ Bộ chỉ tiêu gom các chỉ tiêu cùng một văn bản giao hoặc cùng m
 
 1. **Thẻ bộ mẫu** — tên, loại, căn cứ, mô tả.
 2. **Nhãn** — cấp giao, phạm vi áp dụng, số chỉ tiêu, số chỉ tiêu tự tính, số bảng dữ liệu, năm đã nạp.
-3. **Năm và nút `Nạp`** — chỉ quản trị, lãnh đạo.
+3. **Năm và nút** `Nạp` — chỉ quản trị, lãnh đạo.
 
 ### CT-02 · Danh mục chỉ tiêu
 
@@ -59,14 +59,14 @@ Danh mục liệt kê mọi chỉ tiêu trong phạm vi được xem, lọc theo
 
 ![Danh mục chỉ tiêu](anh/ct-02.png)
 
-1. **`Xuất Excel`, `Nhập Excel`, `Thêm chỉ tiêu`** — xuất danh mục đang lọc ra Excel; `Nhập Excel` mở DL-03; `Thêm chỉ tiêu` dành cho quản trị, lãnh đạo.
+1. **`Xuất Excel, Nhập Excel, Thêm chỉ tiêu`** — xuất danh mục đang lọc ra Excel; `Nhập Excel` mở DL-03; `Thêm chỉ tiêu` dành cho quản trị, lãnh đạo.
 2. **Tìm kiếm và lọc** — mã, tên, người phụ trách; `Năm`, `Bộ chỉ tiêu` (có lựa chọn `Không thuộc bộ nào`), `Phòng ban`, `Loại`, `Tình trạng`, `Người phụ trách` (`Tôi phụ trách`, `Chưa giao người`).
-3. **`Đang theo dõi` / `Lưu trữ`** — chuyển sang danh sách chỉ tiêu đã lưu trữ.
-4. **Dấu `+`** — mở rộng dòng để xem loại, cấp giao, kỳ báo cáo, hạn, chiều đánh giá, số văn bản chỉ đạo, đánh giá, chỉ tiêu con, phòng phối hợp, trạng thái trang công khai, bộ, nhóm và số liệu gần nhất.
+3. **`Đang theo dõi / Lưu trữ`** — chuyển sang danh sách chỉ tiêu đã lưu trữ.
+4. **Dấu** `+` — mở rộng dòng để xem loại, cấp giao, kỳ báo cáo, hạn, chiều đánh giá, số văn bản chỉ đạo, đánh giá, chỉ tiêu con, phòng phối hợp, trạng thái trang công khai, bộ, nhóm và số liệu gần nhất.
 5. **`Chỉ tiêu`** — tên (bấm để mở CT-06), mã hệ thống, mã và số thứ tự theo văn bản giao.
 6. **`Phụ trách`** — phòng chủ trì và chuyên viên phụ trách.
-7. **`Kế hoạch`, `Thực hiện`** — chỉ tiêu giao và số liệu chính thức gần nhất kèm thời điểm.
-8. **`Tiến độ`, `Tình trạng`** — chấm vàng có số là số báo cáo đang chờ duyệt của chỉ tiêu.
+7. **`Kế hoạch, Thực hiện`** — chỉ tiêu giao và số liệu chính thức gần nhất kèm thời điểm.
+8. **`Tiến độ, Tình trạng`** — chấm vàng có số là số báo cáo đang chờ duyệt của chỉ tiêu.
 9. **Menu ⋮ của dòng** — `Mở hồ sơ`, `Báo cáo số liệu`, `Sửa`, `Hiển thị trên trang công khai` / `Ẩn khỏi trang công khai`, `Cập nhật bản công khai`, `Lưu trữ` / `Khôi phục`; mục hiện theo vai trò.
 
 Bấm tiêu đề cột để sắp xếp. Bộ lọc được giữ trên địa chỉ trang, nên có thể gửi đường dẫn cho đồng nghiệp để mở đúng danh sách đã lọc.
@@ -81,12 +81,12 @@ Bấm tiêu đề cột để sắp xếp. Bộ lọc được giữ trên đị
 
 1. **`Tên chỉ tiêu`** — 3 đến 300 ký tự.
 2. **`Mô tả`.**
-3. **`Bộ chỉ tiêu`, `Loại`** — loại `Kế hoạch – thực hiện`, `Chấm điểm`, `Nhiệm vụ`, `Thống kê`.
+3. **`Bộ chỉ tiêu, Loại`** — loại `Kế hoạch – thực hiện`, `Chấm điểm`, `Nhiệm vụ`, `Thống kê`.
 4. **`Phòng chủ trì`, `Phòng phối hợp`.**
-5. **`Giá trị kế hoạch`, `Đơn vị tính`** — số dùng để tính tiến độ.
-6. **`Chỉ tiêu ghi bằng chữ`, `Chiều đánh giá`** — ghi đúng câu chữ của văn bản giao (ví dụ "Phấn đấu đạt 100%"); `Càng cao càng tốt` hoặc `Càng thấp càng tốt` (ví dụ tỷ lệ hộ nghèo).
+5. **`Giá trị kế hoạch, Đơn vị tính`** — số dùng để tính tiến độ.
+6. **`Chỉ tiêu ghi bằng chữ, Chiều đánh giá`** — ghi đúng câu chữ của văn bản giao (ví dụ "Phấn đấu đạt 100%"); `Càng cao càng tốt` hoặc `Càng thấp càng tốt` (ví dụ tỷ lệ hộ nghèo).
 7. **`Kỳ báo cáo`, `Năm kế hoạch`.**
-8. **`Hạn hoàn thành`, `Trọng số`** — hạn phải thuộc năm kế hoạch; trọng số dùng khi tính tiến độ bình quân.
+8. **`Hạn hoàn thành, Trọng số`** — hạn phải thuộc năm kế hoạch; trọng số dùng khi tính tiến độ bình quân.
 9. **`Mã, nhóm và hiển thị công khai`** — mở thêm: mã theo văn bản, nhóm chỉ tiêu, nổi bật và thứ tự trên trang công khai.
 10. **`Tạo chỉ tiêu`.**
 
@@ -98,3 +98,24 @@ Bấm tiêu đề cột để sắp xếp. Bộ lọc được giữ trên đị
 #### Hiển thị chỉ tiêu trên trang công khai
 
 Quản trị, lãnh đạo chọn `Hiển thị trên trang công khai` ở menu ⋮ (chỉ khi chỉ tiêu đã có số liệu chính thức). Khi số liệu thay đổi, phần mở rộng của dòng ghi `Có thay đổi chưa công bố`; chọn `Cập nhật bản công khai` để người dân thấy số mới. Xem thêm ND-02 và mục 3.8.
+
+#### Bổ sung từ bản tháng 11/2026
+
+![Danh mục chỉ tiêu: phạm vi xem, văn bản giao và các bộ lọc mới](anh/ct-02-pham-vi.png)
+
+- **Văn bản giao thay mã hệ thống.** Dòng phụ dưới tên chỉ tiêu ghi số thứ tự trong văn bản, số ký hiệu văn bản giao và cấp giao, ví dụ `STT 3 · 333/QĐ-UBND · Tỉnh/Thành phố giao`. Mã hệ thống chỉ còn ở đầu **Hồ sơ chỉ tiêu** (CT-06); ô tìm kiếm vẫn tìm được theo mã.
+- **Lọc theo** `Văn bản giao`. Chọn một văn bản để chỉ xem các chỉ tiêu do văn bản đó giao.
+- **Xem chỉ tiêu của phòng khác.** Tài khoản thuộc một phòng có công tắc `Phòng tôi` / `Toàn địa phương` ở đầu trang. Chọn `Toàn địa phương` để xem chỉ tiêu của mọi phòng; hồ sơ của phòng khác mở được nhưng chỉ xem. Lựa chọn được nhớ cho các màn hình điều hành, báo cáo.
+- **Nhiệm vụ không lẫn với chỉ tiêu.** Danh mục mặc định chỉ liệt kê chỉ tiêu. Muốn xem nhiệm vụ của văn bản chỉ đạo tại đây, chọn `Loại` là `Nhiệm vụ`; thông thường nên xem ở **Văn bản chỉ đạo** (DH-05).
+- **Lọc theo** `Nguy cơ (dự báo)`. Chọn `Cao`, `Trung bình` hoặc `Thấp` để xem các chỉ tiêu theo mức dự báo; cách đọc dự báo xem ở CT-06.
+- **Lọc theo** `Liên kết văn bản`. Xem các chỉ tiêu đang liên kết với chỉ tiêu cùng nội dung ở văn bản khác.
+
+#### Liên kết chỉ tiêu do hai văn bản giao
+Dùng khi cùng một nội dung được hai văn bản giao với mức khác nhau, ví dụ Thành phố giao một mức, Nghị quyết Đảng uỷ phường giao cao hơn.
+1. Bấm `Gợi ý liên kết`. Hệ thống liệt kê các cặp chỉ tiêu ở hai bộ khác nhau có cùng mã chuẩn hoặc tên gần giống, cùng năm và đơn vị tính.
+2. Xem từng cặp: văn bản giao, mức giao của mỗi bên.
+3. Bấm `Liên kết` nếu đúng là cùng một nội dung; bấm bỏ qua nếu không phải, cặp đó không được gợi ý lại.
+
+Sau khi liên kết, người phụ trách chỉ báo cáo ở một chỉ tiêu; khi báo cáo được duyệt, số liệu tự đồng bộ sang chỉ tiêu còn lại. Mỗi chỉ tiêu vẫn giữ mức giao và đánh giá đạt hay chưa đạt theo văn bản của mình.
+
+> Chỉ lãnh đạo, quản trị, người phân việc hoặc trưởng phòng quản lý cả hai chỉ tiêu mới liên kết và bỏ liên kết được. Chỉ liên kết được các chỉ tiêu nhập tay, không có chỉ tiêu con, cùng tần suất báo cáo và cùng chiều đánh giá. Hệ thống chỉ gợi ý; quyết định liên kết luôn do người có thẩm quyền bấm.

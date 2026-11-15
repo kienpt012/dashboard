@@ -206,3 +206,17 @@ bố cục đang công bố và chưa thu hồi mới có thể tải từ cổn
 
 Nếu chưa có văn bản trong khối, hệ thống hiển thị `Chưa có văn bản được công bố`. Liên kết cũ có thể không tải được sau khi
 văn bản bị thu hồi hoặc không còn thuộc bố cục đang công bố; về trang chủ để kiểm tra danh sách hiện tại.
+
+### CC-06 · Lịch làm việc của lãnh đạo
+
+**Đường dẫn:** `http://<địa-chỉ-máy-chủ>/lich-lam-viec`, hoặc bấm `Lịch làm việc` trên thanh đầu trang của cổng thông tin · **Người dùng:** người dân, không cần đăng nhập.
+
+Người dân xem lịch làm việc theo tuần của lãnh đạo UBND: ngày, giờ, nội dung, người chủ trì, địa điểm. Trang chủ công khai (CC-01) cũng có khối `Lịch làm việc của lãnh đạo` hiện các buổi làm việc sắp tới của tuần.
+
+![Lịch làm việc của lãnh đạo trên cổng thông tin](anh/cc-06.png)
+
+1. Trang mở ở tuần hiện tại. Bấm `Tuần trước`, `Tuần sau` để xem tuần khác; `Tuần này` để quay lại.
+2. Nếu tuần đó có bản lịch đã ký, bấm `Xem bản lịch đã ký (PDF)` để mở hoặc tải tệp.
+3. Tuần chưa được công bố hiện thông báo `Tuần này chưa công bố lịch làm việc`.
+
+> Trang chỉ hiện những tuần Văn phòng đã bật công khai và những dòng lịch được đánh dấu hiện trên trang công khai (DH-08); các cuộc họp nội bộ không xuất hiện ở đây.

@@ -25,7 +25,7 @@ import {
 } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
-import { type Actor, audit, getActor, LEADERSHIP_ROLES, resolveDepartmentScope } from './access';
+import { type Actor, audit, getActor, LEADERSHIP_ROLES, resolveReadDepartmentScope } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
 import { datasetColumnsMap, recomputeTargets, rollupParents } from './datasets';
 import { validateFormula } from './formula';
@@ -360,12 +360,12 @@ export class FrameworksController {
   }
 
   @Get()
-  async list(@Req() req: any, @Query('includeInactive') includeInactive?: string) {
+  async list(@Req() req: any, @Query('includeInactive') includeInactive?: string, @Query('scope') scope?: string) {
     const actor = getActor(req);
-    const departmentId = resolveDepartmentScope(actor);
+    const departmentId = await resolveReadDepartmentScope(this.prisma, actor, undefined, scope);
     const [frameworks, setting] = await Promise.all([
       this.prisma.framework.findMany({
-        where: includeInactive === 'true' ? {} : { isActive: true },
+        where: { kind: { not: FrameworkKind.TASK }, ...(includeInactive === 'true' ? {} : { isActive: true }) },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         include: { sourceDocument: { select: { id: true, code: true, title: true, docNumber: true } } },
       }),

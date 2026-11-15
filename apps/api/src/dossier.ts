@@ -1,3 +1,4 @@
+import { attachLinkedReportEvidence, linkedEvidenceWhere } from './target-links';
 import {
   BadRequestException,
   Body,
@@ -52,6 +53,7 @@ import {
   isGlobalRole,
   isLeadership,
   resolveDepartmentScope,
+  resolveReadDepartmentScope,
   WORKING_ROLES,
 } from './access';
 import { JwtAuthGuard, Roles, RolesGuard } from './common';
@@ -70,6 +72,7 @@ import {
   WORK_ACTIONS,
 } from './work';
 import { uploadFileName } from './upload-name';
+import { isDispatcher } from './dispatch';
 
 // Hồ sơ chỉ tiêu ba phần (chỉ đạo điều hành – thực hiện – đánh giá) và các thao tác trách nhiệm.
 // Mọi thao tác ghi WorkEvent + audit trong cùng transaction và báo cho đúng người.
@@ -174,13 +177,14 @@ function blankToNull(value: string | undefined | null) {
 export class DossierController {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async loadTarget(actor: Actor, id: string): Promise<DossierTarget> {
-    const departmentId = resolveDepartmentScope(actor);
+  private async loadTarget(actor: Actor, id: string, readOnly = false): Promise<DossierTarget> {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
+    const departmentId = readOnly ? await resolveReadDepartmentScope(this.prisma, actor, undefined, 'all') : resolveDepartmentScope(actor);
     const target = await this.prisma.target.findFirst({
       where: {
         id,
         ...(departmentId
-          ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }] }
+          ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }, ...(isDispatcher(actor, setting) ? [{ kind: 'TASK' as const }] : [])] }
           : {}),
       },
       include: { department: true },
@@ -200,7 +204,9 @@ export class DossierController {
     const supervise = canSuperviseDepartment(actor, target.departmentId);
     const isAssignee = target.assigneeId === actor.id;
     return {
-      canReport: this.canContribute(actor, target) && !target.isArchived && target.valueSource === ValueSource.MANUAL,
+      readOnly: !isGlobalRole(actor.role) && (actor.role === Role.VIEWER || actor.departmentId !== target.departmentId),
+      canRequestRevision: supervise && !target.isArchived,
+      canReport: ([Role.ADMIN, Role.MANAGER, Role.STAFF] as Role[]).includes(actor.role) && this.canContribute(actor, target) && !target.isArchived && target.valueSource === ValueSource.MANUAL,
       canContribute: this.canContribute(actor, target) && !target.isArchived,
       canAssign: supervise && !target.isArchived,
       canTransfer: isAssignee && target.transferCount < maxTransfers && !target.isArchived,
@@ -215,7 +221,7 @@ export class DossierController {
   @Get(':id/dossier')
   async dossier(@Req() req: any, @Param('id') id: string) {
     const actor = getActor(req);
-    const base = await this.loadTarget(actor, id);
+    const base = await this.loadTarget(actor, id, true);
     const setting = await this.prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const target = await this.prisma.target.findUniqueOrThrow({
       where: { id: base.id },
@@ -274,7 +280,7 @@ export class DossierController {
       riskThreshold: threshold, hasReport: Boolean(target.lastReportedAt), kind: target.kind,
     });
     const reportedPeriods = new Set(target.updates.filter(update => update.reviewStatus !== ProgressReviewStatus.REJECTED && update.periodKey).map(update => update.periodKey!));
-    const periods = target.valueSource === ValueSource.MANUAL
+    const periods = target.kind !== 'TASK' && target.valueSource === ValueSource.MANUAL
       ? dueReportPeriods(target.frequency, target.year, target.reportDueDay, new Date(), target.createdAt).map(period => ({
           key: period.key, label: periodLabel(period.key), deadline: period.deadline, overdue: period.overdue, reported: reportedPeriods.has(period.key),
         }))
@@ -292,17 +298,18 @@ export class DossierController {
       orderBy: { fullName: 'asc' },
     });
     const { updates, ...rest } = target;
+    const reports = await attachLinkedReportEvidence(this.prisma, updates);
     return {
       ...rest,
       ...metric,
       currentPeriodKey: periodKeyFor(target.frequency),
       periods,
       completeness: {
-        directive: target.directives.length > 0,
+        directive: target.directives.length > 0 || (target.kind === 'TASK' && Boolean(target.frameworkId)),
         execution: Boolean(target.lastReportedAt),
         evaluation: target.evaluations.length > 0,
       },
-      reports: updates.map(update => ({
+      reports: reports.map(update => ({
         ...update,
         periodLabel: update.periodKey ? periodLabel(update.periodKey) : null,
         reviewerName: update.reviewedBy ? reviewerNames.get(update.reviewedBy) ?? null : null,
@@ -314,7 +321,7 @@ export class DossierController {
       managers,
       staff,
       maxTransfers: setting?.maxTransfers ?? 1,
-      permissions: this.permissions(actor, base, setting?.maxTransfers ?? 1),
+      permissions: { ...this.permissions(actor, base, setting?.maxTransfers ?? 1), canDispatch: isDispatcher(actor, setting) },
     };
   }
 
@@ -461,8 +468,8 @@ export class DossierController {
   @Get(':id/evidence/:evidenceId/download')
   async downloadEvidence(@Req() req: any, @Param('id') id: string, @Param('evidenceId') evidenceId: string, @Res() res: Response) {
     const actor = getActor(req);
-    const target = await this.loadTarget(actor, id);
-    const evidence = await this.prisma.evidence.findFirst({ where: { id: evidenceId, targetId: target.id, kind: EvidenceKind.FILE } });
+    const target = await this.loadTarget(actor, id, true);
+    const evidence = await this.prisma.evidence.findFirst({ where: { ...linkedEvidenceWhere(target.id, evidenceId), kind: EvidenceKind.FILE } });
     if (!evidence?.data || !evidence.mimeType) throw new NotFoundException('Không tìm thấy tệp minh chứng');
     const name = evidence.originalName ?? 'minh-chung';
     res.setHeader('Content-Type', evidence.mimeType);
@@ -499,7 +506,7 @@ export class DossierController {
       });
       await audit(tx, actor, { action: 'TARGET_ASSIGNED', entityType: 'Target', entityId: target.id, departmentId: target.departmentId, metadata: { code: target.code, username: assignee.username } });
       await notifyUsers(tx, [assignee.id], {
-        kind: 'ASSIGNED', title: `Bạn được giao phụ trách chỉ tiêu ${target.code}`, body: target.title,
+        kind: 'ASSIGNED', title: `Bạn được giao phụ trách chỉ tiêu ${target.title}`, body: target.title,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `assign:${target.id}:${Date.now()}`,
       }, actor.id);
       return tx.target.findUniqueOrThrow({ where: { id: target.id }, include: { assignee: { select: { id: true, fullName: true } } } });
@@ -535,7 +542,7 @@ export class DossierController {
       });
       const managers = await departmentManagerIds(tx, target.departmentId);
       await notifyUsers(tx, [receiver.id, ...managers], {
-        kind: 'TRANSFERRED', title: `${actor.fullName} chuyển chỉ tiêu ${target.code} cho ${receiver.fullName}`, body: dto.reason,
+        kind: 'TRANSFERRED', title: `${actor.fullName} chuyển chỉ tiêu ${target.title} cho ${receiver.fullName}`, body: dto.reason,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `transfer:${target.id}:${target.bounceCount + 1}`,
       }, actor.id);
       await this.escalateBounces(tx, target, target.bounceCount + 1, actor);
@@ -562,7 +569,7 @@ export class DossierController {
         note: `Trả lại trưởng phòng. Lý do: ${dto.reason}`, metadata: { bounceCount: target.bounceCount + 1 },
       });
       await notifyUsers(tx, managers, {
-        kind: 'RETURNED', title: `${actor.fullName} trả lại chỉ tiêu ${target.code} — cần phân công lại`, body: dto.reason,
+        kind: 'RETURNED', title: `${actor.fullName} trả lại chỉ tiêu ${target.title} — cần phân công lại`, body: dto.reason,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `return:${target.id}:${target.bounceCount + 1}`,
       }, actor.id);
       await this.escalateBounces(tx, target, target.bounceCount + 1, actor);
@@ -578,7 +585,7 @@ export class DossierController {
       note: `Chỉ tiêu đã bị chuyển/trả ${bounceCount} lần — báo lãnh đạo UBND`, metadata: { bounceCount },
     });
     await notifyUsers(tx, await leaderIds(tx), {
-      kind: 'ESCALATED', title: `Chỉ tiêu ${target.code} bị chuyển qua lại ${bounceCount} lần`,
+      kind: 'ESCALATED', title: `Chỉ tiêu ${target.title} bị chuyển qua lại ${bounceCount} lần`,
       body: `${target.title} — ${target.department.name}`, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
       dedupeKey: `bounce:${target.id}:${bounceCount}`,
     }, actor.id);
@@ -625,7 +632,7 @@ export class DossierController {
       await audit(tx, actor, { action: 'TARGET_EVALUATED', entityType: 'Target', entityId: target.id, departmentId: target.departmentId, metadata: { code: target.code, outcome: dto.result } });
       const recipients = [...await departmentManagerIds(tx, target.departmentId), target.assigneeId];
       await notifyUsers(tx, recipients, {
-        kind: 'EVALUATED', title: `Chỉ tiêu ${target.code} được đánh giá ${EVALUATION_LABELS[dto.result].toLowerCase()} (${periodLabel(dto.periodKey)})`,
+        kind: 'EVALUATED', title: `Chỉ tiêu ${target.title} được đánh giá ${EVALUATION_LABELS[dto.result].toLowerCase()} (${periodLabel(dto.periodKey)})`,
         body: dto.note ?? null, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `evaluate:${target.id}:${dto.periodKey}:${evaluation.version}`,
       }, actor.id);
@@ -655,7 +662,7 @@ export class DossierController {
       });
       await audit(tx, actor, { action: 'TARGET_EXPLANATION_REQUESTED', entityType: 'Target', entityId: target.id, departmentId: target.departmentId, metadata: { code: target.code } });
       await notifyUsers(tx, [...managers, target.assigneeId], {
-        kind: 'EXPLANATION_REQUESTED', title: `${actor.position || 'Lãnh đạo'} ${actor.fullName} yêu cầu giải trình chỉ tiêu ${target.code}`,
+        kind: 'EXPLANATION_REQUESTED', title: `${actor.position || 'Lãnh đạo'} ${actor.fullName} yêu cầu giải trình chỉ tiêu ${target.title}`,
         body: `${dto.message} (hạn ${days} ngày)`, link: targetLink(target.id), entityType: 'Target', entityId: target.id,
         dedupeKey: `explain:${request.id}`,
       }, actor.id);
@@ -682,7 +689,7 @@ export class DossierController {
       if (changed.count !== 1) throw new ConflictException('Yêu cầu giải trình đã được trả lời hoặc vừa thay đổi');
       await recordWorkEvent(tx, { action: 'EXPLANATION_ANSWERED', actor, targetId: target.id, departmentId: target.departmentId, note: dto.response });
       await notifyUsers(tx, [request.requestedById], {
-        kind: 'EXPLANATION_ANSWERED', title: `${actor.fullName} đã giải trình chỉ tiêu ${target.code}`, body: dto.response.slice(0, 300),
+        kind: 'EXPLANATION_ANSWERED', title: `${actor.fullName} đã giải trình chỉ tiêu ${target.title}`, body: dto.response.slice(0, 300),
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `explain-answer:${request.id}`,
       }, actor.id);
       return tx.explanationRequest.findUniqueOrThrow({ where: { id: request.id } });
@@ -731,7 +738,7 @@ export class DossierController {
     const recipients = target.assigneeId ? [target.assigneeId] : await departmentManagerIds(this.prisma, target.departmentId);
     const sent = await this.prisma.$transaction(async tx => {
       const count = await notifyUsers(tx, recipients, {
-        kind: 'REMINDER', title: `Nhắc cập nhật số liệu chỉ tiêu ${target.code}`, body: `${actor.fullName} nhắc: ${target.title}`,
+        kind: 'REMINDER', title: `Nhắc cập nhật số liệu chỉ tiêu ${target.title}`, body: `${actor.fullName} nhắc: ${target.title}`,
         link: targetLink(target.id), entityType: 'Target', entityId: target.id, dedupeKey: `remind:${target.id}:${vietnamDayKey()}`,
       }, actor.id);
       if (count) await recordWorkEvent(tx, { action: 'REMINDER', actor, targetId: target.id, departmentId: target.departmentId, responsibleUserId: recipients[0] ?? null, note: 'Nhắc cập nhật số liệu' });

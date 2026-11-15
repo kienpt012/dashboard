@@ -6,6 +6,7 @@ import { ThemeProvider } from './app/theme';
 import { ApiError, session } from './lib/api';
 import './lib/format';
 import './styles/global.css';
+import './styles/refinements.css';
 import './styles/print.css';
 
 const client = new QueryClient({

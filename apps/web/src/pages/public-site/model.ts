@@ -28,6 +28,7 @@ export const MIN_H: Record<PublicDashboardWidgetType, Record<PublicDashboardBrea
   departmentProgress: { desktop: 5, tablet: 4, mobile: 5 },
   feedbackList: { desktop: 4, tablet: 4, mobile: 5 },
   documentList: { desktop: 4, tablet: 4, mobile: 5 },
+  leaderSchedule: { desktop: 5, tablet: 5, mobile: 6 },
   richText: { desktop: 2, tablet: 2, mobile: 2 },
   customHtml: { desktop: 2, tablet: 2, mobile: 2 },
   cta: { desktop: 2, tablet: 2, mobile: 3 },
@@ -41,6 +42,7 @@ export const WIDGETS: Record<PublicDashboardWidgetType, { label: string; title: 
   departmentProgress: { label: 'Tiến độ theo đơn vị', title: 'Tiến độ theo đơn vị', size: { desktop: [4, 8], tablet: [8, 6], mobile: [4, 8] }, minW: 3 },
   feedbackList: { label: 'Kết quả phản ánh', title: 'Kết quả phản ánh đã xử lý', size: { desktop: [6, 6], tablet: [4, 7], mobile: [4, 9] }, minW: 4 },
   documentList: { label: 'Văn bản công khai', title: 'Văn bản mới công bố', size: { desktop: [6, 6], tablet: [4, 7], mobile: [4, 9] }, minW: 4 },
+  leaderSchedule: { label: 'Lịch làm việc của lãnh đạo', title: 'Lịch làm việc của lãnh đạo', size: { desktop: [6, 8], tablet: [8, 8], mobile: [4, 11] }, minW: 4 },
   richText: { label: 'Đoạn văn bản', title: 'Thông tin', size: { desktop: [12, 3], tablet: [8, 4], mobile: [4, 6] }, minW: 3 },
   customHtml: { label: 'Khối HTML', title: 'Nội dung tùy biến', size: { desktop: [6, 4], tablet: [8, 4], mobile: [4, 5] }, minW: 2 },
   cta: { label: 'Nút điều hướng', title: 'Kênh phục vụ người dân', size: { desktop: [12, 3], tablet: [8, 3], mobile: [4, 5] }, minW: 4 },
@@ -100,6 +102,8 @@ export function defaultSettings(type: PublicDashboardWidgetType): PublicDashboar
       return { maxItems: 4 };
     case 'documentList':
       return { maxItems: 6, publicationIds: [] };
+    case 'leaderSchedule':
+      return { maxItems: 8 };
     case 'richText':
       return { body: 'Nội dung giới thiệu.' };
     case 'customHtml':

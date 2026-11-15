@@ -113,3 +113,17 @@ lưu trước vào thư mục `backups`). Dữ liệu thật của địa phươ
 | Phiên bản công khai | Mỗi lần công bố trang công khai được lưu thành một phiên bản, khôi phục được |
 | Mã màn hình | Mã như `DH-01`, `CT-06` hiện ở dải định danh cuối trang khu vực quản trị, dùng khi báo lỗi và tra tài liệu; mã CC- của cổng công khai chỉ dùng trong tài liệu |
 | Jarvis | Trợ lý điều hành trả lời câu hỏi về số liệu bằng chữ hoặc giọng nói |
+| Bàn làm việc | Màn hình riêng của mỗi cán bộ sau khi đăng nhập: việc hôm nay và ngày mai, nhắc việc, giấy note, ứng dụng công vụ, tiện ích (DH-00) |
+| Giấy note | Lời nhắn ngắn người này dán lên bàn làm việc của người khác; chỉ người gửi và người nhận đọc được |
+| Nhắc việc (note hệ thống) | Giấy nhắc hệ thống tự tạo từ hạn báo cáo, tình trạng chỉ tiêu, nhiệm vụ; tự mất khi việc đã xử lý |
+| Ứng dụng công vụ | Phần mềm, trang web công vụ được quản trị viên khai báo để mở nhanh từ bàn làm việc (HT-08) |
+| Văn bản chỉ đạo | Chương trình công tác, thông báo kết luận, kế hoạch, công văn, quyết định có giao việc; được phân rã thành nhiệm vụ (DH-05) |
+| Nhiệm vụ | Việc cụ thể giao cho một phòng theo văn bản chỉ đạo, có hạn hoàn thành; hoàn thành khi báo cáo kết quả 100 % được duyệt |
+| Người phân việc | Người giao nhiệm vụ từ văn bản chỉ đạo cho các phòng: Lãnh đạo UBND hoặc Chánh Văn phòng, theo thiết lập ở HT-04 |
+| Văn bản giao | Số ký hiệu văn bản giao chỉ tiêu, hiện dưới tên chỉ tiêu cùng số thứ tự và cấp giao, thay cho mã hệ thống |
+| Liên kết chỉ tiêu | Nối các chỉ tiêu cùng nội dung do nhiều văn bản giao; báo cáo một lần, mỗi văn bản giữ mức giao riêng |
+| Mức giao theo văn bản | Bảng trong hồ sơ chỉ tiêu liệt kê mức giao và kết quả theo từng văn bản của các chỉ tiêu đã liên kết |
+| Xem liên phòng | Quyền chỉ xem chỉ tiêu, nhiệm vụ của phòng khác; chọn bằng công tắc `Phòng tôi` / `Toàn địa phương` |
+| Yêu cầu cập nhật lại | Đề nghị người phụ trách gửi lại số liệu của một kỳ đã duyệt; số cũ giữ hiệu lực tới khi bản thay thế được duyệt |
+| Dự báo | Ước tính khả năng chỉ tiêu không đạt mức giao khi hết hạn và giá trị cuối kỳ, tính từ số liệu các kỳ đã báo cáo (CT-06, HT-09) |
+| Lịch làm việc | Lịch theo tuần của lãnh đạo UBND, lập ở DH-08 và công khai cho người dân ở CC-06 |

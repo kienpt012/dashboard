@@ -18,7 +18,7 @@ export const frameworkKindLabels:Record<FrameworkKind,string>={
 export const issuingLevelLabels:Record<IssuingLevel,string>={
   CENTRAL:'Trung ương giao',
   PROVINCE:'Tỉnh/Thành phố giao',
-  LOCAL:'Địa phương tự đặt',
+  LOCAL:'Phường giao',
 };
 
 export const frequencyLabels:Record<Frequency,string>={
@@ -98,6 +98,7 @@ export type FrameworkTemplate={
 };
 
 export type TargetBrief={
+  docRef?:string|null;
   id:string;
   code:string;
   title:string;
@@ -126,6 +127,7 @@ export type TargetBrief={
 };
 
 export type AlertItem={
+  targetKind?:FrameworkKind;
   severity:'critical'|'warning'|'info';
   kind:string;
   title:string;
@@ -137,6 +139,7 @@ export type AlertItem={
 };
 
 export type OverviewDepartment={
+  tasks:{total:number;completed:number;overdue:number;dueSoon:number};
   id:string;
   name:string;
   color:string;
@@ -218,6 +221,10 @@ export type Directive={
 };
 
 export type Report={
+  revisionRequestedAt?:string|null;
+  revisionRequestedBy?:string|null;
+  revisionReason?:string|null;
+  revisionResolvedAt?:string|null;
   id:string;
   value:number;
   valueText?:string|null;
@@ -264,6 +271,8 @@ export type ExplanationRequest={
 };
 
 export type DossierPermissions={
+  readOnly?:boolean;
+  canRequestRevision?:boolean;
   canReport:boolean;
   canContribute:boolean;
   canAssign:boolean;
@@ -337,13 +346,14 @@ export type Dossier={
 };
 
 export type MyWork={
+  revisionRequests?:{id:string;periodKey:string|null;periodLabel:string|null;reason:string;requestedAt:string;target:{id:string;title:string;code:string}}[];
   year:number;
   generatedAt:string;
   counts:{needReport:number;rejectedReports:number;toReview:number;proposals:number;explanations:number;unassigned:number;unread:number};
   needReport:(TargetBrief&{currentPeriod:string;currentPeriodKey?:string;missingPeriods:string[];missingPeriodKeys?:string[];pendingReport:boolean})[];
   rejectedReports:{id:string;value:number;reviewNote?:string|null;reviewedAt?:string|null;target:{id:string;code:string;title:string}}[];
   toReview:{id:string;createdAt:string;days:number;target:TargetBrief}[];
-  proposals:{id:string;name:string;status:string;origin:'AI'|'HUMAN';autoApproveAt?:string|null;submittedAt?:string|null;createdAt:string;responsibleDepartment?:{name:string}|null;document?:{code:string;title:string}|null}[];
+  proposals:{id:string;name:string;status:string;origin:'AI'|'HUMAN';autoApproveAt?:string|null;submittedAt?:string|null;createdAt:string;responsibleDepartment?:{name:string}|null;document?:{code:string;title:string;docNumber?:string|null}|null}[];
   explanations:(TargetBrief&{request:{id:string;dueAt:string;message:string}})[];
   unassigned:TargetBrief[];
   myTargets:TargetBrief[];

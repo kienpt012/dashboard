@@ -106,7 +106,7 @@ test('R20: lịch sử và audit chỉ chứa đúng chỉ tiêu trong bộ ho�
   for (const [frameworkId, expected] of [[framework.id, selected], ['none', outside]] as const) {
     const { calls, exportReport } = fixture(rows);
     const { workbook } = await exportReport(admin, undefined, frameworkId);
-    assert.deepEqual(calls.target.where, { year: 2026, isArchived: false, frameworkId: frameworkId === 'none' ? null : frameworkId });
+    assert.deepEqual(calls.target.where, { year: 2026, isArchived: false, kind: { not: 'TASK' }, frameworkId: frameworkId === 'none' ? null : frameworkId });
     assert.deepEqual(calls.history.where, { targetId: { in: [expected.id] } });
     assert.equal(workbook.getWorksheet('CHI_TIET')!.rowCount, 2);
     assert.equal(workbook.getWorksheet('CHI_TIET')!.getCell('B2').value, expected.code);

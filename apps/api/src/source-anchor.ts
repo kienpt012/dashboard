@@ -19,7 +19,7 @@ import { DocumentStatus, Prisma } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { createHash } from 'node:crypto';
-import { audit, canSuperviseDepartment, getActor, isGlobalRole, resolveDepartmentScope, type Actor } from './access';
+import { audit, canSuperviseDepartment, getActor, isGlobalRole, resolveDepartmentScope, resolveReadDepartmentScope, type Actor } from './access';
 import { JwtAuthGuard } from './common';
 import { openPdf } from './document-processing';
 import { loadLocality } from './locality';
@@ -153,8 +153,8 @@ export class SourceLocatorService {
     return locality.configured ? locality.shortName?.trim() || locality.name : undefined;
   }
 
-  private async loadTarget(actor: Actor, id: string) {
-    const departmentId = resolveDepartmentScope(actor);
+  private async loadTarget(actor: Actor, id: string, readOnly = false) {
+    const departmentId = readOnly ? await resolveReadDepartmentScope(this.prisma, actor, undefined, 'all') : resolveDepartmentScope(actor);
     const target = await this.prisma.target.findFirst({
       where: { id, ...(departmentId ? { OR: [{ departmentId }, { coordinators: { some: { departmentId } } }] } : {}) },
       select: {
@@ -189,7 +189,7 @@ export class SourceLocatorService {
 
   /** Văn bản nguồn của chỉ tiêu và vị trí chỉ tiêu trong văn bản đó (tự định vị khi chưa có hoặc đã cũ). */
   async targetSource(actor: Actor, id: string): Promise<TargetSourceView> {
-    const target = await this.loadTarget(actor, id);
+    const target = await this.loadTarget(actor, id, true);
     const candidate = target.sourceCandidate;
     const documentId =
       target.sourceAnchor?.manual ? target.sourceAnchor.documentId

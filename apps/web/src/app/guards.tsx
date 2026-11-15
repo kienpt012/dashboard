@@ -55,7 +55,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function RequireRole({ roles, children }: { roles: readonly Role[]; children: ReactNode }) {
   const user = useUser();
   if (!can(user, roles)) {
-    return <Result status="403" title="Không có quyền truy cập" subTitle="Tài khoản của bạn không được phân quyền cho màn hình này." extra={<Button href="/admin">Về trung tâm điều hành</Button>} />;
+    return <Result status="403" title="Không có quyền truy cập" subTitle="Tài khoản của bạn không được phân quyền cho màn hình này." extra={<Button href="/admin">Về bàn làm việc</Button>} />;
   }
   return <>{children}</>;
 }
