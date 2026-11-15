@@ -90,7 +90,10 @@ export function hasTargetFigure(text: string, strict = false): boolean {
 
 export type SectionKind = 'target' | 'task' | 'other';
 
-const TARGET_HEADING = /chỉ\s+tiêu|mục\s+tiêu|kết\s+quả\s+(?:cần|phải)\s+đạt/iu;
+// Đề mục của phần chỉ tiêu gọi tên "chỉ tiêu", "mục tiêu" ngay đầu ("Điều 3. Chỉ tiêu…", "a) Chỉ tiêu về kinh tế", "Phụ lục 1:
+// Các chỉ tiêu chủ yếu"). Chữ đó nằm sâu trong câu ("1. Huy động… các nguồn lực bảo đảm mục tiêu tăng trưởng", "Nhiệm vụ,
+// giải pháp chủ yếu để thực hiện các chỉ tiêu") thì đề mục nói về việc khác, không tính.
+const TARGET_HEADING = /^\s*(?:\S+\s+){0,6}?[^\p{L}\s]*(?:chỉ\s+tiêu|mục\s+tiêu|kết\s+quả\s+(?:cần|phải)\s+đạt)/iu;
 const TASK_HEADING = /nhiệm\s+vụ|giải\s+pháp|tổ\s+chức\s+thực\s+hiện|phân\s+công|trách\s+nhiệm|biện\s+pháp|tiến\s+độ|kinh\s+phí|điều\s+khoản\s+thi\s+hành|chế\s+độ\s+(?:thông\s+tin|báo\s+cáo)/iu;
 
 /** Phần của văn bản theo đề mục gần nhất có nghĩa: phần chỉ tiêu, phần nhiệm vụ/giải pháp, hay phần khác. */

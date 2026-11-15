@@ -39,6 +39,13 @@ test('phần của văn bản theo đề mục gần nhất', () => {
   assert.equal(sectionKind(['II. NHIỆM VỤ, GIẢI PHÁP', '1. Mục tiêu cụ thể']), 'target');
   assert.equal(sectionKind(['III. TỔ CHỨC THỰC HIỆN']), 'task');
   assert.equal(sectionKind(['Phần mở đầu']), 'other');
+  // Đề mục con của phần nhiệm vụ có chữ "mục tiêu" nằm sâu trong câu: vẫn là phần nhiệm vụ.
+  assert.equal(sectionKind(['ỦY BAN NHÂN DÂN THÀNH PHỐ HỒ CHÍ MINH', 'Điều 4. Một số nhiệm vụ, giải pháp chủ yếu',
+    '1. Huy động và sử dụng hiệu quả các nguồn lực bảo đảm mục tiêu tăng trưởng nền kinh tế của Thành phố', '1.1. Thu, chi ngân sách:']), 'task');
+  assert.equal(sectionKind(['Điều 4. Nhiệm vụ, giải pháp chủ yếu để thực hiện các chỉ tiêu']), 'task');
+  assert.equal(sectionKind(['ỦY BAN NHÂN DÂN THÀNH PHỐ HỒ CHÍ MINH', 'Điều 3. Chỉ tiêu phát triển kinh tế - xã hội', '1. Chỉ tiêu phát triển kinh tế - xã hội', 'a) Chỉ tiêu về kinh tế']), 'target');
+  assert.equal(sectionKind(['PHỤ LỤC 1: CÁC CHỈ TIÊU CHỦ YẾU NĂM 2026']), 'target');
+  assert.equal(sectionKind(['Điều 3. Một số chỉ tiêu chủ yếu']), 'target');
 });
 
 test('kiểm tra đủ mục không báo mục giao việc trong phần nhiệm vụ', () => {

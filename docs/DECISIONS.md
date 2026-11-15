@@ -353,3 +353,12 @@ Mỗi quyết định: bối cảnh → phương án đã cân nhắc → lựa 
   dừng, không ghi đè đề xuất cũ, báo "Máy không đủ RAM để nạp model…". Đoạn đã đọc xong vẫn nằm trong bộ nhớ theo đoạn
   nên lượt chạy lại không mất công.
 - **Chưa làm**: lỗi khác của Qwen ở mọi đoạn (hết giờ, 500 khác) vẫn dùng bộ luật như cũ và chỉ ghi chú.
+
+## D-029 · 2026-11-16 · Đề mục phần chỉ tiêu phải gọi tên "chỉ tiêu", "mục tiêu" ở đầu đề mục
+
+- **Bối cảnh**: luật bỏ dòng nhắc lại (D-027) không có tác dụng trên VB-2026-0009…0011. Đoạn nhắc lại nằm dưới "Điều 4. Một
+  số nhiệm vụ, giải pháp chủ yếu > 1. Huy động… bảo đảm mục tiêu tăng trưởng… > 1.1. Thu, chi ngân sách"; chữ "mục tiêu" nằm
+  sâu trong đề mục con làm `sectionKind` xếp cả đoạn vào phần chỉ tiêu, nên hai dòng bị coi là cùng phần.
+- **Chọn**: chỉ coi là đề mục phần chỉ tiêu khi "chỉ tiêu", "mục tiêu", "kết quả cần đạt" đứng trong 6 từ đầu của đề mục.
+  Ảnh hưởng cả ba chỗ dùng `sectionKind`: lọc đoạn chặt ở phần nhiệm vụ, cờ "có thể là nhiệm vụ", và luật bỏ dòng nhắc lại.
+- **Rủi ro**: đề mục phần chỉ tiêu viết dài ("2. Về kinh tế - xã hội, phấn đấu đạt các chỉ tiêu sau") giờ theo đề mục cha.

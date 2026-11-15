@@ -1404,7 +1404,7 @@ test('Worker: chỉ tiêu nhắc lại ở phần nhiệm vụ không thành dò
     documentChunk: {
       findMany: async () => [
         { id: 'c0', chunkIndex: 0, pageFrom: 2, pageTo: 2, text: targets, kind: 'section', hasDigits: true, headingPath: ['Điều 3. Chỉ tiêu phát triển kinh tế - xã hội', 'a) Chỉ tiêu về kinh tế'], elementIds: [], leadSentence: null },
-        { id: 'c1', chunkIndex: 1, pageFrom: 4, pageTo: 4, text: tasks, kind: 'section', hasDigits: true, headingPath: ['Điều 4. Nhiệm vụ, giải pháp chủ yếu', '1.5. Cải cách hành chính, cải thiện môi trường đầu tư'], elementIds: [], leadSentence: null },
+        { id: 'c1', chunkIndex: 1, pageFrom: 4, pageTo: 4, text: tasks, kind: 'section', hasDigits: true, headingPath: ['Điều 4. Một số nhiệm vụ, giải pháp chủ yếu', '1. Huy động và sử dụng hiệu quả các nguồn lực bảo đảm mục tiêu tăng trưởng nền kinh tế của Thành phố', '1.1. Thu, chi ngân sách:'], elementIds: [], leadSentence: null },
       ],
     },
     documentPage: { findMany: async () => [] },
